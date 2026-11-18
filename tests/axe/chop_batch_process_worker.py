@@ -113,6 +113,10 @@ def _fake_launcher(prompt: str, *, extra_env: dict[str, str], **kwargs: Any) -> 
     # the original run, and the fake records it exactly as launch_spawn
     # would, at spawn time, before acknowledgement.
     from sase.axe.chop_agents import (
+        ENV_CHOP_LUMBERJACK,
+        ENV_CHOP_NAME,
+        ENV_CHOP_PROPOSAL_INDEX,
+        ENV_CHOP_RUN_ID,
         extract_chop_launch_env,
         record_chop_agent_launch_from_env,
     )
@@ -120,14 +124,35 @@ def _fake_launcher(prompt: str, *, extra_env: dict[str, str], **kwargs: Any) -> 
     linkage = extract_chop_launch_env(extra_env)
     if linkage is None:
         raise AssertionError("replayed launch lacks chop linkage env")
-    from sase.axe.chop_agents import ENV_CHOP_PROPOSAL_INDEX
 
     index = int(linkage[ENV_CHOP_PROPOSAL_INDEX])
-    name = names[index]
+    # Spawn the batch member identity the planner namespaced (a clan member
+    # launches as clan-qualified, exactly as the real launcher resolves from
+    # the prompt directives), never the raw proposal name.
+    from sase.axe import chop_batch_store
+
+    manifest = chop_batch_store.load_chop_batch(
+        linkage[ENV_CHOP_LUMBERJACK],
+        linkage[ENV_CHOP_NAME],
+        linkage[ENV_CHOP_RUN_ID],
+    )
+    member_name = names[index]
+    for member in manifest.get("members") or []:
+        if not isinstance(member, dict):
+            continue
+        source_index = member.get("source_index")
+        if (
+            isinstance(source_index, int)
+            and not isinstance(source_index, bool)
+            and source_index == index
+        ):
+            member_name = str(member.get("agent_name") or member_name)
+            break
+    name = member_name
     planned_name = str(extra_env.get("SASE_AGENT_PLANNED_NAME") or "")
-    if planned_name and planned_name != name:
+    if planned_name and planned_name != names[index]:
         raise AssertionError(
-            f"launcher changed the accepted agent name: {planned_name!r} != {name!r}"
+            f"launcher changed the accepted agent name: {planned_name!r} != {names[index]!r}"
         )
 
     request = SimpleNamespace(extra_env=extra_env)
@@ -276,6 +301,10 @@ def _typed_start(config: dict[str, Any], routine: Any) -> int:
                     ),
                     "workspace": "git:sase",
                     "agent_name": name,
+                    # Production clan batches carry the clan on the proposal;
+                    # the batch manifest records it on every member so clan
+                    # cancellation can match the batch.
+                    "clan": config["clan"],
                 }
                 for index, name in enumerate(config["names"])
             ]
@@ -316,8 +345,11 @@ def _typed_start(config: dict[str, Any], routine: Any) -> int:
         if config.get("wait_start"):
             _wait_for_release(config, "ready")
 
+    launched_rows: list[dict[str, Any]] = []
+
     def _launch_recorded(row: dict[str, Any]) -> None:
         _signal_event(config, f"typed-outer-{row['index']}", str(row["agent_name"]))
+        launched_rows.append(dict(row))
 
     with (
         patch(
@@ -346,6 +378,17 @@ def _typed_start(config: dict[str, Any], routine: Any) -> int:
             launch_recorded_fn=_launch_recorded,
             pause_requested_fn=routine._stop_signal.as_pause_fn(),
         )
+    # Production first runs finalize the launches they performed into the
+    # original run's history; replay merges the rest on recovery. The merge
+    # dedupes on (index, name, pid), so a later recovery cannot double-count
+    # these rows.
+    from sase.axe._chop_batch_recovery_resume_ordinary import (
+        merge_resumed_launches_into_run,
+    )
+
+    merge_resumed_launches_into_run(
+        config["routine"], config["job"], result.batch_id, launched_rows
+    )
     _signal_event(
         config,
         "finished",

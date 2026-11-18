@@ -130,7 +130,10 @@ def _write_config(root: Path, config: dict[str, Any]) -> Path:
     return path
 
 
-def _create_ordinary_batch(config: dict[str, Any]) -> None:
+def _create_ordinary_batch(
+    config: dict[str, Any],
+    clans: list[str] | None = None,
+) -> None:
     from sase.axe.chop_batch_store import create_chop_batch
     from sase.axe.state import ChopRunEntry, start_chop_run
     from sase.core.axe_chop_facade import CHOP_BATCH_SCHEMA_VERSION
@@ -146,6 +149,7 @@ def _create_ordinary_batch(config: dict[str, Any]) -> None:
             status="running",
         )
     )
+    clan_names = clans or [config["clan"]]
     members = [
         {
             "source_index": index,
@@ -153,7 +157,7 @@ def _create_ordinary_batch(config: dict[str, Any]) -> None:
             "agent_name": name,
             "prompt": f"%id:{name}\nReview disposable input {index}.",
             "workspace": "git:sase",
-            "clan": config["clan"],
+            "clan": clan_names[index % len(clan_names)],
             "clan_generation": config["generation"],
         }
         for index, name in enumerate(config["names"])
@@ -222,6 +226,67 @@ def _assert_run_linkage(config: dict[str, Any], expected: int) -> None:
         )
 
 
+def _assert_run_history(config: dict[str, Any], expected: int) -> None:
+    """Prove the original run's history lists every launch exactly once."""
+    from sase.axe.state import read_chop_run
+
+    entry = read_chop_run(config["routine"], config["job"], config["run_id"])
+    launches = list(entry.launches) if entry is not None else []
+    keys = [
+        (launch.get("index"), str(launch.get("agent_name")), launch.get("pid"))
+        for launch in launches
+        if isinstance(launch, dict)
+    ]
+    if len(keys) != expected or len(set(keys)) != expected:
+        raise AssertionError(
+            f"expected {expected} distinct run-history launches; saw {keys!r}"
+        )
+
+
+def _archived_notice_episodes(config: dict[str, Any]) -> dict[str, Any]:
+    """Return the retired batch's durable notice episodes from run history."""
+    import json
+
+    from sase.axe import chop_batch_store
+
+    notices_path = chop_batch_store._archived_chop_batch_path(
+        config["routine"], config["job"], config["run_id"]
+    ).with_name(f"{config['run_id']}{chop_batch_store.CHOP_BATCH_NOTICES_SUFFIX}")
+    try:
+        payload = json.loads(notices_path.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    episodes = payload.get("episodes")
+    return episodes if isinstance(episodes, dict) else {}
+
+
+def _member_names(config: dict[str, Any]) -> list[str]:
+    """Return batch member identities in proposal order (planner-namespaced)."""
+    from sase.axe import chop_batch_store
+
+    manifest = chop_batch_store.load_chop_batch(
+        config["routine"], config["job"], config["run_id"]
+    )
+    members = [
+        member for member in (manifest.get("members") or []) if isinstance(member, dict)
+    ]
+    members.sort(key=lambda member: member.get("source_index"))
+    return [str(member.get("agent_name")) for member in members]
+
+
+def _notification_events(tags: set[str]) -> list[str]:
+    from sase.notifications.store import load_notifications
+
+    return [
+        tag
+        for notification in load_notifications()
+        for tag in notification.tags
+        if tag in tags
+    ]
+
+
 def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
     """Run one disposable subprocess acceptance scenario and return evidence."""
     root = root.resolve()
@@ -261,6 +326,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         first_restart = _restart(config_path, config)
         rows = _assert_receipts(config, n)
         _assert_run_linkage(config, n)
+        _assert_run_history(config, n)
         second_restart = _restart(config_path, config)
         if len(_read_receipts(Path(config["receipt_file"]))) != n:
             raise AssertionError("second restart launched a duplicate member")
@@ -302,6 +368,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         _restart(config_path, config)
         rows = _assert_receipts(config, n)
         _assert_run_linkage(config, n)
+        _assert_run_history(config, n)
         _restart(config_path, config)
         return {
             "scenario": scenario,
@@ -355,6 +422,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         _restart(config_path, config)
         rows = _assert_receipts(config, n)
         _assert_run_linkage(config, n)
+        _assert_run_history(config, n)
         _restart(config_path, config)
         notifications_after = load_notifications()
         events = [
@@ -405,13 +473,20 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         first_restart = _restart(config_path, config)
         rows = _assert_receipts(config, n)
         _assert_run_linkage(config, n)
+        _assert_run_history(config, n)
+        member_names = _member_names(config)
+        if [row["agent_name"] for row in rows] != member_names:
+            raise AssertionError(
+                "typed receipts do not match batch member identities: "
+                f"{[row['agent_name'] for row in rows]!r} != {member_names!r}"
+            )
         second_restart = _restart(config_path, config)
         return {
             "scenario": scenario,
             "total": n,
             "k": launched_before_restart,
             "remaining": n - launched_before_restart,
-            "original_names": config["names"],
+            "original_names": member_names,
             "receipt_names": [row["agent_name"] for row in rows],
             "first_restart": first_restart["returncode"],
             "second_restart": second_restart["returncode"],
@@ -460,6 +535,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
                 )
         receipt_file = Path(config["receipt_file"])
         before_cleanup = len(_read_receipts(receipt_file))
+        _assert_run_history(config, 1)
         receipt_file.unlink(missing_ok=True)
         _restart(config_path, config)
         batch = chop_batch_store.load_chop_batch(
@@ -489,6 +565,428 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
             "log_tail": read_chop_run_log_tail(
                 config["routine"], config["job"], run_id, lines=20
             ),
+        }
+
+    if scenario == "race":
+        # A routine tick and a manual run race to recover one interrupted
+        # batch. Batch ownership lets exactly one executor dispatch: the loser
+        # reports a live owner, launches nothing, and emits no notice.
+        run_id = scenario
+        base = _config(root, n=n, run_id=run_id, hold_mode="after_ack", hold_index=0)
+        _create_ordinary_batch(base)
+        initial = _spawn_worker(_write_config(root, base), "ordinary")
+        _wait_event(base, "ack-0", initial)
+        _kill_worker(initial, signal.SIGKILL)
+        config_a = _config(
+            root / "tick",
+            n=n,
+            run_id=run_id,
+            hold_mode="after_spawn",
+            hold_index=1,
+        )
+        config_b = _config(root / "manual", n=n, run_id=run_id)
+        for forked in (config_a, config_b):
+            forked["receipt_file"] = base["receipt_file"]
+            forked["workspace"] = base["workspace"]
+        path_a = _write_config(root / "tick", config_a)
+        path_b = _write_config(root / "manual", config_b)
+        worker_a = _spawn_worker(path_a, "recover")
+        _wait_event(config_a, "spawned-1", worker_a)
+        worker_b = _spawn_worker(path_b, "recover")
+        raw_b = _wait_event(config_b, "finished")
+        code_b, _, stderr_b = _wait_worker(worker_b)
+        if code_b != 0:
+            raise AssertionError(f"racing manual run crashed: {stderr_b}")
+        blocked = [
+            item
+            for item in json.loads(raw_b)
+            if item.get("kind") == "blocked"
+            and "live owner" in str(item.get("reason") or "")
+        ]
+        if not blocked:
+            raise AssertionError("racing run was not held off by the live owner")
+        if len(_read_receipts(Path(base["receipt_file"]))) != 2:
+            raise AssertionError("racing run dispatched while the owner was live")
+        _signal_event(config_a, "release-spawned-1")
+        code_a, _, stderr_a = _wait_worker(worker_a)
+        if code_a != 0:
+            raise AssertionError(f"owning recovery failed: {stderr_a}")
+        rows = _assert_receipts(base, n)
+        _assert_run_linkage(base, n)
+        _assert_run_history(base, n)
+        _restart(path_a, config_a)
+        if len(_read_receipts(Path(base["receipt_file"]))) != n:
+            raise AssertionError("second restart launched a duplicate member")
+        events = _notification_events({"interrupted", "resumed"})
+        if events.count("interrupted") != 1 or events.count("resumed") != 1:
+            raise AssertionError(
+                f"race produced duplicate or missing episode notices: {events!r}"
+            )
+        return {
+            "scenario": scenario,
+            "total": n,
+            "run_identity": run_id,
+            "clan_identity": base["clan"],
+            "termination": "SIGKILL after first acknowledgement, then racing recoveries",
+            "loser_kind": "blocked",
+            "receipt_names": [row["agent_name"] for row in rows],
+            "original_names": base["names"],
+            "notification_events": events,
+            "second_restart_new_launches": 0,
+        }
+
+    if scenario == "cancel-during-recovery":
+        # A clan kill lands while recovery dispatch is in flight. The
+        # crossing member settles as launched evidence, later members never
+        # start, and a restart launches nothing.
+        run_id = scenario
+        config = _config(
+            root, n=n, run_id=run_id, hold_mode="after_spawn", hold_index=1
+        )
+        config_path = _write_config(root, config)
+        _create_ordinary_batch(config)
+        worker = _spawn_worker(config_path, "recover")
+        _wait_event(config, "spawned-1", worker)
+        cancelled = cancel_chop_batches_for_clan(
+            config["clan"],
+            generation=config["generation"],
+            reason="disposable acceptance recovery-active clan kill",
+            routine=config["routine"],
+            job=config["job"],
+        )
+        if len(cancelled) != 1:
+            raise AssertionError(f"expected one cancelled batch, got {cancelled!r}")
+        _signal_event(config, "release-spawned-1")
+        code, stdout, stderr = _wait_worker(worker)
+        if code != 0:
+            raise AssertionError(
+                f"recovery-active cancellation failed: {stderr}{stdout}"
+            )
+        batch = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        if batch["status"] != "cancelled":
+            raise AssertionError(
+                f"recovery-active kill did not cancel the batch: {batch['status']}"
+            )
+        rows = _read_receipts(Path(config["receipt_file"]))
+        if len(rows) != 2:
+            raise AssertionError(
+                "crossing member did not settle exactly once: "
+                f"{[row['agent_name'] for row in rows]!r}"
+            )
+        _assert_run_history(config, 2)
+        _restart(config_path, config)
+        if len(_read_receipts(Path(config["receipt_file"]))) != 2:
+            raise AssertionError("cancelled batch revived a member on restart")
+        events = _notification_events({"cancelled"})
+        if "cancelled" not in events:
+            raise AssertionError("recovery-active kill emitted no cancelled notice")
+        return {
+            "scenario": scenario,
+            "run_identity": run_id,
+            "clan_identity": config["clan"],
+            "termination": "clan kill while recovery dispatch was in flight",
+            "retained_status": batch["status"],
+            "settled_launches": len(rows),
+            "notification_events": events,
+            "second_restart_new_launches": 0,
+        }
+
+    if scenario == "multi-clan":
+        # One batch spans two clans. Killing either clan cancels the whole
+        # batch; an unrelated clan and a stale generation leave it alone.
+        run_id = scenario
+        clans = [f"clan-{run_id}-a", f"clan-{run_id}-b"]
+        config = _config(root, n=n, run_id=run_id)
+        config_path = _write_config(root, config)
+        _create_ordinary_batch(config, clans=clans)
+        from sase.axe._chop_batch_recovery_shared import batch_clans
+
+        manifest = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        if not frozenset(clans) <= batch_clans(manifest):
+            raise AssertionError(
+                f"batch does not span both clans: {batch_clans(manifest)!r}"
+            )
+        kill_kwargs: dict[str, Any] = {
+            "reason": "disposable acceptance multi-clan kill",
+            "routine": config["routine"],
+            "job": config["job"],
+        }
+        if cancel_chop_batches_for_clan(
+            "clan-unrelated", generation=config["generation"], **kill_kwargs
+        ):
+            raise AssertionError("unrelated clan kill cancelled the batch")
+        if cancel_chop_batches_for_clan(
+            clans[1], generation="generation-mismatch", **kill_kwargs
+        ):
+            raise AssertionError("stale generation kill cancelled the batch")
+        cancelled = cancel_chop_batches_for_clan(
+            clans[1], generation=config["generation"], **kill_kwargs
+        )
+        if len(cancelled) != 1:
+            raise AssertionError(f"expected one cancelled batch, got {cancelled!r}")
+        batch = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        if batch["status"] != "cancelled":
+            raise AssertionError(
+                f"multi-clan kill did not cancel the batch: {batch['status']}"
+            )
+        _restart(config_path, config)
+        if _read_receipts(Path(config["receipt_file"])):
+            raise AssertionError("cancelled multi-clan batch launched on restart")
+        _assert_run_history(config, 0)
+        events = _notification_events({"cancelled"})
+        if "cancelled" not in events:
+            raise AssertionError("multi-clan kill emitted no cancelled notice")
+        return {
+            "scenario": scenario,
+            "run_identity": run_id,
+            "clan_identities": clans,
+            "termination": "clan kill of the batch's second clan",
+            "cancelled_batches": len(cancelled),
+            "retained_status": batch["status"],
+            "launches_after_restart": 0,
+            "notification_events": events,
+        }
+
+    if scenario == "two-episodes":
+        # Two separate interruptions produce two episodes, each with exactly
+        # one interruption and one resume notice — including delivery of a
+        # resume prepared by a recovery that never finished.
+        run_id = scenario
+        base = _config(root, n=n, run_id=run_id, hold_mode="after_ack", hold_index=0)
+        _create_ordinary_batch(base)
+        initial = _spawn_worker(_write_config(root, base), "ordinary")
+        _wait_event(base, "ack-0", initial)
+        _kill_worker(initial, signal.SIGKILL)
+        config_a = _config(
+            root / "restart1",
+            n=n,
+            run_id=run_id,
+            hold_mode="after_spawn",
+            hold_index=2,
+        )
+        for forked in (config_a,):
+            forked["receipt_file"] = base["receipt_file"]
+            forked["workspace"] = base["workspace"]
+        worker_a = _spawn_worker(_write_config(root / "restart1", config_a), "recover")
+        _wait_event(config_a, "spawned-2", worker_a)
+        _kill_worker(worker_a, signal.SIGKILL)
+        config_b = _config(root / "restart2", n=n, run_id=run_id)
+        config_b["receipt_file"] = base["receipt_file"]
+        config_b["workspace"] = base["workspace"]
+        path_b = _write_config(root / "restart2", config_b)
+        _restart(path_b, config_b)
+        rows = _assert_receipts(base, n)
+        _assert_run_linkage(base, n)
+        _assert_run_history(base, n)
+        _restart(path_b, config_b)
+        if len(_read_receipts(Path(base["receipt_file"]))) != n:
+            raise AssertionError("second restart launched a duplicate member")
+        events = _notification_events({"interrupted", "resumed"})
+        if events.count("interrupted") != 2 or events.count("resumed") != 2:
+            raise AssertionError(
+                f"expected two interruption and two resume notices: {events!r}"
+            )
+        # The live outbox retires into run history when the batch
+        # completes; the archived copy is the durable per-episode record.
+        episodes = _archived_notice_episodes(base)
+        complete = [
+            episode_id
+            for episode_id, episode in episodes.items()
+            if isinstance(episode, dict)
+            and isinstance(episode.get("events"), dict)
+            and bool((episode["events"].get("interrupted") or {}).get("delivered"))
+            and bool((episode["events"].get("resumed") or {}).get("delivered"))
+        ]
+        if len(complete) != 2:
+            raise AssertionError(
+                f"expected two delivered notice episodes, saw {len(complete)}"
+            )
+        return {
+            "scenario": scenario,
+            "total": n,
+            "run_identity": run_id,
+            "clan_identity": base["clan"],
+            "termination": "SIGKILL, recovery, SIGKILL during recovery, recovery",
+            "receipt_names": [row["agent_name"] for row in rows],
+            "original_names": base["names"],
+            "notification_events": events,
+            "delivered_episodes": len(complete),
+            "second_restart_new_launches": 0,
+        }
+
+    if scenario == "typed-kill":
+        # SIGKILL between spawn and acknowledgement on the typed path. The
+        # linkage-proven dispatch folds to launched instead of skipping, so
+        # no member is lost or duplicated.
+        run_id = scenario
+        config = _config(
+            root, n=n, run_id=run_id, hold_mode="after_spawn", hold_index=0
+        )
+        config_path = _write_config(root, config)
+        worker = _spawn_worker(config_path, "typed-start")
+        _wait_event(config, "ready", worker)
+        _wait_event(config, "spawned-0", worker)
+        _kill_worker(worker, signal.SIGKILL)
+        first_restart = _restart(config_path, config)
+        rows = _assert_receipts(config, n)
+        _assert_run_linkage(config, n)
+        _assert_run_history(config, n)
+        member_names = _member_names(config)
+        if [row["agent_name"] for row in rows] != member_names:
+            raise AssertionError(
+                "typed receipts do not match batch member identities: "
+                f"{[row['agent_name'] for row in rows]!r} != {member_names!r}"
+            )
+        second_restart = _restart(config_path, config)
+        batch = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        return {
+            "scenario": scenario,
+            "total": n,
+            "k": 1,
+            "remaining": n - 1,
+            "original_names": member_names,
+            "receipt_names": [row["agent_name"] for row in rows],
+            "batch_status": batch["status"],
+            "first_restart": first_restart["returncode"],
+            "second_restart": second_restart["returncode"],
+            "second_restart_new_launches": 0,
+        }
+
+    if scenario == "typed-cancel-paused":
+        # Pause a typed first run, then kill its clan. The batch stays
+        # cancelled and the one settled launch stays in run history.
+        run_id = scenario
+        config = _config(
+            root, n=n, run_id=run_id, hold_mode="after_spawn", hold_index=0
+        )
+        config_path = _write_config(root, config)
+        worker = _spawn_worker(config_path, "typed-start")
+        _wait_event(config, "ready", worker)
+        _wait_event(config, "spawned-0", worker)
+        worker.send_signal(signal.SIGTERM)
+        _signal_event(config, "release-spawned-0")
+        code, stdout, stderr = _wait_worker(worker)
+        if code != 0:
+            raise AssertionError(f"typed SIGTERM run failed ({code}): {stderr}{stdout}")
+        paused = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        if paused["status"] != "paused":
+            raise AssertionError(
+                f"typed SIGTERM did not pause batch: {paused['status']}"
+            )
+        cancelled = cancel_chop_batches_for_clan(
+            config["clan"],
+            generation=config["generation"],
+            reason="disposable acceptance typed clan kill",
+            routine=config["routine"],
+            job=config["job"],
+        )
+        if len(cancelled) != 1:
+            raise AssertionError(f"expected one cancelled batch, got {cancelled!r}")
+        _restart(config_path, config)
+        batch = chop_batch_store.load_chop_batch(
+            config["routine"], config["job"], run_id
+        )
+        if batch["status"] != "cancelled":
+            raise AssertionError("typed cancelled batch did not retain cancellation")
+        if len(_read_receipts(Path(config["receipt_file"]))) != 1:
+            raise AssertionError("typed cancel lost the settled launch receipt")
+        _assert_run_history(config, 1)
+        events = _notification_events({"cancelled"})
+        if "cancelled" not in events:
+            raise AssertionError("typed clan kill emitted no cancelled notice")
+        return {
+            "scenario": scenario,
+            "run_identity": run_id,
+            "clan_identity": config["clan"],
+            "termination": "SIGTERM pause followed by explicit clan-generation kill",
+            "cancelled_batches": len(cancelled),
+            "retained_status": batch["status"],
+            "settled_launches": 1,
+            "notification_events": events,
+        }
+
+    if scenario == "typed-race":
+        # A manual recovery races an in-flight typed first run. First-run
+        # ownership holds the batch, so the manual run backs off silently and
+        # the first run completes all members exactly once.
+        run_id = scenario
+        config_a = _config(
+            root / "first",
+            n=n,
+            run_id=run_id,
+            hold_mode="after_spawn",
+            hold_index=0,
+        )
+        config_b = _config(root / "manual", n=n, run_id=run_id)
+        for forked in (config_a, config_b):
+            forked["receipt_file"] = str(root / "receipts" / f"{run_id}.jsonl")
+            forked["workspace"] = str(root / "workspace")
+        path_a = _write_config(root / "first", config_a)
+        path_b = _write_config(root / "manual", config_b)
+        worker_a = _spawn_worker(path_a, "typed-start")
+        _wait_event(config_a, "ready", worker_a)
+        _wait_event(config_a, "spawned-0", worker_a)
+        worker_b = _spawn_worker(path_b, "recover")
+        raw_b = _wait_event(config_b, "finished")
+        code_b, _, stderr_b = _wait_worker(worker_b)
+        if code_b != 0:
+            raise AssertionError(f"racing manual run crashed: {stderr_b}")
+        blocked = [
+            item
+            for item in json.loads(raw_b)
+            if item.get("kind") == "blocked"
+            and "live owner" in str(item.get("reason") or "")
+        ]
+        if not blocked:
+            raise AssertionError(
+                "racing run was not held off by the live first-run owner"
+            )
+        if len(_read_receipts(Path(config_a["receipt_file"]))) != 1:
+            raise AssertionError(
+                "racing run dispatched while the first run owned the batch"
+            )
+        _signal_event(config_a, "release-spawned-0")
+        code_a, _, stderr_a = _wait_worker(worker_a)
+        if code_a != 0:
+            raise AssertionError(f"typed first run failed: {stderr_a}")
+        rows = _assert_receipts(config_a, n)
+        _assert_run_linkage(config_a, n)
+        _assert_run_history(config_a, n)
+        member_names = _member_names(config_a)
+        if [row["agent_name"] for row in rows] != member_names:
+            raise AssertionError(
+                "typed receipts do not match batch member identities: "
+                f"{[row['agent_name'] for row in rows]!r} != {member_names!r}"
+            )
+        _restart(path_a, config_a)
+        if len(_read_receipts(Path(config_a["receipt_file"]))) != n:
+            raise AssertionError("restart after first run duplicated a member")
+        events = _notification_events({"interrupted", "resumed"})
+        if events:
+            raise AssertionError(
+                f"uninterrupted first run emitted recovery notices: {events!r}"
+            )
+        return {
+            "scenario": scenario,
+            "total": n,
+            "run_identity": run_id,
+            "clan_identity": config_a["clan"],
+            "termination": "manual recovery racing an in-flight typed first run",
+            "loser_kind": "blocked",
+            "receipt_names": [row["agent_name"] for row in rows],
+            "original_names": member_names,
+            "notification_events": events,
+            "second_restart_new_launches": 0,
         }
 
     raise ValueError(f"unknown acceptance scenario {scenario!r}")

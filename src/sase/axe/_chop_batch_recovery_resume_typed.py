@@ -77,14 +77,51 @@ def recover_typed_batch(
                 episode_id=episode_id,
             )
         ownership_delegated = True
-        resumed = resume_typed_chop_batch(
+        try:
+            resumed = resume_typed_chop_batch(
+                routine,
+                job,
+                batch_id,
+                launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+                launch_recorded_fn=None,
+                pause_requested_fn=pause_requested_fn,
+                ownership_acquired=True,
+            )
+        finally:
+            # Take release duty back before the history merge and finish
+            # notices: resume no longer retires a delegated batch, so the
+            # outbox stays authoritative until the finish notice is delivered.
+            ownership_delegated = False
+        from ._chop_batch_recovery_resume_ordinary import (
+            backfill_launched_history_descriptors,
+            merge_resumed_launches_into_run,
+        )
+
+        try:
+            typed_members = chop_batch_store.load_chop_batch(
+                routine, job, batch_id
+            ).get("members")
+        except ChopBatchError:
+            typed_members = []
+        launched_indexes = [
+            position
+            for position, item in enumerate(typed_members or [])
+            if isinstance(item, Mapping) and str(item.get("status") or "") == "launched"
+        ]
+        # `resumed.launches` covers this pass; the backfill restores members
+        # acknowledged before the interruption from their durable linkage, so
+        # the original run's history lists every member exactly once. The
+        # merge dedupes on (index, name, pid), making repeats idempotent.
+        merge_resumed_launches_into_run(
             routine,
             job,
             batch_id,
-            launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
-            launch_recorded_fn=None,
-            pause_requested_fn=pause_requested_fn,
-            ownership_acquired=True,
+            [
+                *resumed.launches,
+                *backfill_launched_history_descriptors(
+                    routine, job, batch_id, launched_indexes
+                ),
+            ],
         )
         try:
             refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)

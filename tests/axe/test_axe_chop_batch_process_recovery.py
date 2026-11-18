@@ -85,6 +85,95 @@ def test_cancelled_batch_never_revives_after_runtime_receipt_cleanup(
     assert result["launches_after_cleanup_restart"] == 0
 
 
+def test_routine_tick_and_manual_run_race_single_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "race", "race")
+
+    assert result["total"] == 4
+    assert result["loser_kind"] == "blocked"
+    assert result["receipt_names"] == result["original_names"]
+    assert result["notification_events"].count("interrupted") == 1
+    assert result["notification_events"].count("resumed") == 1
+    assert result["second_restart_new_launches"] == 0
+
+
+def test_clan_kill_while_recovery_active_settles_crossing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "cancel-during-recovery", "cancel-during-recovery")
+
+    assert result["retained_status"] == "cancelled"
+    assert result["settled_launches"] == 2
+    assert "cancelled" in result["notification_events"]
+    assert result["second_restart_new_launches"] == 0
+
+
+def test_multi_clan_batch_cancelled_by_either_clan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "multi-clan", "multi-clan")
+
+    assert result["cancelled_batches"] == 1
+    assert result["retained_status"] == "cancelled"
+    assert result["launches_after_restart"] == 0
+    assert "cancelled" in result["notification_events"]
+
+
+def test_two_interruptions_produce_two_notice_episodes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "two-episodes", "two-episodes")
+
+    assert result["total"] == 4
+    assert result["receipt_names"] == result["original_names"]
+    assert result["delivered_episodes"] == 2
+    assert result["notification_events"].count("interrupted") == 2
+    assert result["notification_events"].count("resumed") == 2
+    assert result["second_restart_new_launches"] == 0
+
+
+def test_typed_sigkill_before_ack_loses_no_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "typed-kill", "typed-kill")
+
+    assert result["total"] == 4
+    assert result["receipt_names"] == result["original_names"]
+    assert result["batch_status"] == "complete"
+    assert result["second_restart_new_launches"] == 0
+
+
+def test_typed_clan_kill_after_pause_stays_cancelled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "typed-cancel-paused", "typed-cancel-paused")
+
+    assert result["cancelled_batches"] == 1
+    assert result["retained_status"] == "cancelled"
+    assert result["settled_launches"] == 1
+    assert "cancelled" in result["notification_events"]
+
+
+def test_typed_first_run_wins_manual_recovery_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    result = run_scenario(tmp_path / "typed-race", "typed-race")
+
+    assert result["total"] == 4
+    assert result["loser_kind"] == "blocked"
+    assert result["receipt_names"] == result["original_names"]
+    assert result["notification_events"] == []
+    assert result["second_restart_new_launches"] == 0
+
+
 def test_manual_disposable_acceptance_demo_records_both_outcomes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

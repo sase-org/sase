@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -236,6 +237,15 @@ def resume_typed_chop_batch(
         if manifest.get("status") == "paused":
             chop_batch_store.apply_chop_batch_event(routine, job, batch_id, "resume")
 
+        _replay_linkage_proven_dispatches(
+            routine,
+            job,
+            batch_id,
+            bundle_dir=bundle_dir,
+            payload=payload,
+            typed_plan=typed_plan,
+        )
+
         recorded: list[dict[str, Any]] = []
 
         def _begin_dispatch(metadata: Mapping[str, Any]) -> bool:
@@ -307,7 +317,146 @@ def resume_typed_chop_batch(
             waiting=not result.admission_complete and not paused,
         )
     finally:
-        chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
+        # Release only executorship this call acquired. A recovery caller
+        # that delegated its ownership still needs the batch (and its notice
+        # outbox) for history merges and finish notices; it releases after.
+        if not ownership_acquired:
+            chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
+
+
+def _replay_linkage_proven_dispatches(
+    routine: str,
+    job: str,
+    batch_id: str,
+    *,
+    bundle_dir: Path,
+    payload: Mapping[str, Any],
+    typed_plan: Any,
+) -> int:
+    """Replay lost acknowledgements for linkage-proven typed dispatches.
+
+    A stop between spawn and acknowledgement leaves a unit journaled as
+    ``dispatching`` with no result. The admission planner cannot tell that
+    state from a failed launch, so resume would skip a real spawned agent
+    and drop it from the run history. The durable chop-agent linkage record
+    written at spawn proves the launch the way the ordinary path's
+    ``matched_spawn`` observation does: journal ``launched`` with the same
+    entry shape the engine writes itself, store the unit receipt the planner
+    reconciles, and release the dispatch hold. Units that already have a
+    receipt file stay owned by the planner's ``record_launched`` path.
+    Returns the number of units folded. Best effort: any lookup failure
+    degrades to no fold so history can never break a resume.
+    """
+    try:
+        from sase.agent.launch_admission_store import (
+            LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION,
+            UNITS_DIRNAME,
+            admission_dir as typed_admission_dir,
+            append_journal,
+            next_journal_seq,
+            read_journal,
+            write_unit_receipt,
+        )
+        from sase.agent.launch_hold import release_unit_hold_if_terminal
+        from sase.core.agent_launch_facade import (
+            dispatch_fingerprint,
+            reconcile_admission_journal,
+        )
+
+        from . import chop_batch_store
+        from .chop_agents import get_chop_agent_records
+
+        root = typed_admission_dir(bundle_dir)
+        states = reconcile_admission_journal(read_journal(root))
+        metadata = unit_metadata(payload)
+        records = get_chop_agent_records(routine, chop_name=job, run_id=batch_id)
+        by_index: dict[int, Any] = {}
+        by_proposal_id: dict[str, Any] = {}
+        for record in records or []:
+            proposal_index = getattr(record, "proposal_index", None)
+            if isinstance(proposal_index, int) and not isinstance(proposal_index, bool):
+                by_index.setdefault(proposal_index, record)
+            proposal_id = getattr(record, "proposal_id", "")
+            if isinstance(proposal_id, str) and proposal_id:
+                by_proposal_id.setdefault(proposal_id, record)
+        try:
+            manifest = chop_batch_store.load_chop_batch(routine, job, batch_id)
+            members = manifest.get("members")
+        except Exception:
+            members = None
+        names_by_index: dict[int, str] = {}
+        if isinstance(members, list):
+            for member in members:
+                if not isinstance(member, Mapping):
+                    continue
+                source_index = member.get("source_index")
+                agent_name = str(member.get("agent_name") or "")
+                if (
+                    isinstance(source_index, int)
+                    and not isinstance(source_index, bool)
+                    and agent_name
+                ):
+                    names_by_index.setdefault(source_index, agent_name)
+        folded = 0
+        request_id = str(payload.get("request_id") or "")
+        for unit in typed_plan.units:
+            try:
+                state = states.get(unit.logical_id) or {}
+                if str(state.get("phase") or "") != "dispatching":
+                    continue
+                receipt_path = root / UNITS_DIRNAME / f"{unit.logical_id}.json"
+                if receipt_path.is_file():
+                    continue
+                unit_meta = metadata.get(unit.logical_id) or {}
+                linkage: Any = None
+                proposal_index = unit_meta.get("proposal_index")
+                if isinstance(proposal_index, int) and not isinstance(
+                    proposal_index, bool
+                ):
+                    linkage = by_index.get(proposal_index)
+                if linkage is None:
+                    proposal_id = unit_meta.get("proposal_id")
+                    if isinstance(proposal_id, str) and proposal_id:
+                        linkage = by_proposal_id.get(proposal_id)
+                if linkage is None:
+                    continue
+                pid = getattr(linkage, "pid", None)
+                if not isinstance(pid, int) or isinstance(pid, bool):
+                    continue
+                agent_name = ""
+                if isinstance(proposal_index, int) and not isinstance(
+                    proposal_index, bool
+                ):
+                    agent_name = names_by_index.get(proposal_index, "")
+                if not agent_name:
+                    continue
+                fingerprint = dispatch_fingerprint(
+                    typed_plan.content_digest, unit.logical_id, unit.payload
+                )
+                entry = {
+                    "schema_version": LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION,
+                    "seq": next_journal_seq(root),
+                    "logical_id": unit.logical_id,
+                    "phase": "launched",
+                    "recorded_at_unix": time.time(),
+                    "fingerprint": fingerprint,
+                    "identity": agent_name,
+                }
+                append_journal(root, entry)
+                write_unit_receipt(
+                    root,
+                    logical_id=unit.logical_id,
+                    fingerprint=fingerprint,
+                    identity=agent_name,
+                    unit=unit,
+                )
+                release_unit_hold_if_terminal(unit, request_id)
+                folded += 1
+            except Exception:
+                continue
+        return folded
+    except Exception:
+        return 0
 
 
 def _reconstruct_typed_launches(

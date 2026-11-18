@@ -329,7 +329,11 @@ def replay_ordinary_chop_batch(
             paused=paused or refreshed.get("status") == "paused",
         )
     finally:
-        chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
+        # Release only executorship this call acquired. A recovery caller
+        # that delegated its ownership still needs the batch (and its notice
+        # outbox) for history merges and finish notices; it releases after.
+        if not ownership_acquired:
+            chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
 
 
 def _request_agent_name(request: Any) -> str:

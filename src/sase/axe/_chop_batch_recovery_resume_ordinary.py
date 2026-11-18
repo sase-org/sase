@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping, Sequence
+from types import SimpleNamespace
 from typing import Any
 
 from . import chop_batch_store
@@ -139,18 +140,32 @@ def recover_ordinary_batch(
             return results
 
         ownership_delegated = True
-        replay = replay_ordinary_chop_batch(
+        try:
+            replay = replay_ordinary_chop_batch(
+                routine,
+                job,
+                batch_id,
+                observations=observations,
+                observations_are_complete=True,
+                dispatch_member=dispatch_member,
+                pause_requested_fn=pause_requested_fn,
+                ownership_acquired=True,
+            )
+        finally:
+            # Take release duty back before the history merge and finish
+            # notices: replay no longer retires a delegated batch, so the
+            # outbox stays authoritative until the finish notice is delivered.
+            ownership_delegated = False
+        merge_resumed_launches_into_run(
             routine,
             job,
             batch_id,
-            observations=observations,
-            observations_are_complete=True,
-            dispatch_member=dispatch_member,
-            pause_requested_fn=pause_requested_fn,
-            ownership_acquired=True,
-        )
-        _merge_resumed_launches_into_run(
-            routine, job, batch_id, pending_resumed_launches
+            [
+                *pending_resumed_launches,
+                *backfill_launched_history_descriptors(
+                    routine, job, batch_id, replay.already_launched
+                ),
+            ],
         )
         refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
         summary = summarize_manifest(refreshed)
@@ -503,7 +518,102 @@ def _resumed_launch_descriptor(
         return None
 
 
-def _merge_resumed_launches_into_run(
+def backfill_launched_history_descriptors(
+    routine: str,
+    job: str,
+    batch_id: str,
+    already_launched: Sequence[int],
+) -> list[dict[str, Any]]:
+    """Describe journal-launched members whose launch predates this recovery.
+
+    A member acknowledged before the interruption never passes through this
+    pass's launcher, so no in-memory launch record exists for it. Its durable
+    chop-agent linkage record carries the spawn pid; combining that pid with
+    the journal member rebuilds the same launch descriptor shape the run
+    history merge dedupes on, so the original run's history lists every
+    member exactly once. Members without linkage, or whose linkage lacks a
+    pid, are skipped rather than fabricated, and any lookup failure degrades
+    to no backfill so history can never break a resume.
+    """
+    try:
+        indexes = [
+            int(index)
+            for index in already_launched
+            if isinstance(index, int) and not isinstance(index, bool)
+        ]
+        if not indexes:
+            return []
+        manifest = chop_batch_store.load_chop_batch(routine, job, batch_id)
+        members = manifest.get("members")
+        if not isinstance(members, list):
+            return []
+        from .chop_agents import get_chop_agent_records
+
+        records = get_chop_agent_records(routine, chop_name=job, run_id=batch_id)
+        by_index: dict[int, Any] = {}
+        by_proposal_id: dict[str, Any] = {}
+        for record in records or []:
+            proposal_index = getattr(record, "proposal_index", None)
+            if isinstance(proposal_index, int) and not isinstance(proposal_index, bool):
+                by_index.setdefault(proposal_index, record)
+            proposal_id = getattr(record, "proposal_id", "")
+            if isinstance(proposal_id, str) and proposal_id:
+                by_proposal_id.setdefault(proposal_id, record)
+        descriptors: list[dict[str, Any]] = []
+        for member_index in indexes:
+            if not 0 <= member_index < len(members):
+                continue
+            member = members[member_index]
+            if not isinstance(member, Mapping):
+                continue
+            if str(member.get("status") or "") != "launched":
+                continue
+            linkage: Any = None
+            source_index = member.get("source_index")
+            if isinstance(source_index, int) and not isinstance(source_index, bool):
+                linkage = by_index.get(source_index)
+            if linkage is None:
+                member_proposal_id = member.get("proposal_id")
+                if isinstance(member_proposal_id, str) and member_proposal_id:
+                    linkage = by_proposal_id.get(member_proposal_id)
+            if linkage is None:
+                continue
+            pid = getattr(linkage, "pid", None)
+            if not isinstance(pid, int) or isinstance(pid, bool):
+                continue
+            try:
+                workspace_num = int(getattr(linkage, "workspace_num", 0) or 0)
+            except (TypeError, ValueError):
+                workspace_num = 0
+            payload = SimpleNamespace(
+                agent_name=str(member.get("agent_name") or ""),
+                pid=pid,
+                workspace_num=workspace_num,
+                workspace_dir="",
+                project_name=str(getattr(linkage, "project_name", "") or ""),
+                workflow_name=str(getattr(linkage, "workflow_name", "") or ""),
+                cl_name=str(getattr(linkage, "cl_name", "") or ""),
+                timestamp=str(getattr(linkage, "started_at", "") or ""),
+                artifacts_dir="",
+            )
+            try:
+                _, wait_name, effective_ref = _replay_prompt(member, manifest)
+            except Exception:
+                continue
+            try:
+                descriptor = _resumed_launch_descriptor(
+                    member, payload, wait_name, effective_ref
+                )
+            except Exception:
+                continue
+            if descriptor is not None:
+                descriptors.append(descriptor)
+        return descriptors
+    except Exception:
+        return []
+
+
+def merge_resumed_launches_into_run(
     routine: str, job: str, batch_id: str, launches: Sequence[Mapping[str, Any]]
 ) -> None:
     if not launches:
