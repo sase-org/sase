@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sase.ace.tui.models._agent_loader_artifacts import query_artifact_index_for_loader
+from sase.ace.tui.models._agent_loader_artifact_index_list import (
+    query_artifact_index_for_loader_list,
+)
 from sase.core.agent_scan_facade import (
-    query_agent_artifact_index,
+    query_agent_artifact_index_list_bounded,
     rebuild_agent_artifact_index,
-    scan_agent_artifacts,
+    scan_agent_artifacts_list,
 )
 
 
@@ -55,14 +57,16 @@ def test_windowed_loader_keeps_completed_when_active_exceeds_limit(
     index_path = tmp_path / "agent_artifact_index.sqlite"
     rebuild_agent_artifact_index(index_path, projects)
 
-    snapshot, state = query_artifact_index_for_loader(
+    snapshot, state = query_artifact_index_for_loader_list(
         full_history=False,
         freshness="cached",
         requested_limit=2,
         default_index_path=lambda: index_path,
         projects_root=lambda: projects,
-        query_index=query_agent_artifact_index,
-        scan_artifacts=lambda options=None: scan_agent_artifacts(projects, options),
+        query_index=query_agent_artifact_index_list_bounded,
+        scan_artifacts=lambda options=None: scan_agent_artifacts_list(
+            projects, options
+        ),
     )
 
     timestamps = {record.timestamp for record in snapshot.records}

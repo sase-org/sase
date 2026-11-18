@@ -15,25 +15,11 @@ from sase.core.paths import sase_projects_dir
 from . import _agent_loader_artifact_config as config
 from ._agent_loader_artifact_state import (
     AgentLoadState,
-    ArtifactIndexQuery,
-    ArtifactScanner,
     CompactArtifactIndexQuery,
     CompactArtifactScanner,
     artifact_index_lock_busy_reason,
 )
 from ._timestamps import normalize_to_14_digit
-
-
-class _Tier1IndexLoader(Protocol):
-    def __call__(
-        self,
-        *,
-        full_history: bool,
-        freshness: Literal["revalidate", "cached"] = "cached",
-        requested_limit: int | None = None,
-        candidate_filter: dict[str, object] | None = None,
-        allow_lock_busy_source_scan: bool = True,
-    ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None: ...
 
 
 class _CompactTier1IndexLoader(Protocol):
@@ -46,121 +32,6 @@ class _CompactTier1IndexLoader(Protocol):
         candidate_filter: dict[str, object] | None = None,
         allow_lock_busy_source_scan: bool = True,
     ) -> tuple[AgentArtifactListSnapshotWire, AgentLoadState] | None: ...
-
-
-def artifact_snapshot_for_tui_load(
-    *,
-    full_history: bool,
-    use_artifact_index: bool,
-    index_freshness: Literal["revalidate", "cached"] = "cached",
-    requested_limit: int | None = None,
-    candidate_filter: dict[str, object] | None = None,
-    scan_artifacts: ArtifactScanner,
-    load_tier1_index: _Tier1IndexLoader,
-    allow_lock_busy_source_scan: bool = True,
-) -> tuple[AgentArtifactScanWire, AgentLoadState]:
-    """Return the artifact snapshot for a TUI refresh."""
-
-    if full_history:
-        if use_artifact_index:
-            indexed = load_tier1_index(
-                full_history=full_history,
-                freshness=index_freshness,
-                requested_limit=None,
-                candidate_filter=candidate_filter,
-                allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-            )
-            if indexed is not None and (
-                indexed[1].complete_history
-                or artifact_index_lock_busy_reason(indexed[1].repair_reason)
-            ):
-                return indexed
-
-        full_snapshot = scan_artifacts()
-        return (
-            full_snapshot,
-            AgentLoadState(
-                tier="tier2",
-                complete_history=True,
-                complete_visible_inbox=True,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-                record_count=len(full_snapshot.records),
-            ),
-        )
-
-    if not use_artifact_index:
-        unindexed_snapshot = scan_artifacts(config.TIER1_FALLBACK_SCAN_OPTIONS)
-        return (
-            unindexed_snapshot,
-            AgentLoadState(
-                tier="tier1",
-                complete_history=False,
-                complete_visible_inbox=False,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-                record_count=len(unindexed_snapshot.records),
-            ),
-        )
-
-    indexed = load_tier1_index(
-        full_history=full_history,
-        freshness=index_freshness,
-        requested_limit=requested_limit,
-        candidate_filter=candidate_filter,
-        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-    )
-    if indexed is not None:
-        return indexed
-
-    fallback_snapshot = scan_artifacts(config.TIER1_FALLBACK_SCAN_OPTIONS)
-    return (
-        fallback_snapshot,
-        AgentLoadState(
-            tier="tier1",
-            complete_history=False,
-            complete_visible_inbox=False,
-            artifact_source="source_scan",
-            used_artifact_index=False,
-            repair_recommended=True,
-            repair_reason="artifact_index_missing_bounded_fallback",
-            record_count=len(fallback_snapshot.records),
-        ),
-    )
-
-
-def artifact_snapshot_for_live_plan_load(
-    *,
-    default_index_path: Callable[[], Path],
-    projects_root: Callable[[], Path],
-    query_index: ArtifactIndexQuery,
-    scan_artifacts: ArtifactScanner,
-) -> AgentArtifactScanWire:
-    """Return a bounded artifact snapshot for CLI plan notification matching."""
-
-    index_path = default_index_path()
-    if index_path.is_file():
-        query = AgentArtifactIndexQueryWire(
-            include_active=True,
-            include_recent_completed=True,
-            include_full_history=False,
-            active_limit=None,
-            recent_completed_limit=config.TIER1_RECENT_COMPLETED_LIMIT,
-            include_hidden=False,
-        )
-        try:
-            snapshot = query_index(
-                index_path,
-                projects_root(),
-                query=query,
-                options=config.PLAN_LIVE_SCAN_OPTIONS,
-            )
-            if snapshot is not None:
-                return snapshot
-        except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
-            pass
-
-    return scan_artifacts(config.PLAN_LIVE_FALLBACK_SCAN_OPTIONS)
 
 
 def artifact_snapshot_for_tui_load_list(
@@ -176,8 +47,7 @@ def artifact_snapshot_for_tui_load_list(
 ) -> tuple[AgentArtifactListSnapshotWire, AgentLoadState]:
     """Return the compact artifact snapshot for a TUI refresh.
 
-    Compact twin of :func:`artifact_snapshot_for_tui_load` with identical
-    tier, fallback, and completeness semantics over list projections.
+    Compact tiered selection and fallback over list projections.
     """
 
     if full_history:

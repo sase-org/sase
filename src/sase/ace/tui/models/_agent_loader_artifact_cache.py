@@ -11,20 +11,11 @@ from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 
 from ._agent_loader_artifact_state import AgentLoadState
 
-if TYPE_CHECKING:
-    from sase.core.agent_scan_wire import AgentArtifactScanWire
-
-
 ArtifactIndexSignature = tuple[
     tuple[str, int | None, int | None],
     tuple[str, int | None, int | None],
 ]
-#: Cache key namespaced by wire shape. The TUI keeps only the compact
-#: ``"list"`` generation here; the legacy full ``"full"`` index path owns
-#: a separate single-generation cache so a non-TUI full read can never
-#: evict the live compact generation. Full record trees never enter the
-#: TUI cache; they stay transient inside the worker that applies their
-#: detail values.
+#: Exact query keys for the single compact TUI snapshot generation.
 ArtifactSnapshotCacheKey = tuple[str, str, str, str, str]
 
 
@@ -69,6 +60,13 @@ class _ArtifactSnapshotCache[SnapshotT]:
         ] = OrderedDict()
         self._stats = _ArtifactSnapshotCacheStats()
         self._lock = RLock()
+        self._request_generation = 0
+
+    def begin_request(self) -> int:
+        """Return a token that lets only the latest query publish a result."""
+        with self._lock:
+            self._request_generation += 1
+            return self._request_generation
 
     def get(
         self,
@@ -111,8 +109,15 @@ class _ArtifactSnapshotCache[SnapshotT]:
         signature: ArtifactIndexSignature,
         snapshot: SnapshotT,
         state: AgentLoadState,
-    ) -> None:
+        *,
+        request_generation: int | None = None,
+    ) -> bool:
         with self._lock:
+            if (
+                request_generation is not None
+                and request_generation != self._request_generation
+            ):
+                return False
             self._entries[key] = (signature, snapshot, state)
             self._entries.move_to_end(key)
             stats = replace(self._stats, stores=self._stats.stores + 1)
@@ -120,6 +125,7 @@ class _ArtifactSnapshotCache[SnapshotT]:
                 self._entries.popitem(last=False)
                 stats = replace(stats, evictions=stats.evictions + 1)
             self._stats = stats
+            return True
 
     def record_mutation_refusal(self) -> None:
         with self._lock:
@@ -134,6 +140,8 @@ class _ArtifactSnapshotCache[SnapshotT]:
 
     def clear(self) -> None:
         with self._lock:
+            # Invalidate any query still running outside the cache lock.
+            self._request_generation += 1
             self._entries.clear()
             self._stats = _ArtifactSnapshotCacheStats()
 
@@ -143,12 +151,5 @@ class _ArtifactSnapshotCache[SnapshotT]:
 
 
 ARTIFACT_SNAPSHOT_CACHE: _ArtifactSnapshotCache[AgentArtifactListSnapshotWire] = (
-    _ArtifactSnapshotCache(max_entries=1)
-)
-
-#: Single-generation cache for the legacy full-shape index path (the
-#: run-log modal and CLI-adjacent full loaders). Kept separate so those
-#: readers can never evict the live compact generation above.
-FULL_ARTIFACT_SNAPSHOT_CACHE: _ArtifactSnapshotCache[AgentArtifactScanWire] = (
     _ArtifactSnapshotCache(max_entries=1)
 )

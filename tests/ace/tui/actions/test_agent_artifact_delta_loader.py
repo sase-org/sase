@@ -89,7 +89,7 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
             side_effect=AssertionError("delta load must not broad scan"),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             side_effect=AssertionError("delta load must not query visible inbox"),
         ),
         patch(

@@ -1,9 +1,7 @@
 """Compact-list artifact-index query path for the TUI agent loader.
 
-Compact twin of
-:mod:`sase.ace.tui.models._agent_loader_artifact_index`: the same tiered
-selection, revalidation, windowing, fallback, cache, and load-state
-semantics, but every snapshot is an
+The tiered selection, revalidation, windowing, fallback, cache, and
+load-state semantics operate on compact snapshots carrying only list facts. Every snapshot is an
 :class:`AgentArtifactListSnapshotWire` carrying only list facts. The Rust
 core reuses the existing selection/revalidation pipeline and projects to
 the compact shape before PyO3 serialization, so no full marker record
@@ -187,6 +185,7 @@ def query_artifact_index_for_loader_list(
 ) -> tuple[AgentArtifactListSnapshotWire, AgentLoadState] | None:
     """Return a compact index-backed snapshot when the persistent index exists."""
 
+    request_generation = ARTIFACT_SNAPSHOT_CACHE.begin_request()
     index_path = default_index_path()
     if not index_path.is_file():
         if not full_history:
@@ -382,6 +381,7 @@ def query_artifact_index_for_loader_list(
                 after_signature,
                 snapshot,
                 state,
+                request_generation=request_generation,
             )
         else:
             ARTIFACT_SNAPSHOT_CACHE.record_mutation_refusal()

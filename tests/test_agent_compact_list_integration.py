@@ -18,6 +18,7 @@ phase.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,10 @@ from sase.ace.tui.models._loaders._running_loaders import (
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
+)
+from sase.core.agent_scan_facade import (
+    rebuild_agent_artifact_index,
+    scan_agent_artifacts_list,
 )
 from tests._agent_compact_parity_helpers import _assert_parity, _facts
 from tests.perf._agent_load_tiering_fixture_build import (
@@ -140,3 +145,87 @@ def test_compact_list_end_to_end_parity(tmp_path: Path) -> None:
     assert len(full_running) == len(compact_running)
     for full_agent, compact_agent in zip(full_running, compact_running, strict=True):
         _assert_parity(full_agent, compact_agent)
+
+
+def test_large_output_facts_stay_deferred_until_selected_detail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _require_list_bindings()
+    from sase.ace.tui.models._loaders._compact_done_loaders import (
+        _build_done_agent_from_compact_record,
+    )
+    from sase.ace.tui.models._projected_record import (
+        _release_projected_agent_detail,
+        hydrate_projected_agent,
+    )
+
+    projects_root = tmp_path / "projects"
+    artifact_dir = projects_root / "proj" / "artifacts" / "ace-run" / "20261117123000"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "compact", "cl_name": "compact-proj"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "completed",
+                "cl_name": "compact-proj",
+                "step_output": {
+                    "meta_workspace": 7,
+                    "meta_project": "project-name",
+                    "meta_patch": "patch-name",
+                    "meta_commits": [{"diff": "d" * 100_000}],
+                    "meta_details": {"_raw": "x" * 100_000},
+                    "_raw": "selected raw detail " * 1000,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(
+        index_path,
+        projects_root,
+        AgentArtifactScanOptionsWire(),
+    )
+    snapshot = scan_agent_artifacts_list(
+        projects_root,
+        AgentArtifactScanOptionsWire(),
+    )
+    assert len(snapshot.records) == 1
+    record = snapshot.records[0]
+    output = record.done.step_output
+    assert output is not None
+    assert output.meta == {
+        "meta_workspace": 7,
+        "meta_project": "project-name",
+        "meta_patch": "patch-name",
+    }
+    assert len(str(output.meta)) < 1024
+
+    agent = _build_done_agent_from_compact_record(record, {}, {})
+    assert agent is not None
+    assert agent.effective_workspace_num == 7
+    assert agent.step_output == {
+        "meta_workspace": 7,
+        "meta_project": "project-name",
+        "meta_patch": "patch-name",
+    }
+    monkeypatch.setattr(
+        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        lambda: index_path,
+    )
+    assert hydrate_projected_agent(agent) is True
+    assert agent.step_output is not None
+    assert len(agent.step_output["meta_commits"][0]["diff"]) == 100_000
+    assert len(agent.step_output["meta_details"]["_raw"]) == 100_000
+    assert "_raw" in agent.step_output
+
+    assert _release_projected_agent_detail(agent) is True
+    assert agent.step_output == {
+        "meta_workspace": 7,
+        "meta_project": "project-name",
+        "meta_patch": "patch-name",
+    }

@@ -1,6 +1,5 @@
 """Load state and callable types shared by artifact loader modules."""
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
@@ -9,7 +8,6 @@ from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
-    AgentArtifactScanWire,
 )
 
 
@@ -62,24 +60,6 @@ class AgentLoadState:
             or self.query_incomplete
             or (self.tier == "tier2" and not self.complete_history)
         )
-
-
-class ArtifactScanner(Protocol):
-    def __call__(
-        self,
-        options: AgentArtifactScanOptionsWire | None = None,
-    ) -> AgentArtifactScanWire: ...
-
-
-class ArtifactIndexQuery(Protocol):
-    def __call__(
-        self,
-        index_path: Path,
-        projects_root: Path,
-        *,
-        query: AgentArtifactIndexQueryWire,
-        options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire | None: ...
 
 
 class CompactArtifactScanner(Protocol):

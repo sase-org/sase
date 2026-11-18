@@ -43,6 +43,13 @@ from sase.core.agent_scan_wire import (  # noqa: E402
     AgentSessionTurnMonitorWire,
     AgentSessionTurnWire,
 )
+from sase.core.agent_scan_list_wire import (  # noqa: E402
+    AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
+    AgentArtifactListDoneWire,
+    AgentArtifactListMetaWire,
+    AgentArtifactListRecordWire,
+    AgentArtifactListSnapshotWire,
+)
 
 
 @dataclass
@@ -145,11 +152,11 @@ def _patch_disk_load_dependencies(
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
+    ) -> AgentArtifactListSnapshotWire:
         del query
         counters.artifact_index_queries += 1
         counters.loader_index_queries += 1
-        return _scan(projects_root, options, monitor_count=monitor_count)
+        return _scan_list(projects_root, options, monitor_count=monitor_count)
 
     def monitor_reconcile_query(
         _index_path: Path,
@@ -181,7 +188,7 @@ def _patch_disk_load_dependencies(
     )
     stack.enter_context(
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             side_effect=loader_query,
         )
     )
@@ -223,6 +230,70 @@ def _scan(
         options=options,
         stats=AgentArtifactScanStatsWire(artifact_dirs_visited=monitor_count),
         records=records,
+    )
+
+
+def _scan_list(
+    projects_root: Path,
+    options: AgentArtifactScanOptionsWire,
+    *,
+    monitor_count: int,
+) -> AgentArtifactListSnapshotWire:
+    records = [
+        _monitor_list_record(projects_root, index) for index in range(monitor_count)
+    ]
+    return AgentArtifactListSnapshotWire(
+        schema_version=AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
+        projects_root=str(projects_root),
+        options=options,
+        stats=AgentArtifactScanStatsWire(artifact_dirs_visited=monitor_count),
+        records=records,
+    )
+
+
+def _monitor_list_record(
+    projects_root: Path, index: int
+) -> AgentArtifactListRecordWire:
+    project_dir = projects_root / "proj"
+    timestamp = f"20260812{index:06d}"
+    artifact_dir = project_dir / "artifacts" / "ace-run" / timestamp
+    monitor_id = f"mon{index:09d}"
+    name = f"lane--mon{index}"
+    session_turn = AgentSessionTurnWire(
+        kind="monitor",
+        id=monitor_id,
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        state="completed",
+        monitor=AgentSessionTurnMonitorWire(
+            command="sleep 60",
+            cwd=str(project_dir),
+            settled=True,
+        ),
+    )
+    cl_name = f"lane-{index}"
+    return AgentArtifactListRecordWire(
+        project_name="proj",
+        project_dir=str(project_dir),
+        project_file=str(project_dir / "proj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(artifact_dir),
+        timestamp=timestamp,
+        has_done_marker=True,
+        meta=AgentArtifactListMetaWire(
+            name=name,
+            cl_name=cl_name,
+            agent_session=cl_name,
+            agent_session_role="monitor",
+            agent_session_turn=session_turn,
+        ),
+        done=AgentArtifactListDoneWire(
+            outcome="completed",
+            cl_name=cl_name,
+            name=name,
+            agent_session_turn=session_turn,
+            status_label="MONITORED",
+        ),
     )
 
 

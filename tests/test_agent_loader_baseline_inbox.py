@@ -12,20 +12,21 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
 from sase.ace.tui.models import _agent_loader_artifact_cache as loader_artifact_cache
 from sase.ace.tui.models import _agent_loader_artifact_config as loader_artifact_config
-from sase.ace.tui.models import _agent_loader_artifact_index as loader_artifact_index
+from sase.ace.tui.models import (
+    _agent_loader_artifact_index_list as loader_artifact_index,
+)
 from sase.ace.tui.models.agent_loader import AgentLoadState, load_tiered_agents
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexWindowWire,
     AgentArtifactScanStatsWire,
-    AgentArtifactScanWire,
 )
 
 
-def _snapshot(*, has_more: bool) -> AgentArtifactScanWire:
-    return AgentArtifactScanWire(
+def _snapshot(*, has_more: bool) -> AgentArtifactListSnapshotWire:
+    return AgentArtifactListSnapshotWire(
         schema_version=1,
         projects_root="/tmp",
         options=loader_artifact_config.TUI_SCAN_OPTIONS,
@@ -57,10 +58,10 @@ def test_baseline_read_uses_visible_cap_and_reports_no_truncation(
     monkeypatch.setattr(
         loader_artifact_index,
         "ARTIFACT_SNAPSHOT_CACHE",
-        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=1),
     )
 
-    _, state = loader_artifacts.query_artifact_index_for_loader(
+    _, state = loader_artifact_index.query_artifact_index_for_loader_list(
         full_history=False,
         freshness="cached",
         requested_limit=None,
@@ -104,10 +105,10 @@ def test_baseline_read_reports_truncation_and_arms_reconcile(
     monkeypatch.setattr(
         loader_artifact_index,
         "ARTIFACT_SNAPSHOT_CACHE",
-        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=1),
     )
 
-    _, state = loader_artifacts.query_artifact_index_for_loader(
+    _, state = loader_artifact_index.query_artifact_index_for_loader_list(
         full_history=False,
         freshness="cached",
         requested_limit=None,
@@ -134,7 +135,7 @@ def test_viewport_read_still_reports_bounded_prefix(
     """A viewport window keeps describing itself as a bounded prefix."""
 
     def fake_query_index(index_path: Path, root: Path, **kwargs: object) -> object:
-        return AgentArtifactScanWire(
+        return AgentArtifactListSnapshotWire(
             schema_version=1,
             projects_root="/tmp",
             options=loader_artifact_config.TUI_SCAN_OPTIONS,
@@ -154,10 +155,10 @@ def test_viewport_read_still_reports_bounded_prefix(
     monkeypatch.setattr(
         loader_artifact_index,
         "ARTIFACT_SNAPSHOT_CACHE",
-        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=1),
     )
 
-    _, state = loader_artifacts.query_artifact_index_for_loader(
+    _, state = loader_artifact_index.query_artifact_index_for_loader_list(
         full_history=False,
         freshness="cached",
         requested_limit=100,

@@ -4,17 +4,33 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock
 
-from sase.ace.tui.models._agent_loader_artifacts import (
-    artifact_snapshot_for_tui_load,
-    query_artifact_index_for_loader,
+from sase.ace.tui.models._agent_loader_artifact_index_list import (
+    query_artifact_index_for_loader_list,
+)
+from sase.ace.tui.models._agent_loader_artifact_snapshots import (
+    artifact_snapshot_for_tui_load_list,
 )
 from sase.ace.tui.models.agent_loader import AgentLoadState
-from sase.core.agent_scan_wire import AgentArtifactIndexCompletenessWire
-from tests._agent_loader_helpers import _empty_artifact_snapshot
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactIndexCompletenessWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+)
+
+
+def _empty_compact_artifact_snapshot() -> AgentArtifactListSnapshotWire:
+    return AgentArtifactListSnapshotWire(
+        schema_version=1,
+        projects_root="/tmp",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[],
+    )
 
 
 def test_full_history_uses_revalidated_artifact_index() -> None:
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock()
 
     def load_index(**kwargs: object) -> tuple[object, AgentLoadState]:
@@ -39,7 +55,7 @@ def test_full_history_uses_revalidated_artifact_index() -> None:
             ),
         )
 
-    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+    loaded_snapshot, state = artifact_snapshot_for_tui_load_list(
         full_history=True,
         use_artifact_index=True,
         candidate_filter={
@@ -64,7 +80,7 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
     snapshot = replace(
-        _empty_artifact_snapshot(),
+        _empty_compact_artifact_snapshot(),
         index_completeness=AgentArtifactIndexCompletenessWire(
             complete_history=True,
             source_reconciled=True,
@@ -72,7 +88,7 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
     )
     mock_query = Mock(return_value=snapshot)
 
-    loaded_snapshot, state = query_artifact_index_for_loader(
+    loaded_snapshot, state = query_artifact_index_for_loader_list(
         full_history=True,
         freshness="cached",
         requested_limit=25,
@@ -114,16 +130,16 @@ def test_full_history_incomplete_index_result_falls_back_to_source_scan(
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
     indexed_snapshot = replace(
-        _empty_artifact_snapshot(),
+        _empty_compact_artifact_snapshot(),
         index_completeness=AgentArtifactIndexCompletenessWire(
             complete_history=False,
             source_reconciled=False,
         ),
     )
-    source_snapshot = _empty_artifact_snapshot()
+    source_snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock(return_value=source_snapshot)
 
-    loaded_snapshot, state = query_artifact_index_for_loader(
+    loaded_snapshot, state = query_artifact_index_for_loader_list(
         full_history=True,
         default_index_path=lambda: index_path,
         projects_root=lambda: tmp_path / "projects",
@@ -141,8 +157,8 @@ def test_full_history_incomplete_index_result_falls_back_to_source_scan(
 
 
 def test_full_history_facade_rejects_incomplete_index_state() -> None:
-    indexed_snapshot = _empty_artifact_snapshot()
-    source_snapshot = _empty_artifact_snapshot()
+    indexed_snapshot = _empty_compact_artifact_snapshot()
+    source_snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock(return_value=source_snapshot)
     mock_load_index = Mock(
         return_value=(
@@ -156,7 +172,7 @@ def test_full_history_facade_rejects_incomplete_index_state() -> None:
         )
     )
 
-    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+    loaded_snapshot, state = artifact_snapshot_for_tui_load_list(
         full_history=True,
         use_artifact_index=True,
         scan_artifacts=mock_scan,
@@ -175,10 +191,10 @@ def test_full_history_facade_rejects_incomplete_index_state() -> None:
 def test_full_history_missing_index_falls_back_to_source_scan(
     tmp_path: Path,
 ) -> None:
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock(return_value=snapshot)
 
-    indexed = query_artifact_index_for_loader(
+    indexed = query_artifact_index_for_loader_list(
         full_history=True,
         default_index_path=lambda: tmp_path / "missing.sqlite",
         projects_root=lambda: tmp_path / "projects",
@@ -203,10 +219,10 @@ def test_full_history_bad_index_falls_back_to_source_scan(
 ) -> None:
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock(return_value=snapshot)
 
-    indexed = query_artifact_index_for_loader(
+    indexed = query_artifact_index_for_loader_list(
         full_history=True,
         default_index_path=lambda: index_path,
         projects_root=lambda: tmp_path / "projects",
@@ -234,7 +250,7 @@ def test_full_history_busy_index_lock_keeps_roster_without_source_scan(
     index_path.touch()
     mock_scan = Mock(side_effect=AssertionError("lock busy must not scan"))
 
-    indexed = query_artifact_index_for_loader(
+    indexed = query_artifact_index_for_loader_list(
         full_history=True,
         default_index_path=lambda: index_path,
         projects_root=lambda: tmp_path / "projects",
@@ -256,7 +272,7 @@ def test_full_history_busy_index_lock_keeps_roster_without_source_scan(
 
 
 def test_full_history_facade_lock_busy_does_not_source_scan() -> None:
-    indexed_snapshot = _empty_artifact_snapshot()
+    indexed_snapshot = _empty_compact_artifact_snapshot()
     mock_scan = Mock(side_effect=AssertionError("lock busy must not scan"))
     mock_load_index = Mock(
         return_value=(
@@ -272,7 +288,7 @@ def test_full_history_facade_lock_busy_does_not_source_scan() -> None:
         )
     )
 
-    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+    loaded_snapshot, state = artifact_snapshot_for_tui_load_list(
         full_history=True,
         use_artifact_index=True,
         scan_artifacts=mock_scan,

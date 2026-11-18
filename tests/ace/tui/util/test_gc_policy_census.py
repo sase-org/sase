@@ -6,6 +6,7 @@ import importlib
 import logging
 import sys
 import threading
+import weakref
 from collections import OrderedDict
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -274,6 +275,7 @@ def test_known_cache_census_reports_current_bounded_owners(
     memory_reads = importlib.import_module("sase.ace.tui.memory_reads")
     bead_touches = importlib.import_module("sase.ace.tui._bead_touches_loader")
     agent_stranded = importlib.import_module("sase.ace.tui.models.agent_stranded")
+    projected_record = importlib.import_module("sase.ace.tui.models._projected_record")
 
     class _Entry:
         def __init__(self, count: int) -> None:
@@ -340,6 +342,22 @@ def test_known_cache_census_reports_current_bounded_owners(
     )
     monkeypatch.setattr(agent_stranded, "_STRANDED_REPORT_CACHE", stranded_cache)
 
+    class _HydratedRow:
+        record_shape = "full"
+
+    class _CompactRow:
+        record_shape = "list"
+
+    hydrated_row = _HydratedRow()
+    compact_row = _CompactRow()
+    detail_owner = OrderedDict(
+        (
+            (id(hydrated_row), weakref.ref(hydrated_row)),
+            (id(compact_row), weakref.ref(compact_row)),
+        )
+    )
+    monkeypatch.setattr(projected_record, "_detail_owner", detail_owner)
+
     rows = {row["name"]: row for row in census_module.known_cache_census()}
     association = rows[
         "sase.core.artifact_file_explicit._artifact_file_association_cache"
@@ -377,6 +395,13 @@ def test_known_cache_census_reports_current_bounded_owners(
     assert stranded["verdict_index_total"] == 2
     assert stranded["stranded_id_total"] == 1
     assert stranded["blocked_id_total"] == 1
+
+    detail = rows["sase.ace.tui.models._projected_record._detail_owner"]
+    assert detail["status"] == "present"
+    assert detail["entries"] == 2
+    assert detail["live_rows"] == 2
+    assert detail["hydrated_rows"] == 1
+    assert detail["max_entries"] == 2
 
     names = set(rows)
     assert "sase.ace.tui.artifact_reads._artifact_reads_snapshot_cache" not in names

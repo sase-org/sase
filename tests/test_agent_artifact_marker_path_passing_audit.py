@@ -577,14 +577,6 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "written."
         ),
     ),
-    "src/sase/ace/tui/models/_loaders/_compact_meta_enrichment.py:_compact_monitor_supervisor_identity": PathPassingReview(
-        exemption=(
-            "Read-only supervisor identity resolution: agent_meta.json is read "
-            "through the mtime-cached loader for monitor_supervisor_identity "
-            "so compact rows keep PID-reuse detection parity; a missing or "
-            "unreadable meta yields None and no marker is written."
-        ),
-    ),
 }
 
 

@@ -34,7 +34,6 @@ from ._done_common import (
     done_extra_files,
     lazy_done_instruction_bundle_files,
     enrich_agent_revert_state,
-    enrich_missing_commit_metadata,
 )
 from ._meta_enrichment_common import (
     apply_archive_source_machine,
@@ -61,10 +60,9 @@ def _is_compact_done_record(record: AgentArtifactListRecordWire) -> bool:
 def _compact_step_output(record: AgentArtifactListRecordWire) -> dict | None:
     """Reconstruct list-visible step output from compact output facts.
 
-    The projection keeps every ``meta_*`` key plus a string ``diff_path``;
-    both are list-consumed (workspace-number fallback, commit backfill,
-    header metadata). Other raw output keys are deferred detail and stay
-    absent until selected-record hydration.
+    The projection keeps bounded, inventoried list/action metadata facts
+    plus a string ``diff_path``. Commit collections and arbitrary output
+    payloads stay absent until selected-record hydration.
     """
     done = record.done
     output = done.step_output if done is not None else None
@@ -281,7 +279,6 @@ def _build_done_agent_from_compact_record(
         )
     _apply_compact_auto_restart(agent, done)
     enrich_agent_from_compact_prompt_steps(agent, record.prompt_steps)
-    enrich_missing_commit_metadata(agent, record.artifact_dir)
     enrich_agent_revert_state(agent, record.artifact_dir)
     return agent
 

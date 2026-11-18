@@ -34,6 +34,20 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _projected_detail_row_version(agent: Agent) -> tuple[object, ...]:
+    """Snapshot compact facts that identify the selected row generation."""
+    return (
+        agent.identity,
+        agent.record_shape,
+        agent.index_record_dir,
+        agent.status,
+        agent.pid,
+        agent.process_identity,
+        agent.raw_suffix,
+        repr(agent.step_output),
+    )
+
+
 class AgentDetailRenderMixin:
     """Render and refresh the selected agent's detail panel."""
 
@@ -374,6 +388,8 @@ class AgentDetailRenderMixin:
 
     def _defer_projected_record_detail(self, current_agent: Agent) -> bool:
         """Start full-record hydration and defer detail rendering while pending."""
+        import weakref
+
         from ...models._projected_record import (
             mark_projected_agent_hydration_attempted,
             mark_projected_agent_hydration_pending,
@@ -381,6 +397,16 @@ class AgentDetailRenderMixin:
             projected_agent_waiting_for_hydration,
         )
         from ...util.pump_tasks import spawn_pump_free_task
+
+        selected_ref = getattr(self, "_projected_record_selected_agent_ref", None)
+        selected_before = selected_ref() if callable(selected_ref) else None
+        selection_generation = getattr(
+            self, "_projected_record_selection_generation", 0
+        )
+        if selected_before is not current_agent:
+            selection_generation += 1
+            self._projected_record_selection_generation = selection_generation  # type: ignore[attr-defined]
+            self._projected_record_selected_agent_ref = weakref.ref(current_agent)  # type: ignore[attr-defined]
 
         if not projected_agent_waiting_for_hydration(current_agent):
             return False
@@ -393,6 +419,9 @@ class AgentDetailRenderMixin:
             self._hydrate_projected_record_detail(
                 current_agent.identity,
                 current_agent,
+                _projected_detail_row_version(current_agent),
+                selection_generation,
+                getattr(self, "current_tab", None),
             ),
             name="agents.projected_record_hydration",
             registry_attr="_projected_record_hydration_tasks",
@@ -407,27 +436,58 @@ class AgentDetailRenderMixin:
         self,
         agent_identity: tuple[object, ...],
         agent: Agent,
+        row_version: tuple[object, ...],
+        selection_generation: int,
+        selected_tab: object,
     ) -> None:
-        """Hydrate a projected selected-agent record outside the message pump."""
+        """Load detail off-pump, then apply only to its current row generation."""
         from ...models._projected_record import (
-            hydrate_projected_agent,
+            apply_projected_agent_record,
+            load_projected_agent_record,
+            mark_projected_agent_hydration_attempted,
             mark_projected_agent_hydration_pending,
         )
 
+        artifact_dir = agent.index_record_dir
+        if not artifact_dir:
+            mark_projected_agent_hydration_pending(agent, False)
+            mark_projected_agent_hydration_attempted(agent)
+            return
         try:
-            changed = await asyncio.to_thread(hydrate_projected_agent, agent)
+            record, retryable = await asyncio.to_thread(
+                load_projected_agent_record,
+                artifact_dir,
+            )
         finally:
             mark_projected_agent_hydration_pending(agent, False)
 
-        if not changed:
+        if (
+            not agents_inbox_detail_allowed(self)
+            or getattr(self, "current_tab", None) != selected_tab
+            or getattr(self, "_projected_record_selection_generation", 0)
+            != selection_generation
+        ):
             return
-        if not agents_inbox_detail_allowed(self):
-            # A view switch landed while this Inbox hydration was in flight.
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if (
+            current_agent is not agent
+            or current_agent.identity != agent_identity
+            or current_agent.index_record_dir != artifact_dir
+            or _projected_detail_row_version(current_agent) != row_version
+        ):
+            return
+        if record is None:
+            if not retryable:
+                mark_projected_agent_hydration_attempted(agent)
+                schedule_owned_inbox_detail_update(self)
+            return
+        if not apply_projected_agent_record(
+            agent,
+            record,
+            expected_artifact_dir=artifact_dir,
+        ):
             return
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if current_agent is None or current_agent.identity != agent_identity:
-            return
         schedule_owned_inbox_detail_update(self)
 
     def _sync_selected_named_proc_detail_proc(

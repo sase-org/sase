@@ -64,6 +64,8 @@ def copy_agent_graph(
 
 def _copy_agent(agent: Agent, memo: dict[int, Agent] | None = None) -> Agent:
     """Return the memoized detached copy of *agent*."""
+    from ._projected_record import projected_agent_compact_copy_value
+
     owned = {} if memo is None else memo
     existing = owned.get(id(agent))
     if existing is not None:
@@ -72,7 +74,9 @@ def _copy_agent(agent: Agent, memo: dict[int, Agent] | None = None) -> Agent:
     init_kwargs: dict[str, Any] = {}
     deferred: list[tuple[str, Any]] = []
     for field in fields(agent):
-        value = getattr(agent, field.name)
+        present, value = projected_agent_compact_copy_value(agent, field.name)
+        if not present:
+            continue
         if _value_contains_agent(value):
             if field.init:
                 init_kwargs[field.name] = _empty_placeholder(value)
@@ -117,6 +121,9 @@ def copy_agent_rows_relinked(agents: Sequence[Agent]) -> list[Agent]:
         key = id(agent)
         if key not in memo:
             memo[key] = copy(agent)
+            from ._projected_record import prepare_projected_agent_copy
+
+            prepare_projected_agent_copy(agent, memo[key])
             originals[key] = agent
     for key, original in originals.items():
         clone = memo[key]

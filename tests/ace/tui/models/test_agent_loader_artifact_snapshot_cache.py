@@ -5,20 +5,22 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.tui.models._agent_loader_artifact_cache import (
-    FULL_ARTIFACT_SNAPSHOT_CACHE as ARTIFACT_SNAPSHOT_CACHE,
+    ARTIFACT_SNAPSHOT_CACHE,
 )
-from sase.ace.tui.models._agent_loader_artifacts import query_artifact_index_for_loader
+from sase.ace.tui.models._agent_loader_artifact_index_list import (
+    query_artifact_index_for_loader_list,
+)
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexWindowWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
-    AgentArtifactScanWire,
 )
 
 
-def _snapshot(root: Path, *, decoded: int = 7) -> AgentArtifactScanWire:
-    return AgentArtifactScanWire(
+def _snapshot(root: Path, *, decoded: int = 7) -> AgentArtifactListSnapshotWire:
+    return AgentArtifactListSnapshotWire(
         schema_version=1,
         projects_root=str(root),
         options=AgentArtifactScanOptionsWire(),
@@ -44,7 +46,7 @@ def test_cached_bounded_index_read_reuses_snapshot(tmp_path: Path) -> None:
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
+    ) -> AgentArtifactListSnapshotWire:
         nonlocal calls
         calls += 1
         assert query.freshness == "cached"
@@ -62,8 +64,8 @@ def test_cached_bounded_index_read_reuses_snapshot(tmp_path: Path) -> None:
         "scan_artifacts": lambda _options=None: _snapshot(tmp_path, decoded=99),
     }
 
-    first_snapshot, first_state = query_artifact_index_for_loader(**kwargs)
-    second_snapshot, second_state = query_artifact_index_for_loader(**kwargs)
+    first_snapshot, first_state = query_artifact_index_for_loader_list(**kwargs)
+    second_snapshot, second_state = query_artifact_index_for_loader_list(**kwargs)
 
     assert first_snapshot is snapshot
     assert second_snapshot is snapshot
@@ -88,7 +90,7 @@ def test_cache_key_isolates_candidate_filter(tmp_path: Path) -> None:
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
+    ) -> AgentArtifactListSnapshotWire:
         nonlocal calls
         calls += 1
         del query, options
@@ -104,11 +106,11 @@ def test_cache_key_isolates_candidate_filter(tmp_path: Path) -> None:
         "scan_artifacts": lambda _options=None: _snapshot(tmp_path, decoded=99),
     }
 
-    query_artifact_index_for_loader(
+    query_artifact_index_for_loader_list(
         **base,
         candidate_filter={"kind": "equals", "field": "project", "value": "a"},
     )
-    query_artifact_index_for_loader(
+    query_artifact_index_for_loader_list(
         **base,
         candidate_filter={"kind": "equals", "field": "project", "value": "b"},
     )
@@ -129,7 +131,7 @@ def test_cache_refuses_mutation_during_read(tmp_path: Path) -> None:
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
+    ) -> AgentArtifactListSnapshotWire:
         nonlocal calls
         calls += 1
         del query, options
@@ -150,8 +152,8 @@ def test_cache_refuses_mutation_during_read(tmp_path: Path) -> None:
         "scan_artifacts": lambda _options=None: _snapshot(tmp_path, decoded=99),
     }
 
-    query_artifact_index_for_loader(**kwargs)
-    query_artifact_index_for_loader(**kwargs)
+    query_artifact_index_for_loader_list(**kwargs)
+    query_artifact_index_for_loader_list(**kwargs)
 
     assert calls == 2
     stats = ARTIFACT_SNAPSHOT_CACHE.stats()
@@ -171,7 +173,7 @@ def test_revalidate_bypasses_snapshot_cache(tmp_path: Path) -> None:
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
+    ) -> AgentArtifactListSnapshotWire:
         nonlocal calls
         calls += 1
         assert query.freshness == "revalidate"
@@ -189,8 +191,8 @@ def test_revalidate_bypasses_snapshot_cache(tmp_path: Path) -> None:
         "scan_artifacts": lambda _options=None: _snapshot(tmp_path, decoded=99),
     }
 
-    query_artifact_index_for_loader(**kwargs)
-    query_artifact_index_for_loader(**kwargs)
+    query_artifact_index_for_loader_list(**kwargs)
+    query_artifact_index_for_loader_list(**kwargs)
 
     assert calls == 2
     assert ARTIFACT_SNAPSHOT_CACHE.stats().bypasses == 2
@@ -209,7 +211,7 @@ def test_lock_busy_serves_stale_same_key_snapshot(tmp_path: Path) -> None:
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire | None:
+    ) -> AgentArtifactListSnapshotWire | None:
         nonlocal calls
         calls += 1
         del query, options
@@ -230,9 +232,9 @@ def test_lock_busy_serves_stale_same_key_snapshot(tmp_path: Path) -> None:
         ),
     }
 
-    first_snapshot, first_state = query_artifact_index_for_loader(**kwargs)
+    first_snapshot, first_state = query_artifact_index_for_loader_list(**kwargs)
     index.write_text("db-stale", encoding="utf-8")
-    second_snapshot, second_state = query_artifact_index_for_loader(
+    second_snapshot, second_state = query_artifact_index_for_loader_list(
         **kwargs,
         allow_lock_busy_source_scan=False,
     )
@@ -261,7 +263,7 @@ def test_lock_busy_does_not_serve_different_key_snapshot(tmp_path: Path) -> None
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire | None:
+    ) -> AgentArtifactListSnapshotWire | None:
         del options
         filter_value = None
         if isinstance(query.candidate_filter, dict):
@@ -270,7 +272,7 @@ def test_lock_busy_does_not_serve_different_key_snapshot(tmp_path: Path) -> None
             return cached
         return None
 
-    def scan_artifacts(_options=None) -> AgentArtifactScanWire:
+    def scan_artifacts(_options=None) -> AgentArtifactListSnapshotWire:
         nonlocal scan_calls
         scan_calls += 1
         del _options
@@ -286,11 +288,11 @@ def test_lock_busy_does_not_serve_different_key_snapshot(tmp_path: Path) -> None
         "scan_artifacts": scan_artifacts,
     }
 
-    first_snapshot, _first_state = query_artifact_index_for_loader(
+    first_snapshot, _first_state = query_artifact_index_for_loader_list(
         **base,
         candidate_filter={"kind": "equals", "field": "project", "value": "a"},
     )
-    second_snapshot, second_state = query_artifact_index_for_loader(
+    second_snapshot, second_state = query_artifact_index_for_loader_list(
         **base,
         candidate_filter={"kind": "equals", "field": "project", "value": "b"},
         allow_lock_busy_source_scan=False,
@@ -311,13 +313,13 @@ def test_lock_busy_without_cache_keeps_roster_when_startup_scan_disabled(
     index.write_text("db", encoding="utf-8")
     scan_calls = 0
 
-    def scan_artifacts(_options=None) -> AgentArtifactScanWire:
+    def scan_artifacts(_options=None) -> AgentArtifactListSnapshotWire:
         nonlocal scan_calls
         scan_calls += 1
         del _options
         return _snapshot(tmp_path, decoded=99)
 
-    _snapshot_result, state = query_artifact_index_for_loader(
+    _snapshot_result, state = query_artifact_index_for_loader_list(
         full_history=False,
         freshness="cached",
         requested_limit=25,

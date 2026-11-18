@@ -143,6 +143,32 @@ def _snapshot_cache_census(cache: Any) -> dict[str, Any]:
     }
 
 
+def _projected_detail_owner_census(
+    owner: Any,
+    *,
+    lock: Any | None = None,
+    max_entries: int | None = None,
+) -> dict[str, Any]:
+    """Count concrete hydrated Agent generations tracked by the weak owner."""
+    items = _locked_mapping_items(owner, lock=lock)
+    live_agents = []
+    for _generation, reference in items:
+        if not callable(reference):
+            continue
+        agent = reference()
+        if agent is not None:
+            live_agents.append(agent)
+    return {
+        "entries": len(items),
+        "max_entries": max_entries,
+        "live_rows": len(live_agents),
+        "hydrated_rows": sum(
+            getattr(agent, "record_shape", None) == "full" for agent in live_agents
+        ),
+        "stale_references": len(items) - len(live_agents),
+    }
+
+
 def _lru_cache_census(cache: Any, *, event_attr: str = "events") -> dict[str, Any]:
     """Summarize a ``BoundedLRUCache`` of snapshot entries."""
     items = _locked_mapping_items(cache)
@@ -233,6 +259,12 @@ def known_cache_census() -> list[dict[str, Any]]:
             "snapshot",
         ),
         (
+            "sase.ace.tui.models._projected_record",
+            "_detail_owner",
+            "src/sase/ace/tui/models/_projected_record.py",
+            "projected_detail",
+        ),
+        (
             "sase.core.artifact_file_explicit",
             "_artifact_file_association_cache",
             "src/sase/core/artifact_file_explicit.py",
@@ -321,6 +353,12 @@ def known_cache_census() -> list[dict[str, Any]]:
                 continue
             if kind == "snapshot":
                 extra = _snapshot_cache_census(cache)
+            elif kind == "projected_detail":
+                extra = _projected_detail_owner_census(
+                    cache,
+                    lock=getattr(module, "_detail_owner_lock", None),
+                    max_entries=getattr(module, "_DETAIL_OWNER_BOUND", None),
+                )
             elif kind == "index":
                 extra = _index_file_cache_census(
                     cache,

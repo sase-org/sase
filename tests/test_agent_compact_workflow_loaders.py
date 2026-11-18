@@ -211,9 +211,10 @@ def test_failed_parent_and_step_parity(tmp_path: Path) -> None:
     assert full_step.status == "FAILED" == compact_step.status
     assert full_step.error_message == "workflow blew up"
     assert compact_step.error_message == "workflow blew up"
-    # Full step output keeps non-meta keys; compact keeps meta_* + diff_path.
+    # Full step output keeps detail keys. Compact facts retain only the
+    # inventoried, typed list/action metadata keys.
     assert full_step.step_output == {"meta_note": "kept", "raw_blob": "deferred"}
-    assert compact_step.step_output == {"meta_note": "kept"}
+    assert compact_step.step_output == {}
 
 
 def test_monitor_member_process_identity_parity(tmp_path: Path) -> None:

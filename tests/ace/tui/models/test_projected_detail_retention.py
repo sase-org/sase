@@ -8,12 +8,20 @@ accumulation.
 
 from __future__ import annotations
 
+import asyncio
 import gc
+from threading import Event, Thread
 import weakref
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from sase.ace.tui.actions.agents._display_detail_render import (
+    AgentDetailRenderMixin,
+    _projected_detail_row_version,
+)
 from sase.ace.tui.models._agent_loader_artifact_cache import (
     ARTIFACT_SNAPSHOT_CACHE,
 )
@@ -22,6 +30,13 @@ from sase.ace.tui.models._agent_loader_artifact_index_list import (
 )
 from sase.ace.tui.models._agent_loader_sources import (
     load_agents_from_compact_snapshot_sources,
+)
+from sase.ace.tui.models._agent_graph import (
+    copy_agent_graph,
+    copy_agent_rows_relinked,
+)
+from sase.ace.tui.models._loaders._compact_meta_enrichment import (
+    enrich_agent_from_compact_meta,
 )
 from sase.ace.tui.models import _projected_record as projected_record
 from sase.ace.tui.models._projected_record import (
@@ -35,6 +50,7 @@ from sase.core.agent_scan_list_wire import (
     AgentArtifactListDoneWire,
     AgentArtifactListRecordWire,
     AgentArtifactListSnapshotWire,
+    AgentArtifactListMetaWire,
 )
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
@@ -43,6 +59,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
     DoneMarkerWire,
+    AgentSessionTurnWire,
+    AgentSessionTurnMonitorWire,
 )
 
 
@@ -193,6 +211,63 @@ def test_compact_lock_busy_serves_only_same_key_stale(tmp_path: Path) -> None:
     assert other_state.complete_visible_inbox is False
 
 
+def test_superseded_compact_query_cannot_publish_old_window(
+    tmp_path: Path,
+) -> None:
+    ARTIFACT_SNAPSHOT_CACHE.clear()
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.write_text("db", encoding="utf-8")
+    first_started = Event()
+    release_first = Event()
+    calls: list[int | None] = []
+    snapshots = {
+        25: _compact_snapshot(tmp_path, decoded=25),
+        50: _compact_snapshot(tmp_path, decoded=50),
+    }
+
+    def query_index(
+        _index_path: Path,
+        _projects_root: Path,
+        *,
+        query: AgentArtifactIndexQueryWire,
+        options: AgentArtifactScanOptionsWire,
+    ) -> AgentArtifactListSnapshotWire:
+        del options
+        limit = query.window_limit
+        calls.append(limit)
+        if limit == 25:
+            first_started.set()
+            assert release_first.wait(timeout=5)
+        assert limit in snapshots
+        return snapshots[limit]
+
+    base = _query_kwargs(tmp_path, query_index, _compact_snapshot(tmp_path))
+    old_result: list[tuple[AgentArtifactListSnapshotWire, Any]] = []
+    old_thread = Thread(
+        target=lambda: old_result.append(
+            query_artifact_index_for_loader_list(**{**base, "requested_limit": 25})
+        )
+    )
+    old_thread.start()
+    assert first_started.wait(timeout=5)
+
+    latest, _state = query_artifact_index_for_loader_list(
+        **{**base, "requested_limit": 50},
+    )
+    assert latest is snapshots[50]
+    release_first.set()
+    old_thread.join(timeout=5)
+    assert not old_thread.is_alive()
+    assert old_result[0][0] is snapshots[25]
+
+    repeated, _state = query_artifact_index_for_loader_list(
+        **{**base, "requested_limit": 50},
+    )
+    assert repeated is snapshots[50]
+    assert calls == [25, 50]
+    assert ARTIFACT_SNAPSHOT_CACHE.stats().stores == 1
+
+
 def test_list_path_never_decodes_full_records(
     tmp_path: Path,
     monkeypatch: Any,
@@ -324,6 +399,83 @@ def test_selected_detail_owner_bounds_hydrated_agents(
             assert "_raw" in (agent.step_output or {})
 
 
+def test_same_identity_replacements_release_displaced_payloads(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    timestamp = _stamp(20260519100000, 0)
+    artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
+    _patch_hydration(
+        tmp_path,
+        monkeypatch,
+        {artifact_dir: _full_record(artifact_dir, timestamp)},
+    )
+    replacements = [
+        _list_agent(timestamp, artifact_dir, cl_name="same-logical-row")
+        for _ in range(20)
+    ]
+
+    for agent in replacements:
+        assert hydrate_projected_agent(agent) is True
+
+    assert len(projected_record._detail_owner) == 2
+    for agent in replacements[:-2]:
+        assert agent.record_shape == "list"
+        assert "_raw" not in (agent.step_output or {})
+    assert all(
+        agent.record_shape == "full" and "_raw" in (agent.step_output or {})
+        for agent in replacements[-2:]
+    )
+    retained_raw_bytes = sum(
+        len(str(agent.step_output.get("_raw", "")))
+        for agent in replacements
+        if isinstance(agent.step_output, dict)
+    )
+    assert retained_raw_bytes == 2 * len("full detail output " * 5000)
+
+
+def test_roster_copies_restore_compact_facts_without_detail(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    timestamps = [_stamp(20260519110000, i) for i in range(2)]
+    dirs = [
+        f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
+        for timestamp in timestamps
+    ]
+    records = {
+        artifact_dir: _full_record(artifact_dir, timestamp)
+        for timestamp, artifact_dir in zip(timestamps, dirs, strict=True)
+    }
+    _patch_hydration(tmp_path, monkeypatch, records)
+    parent, child = [
+        _list_agent(timestamp, artifact_dir, cl_name="copy-proj")
+        for timestamp, artifact_dir in zip(timestamps, dirs, strict=True)
+    ]
+    parent.followup_agents = [child]
+    child.agent_session_container = parent
+    assert hydrate_projected_agent(parent) is True
+    assert hydrate_projected_agent(child) is True
+
+    graph_copies = copy_agent_graph([parent, child])
+    assert graph_copies[0].followup_agents[0] is graph_copies[1]
+    assert graph_copies[1].agent_session_container is graph_copies[0]
+    shallow_copies = copy_agent_rows_relinked([parent, child])
+    assert shallow_copies[0].followup_agents[0] is shallow_copies[1]
+    assert shallow_copies[1].agent_session_container is shallow_copies[0]
+
+    for clone in (*graph_copies, *shallow_copies):
+        assert clone.record_shape == "list"
+        assert "_raw" not in (clone.step_output or {})
+        assert not hasattr(clone, "_projected_detail_stash")
+    assert parent.record_shape == child.record_shape == "full"
+
+    assert _release_projected_agent_detail(parent) is True
+    assert _release_projected_agent_detail(child) is True
+    for clone in (*graph_copies, *shallow_copies):
+        assert "_raw" not in (clone.step_output or {})
+
+
 def test_release_restores_compact_list_facts(
     tmp_path: Path,
     monkeypatch: Any,
@@ -397,3 +549,183 @@ def test_orphaned_hydrated_agents_stay_collectible(
     agent2 = _list_agent(timestamp2, artifact_dir2, cl_name="retention-orphan")
     assert hydrate_projected_agent(agent2) is True
     assert len(projected_record._detail_owner) <= 2
+
+
+class _HydrationOwner(AgentDetailRenderMixin):
+    def __init__(self, selected: Agent) -> None:
+        self.selected = selected
+        self.current_tab = "agents"
+        self.invalidations = 0
+        self.detail_updates = 0
+
+    def _get_selected_agent(self) -> Agent:
+        return self.selected
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        self.invalidations += 1
+
+
+async def _wait_thread_event(event: Event) -> None:
+    assert await asyncio.to_thread(event.wait, 5)
+
+
+def test_monitor_identity_uses_compact_scalar_without_metadata_file_read(
+    monkeypatch: Any,
+) -> None:
+    def reject_meta_read(path: str | Path) -> Any:
+        if Path(path).name == "agent_meta.json":
+            raise AssertionError("compact metadata must not reread agent_meta.json")
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models._loaders._json_cache.load_json_cached",
+        reject_meta_read,
+    )
+    timestamp = _stamp(20260519115000, 0)
+    agent = _list_agent(
+        timestamp,
+        f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}",
+        cl_name="monitor-proj",
+    )
+    meta = AgentArtifactListMetaWire(
+        process_identity="boot:9",
+        agent_session_role="monitor",
+        agent_session_turn=AgentSessionTurnWire(
+            kind="monitor",
+            id="monitor-id",
+            monitor=AgentSessionTurnMonitorWire(exit_code=None),
+        ),
+    )
+
+    enrich_agent_from_compact_meta(agent, meta, None)
+
+    assert agent.process_identity == "boot:9"
+    assert agent.monitor_id == "monitor-id"
+
+
+@pytest.mark.asyncio
+async def test_hydration_worker_drops_result_for_equal_identity_replacement(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    projected_record._detail_owner.clear()
+    timestamp = _stamp(20260519120000, 0)
+    artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
+    row = _list_agent(timestamp, artifact_dir, cl_name="hydration-replace")
+    replacement = _list_agent(timestamp, artifact_dir, cl_name="hydration-replace")
+    owner = _HydrationOwner(row)
+    record = _full_record(artifact_dir, timestamp)
+    started = Event()
+    release = Event()
+
+    def load_detached(_artifact_dir: str) -> tuple[AgentArtifactRecordWire, bool]:
+        started.set()
+        assert release.wait(timeout=5)
+        return record, False
+
+    monkeypatch.setattr(projected_record, "load_projected_agent_record", load_detached)
+    task = asyncio.create_task(
+        owner._hydrate_projected_record_detail(
+            row.identity,
+            row,
+            _projected_detail_row_version(row),
+            0,
+            owner.current_tab,
+        )
+    )
+    await _wait_thread_event(started)
+    assert row.record_shape == "list"
+    assert "_raw" not in (row.step_output or {})
+
+    owner.selected = replacement
+    release.set()
+    await task
+
+    assert row.record_shape == "list"
+    assert replacement.record_shape == "list"
+    assert "_raw" not in (replacement.step_output or {})
+    assert owner.invalidations == 0
+    assert owner.detail_updates == 0
+    assert len(projected_record._detail_owner) == 0
+
+
+@pytest.mark.asyncio
+async def test_hydration_worker_drops_result_after_tab_switch(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    projected_record._detail_owner.clear()
+    timestamp = _stamp(20260519130000, 0)
+    artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
+    row = _list_agent(timestamp, artifact_dir, cl_name="hydration-tab")
+    owner = _HydrationOwner(row)
+    started = Event()
+    release = Event()
+
+    def load_detached(_artifact_dir: str) -> tuple[AgentArtifactRecordWire, bool]:
+        started.set()
+        assert release.wait(timeout=5)
+        return _full_record(artifact_dir, timestamp), False
+
+    monkeypatch.setattr(projected_record, "load_projected_agent_record", load_detached)
+    task = asyncio.create_task(
+        owner._hydrate_projected_record_detail(
+            row.identity,
+            row,
+            _projected_detail_row_version(row),
+            0,
+            owner.current_tab,
+        )
+    )
+    await _wait_thread_event(started)
+    owner.current_tab = "patches"
+    release.set()
+    await task
+
+    assert row.record_shape == "list"
+    assert "_raw" not in (row.step_output or {})
+    assert owner.invalidations == 0
+    assert len(projected_record._detail_owner) == 0
+
+
+@pytest.mark.asyncio
+async def test_canceled_hydration_worker_never_applies_detached_payload(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    projected_record._detail_owner.clear()
+    timestamp = _stamp(20260519140000, 0)
+    artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
+    row = _list_agent(timestamp, artifact_dir, cl_name="hydration-cancel")
+    owner = _HydrationOwner(row)
+    started = Event()
+    release = Event()
+    finished = Event()
+
+    def load_detached(_artifact_dir: str) -> tuple[AgentArtifactRecordWire, bool]:
+        started.set()
+        assert release.wait(timeout=5)
+        finished.set()
+        return _full_record(artifact_dir, timestamp), False
+
+    monkeypatch.setattr(projected_record, "load_projected_agent_record", load_detached)
+    task = asyncio.create_task(
+        owner._hydrate_projected_record_detail(
+            row.identity,
+            row,
+            _projected_detail_row_version(row),
+            0,
+            owner.current_tab,
+        )
+    )
+    await _wait_thread_event(started)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    release.set()
+    await _wait_thread_event(finished)
+
+    assert row.record_shape == "list"
+    assert "_raw" not in (row.step_output or {})
+    assert owner.invalidations == 0
+    assert len(projected_record._detail_owner) == 0

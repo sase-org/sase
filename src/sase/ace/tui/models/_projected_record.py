@@ -36,7 +36,7 @@ _DETAIL_OWNER_BOUND = 2
 
 _UNSET = object()
 
-_detail_owner: OrderedDict[tuple[object, ...], weakref.ref[Any]] = OrderedDict()
+_detail_owner: OrderedDict[int, weakref.ref[Any]] = OrderedDict()
 # RLock: eviction inside ``_note_projected_detail_retained`` re-enters
 # through :func:`_release_projected_agent_detail`.
 _detail_owner_lock = threading.RLock()
@@ -125,6 +125,50 @@ def _stash_applied_detail(agent: Agent, pre: dict[str, Any]) -> None:
     setattr(agent, _PROJECTED_DETAIL_STASH_ATTR, stash)
 
 
+def projected_agent_compact_copy_value(
+    agent: Agent, field_name: str
+) -> tuple[bool, Any]:
+    """Return one field's compact value for a roster copy.
+
+    A copy made while detail is hydrated starts from the saved compact fact
+    when the field still contains the hydrated value. Later optimistic edits
+    win, matching detail release semantics. The boolean is false only when
+    hydration introduced a field that the compact row did not have.
+    """
+    current = vars(agent).get(field_name, _UNSET)
+    stash = getattr(agent, _PROJECTED_DETAIL_STASH_ATTR, None)
+    if not isinstance(stash, dict) or field_name not in stash:
+        return (current is not _UNSET, current)
+    old, hydrated = stash[field_name]
+    if current is not hydrated and not _detail_value_unchanged(current, hydrated):
+        return (current is not _UNSET, current)
+    return (old is not _UNSET, old)
+
+
+def prepare_projected_agent_copy(original: Agent, clone: Agent) -> None:
+    """Strip unmanaged selected detail from a shallow roster copy."""
+    stash = getattr(original, _PROJECTED_DETAIL_STASH_ATTR, None)
+    if isinstance(stash, dict):
+        for field_name in stash:
+            present, value = projected_agent_compact_copy_value(original, field_name)
+            if present:
+                setattr(clone, field_name, value)
+            else:
+                try:
+                    delattr(clone, field_name)
+                except AttributeError:
+                    pass
+    for attr in (
+        _PROJECTED_DETAIL_STASH_ATTR,
+        _HYDRATION_ATTEMPTED_ATTR,
+        _HYDRATION_PENDING_ATTR,
+    ):
+        try:
+            delattr(clone, attr)
+        except AttributeError:
+            pass
+
+
 def _note_projected_detail_retained(agent: Agent) -> None:
     """Register a hydrated agent with the bounded detail owner.
 
@@ -134,12 +178,12 @@ def _note_projected_detail_retained(agent: Agent) -> None:
     collectible and are never restored.
     """
 
-    identity = tuple(agent.identity)
+    generation = id(agent)
     with _detail_owner_lock:
-        _detail_owner[identity] = weakref.ref(agent)
-        _detail_owner.move_to_end(identity)
-        for known in list(_detail_owner):
-            if _detail_owner[known]() is None:
+        _detail_owner[generation] = weakref.ref(agent)
+        _detail_owner.move_to_end(generation)
+        for known, known_ref in list(_detail_owner.items()):
+            if known_ref() is None:
                 del _detail_owner[known]
         while len(_detail_owner) > _DETAIL_OWNER_BOUND:
             _oldest, oldest_ref = _detail_owner.popitem(last=False)
@@ -195,9 +239,10 @@ def _release_projected_agent_detail(agent: Agent) -> bool:
     with _detail_owner_lock:
         # Only drop the registration when it still points at this agent:
         # a newer generation under a reused identity keeps its entry.
-        known = _detail_owner.get(tuple(agent.identity))
+        generation = id(agent)
+        known = _detail_owner.get(generation)
         if known is None or known() is None or known() is agent:
-            _detail_owner.pop(tuple(agent.identity), None)
+            _detail_owner.pop(generation, None)
     return changed
 
 
@@ -207,15 +252,36 @@ def hydrate_projected_agent(agent: Agent) -> bool:
     This function may block on SQLite and must be called from a worker thread
     when used by the TUI detail render path.
     """
-
     artifact_dir = agent.index_record_dir
     if agent.record_shape != "list" or not artifact_dir:
         return False
 
+    record, retryable = load_projected_agent_record(artifact_dir)
+    if record is None:
+        if not retryable:
+            mark_projected_agent_hydration_attempted(agent)
+        return False
+    return apply_projected_agent_record(
+        agent,
+        record,
+        expected_artifact_dir=artifact_dir,
+    )
+
+
+def load_projected_agent_record(
+    artifact_dir: str,
+) -> tuple[AgentArtifactRecordWire | None, bool]:
+    """Read one full record without mutating or retaining its Agent row.
+
+    The boolean is true when the index lock made the read retryable. This is
+    the worker-side half of selected-detail hydration; UI code decides
+    whether the detached result still belongs to the selected row before it
+    applies any payload.
+    """
+
     index_path = default_agent_artifact_index_path()
     if not index_path.is_file():
-        mark_projected_agent_hydration_attempted(agent)
-        return False
+        return None, False
 
     try:
         records = load_agent_artifact_records(index_path, [artifact_dir])
@@ -223,22 +289,38 @@ def hydrate_projected_agent(agent: Agent) -> bool:
         log.debug(
             "projected record hydration failed for %s", artifact_dir, exc_info=True
         )
-        mark_projected_agent_hydration_attempted(agent)
-        return False
+        return None, False
 
     if records is None:
-        return False
+        return None, True
 
     if not records:
-        mark_projected_agent_hydration_attempted(agent)
+        return None, False
+
+    return records[0], False
+
+
+def apply_projected_agent_record(
+    agent: Agent,
+    record: AgentArtifactRecordWire,
+    *,
+    expected_artifact_dir: str,
+) -> bool:
+    """Apply a detached full-record result to its still-current compact row."""
+    if (
+        agent.record_shape != "list"
+        or agent.index_record_dir != expected_artifact_dir
+        or record.artifact_dir != expected_artifact_dir
+    ):
         return False
 
     # The full record stays transient: only its detail values are applied,
     # and the pre-hydration list facts are stashed so the bounded
     # selected-detail owner can release them without re-reading the index.
-    # ``records`` drops out of scope here; nothing retains the wire tree.
+    # The detached ``record`` drops out of scope here; nothing retains the
+    # wire tree.
     pre_hydration = dict(vars(agent))
-    _apply_full_record(agent, records[0])
+    _apply_full_record(agent, record)
     agent.record_shape = "full"
     _stash_applied_detail(agent, pre_hydration)
     _note_projected_detail_retained(agent)

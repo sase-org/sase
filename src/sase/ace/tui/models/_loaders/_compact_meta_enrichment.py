@@ -65,38 +65,6 @@ def _compact_valid_multiplier(value: object) -> float | None:
     return numeric if formatted is not None else None
 
 
-def _compact_monitor_supervisor_identity(agent: Agent) -> str | None:
-    """Return the supervisor identity stamp for monitor members.
-
-    The compact projection defers turn command/payload refs, but PID-reuse
-    detection (capacity claims, dead-PID filtering) reads
-    ``process_identity`` at list time, and monitor members usually carry no
-    top-level ``process_identity``: the supervisor stamps
-    ``monitor_supervisor_identity`` beside the turn instead. Resolve that
-    one scalar through the mtime-cached marker read so compact rows keep
-    the full path's source precedence (the supervisor stamp wins over the
-    meta identity). Monitor members are rare, and the read is cached per
-    artifact directory, so the list path stays free of full decodes.
-    """
-    if not is_monitor_member_role(agent.agent_session_role, agent.role_suffix):
-        return None
-    artifacts_dir = agent.get_artifacts_dir()
-    if not artifacts_dir:
-        return None
-    from pathlib import Path
-
-    from ._json_cache import load_json_cached
-
-    try:
-        data = load_json_cached(Path(artifacts_dir) / "agent_meta.json")
-    except (FileNotFoundError, OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    value = data.get("monitor_supervisor_identity")
-    return value if isinstance(value, str) and value else None
-
-
 def _compact_meta_has_wait_directive(meta: AgentArtifactListMetaWire) -> bool:
     """Mirror ``wire_meta_has_wait_directive`` over compact meta facts."""
 
@@ -531,7 +499,11 @@ def enrich_agent_from_compact_meta(
             monitor_turn.stop_status if monitor_turn is not None else None
         ),
         monitor_exit_code=monitor.exit_code if monitor is not None else None,
-        monitor_supervisor_identity=_compact_monitor_supervisor_identity(agent),
+        monitor_supervisor_identity=(
+            meta.process_identity
+            if meta is not None and monitor_turn is not None
+            else None
+        ),
         monitor_cwd=None,
         monitor_reason=None,
         monitor_next_action=None,
