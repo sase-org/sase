@@ -1,738 +1,123 @@
-"""Tests for leader-mode key dispatch."""
+"""Facade preserving the historic ``test_leader_keymap_dispatch`` import path.
+
+The tests now live in :mod:`test_leader_keymap_dispatch_launch`,
+:mod:`test_leader_keymap_dispatch_navigation`, and
+:mod:`test_leader_keymap_dispatch_system`; this module re-exports their public
+test functions so existing import paths keep working.
+"""
 
 from __future__ import annotations
 
-import asyncio
+# Tests live in the split modules below; keep this facade out of pytest
+# collection so each test runs once while the import path keeps working.
+__test__ = False
 
-from sase.ace.tui.actions.agents._unread_state import (
-    BulkUnreadToggleOutcome,
-    _BulkUnreadToggleResult,
+from tests.ace.tui.test_leader_keymap_dispatch_launch import (
+    test_leader_ctrl_space_no_longer_runs_agent_from_current_cl,
+    test_leader_h_runs_agent_home,
+    test_leader_h_uppercase_dispatches_collapse_fold_by_hint,
+    test_leader_h_uppercase_noops_on_non_agents_tabs,
+    test_leader_h_uppercase_skips_footer_refresh_when_hint_mode_arms,
+    test_leader_k_starts_hijack_only_on_agents_tab,
+    test_leader_r_noops_on_non_agents_tabs,
+    test_leader_r_reverts_selected_agent_on_agents_tab,
+    test_leader_repeat_uses_raw_subkey_for_revert,
+    test_leader_repeat_uses_raw_subkey_for_runners,
+    test_leader_shift_x_noops_on_non_agents_tabs,
+    test_leader_shift_x_targets_last_launch_ignoring_marks,
+    test_leader_space_runs_agent_from_current_cl,
+    test_leader_space_runs_agent_from_selected_agent_on_agents_tab,
+    test_leader_space_runs_agents_from_marked_cls,
+    test_leader_uppercase_r_opens_runners_on_agents_tab,
+    test_leader_x_kills_and_edits_focused_agent_without_marks,
+    test_leader_x_kills_and_edits_marked_set_when_marks_exist,
+    test_leader_x_noops_on_non_agents_tabs,
+    test_leader_x_repeat_reevaluates_marks,
 )
-from sase.ace.tui.actions.refresh_panel import FULL_HISTORY_MIGRATION_BANNER
-from sase.ace.tui.keymaps import load_keymap_registry
-from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
-
-
-def test_leader_space_runs_agent_from_current_cl() -> None:
-    app = _FakeApp(patches=[_make_cs("alpha")])
-
-    handled = app._handle_leader_key("space")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.quick_patch_agent_count == 1
-    assert app.quick_selected_agent_count == 0
-    assert app.marked_agent_run_count == 0
-    assert app._last_leader_key == "space"
-    assert app.refresh_count == 1
-
-
-def test_leader_question_mark_is_retired_on_all_tabs() -> None:
-    for tab in ("patches", "agents", "axe"):
-        app = _FakeApp(current_tab=tab)
-
-        handled = app._handle_leader_key("question_mark")
-
-        assert handled is True
-        assert app._leader_mode_active is False
-        assert app.show_help_count == 0
-        assert app.notifications == []
-        assert app._last_leader_key is None
-        assert app.refresh_count == 1
-
-
-def test_leader_slash_starts_metadata_search_only_on_agents() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    assert app._handle_leader_key("slash") is True
-    assert app.search_forward_count == 1
-    assert app.edit_query_count == 0
-    assert app._last_leader_key == "slash"
-    assert app.refresh_count == 1
-
-    for tab in ("patches", "axe"):
-        app = _FakeApp(current_tab=tab)
-
-        assert app._handle_leader_key("slash") is True
-        assert app.search_forward_count == 0
-        assert app.edit_query_count == 0
-        assert app._last_leader_key is None
-        assert app.refresh_count == 1
-
-
-def test_leader_search_repeat_rechecks_agents_context() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("slash")
-    app.current_tab = "patches"  # type: ignore[assignment]
-
-    assert app._handle_leader_key("comma") is True
-    assert app.search_forward_count == 1
-    assert app.edit_query_count == 0
-    assert app._last_leader_key == "slash"
-    assert app.refresh_count == 2
-
-
-def test_leader_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("space")
-
-    assert handled is True
-    assert app.quick_selected_agent_count == 1
-    assert app.quick_patch_agent_count == 0
-    assert app._last_leader_key == "space"
-
-
-def test_leader_space_runs_agents_from_marked_cls() -> None:
-    app = _FakeApp(patches=[_make_cs("alpha")])
-    app.marked_indices = {0}
-
-    handled = app._handle_leader_key("space")
-
-    assert handled is True
-    assert app.marked_agent_run_count == 1
-    assert app.quick_patch_agent_count == 0
-    assert app._last_leader_key == "space"
-
-
-def test_leader_h_runs_agent_home() -> None:
-    app = _FakeApp(patches=[_make_cs("alpha")])
-
-    handled = app._handle_leader_key("h")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.home_agent_count == 1
-    assert app.quick_patch_agent_count == 0
-    assert app.quick_selected_agent_count == 0
-    assert app.marked_agent_run_count == 0
-    assert app._last_leader_key == "h"
-    assert app.refresh_count == 1
-
-
-def test_leader_k_starts_hijack_only_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-    calls: list[str] = []
-    app._start_hijack_agent = lambda: calls.append("hijack")  # type: ignore[attr-defined]
-
-    assert app._handle_leader_key("k") is True
-    assert calls == ["hijack"]
-    assert app._last_leader_key == "k"
-
-    app = _FakeApp(current_tab="patches")
-    app._start_hijack_agent = lambda: calls.append("unexpected")  # type: ignore[attr-defined]
-    assert app._handle_leader_key("k") is True
-    assert calls == ["hijack"]
-
-
-def test_leader_ctrl_space_no_longer_runs_agent_from_current_cl() -> None:
-    app = _FakeApp(patches=[_make_cs("alpha")])
-
-    handled = app._handle_leader_key("ctrl+@")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.home_agent_count == 0
-    assert app.quick_patch_agent_count == 0
-    assert app._last_leader_key is None
-    assert app.refresh_count == 1
-
-
-def test_leader_g_is_retired_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("g")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.toggle_panel_grouping_count == 0
-    assert app._last_leader_key is None
-    assert app.refresh_count == 1
-
-
-def test_stale_remembered_leader_g_cannot_toggle_panel_grouping() -> None:
-    app = _FakeApp(current_tab="patches")
-    app._last_leader_key = "g"
-
-    handled = app._handle_leader_key("comma")
-
-    assert handled is True
-    assert app.toggle_panel_grouping_count == 0
-    assert app._last_leader_key == "g"
-    assert app.refresh_count == 1
-
-
-def test_leader_h_uppercase_dispatches_collapse_fold_by_hint() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    assert app._handle_leader_key("H") is True
-    assert app.collapse_fold_by_hint_count == 1
-    assert app.toggle_selected_panels_count == 0
-    assert app._last_leader_key == "H"
-    assert app.agent_footer_refresh_count == 1
-    assert app.refresh_count == 0
-
-    app._leader_mode_active = True
-    assert app._handle_leader_key("comma") is True
-    assert app.collapse_fold_by_hint_count == 2
-    assert app.toggle_selected_panels_count == 0
-    assert app.agent_footer_refresh_count == 2
-
-
-def test_leader_h_uppercase_skips_footer_refresh_when_hint_mode_arms() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.arm_hint_on_collapse = True
-
-    assert app._handle_leader_key("H") is True
-    assert app.collapse_fold_by_hint_count == 1
-    assert app._panel_fold_hint_mode_active is True
-    assert app.agent_footer_refresh_count == 0
-    assert app.refresh_count == 0
-    assert app.toggle_selected_panels_count == 0
-
-
-def test_leader_h_uppercase_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    assert app._handle_leader_key("H") is True
-    assert app.collapse_fold_by_hint_count == 0
-    assert app.toggle_selected_panels_count == 0
-    assert app.refresh_count == 1
-
-
-def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("j")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.jump_unread_count == 1
-    assert app.jump_stopped_count == 0
-    assert app.notifications == []
-    assert app.refresh_count == 0
-
-
-def test_leader_j_records_and_repeat_invokes_unread_jump_again() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("j")
-    repeated = app._handle_leader_key("comma")
-
-    assert handled is True
-    assert repeated is True
-    assert app.jump_unread_count == 2
-    assert app._last_leader_key == "j"
-    assert app.refresh_count == 0
-
-
-def test_leader_repeat_without_previous_command_notifies_and_refreshes() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("comma")
-
-    assert handled is True
-    assert app._last_leader_key is None
-    assert app.notifications == ["No leader command to repeat"]
-    assert app.refresh_count == 1
-
-
-def test_leader_unknown_key_and_escape_do_not_overwrite_previous_command() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("j")
-
-    app._handle_leader_key("unknown")
-    app._handle_leader_key("escape")
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "j"
-    assert app.jump_unread_count == 2
-    assert app.refresh_count == 2
-
-
-def test_leader_repeat_does_not_record_repeat_subkey() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    app._handle_leader_key("j")
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "j"
-    assert app.jump_unread_count == 2
-
-
-def test_leader_r_reverts_selected_agent_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("r")
-
-    assert handled is True
-    assert app.retry_edit_count == 0
-    assert app.runners_count == 0
-    assert app.revert_count == 1
-    assert app.refresh_count == 1
-
-
-def test_leader_r_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    handled = app._handle_leader_key("r")
-
-    assert handled is True
-    assert app.revert_count == 0
-    assert app.refresh_count == 1
-
-
-def test_leader_uppercase_r_opens_runners_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("R")
-
-    assert handled is True
-    assert app.retry_edit_count == 0
-    assert app.revert_count == 0
-    assert app.runners_count == 1
-    assert app.refresh_count == 1
-
-
-def test_leader_repeat_uses_raw_subkey_for_runners() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("R")
-
-    app.current_tab = "patches"  # type: ignore[assignment]
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "R"
-    assert app.retry_edit_count == 0
-    assert app.runners_count == 2
-
-
-def test_leader_repeat_uses_raw_subkey_for_revert() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("r")
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "r"
-    assert app.revert_count == 2
-
-
-def test_leader_x_kills_and_edits_focused_agent_without_marks() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("x")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.kill_and_edit_count == 1
-    assert app.bulk_kill_and_edit_count == 0
-    assert app._last_leader_key == "x"
-    assert app.refresh_count == 1
-
-
-def test_leader_x_kills_and_edits_marked_set_when_marks_exist() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._marked_agents = {("running", "my_feature", None)}
-
-    handled = app._handle_leader_key("x")
-
-    assert handled is True
-    assert app.bulk_kill_and_edit_count == 1
-    assert app.kill_and_edit_count == 0
-    assert app._last_leader_key == "x"
-    assert app.refresh_count == 1
-
-
-def test_leader_x_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-    app._marked_agents = {("running", "my_feature", None)}
-
-    handled = app._handle_leader_key("x")
-
-    assert handled is True
-    assert app.kill_and_edit_count == 0
-    assert app.bulk_kill_and_edit_count == 0
-    assert app.refresh_count == 1
-
-
-def test_leader_x_repeat_reevaluates_marks() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    # First press with no marks routes to the focused-row flow.
-    app._handle_leader_key("x")
-    assert app.kill_and_edit_count == 1
-    assert app.bulk_kill_and_edit_count == 0
-
-    # Marks appear; repeating ,x remembers raw ``x`` and re-evaluates marks,
-    # so the repeat routes to the bulk marked-set flow.
-    app._marked_agents = {("running", "my_feature", None)}
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "x"
-    assert app.bulk_kill_and_edit_count == 1
-    assert app.kill_and_edit_count == 1
-
-
-def test_leader_shift_x_targets_last_launch_ignoring_marks() -> None:
-    app = _FakeApp(current_tab="agents")
-    app._marked_agents = {("running", "my_feature", None)}
-
-    handled = app._handle_leader_key("X")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.kill_and_edit_last_count == 1
-    assert app.kill_and_edit_count == 0
-    assert app.bulk_kill_and_edit_count == 0
-    assert app._last_leader_key == "X"
-    assert app.refresh_count == 1
-
-
-def test_leader_shift_x_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    handled = app._handle_leader_key("X")
-
-    assert handled is True
-    assert app.kill_and_edit_last_count == 0
-    assert app.refresh_count == 1
-
-
-def test_leader_j_notifies_when_no_unread_done_stopped_or_stranded_agent() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.jump_unread_result = False
-    app.jump_stopped_result = False
-    app.jump_stranded_result = False
-
-    handled = app._handle_leader_key("j")
-
-    assert handled is True
-    assert app.jump_unread_count == 1
-    assert app.jump_stopped_count == 1
-    assert app.jump_stranded_count == 1
-    assert app.notifications == ["No unread completed, stopped, or stranded agents"]
-    assert app.refresh_count == 0
-
-
-def test_leader_j_triple_miss_names_stranded_backlog() -> None:
-    from types import SimpleNamespace
-
-    from sase.ace.tui.models import agent_stranded
-    from sase.bead.stranded import StrandedReport
-    from sase.core.stranded_work_facade import (
-        StrandedWorkReport,
-        StrandedWorkVerdict,
-    )
-
-    app = _FakeApp(current_tab="agents")
-    app.jump_unread_result = False
-    app.jump_stopped_result = False
-    app.jump_stranded_result = False
-    app._agents = [SimpleNamespace(project_file="/tmp/demo/demo.sase")]
-    try:
-        agent_stranded._STRANDED_REPORT_CACHE.set(
-            "demo",
-            StrandedReport(
-                report=StrandedWorkReport(
-                    verdicts=(
-                        StrandedWorkVerdict(
-                            bead_id="sase-demo.1",
-                            kind="phase",
-                            state="stranded",
-                            reason="unclosed",
-                        ),
-                        StrandedWorkVerdict(
-                            bead_id="sase-demo.2",
-                            kind="phase",
-                            state="stranded",
-                            reason="unclosed",
-                        ),
-                    ),
-                    stranded_ids=("sase-demo.1", "sase-demo.2"),
-                    blocked_ids=(),
-                ),
-                titles={},
-                generated_at=1.0,
-            ),
-            "test",
-        )
-
-        handled = app._handle_leader_key("j")
-    finally:
-        agent_stranded._STRANDED_REPORT_CACHE.clear()
-
-    assert handled is True
-    assert app.jump_unread_count == 1
-    assert app.jump_stopped_count == 1
-    assert app.jump_stranded_count == 1
-    assert app.notifications == [
-        "No unread completed, stopped, or stranded agents · "
-        "⚐ 2 stranded beads have no agent row here (Beads: status:stranded)"
-    ]
-    assert app.refresh_count == 0
-
-
-def test_leader_j_falls_back_to_next_stopped_agent() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.jump_unread_result = False
-    app.jump_stopped_result = True
-
-    assert app._handle_leader_key("j") is True
-
-    assert app.jump_unread_count == 1
-    assert app.jump_stopped_count == 1
-    assert app.jump_stranded_count == 0
-    assert app.notifications == []
-    assert app.refresh_count == 0
-
-
-def test_leader_j_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    handled = app._handle_leader_key("j")
-
-    assert handled is True
-    assert app.jump_unread_count == 0
-    assert app.jump_stopped_count == 0
-    assert app.jump_stranded_count == 0
-    assert app.notifications == []
-    assert app.refresh_count == 0
-
-
-def test_leader_shift_j_jumps_to_next_stopped_agent_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("J")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.jump_stopped_count == 1
-    assert app.jump_stranded_count == 0
-    assert app.mark_all_unread_count == 0
-    assert app.notifications == []
-    assert app.refresh_count == 0
-
-
-def test_leader_shift_j_notifies_when_no_stopped_agents() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.jump_stopped_result = False
-
-    handled = app._handle_leader_key("J")
-
-    assert handled is True
-    assert app.jump_stopped_count == 1
-    assert app.notifications == ["No stopped agents"]
-    assert app.refresh_count == 0
-
-
-def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    handled = app._handle_leader_key("J")
-
-    assert handled is True
-    assert app.mark_all_unread_count == 0
-    assert app.jump_stopped_count == 0
-    assert app.jump_stranded_count == 0
-    assert app.notifications == []
-    assert app.refresh_count == 0
-
-
-def test_leader_y_opens_refresh_panel_on_full_history() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("y")
-
-    assert handled is True
-    assert app.full_history_refresh_count == 0
-    assert app.refresh_count == 1
-    assert app.refresh_panel_opens == [
-        {
-            "initial_choice": "full_history",
-            "banner": FULL_HISTORY_MIGRATION_BANNER,
-        }
-    ]
-
-
-def test_leader_y_opens_refresh_panel_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="patches")
-
-    handled = app._handle_leader_key("y")
-
-    assert handled is True
-    assert app.full_history_refresh_count == 0
-    assert app.refresh_count == 1
-    assert app.refresh_panel_opens == [
-        {
-            "initial_choice": "full_history",
-            "banner": FULL_HISTORY_MIGRATION_BANNER,
-        }
-    ]
-
-
-def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("u")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.mark_all_unread_count == 1
-    assert app.notifications == [
-        "Marked 2 completed agents read · press ,u within 10s to undo"
-    ]
-    assert app.refresh_count == 0
-
-
-def test_leader_u_notifies_when_no_unread_done_agents() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
-
-    handled = app._handle_leader_key("u")
-
-    assert handled is True
-    assert app.mark_all_unread_count == 1
-    assert app.notifications == ["No unread completed agents"]
-    assert app.refresh_count == 1
-
-
-def test_leader_u_notifies_when_bulk_read_is_restored() -> None:
-    app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = _BulkUnreadToggleResult(
-        BulkUnreadToggleOutcome.RESTORED_UNREAD,
-        2,
-    )
-
-    handled = app._handle_leader_key("u")
-
-    assert handled is True
-    assert app.mark_all_unread_count == 1
-    assert app.notifications == ["Restored 2 completed agents unread"]
-    assert app.refresh_count == 0
-
-
-def test_leader_u_off_tab_finishes_perf_sample() -> None:
-    """An off-tab ,u still closes the leader perf sample like ,j/,J."""
-    from types import SimpleNamespace
-
-    app = _FakeApp(current_tab="patches")
-    begins: list[str] = []
-    paints: list[bool] = []
-    app._jk_perf_begin = begins.append  # type: ignore[attr-defined]
-    app._jk_perf = SimpleNamespace(mark_painted=lambda: paints.append(True))  # type: ignore[attr-defined]
-    app.call_after_refresh = lambda callback: callback()  # type: ignore[attr-defined]
-
-    handled = app._handle_leader_key("u")
-
-    assert handled is True
-    assert app.mark_all_unread_count == 0
-    assert app.refresh_count == 1
-    assert begins == [",u"]
-    assert paints == [True]
-
-
-def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    handled = app._handle_leader_key("u")
-    app.mark_all_unread_result = _BulkUnreadToggleResult(
-        BulkUnreadToggleOutcome.RESTORED_UNREAD,
-        2,
-    )
-    repeated = app._handle_leader_key("comma")
-
-    assert handled is True
-    assert repeated is True
-    assert app.mark_all_unread_count == 2
-    assert app._last_leader_key == "u"
-    assert app.notifications == [
-        "Marked 2 completed agents read · press ,u within 10s to undo",
-        "Restored 2 completed agents unread",
-    ]
-    assert app.refresh_count == 0
-
-
-def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
-    app = _FakeApp(current_tab="services")
-
-    handled = app._handle_leader_key("U")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.update_sase_shortcut_count == 1
-    assert app._last_leader_key == "U"
-    assert app.refresh_count == 1
-
-
-def test_leader_uppercase_e_runs_update_everything_on_all_tabs() -> None:
-    for tab in ("patches", "agents", "axe"):
-        app = _FakeApp(current_tab=tab)
-
-        handled = app._handle_leader_key("E")
-
-        assert handled is True
-        assert app._leader_mode_active is False
-        assert app.update_everything_shortcut_count == 1
-        assert app.update_sase_shortcut_count == 0
-        assert app._last_leader_key == "E"
-        assert app.refresh_count == 1
-
-
-def test_leader_update_everything_repeat_and_remap_use_configured_key() -> None:
-    app = _FakeApp(current_tab="services")
-    app._keymap_registry = load_keymap_registry(
-        {"keymaps": {"modes": {"leader_mode": {"keys": {"update_everything": "Q"}}}}}
-    )
-
-    assert app._handle_leader_key("E") is True
-    assert app.update_everything_shortcut_count == 0
-    assert app._last_leader_key is None
-    assert app.refresh_count == 1
-
-    assert app._handle_leader_key("Q") is True
-    assert app._handle_leader_key("comma") is True
-    assert app.update_everything_shortcut_count == 2
-    assert app._last_leader_key == "Q"
-    assert app.refresh_count == 3
-
-
-def test_leader_uppercase_l_jumps_to_last_error() -> None:
-    app = _FakeApp(current_tab="services")
-
-    handled = app._handle_leader_key("L")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.jump_to_last_error_count == 1
-    assert app._last_leader_key == "L"
-    assert app.refresh_count == 1
-
-
-def test_leader_at_schedules_panel_only_action_and_repeat() -> None:
-    app = _FakeApp(current_tab="services")
-
-    handled = app._handle_leader_key("at")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app._last_leader_key == "at"
-    assert app.scheduled_callbacks == [app.action_open_prompt_stash]
-    assert app.refresh_count == 1
-
-    asyncio.run(app.scheduled_callbacks.pop()())
-    assert app.open_prompt_stash_count == 1
-
-    repeated = app._handle_leader_key("comma")
-    assert repeated is True
-    assert app._last_leader_key == "at"
-    assert app.scheduled_callbacks == [app.action_open_prompt_stash]
-    assert app.refresh_count == 2
-
-
-def test_leader_ctrl_g_edits_first_prompt_history_entry() -> None:
-    app = _FakeApp()
-
-    handled = app._handle_leader_key("ctrl+g")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.prompt_history_calls == [{"show_cancelled": False, "edit_first": True}]
-    assert app.refresh_count == 1
+from tests.ace.tui.test_leader_keymap_dispatch_navigation import (
+    test_leader_g_is_retired_on_agents_tab,
+    test_leader_j_falls_back_to_next_stopped_agent,
+    test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab,
+    test_leader_j_noops_on_non_agents_tabs,
+    test_leader_j_notifies_when_no_unread_done_stopped_or_stranded_agent,
+    test_leader_j_records_and_repeat_invokes_unread_jump_again,
+    test_leader_j_triple_miss_names_stranded_backlog,
+    test_leader_question_mark_is_retired_on_all_tabs,
+    test_leader_repeat_does_not_record_repeat_subkey,
+    test_leader_repeat_without_previous_command_notifies_and_refreshes,
+    test_leader_search_repeat_rechecks_agents_context,
+    test_leader_shift_j_jumps_to_next_stopped_agent_on_agents_tab,
+    test_leader_shift_j_noops_on_non_agents_tabs,
+    test_leader_shift_j_notifies_when_no_stopped_agents,
+    test_leader_slash_starts_metadata_search_only_on_agents,
+    test_leader_unknown_key_and_escape_do_not_overwrite_previous_command,
+    test_leader_uppercase_l_jumps_to_last_error,
+    test_stale_remembered_leader_g_cannot_toggle_panel_grouping,
+)
+from tests.ace.tui.test_leader_keymap_dispatch_system import (
+    test_leader_at_schedules_panel_only_action_and_repeat,
+    test_leader_ctrl_g_edits_first_prompt_history_entry,
+    test_leader_u_marks_all_unread_done_agents_read_on_agents_tab,
+    test_leader_u_notifies_when_bulk_read_is_restored,
+    test_leader_u_notifies_when_no_unread_done_agents,
+    test_leader_u_off_tab_finishes_perf_sample,
+    test_leader_u_records_and_repeat_invokes_bulk_toggle_again,
+    test_leader_update_everything_repeat_and_remap_use_configured_key,
+    test_leader_uppercase_e_runs_update_everything_on_all_tabs,
+    test_leader_uppercase_u_opens_sase_update_shortcut,
+    test_leader_y_opens_refresh_panel_on_full_history,
+    test_leader_y_opens_refresh_panel_on_non_agents_tabs,
+)
+
+__all__ = [
+    "test_leader_at_schedules_panel_only_action_and_repeat",
+    "test_leader_ctrl_g_edits_first_prompt_history_entry",
+    "test_leader_ctrl_space_no_longer_runs_agent_from_current_cl",
+    "test_leader_g_is_retired_on_agents_tab",
+    "test_leader_h_runs_agent_home",
+    "test_leader_h_uppercase_dispatches_collapse_fold_by_hint",
+    "test_leader_h_uppercase_noops_on_non_agents_tabs",
+    "test_leader_h_uppercase_skips_footer_refresh_when_hint_mode_arms",
+    "test_leader_j_falls_back_to_next_stopped_agent",
+    "test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab",
+    "test_leader_j_noops_on_non_agents_tabs",
+    "test_leader_j_notifies_when_no_unread_done_stopped_or_stranded_agent",
+    "test_leader_j_records_and_repeat_invokes_unread_jump_again",
+    "test_leader_j_triple_miss_names_stranded_backlog",
+    "test_leader_k_starts_hijack_only_on_agents_tab",
+    "test_leader_question_mark_is_retired_on_all_tabs",
+    "test_leader_r_noops_on_non_agents_tabs",
+    "test_leader_r_reverts_selected_agent_on_agents_tab",
+    "test_leader_repeat_does_not_record_repeat_subkey",
+    "test_leader_repeat_uses_raw_subkey_for_revert",
+    "test_leader_repeat_uses_raw_subkey_for_runners",
+    "test_leader_repeat_without_previous_command_notifies_and_refreshes",
+    "test_leader_search_repeat_rechecks_agents_context",
+    "test_leader_shift_j_jumps_to_next_stopped_agent_on_agents_tab",
+    "test_leader_shift_j_noops_on_non_agents_tabs",
+    "test_leader_shift_j_notifies_when_no_stopped_agents",
+    "test_leader_shift_x_noops_on_non_agents_tabs",
+    "test_leader_shift_x_targets_last_launch_ignoring_marks",
+    "test_leader_slash_starts_metadata_search_only_on_agents",
+    "test_leader_space_runs_agent_from_current_cl",
+    "test_leader_space_runs_agent_from_selected_agent_on_agents_tab",
+    "test_leader_space_runs_agents_from_marked_cls",
+    "test_leader_u_marks_all_unread_done_agents_read_on_agents_tab",
+    "test_leader_u_notifies_when_bulk_read_is_restored",
+    "test_leader_u_notifies_when_no_unread_done_agents",
+    "test_leader_u_off_tab_finishes_perf_sample",
+    "test_leader_u_records_and_repeat_invokes_bulk_toggle_again",
+    "test_leader_unknown_key_and_escape_do_not_overwrite_previous_command",
+    "test_leader_update_everything_repeat_and_remap_use_configured_key",
+    "test_leader_uppercase_e_runs_update_everything_on_all_tabs",
+    "test_leader_uppercase_l_jumps_to_last_error",
+    "test_leader_uppercase_r_opens_runners_on_agents_tab",
+    "test_leader_uppercase_u_opens_sase_update_shortcut",
+    "test_leader_x_kills_and_edits_focused_agent_without_marks",
+    "test_leader_x_kills_and_edits_marked_set_when_marks_exist",
+    "test_leader_x_noops_on_non_agents_tabs",
+    "test_leader_x_repeat_reevaluates_marks",
+    "test_leader_y_opens_refresh_panel_on_full_history",
+    "test_leader_y_opens_refresh_panel_on_non_agents_tabs",
+    "test_stale_remembered_leader_g_cannot_toggle_panel_grouping",
+]

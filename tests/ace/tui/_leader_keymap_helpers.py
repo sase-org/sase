@@ -229,3 +229,27 @@ def _last_keys(captured: list[tuple[list[tuple[str, str]], str | None]]) -> set[
 
 def _last_labels(captured: list[tuple[list[tuple[str, str]], str | None]]) -> set[str]:
     return {label for _, label in captured[-1][0]}
+
+
+# Public aliases for split leader-dispatch test modules. The split modules must
+# never import a ``_``-prefixed name across modules, so shared helpers are
+# exposed here under public names. This module is already private
+# (``_leader_keymap_helpers``), which is the sanctioned home for such aliases.
+FakeApp = _FakeApp
+FakeEntryPoints = _FakeEntryPoints
+make_cs = _make_cs
+capture_bindings = _capture_bindings
+last_keys = _last_keys
+last_labels = _last_labels
+BulkUnreadToggleResult = _BulkUnreadToggleResult
+
+__all__ = [
+    "BulkUnreadToggleOutcome",
+    "BulkUnreadToggleResult",
+    "FakeApp",
+    "FakeEntryPoints",
+    "capture_bindings",
+    "last_keys",
+    "last_labels",
+    "make_cs",
+]
