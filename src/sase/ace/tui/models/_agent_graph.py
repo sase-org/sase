@@ -33,8 +33,11 @@ from .agent import Agent
 
 __all__ = [
     "AGENT_RELINK_FIELDS",
+    "DELTA_ISOLATED_FIELDS",
     "adopt_agents",
+    "agent_share_fingerprint",
     "copy_agent_graph",
+    "copy_agent_rows_delta_isolated",
     "copy_agent_rows_relinked",
 ]
 
@@ -50,6 +53,19 @@ AGENT_RELINK_FIELDS: tuple[str, ...] = (
     "status_display_source",
     "agent_session_container",
     "retry_chain_siblings",
+)
+
+#: Mutable leaf containers the delta fast path isolates on every shallow row
+#: copy. The merge/slot/tree passes mutate these in place (timestamp appends,
+#: feedback-path inserts, ``step_output`` updates); sharing the live objects
+#: would let a worker thread mutate the displayed graph before apply.
+DELTA_ISOLATED_FIELDS: tuple[str, ...] = (
+    "retry_chain_siblings",
+    "plan_times",
+    "feedback_times",
+    "questions_times",
+    "feedback_plan_paths",
+    "step_output",
 )
 
 
@@ -145,6 +161,150 @@ def copy_agent_rows_relinked(agents: Sequence[Agent]) -> list[Agent]:
             else:
                 setattr(clone, field_name, value)
     return [memo[id(agent)] for agent in agents]
+
+
+def copy_agent_rows_delta_isolated(
+    agents: Sequence[Agent],
+    memo: dict[int, Agent] | None = None,
+) -> list[Agent]:
+    """Return shallow row copies isolated for the exact-delta fast path.
+
+    Like :func:`copy_agent_rows_relinked` each distinct row is copied once
+    with :func:`copy.copy` (memoized by :func:`id`) and in-batch ``Agent``
+    references are relinked through the shared *memo* so visible, capacity,
+    and fleet rosters keep intentional aliases without aliasing live rows.
+
+    Every mutable list/dict/set container is additionally detached into a
+    new container sharing only leaf values (``Agent`` elements relink
+    through *memo*). The merge/slot/tree passes mutate several of these in
+    place (:data:`DELTA_ISOLATED_FIELDS` names the known ones: timestamp
+    appends, feedback-path inserts, ``step_output`` updates,
+    ``retry_chain_siblings`` rebuilds); detaching all of them keeps a worker
+    thread from mutating the displayed graph before apply even when a later
+    pass gains a new in-place write. Immutable leaves, tuples, and nested
+    dataclass wires (clan context, retention, fleet payloads) stay shared
+    read-only: preparation only ever reassigns or replaces those, never
+    mutates them in place.
+    """
+
+    owned = {} if memo is None else memo
+    originals: dict[int, Agent] = {}
+    for agent in agents:
+        key = id(agent)
+        if key not in owned:
+            clone = copy(agent)
+            from ._projected_record import prepare_projected_agent_copy
+
+            prepare_projected_agent_copy(agent, clone)
+            owned[key] = clone
+            originals[key] = agent
+    all_fields = fields(Agent)
+    for key, original in originals.items():
+        clone = owned[key]
+        for field in all_fields:
+            field_name = field.name
+            if field_name in AGENT_RELINK_FIELDS:
+                value = getattr(original, field_name)
+                if isinstance(value, Agent):
+                    setattr(clone, field_name, owned.get(id(value), value))
+                elif isinstance(value, list):
+                    setattr(
+                        clone,
+                        field_name,
+                        [
+                            owned.get(id(item), item)
+                            if isinstance(item, Agent)
+                            else item
+                            for item in value
+                        ],
+                    )
+                elif value is None:
+                    setattr(clone, field_name, None)
+                else:
+                    setattr(clone, field_name, value)
+                continue
+            value = getattr(original, field_name, None)
+            if isinstance(value, list):
+                setattr(
+                    clone,
+                    field_name,
+                    [
+                        owned.get(id(item), item) if isinstance(item, Agent) else item
+                        for item in value
+                    ],
+                )
+            elif isinstance(value, dict):
+                setattr(
+                    clone,
+                    field_name,
+                    {
+                        map_key: owned.get(id(item), item)
+                        if isinstance(item, Agent)
+                        else item
+                        for map_key, item in value.items()
+                    },
+                )
+            elif isinstance(value, set):
+                setattr(
+                    clone,
+                    field_name,
+                    {
+                        owned.get(id(item), item) if isinstance(item, Agent) else item
+                        for item in value
+                    },
+                )
+    return [owned[id(agent)] for agent in agents]
+
+
+def _fingerprint_value(value: Any) -> Any:
+    """Convert *value* to a cycle-safe comparable fingerprint element.
+
+    ``Agent`` references become identity tuples so working copies (which
+    point at other working copies) compare equal to live rows (which point
+    at live rows) when they describe the same roster. All other containers
+    recurse structurally; leaf values compare by ``==``.
+    """
+    if isinstance(value, Agent):
+        return ("agent", value.identity)
+    if isinstance(value, list):
+        return ("list", tuple(_fingerprint_value(item) for item in value))
+    if isinstance(value, tuple):
+        return ("tuple", tuple(_fingerprint_value(item) for item in value))
+    if isinstance(value, set):
+        try:
+            return ("set", tuple(sorted(_fingerprint_value(item) for item in value)))
+        except TypeError:
+            return ("set", tuple(_fingerprint_value(item) for item in value))
+    if isinstance(value, dict):
+        try:
+            items = sorted(value.items(), key=lambda kv: repr(kv[0]))
+        except TypeError:
+            items = list(value.items())
+        return (
+            "dict",
+            tuple((key, _fingerprint_value(item)) for key, item in items),
+        )
+    try:
+        hash(value)
+        return value
+    except TypeError:
+        try:
+            return ("repr", repr(value))
+        except Exception:
+            return ("type", type(value).__name__)
+
+
+def agent_share_fingerprint(agent: Agent) -> tuple[Any, ...]:
+    """Return a cycle-safe presentation fingerprint for share-back decisions.
+
+    Covers every dataclass field so an untouched row's working copy compares
+    equal to its live row even though relationship pointers address different
+    (but identity-equivalent) objects. Only rows whose fingerprint matches
+    the live row may be shared in the published roster.
+    """
+    return tuple(
+        _fingerprint_value(getattr(agent, field.name)) for field in fields(agent)
+    )
 
 
 def adopt_agents(

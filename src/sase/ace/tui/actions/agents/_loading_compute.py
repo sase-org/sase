@@ -45,8 +45,10 @@ from ._loading_compute_types import (
 )
 from ._loading_graph import (
     CachedGraphNeeds,
+    ExactDeltaFastPath,
     adopt_prepared_apply_data,
     classify_cached_graph_needs,
+    own_exact_delta_snapshot_fast,
     own_prepared_apply_snapshot,
     own_required_apply_snapshot,
 )
@@ -628,7 +630,22 @@ def prepare_loaded_agents_worker_boundary(
         snapshot,
         incoming_capacity_nonempty=bool(all_agents),
     )
-    snapshot, memo = own_required_apply_snapshot(snapshot, needs)
+    # Exact artifact deltas use shallow-isolated copies instead of deep graph
+    # clones, then share back untouched rows by fingerprint after finalize.
+    # Every other load keeps the deep-detach safe path; the classifier
+    # records the explicit fallback reason for the trace below.
+    snapshot, memo, fast_path = own_exact_delta_snapshot_fast(snapshot, needs)
+    assert isinstance(fast_path, ExactDeltaFastPath)
+    from ...util.trace import tui_trace
+
+    with tui_trace(
+        "agents.exact_delta_fast_path",
+        eligible=fast_path.eligible,
+        reason=fast_path.reason,
+        incoming=len(all_agents),
+        cached=len(snapshot.cached_agents_with_children),
+    ):
+        pass
     all_agents = adopt_agents(all_agents, memo)
     dismissed_from_loader = adopt_agents(dismissed_from_loader, memo)
     prep = _prepare_loaded_agents_worker_prep(

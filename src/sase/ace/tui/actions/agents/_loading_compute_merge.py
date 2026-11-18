@@ -631,3 +631,33 @@ def merge_incomplete_load_after_complete_history(
     elif incoming_capacity_agents:
         prep.capacity_agents = incoming_capacity_agents
     return prep
+
+
+#: Relationship keys that separate scalar exact-delta replacements from
+#: structural ones. Scalar updates (status, timing, providers, metadata)
+#: keep every key below equal; membership, ordering, dedup, capacity-alias,
+#: and query-relevant changes differ in at least one. The fast path handles
+#: both buckets with the same isolated pipeline today; the keys document the
+#: boundary a future scoped normalizer can gate on without re-deriving it.
+EXACT_DELTA_RELATIONSHIP_KEYS: tuple[str, ...] = (
+    "parent_timestamp",
+    "parent_workflow",
+    "agent_session",
+    "agent_session_role",
+    "agent_clan",
+    "agent_clan_generation",
+    "pid",
+    "raw_suffix",
+    "project_file",
+    "agent_type",
+    "workflow",
+    "parent_step_index",
+    "step_index",
+    "step_type",
+    "step_name",
+    "role_suffix",
+    "is_workflow_child",
+    "is_agent_session_member_child",
+    "fleet_origin_alias",
+    "start_time",
+)

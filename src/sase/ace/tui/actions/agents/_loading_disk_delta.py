@@ -13,6 +13,11 @@ from ._loading_compute import (
     attach_finalize_plan_to_boundary,
     prepare_loaded_agents_worker_boundary,
 )
+from ._loading_graph import (
+    ExactDeltaFastPath,
+    classify_exact_delta_fast_path,
+    share_back_boundary_fast,
+)
 from ._loading_state import AgentLoadingStateMixin
 from ._refresh_trace import (
     classify_agents_data_cost,
@@ -136,6 +141,56 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             worker_snapshot,
             content_index=content_index,
         )
+        # Exact-delta fast path: share back untouched presentation rows by
+        # fingerprint on the UI thread with no await before apply, so the
+        # published roster reuses live objects for unrelated components and
+        # only retained new objects scale with the affected closure. The
+        # worker pipeline already ran on isolated copies, so live rows are
+        # unchanged until this publish; ineligible loads keep owned copies.
+        fast_path = classify_exact_delta_fast_path(worker_snapshot)
+        assert isinstance(fast_path, ExactDeltaFastPath)
+        if fast_path.eligible:
+            shared_before = len(boundary.fold.unfiltered_agents)
+            boundary = share_back_boundary_fast(boundary, worker_snapshot)
+            live_ids = {
+                id(agent) for agent in worker_snapshot.cached_agents_with_children
+            }
+            live_ids |= {
+                id(agent) for agent in worker_snapshot.capacity_agents_with_children
+            }
+            live_ids |= {id(agent) for agent in worker_snapshot.fleet_rows}
+            shared_live = sum(
+                1 for agent in boundary.fold.unfiltered_agents if id(agent) in live_ids
+            )
+            from ...util.trace import tui_trace
+
+            with tui_trace(
+                "agents.exact_delta_share_back",
+                reason=fast_path.reason,
+                roster=shared_before,
+                shared_live=shared_live,
+                retained_new=shared_before - shared_live,
+            ):
+                pass
+            record_agents_refresh_trace(
+                self,
+                stage="delta_copy_fast_path",
+                source=source,
+                data_cost=data_cost,
+                agents=shared_before,
+                dismissed=len(dismissed_from_loader),
+                fallback_reason=None,
+            )
+        else:
+            record_agents_refresh_trace(
+                self,
+                stage="delta_copy_fallback",
+                source=source,
+                data_cost=data_cost,
+                agents=len(all_agents),
+                dismissed=len(dismissed_from_loader),
+                fallback_reason=fast_path.reason,
+            )
         prep_elapsed = time.perf_counter() - prep_start
         log.debug("agents artifact delta load: prep=%.3fs", prep_elapsed)
 

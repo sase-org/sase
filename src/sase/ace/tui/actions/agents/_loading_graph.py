@@ -17,16 +17,29 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from ...models._agent_graph import adopt_agents, copy_agent_graph
+from ...models._agent_graph import (
+    adopt_agents,
+    agent_share_fingerprint,
+    copy_agent_graph,
+    copy_agent_rows_delta_isolated,
+)
 from ...models.agent import Agent
-from ._loading_compute_types import PreparedApplyData, PreparedApplySnapshot
+from ._loading_compute_types import (
+    PreparedApplyBoundary,
+    PreparedApplyData,
+    PreparedApplySnapshot,
+)
 
 __all__ = [
     "CachedGraphNeeds",
+    "ExactDeltaFastPath",
     "adopt_prepared_apply_data",
     "classify_cached_graph_needs",
+    "classify_exact_delta_fast_path",
+    "own_exact_delta_snapshot_fast",
     "own_prepared_apply_snapshot",
     "own_required_apply_snapshot",
+    "share_back_boundary_fast",
 ]
 
 
@@ -167,6 +180,229 @@ def own_prepared_apply_snapshot(
             fleet=True,
         ),
     )
+
+
+@dataclass(frozen=True)
+class ExactDeltaFastPath:
+    """Eligibility of the conservative exact-artifact-delta fast path.
+
+    *eligible* is True only for Tier-1 ``artifact_delta`` patch merges over a
+    complete-history watermark with a matching committed query. Every other
+    load (full/authoritative replacements, repair-recommended deltas,
+    bounded-prefix window changes, running-claim scans, unreadable query
+    state) keeps the existing deep-detach safe path and records *reason* as
+    its explicit trace fallback.
+    """
+
+    eligible: bool
+    reason: str
+
+
+def classify_exact_delta_fast_path(
+    snapshot: PreparedApplySnapshot,
+) -> ExactDeltaFastPath:
+    """Decide whether the snapshot may use the delta-isolated fast ownership.
+
+    The fast path still runs the full merge/slot/tree pipeline, but on
+    shallow-isolated row copies instead of deep graph clones, then shares
+    back untouched rows by fingerprint. It is only safe when the merge will
+    patch incoming rows over cached history (never an authoritative
+    replacement), so the same predicates as
+    :func:`_merge_patches_cached_history` gate it, plus artifact-delta
+    specificity and repair/query guards that would otherwise broaden the
+    write set beyond the isolated copies.
+    """
+    load_state = snapshot.load_state
+    if load_state is None:
+        return ExactDeltaFastPath(eligible=False, reason="no-load-state")
+    if load_state.complete_history:
+        return ExactDeltaFastPath(eligible=False, reason="authoritative-complete")
+    if load_state.artifact_source != "artifact_delta":
+        return ExactDeltaFastPath(eligible=False, reason="not-artifact-delta")
+    if load_state.repair_recommended:
+        return ExactDeltaFastPath(eligible=False, reason="repair-recommended")
+    if load_state.bounded_prefix:
+        return ExactDeltaFastPath(eligible=False, reason="bounded-prefix")
+    if not snapshot.agents_seen_complete_history:
+        return ExactDeltaFastPath(eligible=False, reason="no-complete-watermark")
+    if not snapshot.cache_query_matches:
+        return ExactDeltaFastPath(eligible=False, reason="query-mismatch")
+    if bool(getattr(load_state, "running_claims_scanned", False)):
+        return ExactDeltaFastPath(eligible=False, reason="running-claims-scan")
+    if not snapshot.cached_agents_with_children:
+        return ExactDeltaFastPath(eligible=False, reason="empty-cache")
+    return ExactDeltaFastPath(eligible=True, reason="exact-delta")
+
+
+def own_exact_delta_snapshot_fast(
+    snapshot: PreparedApplySnapshot,
+    needs: CachedGraphNeeds,
+) -> tuple[PreparedApplySnapshot, dict[int, Agent], ExactDeltaFastPath]:
+    """Own cached roots with shallow-isolated copies for an exact delta.
+
+    Uses one memo across the visible, capacity, fleet, and named-proc-fallback
+    roots so overlapping rows keep one detached clone. Every row object is a
+    new copy (no alias to live rows) and every mutable list/dict/set
+    container is detached, so the full merge/slot/tree pipeline may run
+    unchanged without mutating the displayed graph. Untouched rows are
+    shared back by fingerprint after the pipeline in
+    :func:`_share_back_exact_delta_lists`; only retained new objects scale
+    with the affected closure, never the full roster.
+    """
+    decision = classify_exact_delta_fast_path(snapshot)
+    if not decision.eligible:
+        owned, fast_memo = own_required_apply_snapshot(snapshot, needs)
+        return owned, fast_memo, decision
+    memo: dict[int, Agent] = {}
+    cached = snapshot.cached_agents_with_children
+    if needs.cached_roster:
+        new_cached = copy_agent_rows_delta_isolated(cached, memo)
+    elif needs.cached_named_procs:
+        named = [agent for agent in cached if agent.is_named_proc]
+        copies = copy_agent_rows_delta_isolated(named, memo)
+        table = {
+            id(original): clone for original, clone in zip(named, copies, strict=True)
+        }
+        new_cached = [table.get(id(agent), agent) for agent in cached]
+    else:
+        new_cached = cached
+    if needs.capacity:
+        new_capacity = copy_agent_rows_delta_isolated(
+            snapshot.capacity_agents_with_children,
+            memo,
+        )
+    else:
+        new_capacity = snapshot.capacity_agents_with_children
+    if needs.fleet:
+        new_fleet = tuple(copy_agent_rows_delta_isolated(snapshot.fleet_rows, memo))
+    else:
+        new_fleet = snapshot.fleet_rows
+    owned = replace(
+        snapshot,
+        cached_agents_with_children=new_cached,
+        capacity_agents_with_children=new_capacity,
+        fleet_rows=new_fleet,
+    )
+    return owned, memo, decision
+
+
+def _share_back_exact_delta_lists(
+    working: list[Agent],
+    live: list[Agent] | tuple[Agent, ...],
+) -> list[Agent]:
+    """Share back live rows whose fingerprints match the worked copies.
+
+    For each worked row, finds the live row with the same identity and
+    reuses the live object when every dataclass field matches modulo
+    ``Agent``-reference relinking (working copies point at working copies,
+    live rows at live rows). Changed rows (scalar updates, terminal
+    transitions, added children, deletions already absent, remirrors,
+    requeued waiters, reprojected containers) keep their worked copies.
+    Unrelated components therefore preserve object identity in the
+    published roster while mutated rows stay owned.
+    """
+    live_by_identity: dict[object, list[Agent]] = {}
+    for agent in live:
+        live_by_identity.setdefault(agent.identity, []).append(agent)
+    live_fingerprints: dict[int, tuple[object, ...]] = {}
+    shared: list[Agent] = []
+    for agent in working:
+        candidates = live_by_identity.get(agent.identity, [])
+        if not candidates:
+            shared.append(agent)
+            continue
+        work_fp = agent_share_fingerprint(agent)
+        match: Agent | None = None
+        for live_agent in candidates:
+            # Visible, capacity, and fleet rosters alias the same row object,
+            # so one identity routinely maps to the same object twice. Share
+            # the first live row whose fingerprint matches the worked copy.
+            live_key = id(live_agent)
+            live_fp = live_fingerprints.get(live_key)
+            if live_fp is None:
+                live_fp = agent_share_fingerprint(live_agent)
+                live_fingerprints[live_key] = live_fp
+            if work_fp == live_fp:
+                match = live_agent
+                break
+        shared.append(match if match is not None else agent)
+    return shared
+
+
+def share_back_boundary_fast(
+    boundary: PreparedApplyBoundary,
+    live_snapshot: PreparedApplySnapshot,
+) -> PreparedApplyBoundary:
+    """Share back untouched rows on an exact-delta fast-path boundary.
+
+    Replaces worked copies with live objects wherever fingerprints match,
+    across every published roster (prep, fold, and finalize query/scoped
+    lists) using one identity lookup so all rosters stay consistent. Only
+    runs when :func:`classify_exact_delta_fast_path` deems the live
+    snapshot eligible; every other load keeps its existing owned copies.
+    Call on the UI thread after finalize with no await before apply.
+    """
+    from dataclasses import replace as _replace
+
+    if not classify_exact_delta_fast_path(live_snapshot).eligible:
+        return boundary
+    live_union: list[Agent] = [
+        *live_snapshot.cached_agents_with_children,
+        *live_snapshot.capacity_agents_with_children,
+        *live_snapshot.fleet_rows,
+    ]
+    prep = boundary.prep
+    prep = _replace(
+        prep,
+        filtered_agents=_share_back_exact_delta_lists(
+            list(prep.filtered_agents), live_union
+        ),
+        hideable_agents=_share_back_exact_delta_lists(
+            list(prep.hideable_agents), live_union
+        ),
+        capacity_agents=_share_back_exact_delta_lists(
+            list(prep.capacity_agents), live_union
+        ),
+        dismissed_agent_objects=_share_back_exact_delta_lists(
+            list(prep.dismissed_agent_objects), live_union
+        ),
+    )
+    fold = boundary.fold
+    fold = _replace(
+        fold,
+        unfiltered_agents=_share_back_exact_delta_lists(
+            list(fold.unfiltered_agents), live_union
+        ),
+        visible_agents=_share_back_exact_delta_lists(
+            list(fold.visible_agents), live_union
+        ),
+        local_unfiltered_agents=_share_back_exact_delta_lists(
+            list(fold.local_unfiltered_agents), live_union
+        ),
+        local_visible_agents=_share_back_exact_delta_lists(
+            list(fold.local_visible_agents), live_union
+        ),
+    )
+    finalize = boundary.finalize
+    if finalize is not None:
+        query = finalize.query
+        query = _replace(
+            query,
+            filtered_agents=_share_back_exact_delta_lists(
+                list(query.filtered_agents), live_union
+            ),
+        )
+        finalize = _replace(
+            finalize,
+            query=query,
+            agents_query_result=_share_back_exact_delta_lists(
+                list(finalize.agents_query_result), live_union
+            ),
+            scoped_agents=_share_back_exact_delta_lists(
+                list(finalize.scoped_agents), live_union
+            ),
+        )
+    return _replace(boundary, prep=prep, fold=fold, finalize=finalize)
 
 
 def adopt_prepared_apply_data(
