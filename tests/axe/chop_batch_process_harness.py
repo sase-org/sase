@@ -248,8 +248,9 @@ def _archived_notice_episodes(config: dict[str, Any]) -> dict[str, Any]:
     import json
 
     from sase.axe import chop_batch_store
+    from sase.axe._chop_batch_store_paths import archived_chop_batch_path
 
-    notices_path = chop_batch_store._archived_chop_batch_path(
+    notices_path = archived_chop_batch_path(
         config["routine"], config["job"], config["run_id"]
     ).with_name(f"{config['run_id']}{chop_batch_store.CHOP_BATCH_NOTICES_SUFFIX}")
     try:

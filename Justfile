@@ -553,21 +553,8 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1tc.3.1(ChopBatchCorruptError)" \
-        --epic-symbol "sase-1tc.3.1(ChopBatchExistsError)" \
-        --epic-symbol "sase-1tc.3.1(ChopBatchNotFoundError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchReplayError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchReplayResult)" \
-        --epic-symbol "sase-1tc.3.1(acquire_chop_batch_ownership)" \
-        --epic-symbol "sase-1tc.3.1(chop_batch_owner_path)" \
-        --epic-symbol "sase-1tc.3.1(chop_batch_path)" \
-        --epic-symbol "sase-1tc.3.1(chop_batches_dir)" \
-        --epic-symbol "sase-1tc.3.1(delete_chop_batch)" \
-        --epic-symbol "sase-1tc.3.1(ensure_chop_batches_dir)" \
-        --epic-symbol "sase-1tc.3.1(list_pending_chop_batches)" \
-        --epic-symbol "sase-1tc.3.1(read_chop_batch_owner)" \
-        --epic-symbol "sase-1tc.3.1(reconcile_stored_batch)" \
-        --epic-symbol "sase-1tc.3.1(summarize_stored_batch)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

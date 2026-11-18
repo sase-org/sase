@@ -182,10 +182,10 @@ def test_stale_and_live_ownership(isolated_home: Path) -> None:
     try:
         assert store.acquire_chop_batch_ownership(routine, job, "batch-1") is False
         assert store.read_chop_batch_owner(routine, job, "batch-1") is not None
-        assert store._release_chop_batch_ownership(routine, job, "batch-1")
+        assert store.release_and_retire_chop_batch(routine, job, "batch-1")
         assert store.acquire_chop_batch_ownership(routine, job, "batch-1")
     finally:
-        store._release_chop_batch_ownership(routine, job, "batch-1")
+        store.release_and_retire_chop_batch(routine, job, "batch-1")
 
     # A stale record from a dead process may be superseded.
     dead_pid = _reaped_child_pid()
@@ -196,8 +196,8 @@ def test_stale_and_live_ownership(isolated_home: Path) -> None:
         encoding="utf-8",
     )
     assert store.acquire_chop_batch_ownership(routine, job, "batch-stale")
-    store._release_chop_batch_ownership(routine, job, "batch-stale")
-    assert store._release_chop_batch_ownership(routine, job, "batch-stale") is False
+    store.release_and_retire_chop_batch(routine, job, "batch-stale")
+    assert store.release_and_retire_chop_batch(routine, job, "batch-stale") is False
 
 
 def test_create_can_claim_ownership_before_manifest_becomes_visible(
@@ -213,7 +213,7 @@ def test_create_can_claim_ownership_before_manifest_becomes_visible(
     assert owner is not None
     assert owner["owner"] == "ordinary-first-run"
     assert store.acquire_chop_batch_ownership("guard", "split", batch_id) is False
-    assert store._release_chop_batch_ownership("guard", "split", batch_id) is True
+    assert store.release_and_retire_chop_batch("guard", "split", batch_id) is True
 
 
 def _reaped_child_pid() -> int:
