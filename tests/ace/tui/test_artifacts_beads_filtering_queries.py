@@ -1,0 +1,371 @@
+"""Query semantics and in-memory matching for Artifacts Beads."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import UTC, date, datetime
+from pathlib import Path
+
+import pytest
+
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
+from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot
+from sase.ace.tui.widgets.artifacts.beads_data_models import (
+    ExternalIssueLink,
+    ProjectBead,
+)
+from sase.ace.tui.widgets.artifacts.beads_filtering import build_bead_filter_index
+from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
+from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.query_rows import build_beads_query_index
+from sase.bead.filter_query import (
+    BeadFilterQueryError,
+    default_bead_filter_values,
+    parse_bead_filter_query,
+    to_query_string,
+)
+from sase.bead.model import (
+    CloseRecord,
+    Issue,
+    IssueType,
+    ReopenCause,
+    Resolution,
+    Status,
+    TaskPlusOneEvidence,
+)
+from sase.bead_flag_presentation import flag_due_presentation
+from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
+from sase.vcs_provider import IssueWire
+from tests.ace.tui._artifacts_beads_helpers import snapshot
+from tests.ace.tui._artifacts_beads_filtering_test_helpers import (
+    matched_bead_ids,
+    matched_bead_records,
+)
+
+
+def test_running_agent_predicate_requires_assigned_active_bead(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.epics[0].issue.status = Status.CLAIMED
+    value.tasks[1].issue.status = Status.IN_PROGRESS
+    value.tasks[1].issue.assignee = ""
+    profile = compiled_profile_for_builtin_pane("beads")
+    assert profile is not None
+    _filter_index, query_index = build_beads_query_index(
+        value,
+        pane_id="beads",
+        generation=5,
+        profile=profile,
+    )
+
+    assert evaluate_artifact_query_many("@@@", query_index).matched_row_ids == (
+        "epic:alpha-1",
+    )
+
+
+def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
+    values = parse_bead_filter_query(
+        "type:task,phase -status:closed tier:epic size:medium project:Alpha "
+        'assignee:"alpha agent" owner:owner@example.com model:gpt-5 has:triage '
+        "bug:open -bug:stale label:priority -label:wontfix due:soon -due:live "
+        "task_type:flake -task_type:untyped "
+        'since:2026-07-01 until:2026-07-31 "ready for" -ordinary',
+        now=datetime(2026, 7, 29, tzinfo=UTC),
+    )
+
+    assert values.types == ("task", "phase")
+    assert values.excluded_statuses == ("closed",)
+    assert values.tiers == ("epic",)
+    assert values.sizes == ("medium",)
+    assert values.projects == ("Alpha",)
+    assert values.assignees == ("alpha agent",)
+    assert values.owners == ("owner@example.com",)
+    assert values.models == ("gpt-5",)
+    assert values.has == ("triage",)
+    assert values.bugs == ("open",)
+    assert values.excluded_bugs == ("stale",)
+    assert values.labels == ("priority",)
+    assert values.excluded_labels == ("wontfix",)
+    assert values.due == ("soon",)
+    assert values.excluded_due == ("live",)
+    assert values.task_types == ("flake",)
+    assert values.excluded_task_types == ("untyped",)
+    assert values.since_texts == ("2026-07-01",)
+    assert values.until_texts == ("2026-07-31",)
+    assert values.text == ("ready for",)
+    assert values.excluded_text == ("ordinary",)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "type:bug",
+        "status:done",
+        "due:later",
+        "has:file",
+        "unknown:value",
+        "since:not-a-date",
+        "type:",
+    ],
+)
+def test_invalid_bead_filter_tokens_are_rejected(query: str) -> None:
+    with pytest.raises(BeadFilterQueryError):
+        parse_bead_filter_query(query, now=datetime(2026, 7, 29, tzinfo=UTC))
+
+
+def test_filter_terms_match_bead_metadata_and_derived_labels(tmp_path: Path) -> None:
+    assert matched_bead_ids(tmp_path, "-status:closed") == [
+        "alpha-ready",
+        "alpha-open",
+        "alpha-1",
+        "alpha-1.2",
+    ]
+    assert matched_bead_ids(tmp_path, "type:phase") == ["alpha-1.1", "alpha-1.2"]
+    assert matched_bead_ids(tmp_path, "status:triage has:triage") == ["alpha-ready"]
+    assert matched_bead_ids(tmp_path, "status:blocked") == ["alpha-open"]
+    assert matched_bead_ids(tmp_path, "status:launched tier:epic") == ["alpha-1"]
+    assert matched_bead_ids(
+        tmp_path, "owner:owner@example.com assignee:alpha.agent"
+    ) == ["alpha-1"]
+    assert matched_bead_ids(tmp_path, "model:gpt has:plan has:bug") == ["alpha-1"]
+    assert matched_bead_ids(tmp_path, "size:medium has:deps") == ["alpha-1.2"]
+    assert matched_bead_ids(tmp_path, "project:Alpha") == [
+        "alpha-ready",
+        "alpha-open",
+        "alpha-1",
+        "alpha-1.1",
+        "alpha-1.2",
+    ]
+    assert matched_bead_ids(tmp_path, "since:2026-07-06") == [
+        "alpha-ready",
+        "alpha-1",
+        "alpha-1.2",
+    ]
+    assert matched_bead_ids(tmp_path, '"Render the tree" -deps') == []
+    assert matched_bead_ids(tmp_path, "task_type:untyped") == [
+        "alpha-ready",
+        "alpha-open",
+    ]
+
+
+def test_task_type_filter_matches_stored_slug(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[0].issue.task_type = "flake"
+    assert [
+        record.bead_id for record in matched_bead_records(value, "task_type:flake")
+    ] == [value.tasks[0].issue.id]
+
+
+def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "on",
+            "when_disabled": "off",
+            "remove_when": "done",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+        flag_due={
+            ("alpha", flag.id): flag_due_presentation(
+                flag.task_type_fields["remove_by_date"],
+                flag.task_type_fields["remove_by_release"],
+                today=date(2026, 8, 16),
+                release="0.19.0",
+            )
+        },
+    )
+
+    assert [record.bead_id for record in matched_bead_records(value, "type:flag")] == [
+        "alpha-flag"
+    ]
+    assert [record.bead_id for record in matched_bead_records(value, "due:due")] == [
+        "alpha-flag"
+    ]
+    assert matched_bead_records(value, "-due:due type:flag") == []
+
+
+def test_type_flag_filter_matches_flag_task_beads(tmp_path: Path) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+        flag_due={
+            ("alpha", flag.id): flag_due_presentation(
+                "2026-08-01",
+                "0.19.0",
+                today=date(2026, 8, 16),
+                release="0.19.0",
+            )
+        },
+    )
+
+    assert [record.bead_id for record in matched_bead_records(value, "type:flag")] == [
+        "alpha-flag"
+    ]
+    assert [
+        record.bead_id for record in matched_bead_records(value, "task_type:flag")
+    ] == ["alpha-flag"]
+    assert [record.bead_id for record in matched_bead_records(value, "type:task")] == [
+        "alpha-ready",
+        "alpha-open",
+    ]
+
+
+def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[1].issue.plus_one_evidence.append(
+        TaskPlusOneEvidence(
+            timestamp="2026-08-01T15:00:00Z",
+            reporter="agent.beta",
+            note="Cold restart reproduction.",
+            refs=("research:202608/cache.md",),
+        )
+    )
+    assert [record.bead_id for record in matched_bead_records(value, "has:+1")] == [
+        "alpha-open"
+    ]
+    assert [
+        record.bead_id for record in matched_bead_records(value, '"cold restart"')
+    ] == ["alpha-open"]
+
+
+def test_external_issue_filters_match_refs_states_and_labels(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[0].issue.external_ref = "bug:alpha#42"
+    value.tasks[1].issue.refs.append("bug:alpha#99")
+    value = replace(
+        value,
+        external_links={
+            ("alpha", "alpha-ready"): (
+                ExternalIssueLink(
+                    external_ref="bug:alpha#42",
+                    project="alpha",
+                    display_project="Alpha",
+                    issue_id="42",
+                    relation="mirrored",
+                    issue=IssueWire(
+                        number=42,
+                        title="Ready for triage",
+                        state="open",
+                        body="Remote body mentions launch gating.",
+                        labels=("priority:high", "ui"),
+                    ),
+                    drift=True,
+                ),
+            ),
+            ("alpha", "alpha-open"): (
+                ExternalIssueLink(
+                    external_ref="bug:alpha#99",
+                    project="alpha",
+                    display_project="Alpha",
+                    issue_id="99",
+                    relation="referenced",
+                    stale=True,
+                ),
+            ),
+        },
+    )
+    assert [
+        record.bead_id for record in matched_bead_records(value, "has:bug bug:open")
+    ] == ["alpha-ready"]
+    assert [record.bead_id for record in matched_bead_records(value, "bug:stale")] == [
+        "alpha-open"
+    ]
+    assert [
+        record.bead_id for record in matched_bead_records(value, "label:priority:high")
+    ] == ["alpha-ready"]
+    assert [
+        record.bead_id for record in matched_bead_records(value, '"launch gating"')
+    ] == ["alpha-ready"]
+
+
+def test_has_reopened_and_close_history_text_use_cached_filter_index(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[1].issue.close_history.append(
+        CloseRecord(
+            closed_at="2026-07-30T09:12:04Z",
+            reopened_at="2026-08-05T17:04:11Z",
+            reopened_via=ReopenCause.PLUS_ONE,
+            close_reason="Not reproducible on main; the retry shim covers it.",
+            resolution=Resolution.CANCELED,
+            reopened_by="claude.probe",
+        )
+    )
+    assert [
+        record.bead_id for record in matched_bead_records(value, "has:reopened")
+    ] == ["alpha-open"]
+    assert [
+        record.bead_id for record in matched_bead_records(value, '"retry shim covers"')
+    ] == ["alpha-open"]
+
+
+def test_default_hide_closed_filter_hides_closed_phases_and_shows_counts(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    matched_ids = frozenset(
+        record.option_id
+        for record in matched_bead_records(
+            value,
+            to_query_string(default_bead_filter_values()),
+        )
+    )
+    options, rows = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics={("alpha", "alpha-1")},
+        matched_option_ids=matched_ids,
+    )
+    prompts = {option.id: option.prompt.plain for option in options if option.id}
+
+    assert "phase:alpha-1.1" not in rows
+    assert "phase:alpha-1.2" in rows
+    assert prompts["header:tasks"].startswith("── Tasks (2/2)")
+    assert prompts["header:epics"].startswith("── Epics (1/1)")
+
+
+def test_filter_index_reuses_unchanged_snapshot_source_key(tmp_path: Path) -> None:
+    pane = ArtifactsBeadsPane()
+    first = snapshot(tmp_path)
+    second = replace(first)
+    changed = replace(first, source_key=("changed",))
+    pane.project_scope = "alpha"
+
+    pane._snapshot = first
+    pane._filter_index = build_bead_filter_index(first)
+    pane._filter_index_source_key = first.source_key
+    original = pane._ensure_filter_index(needed=True)
+    pane._snapshot = second
+    reused = pane._ensure_filter_index(needed=True)
+    pane._snapshot = changed
+    stale = pane._ensure_filter_index(needed=True)
+
+    assert reused is original
+    assert stale is None
