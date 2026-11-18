@@ -406,37 +406,16 @@ def recover_pending_chop_batches(
                     )
                 )
                 continue
-            if not chop_batch_store.acquire_chop_batch_ownership(
-                routine, job_name, batch_id, owner="chop-batch-recovery"
-            ):
-                results.append(
-                    ChopBatchRecoveryResult(
-                        routine=routine,
-                        job=job_name,
-                        batch_id=batch_id,
-                        kind="blocked",
-                        reason="live owner holds the batch",
-                    )
+            results.append(
+                _recover_one_batch(
+                    routine,
+                    job_name,
+                    batch_id,
+                    launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+                    launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+                    pause_requested_fn=pause_requested_fn,
                 )
-                continue
-            try:
-                results.append(
-                    _recover_one_batch(
-                        routine,
-                        job_name,
-                        batch_id,
-                        launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
-                        launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
-                        pause_requested_fn=pause_requested_fn,
-                    )
-                )
-            finally:
-                try:
-                    chop_batch_store.release_chop_batch_ownership(
-                        routine, job_name, batch_id
-                    )
-                except Exception:
-                    pass
+            )
     return results
 
 
@@ -515,6 +494,23 @@ def _recover_ordinary_batch(
 
     observations = collect_spawn_observations(routine, job, manifest)
     clan = _batch_clan(manifest)
+    initial_summary = _summarize_manifest(manifest)
+    matched_names = {
+        str(item.get("agent_name") or "")
+        for item in observations
+        if item.get("observation") == "matched_spawn"
+    }
+    matched_pending = sum(
+        1
+        for member in manifest.get("members", [])
+        if isinstance(member, Mapping)
+        and str(member.get("status") or "pending") in {"pending", "dispatching"}
+        and str(member.get("agent_name") or "") in matched_names
+    )
+    interruption_summary = {
+        "launched": initial_summary["launched"] + matched_pending,
+        "remaining": max(0, initial_summary["remaining"] - matched_pending),
+    }
 
     def _dispatch_member(
         member: dict[str, Any], *, before_spawn: Any, on_spawn_recorded: Any
@@ -570,36 +566,38 @@ def _recover_ordinary_batch(
         )
     refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
     summary = _summarize_manifest(refreshed)
-    _emit_batch_notice(
-        routine=routine,
-        job=job,
-        batch_id=batch_id,
-        event="resumed" if not replay.paused else "interrupted",
-        launched=summary["launched"],
-        remaining=summary["remaining"],
-        clan=clan,
-    )
-    try:
-        chop_batch_store.release_chop_batch_ownership(routine, job, batch_id)
-    except Exception:
-        pass
-    # Ownership was acquired by the caller; re-acquire so the caller's
-    # finally-release stays balanced after the replay released it.
-    try:
-        chop_batch_store.acquire_chop_batch_ownership(
-            routine, job, batch_id, owner="chop-batch-recovery"
+    cancelled = refreshed.get("status") == "cancelled"
+    if not cancelled:
+        notice_summary = summary if replay.paused else interruption_summary
+        _emit_batch_notice(
+            routine=routine,
+            job=job,
+            batch_id=batch_id,
+            event="interrupted",
+            launched=notice_summary["launched"],
+            remaining=notice_summary["remaining"],
+            clan=clan,
         )
-    except Exception:
-        pass
+        if not replay.paused:
+            _emit_batch_notice(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                event="resumed",
+                launched=summary["launched"],
+                remaining=summary["remaining"],
+                clan=clan,
+            )
     return ChopBatchRecoveryResult(
         routine=routine,
         job=job,
         batch_id=batch_id,
-        kind="ordinary",
         launched=tuple(replay.launched),
         already_launched=tuple(replay.already_launched),
         blocked=tuple(replay.blocked),
         paused=bool(replay.paused),
+        kind="cancelled" if cancelled else "ordinary",
+        reason="batch was explicitly cancelled" if cancelled else None,
     )
 
 
@@ -638,15 +636,35 @@ def _recover_typed_batch(
         summary = _summarize_manifest(refreshed)
     except ChopBatchError:
         summary = {"launched": len(resumed.launches), "remaining": 0}
-    _emit_batch_notice(
-        routine=routine,
-        job=job,
-        batch_id=batch_id,
-        event="resumed" if not resumed.paused else "interrupted",
-        launched=int(summary["launched"]),
-        remaining=int(summary["remaining"]),
-        clan=clan,
-    )
+    if not resumed.waiting:
+        interruption_summary = _summarize_manifest(manifest)
+        _emit_batch_notice(
+            routine=routine,
+            job=job,
+            batch_id=batch_id,
+            event="interrupted",
+            launched=int(
+                summary["launched"]
+                if resumed.paused
+                else interruption_summary["launched"]
+            ),
+            remaining=int(
+                summary["remaining"]
+                if resumed.paused
+                else interruption_summary["remaining"]
+            ),
+            clan=clan,
+        )
+        if not resumed.paused:
+            _emit_batch_notice(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                event="resumed",
+                launched=int(summary["launched"]),
+                remaining=int(summary["remaining"]),
+                clan=clan,
+            )
     return ChopBatchRecoveryResult(
         routine=routine,
         job=job,

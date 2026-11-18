@@ -148,3 +148,53 @@ def test_replay_pause_leaves_unstarted_members_pending(isolated_home: Path) -> N
         "pending",
         "pending",
     ]
+
+
+def test_clan_cancellation_during_launch_settles_current_and_stops_next(
+    isolated_home: Path,
+) -> None:
+    chop_batch_store.create_chop_batch("docs", "refresh", _manifest())
+    dispatched: list[str] = []
+
+    def dispatch_member(
+        member: dict[str, Any],
+        *,
+        before_spawn: Any,
+        on_spawn_recorded: Any,
+    ) -> Any:
+        request = SimpleNamespace(
+            name_reservation=SimpleNamespace(agent_name=member["agent_name"]),
+            extra_env={},
+        )
+        before_spawn(request)
+        dispatched.append(member["agent_name"])
+        result = SimpleNamespace(agent_name=member["agent_name"], pid=1001)
+        chop_batch_store.apply_chop_batch_event(
+            "docs",
+            "refresh",
+            "ordinary-replay",
+            "cancel_clan_generation",
+            reason="user killed clan while member was launching",
+        )
+        with pytest.raises(chop_batch_store.ChopBatchError):
+            on_spawn_recorded(result)
+        return result
+
+    replay = replay_ordinary_chop_batch(
+        "docs",
+        "refresh",
+        "ordinary-replay",
+        observations=[],
+        observations_are_complete=True,
+        dispatch_member=dispatch_member,
+    )
+
+    batch = chop_batch_store.load_chop_batch("docs", "refresh", "ordinary-replay")
+    assert replay.paused is False
+    assert dispatched == ["docs-refresh-0"]
+    assert batch["status"] == "cancelled"
+    assert [member["status"] for member in batch["members"]] == [
+        "cancelled",
+        "cancelled",
+        "cancelled",
+    ]

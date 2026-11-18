@@ -98,16 +98,37 @@ def replay_ordinary_chop_batch(
 
         launched: list[Any] = []
         paused = False
-        for member_index in reconciliation["to_launch"]:
-            if pause_requested_fn is not None and pause_requested_fn():
+
+        def request_pause(reason: str) -> bool:
+            try:
                 chop_batch_store.apply_chop_batch_event(
                     routine,
                     job,
                     batch_id,
                     "request_pause",
-                    reason="cooperative stop requested during ordinary replay",
+                    reason=reason,
                 )
-                paused = True
+            except chop_batch_store.ChopBatchError:
+                if _batch_is_cancelled(routine, job, batch_id):
+                    return False
+                raise
+            return True
+
+        for member_index in reconciliation["to_launch"]:
+            # Clan cancellation is persisted independently of the executor
+            # owner, so it can arrive while one launcher call is in flight.
+            # The begin_dispatch transition below is the atomic boundary: if
+            # cancellation won first, it refuses the spawn; if dispatch won
+            # first, that one launch may settle, but the next loop iteration
+            # observes cancellation before it can start another member.
+            if _batch_is_cancelled(routine, job, batch_id):
+                break
+            if pause_requested_fn is not None and pause_requested_fn():
+                if _batch_is_cancelled(routine, job, batch_id):
+                    break
+                paused = request_pause(
+                    "cooperative stop requested during ordinary replay"
+                )
                 break
 
             member = manifest["members"][member_index]
@@ -171,11 +192,20 @@ def replay_ordinary_chop_batch(
                 boundary_state["acknowledged"] = True
                 launched_records.append(record)
 
-            result = dispatch_member(
-                dict(member),
-                before_spawn=before_spawn,
-                on_spawn_recorded=on_spawn_recorded,
-            )
+            try:
+                result = dispatch_member(
+                    dict(member),
+                    before_spawn=before_spawn,
+                    on_spawn_recorded=on_spawn_recorded,
+                )
+            except ChopBatchReplayError:
+                raise
+            except chop_batch_store.ChopBatchError:
+                if _batch_is_cancelled(routine, job, batch_id):
+                    break
+                raise
+            if _batch_is_cancelled(routine, job, batch_id):
+                break
             if boundary["started"] and not boundary["acknowledged"]:
                 # Preserve the process-stop uncertainty window for the next
                 # reconciliation. A synchronous successful return is durable
@@ -183,14 +213,9 @@ def replay_ordinary_chop_batch(
                 on_spawn_recorded(result)
             elif not boundary["started"] and pause_requested_fn is not None:
                 if pause_requested_fn():
-                    chop_batch_store.apply_chop_batch_event(
-                        routine,
-                        job,
-                        batch_id,
-                        "request_pause",
-                        reason="cooperative stop requested during ordinary replay",
+                    paused = request_pause(
+                        "cooperative stop requested during ordinary replay"
                     )
-                    paused = True
                     break
                 raise ChopBatchReplayError(
                     f"replay adapter did not report the spawn boundary for member {member_index}"
@@ -204,14 +229,9 @@ def replay_ordinary_chop_batch(
                 # The current member has been acknowledged; do not start the
                 # next member after a stop request.
                 if member_index != reconciliation["to_launch"][-1]:
-                    chop_batch_store.apply_chop_batch_event(
-                        routine,
-                        job,
-                        batch_id,
-                        "request_pause",
-                        reason="cooperative stop requested during ordinary replay",
+                    paused = request_pause(
+                        "cooperative stop requested during ordinary replay"
                     )
-                    paused = True
                     break
 
         refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
@@ -241,6 +261,17 @@ def _record_agent_name(record: Any) -> str:
     if result is not None:
         record = result
     return str(getattr(record, "agent_name", "") or "")
+
+
+def _batch_is_cancelled(routine: str, job: str, batch_id: str) -> bool:
+    """Return whether durable cancellation has won for this batch."""
+    try:
+        return (
+            chop_batch_store.load_chop_batch(routine, job, batch_id).get("status")
+            == "cancelled"
+        )
+    except chop_batch_store.ChopBatchError:
+        return False
 
 
 __all__ = [
