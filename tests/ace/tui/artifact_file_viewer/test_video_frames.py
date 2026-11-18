@@ -143,6 +143,8 @@ def test_scrub_frame_count_for_duration(
 
 
 def test_content_digest_keys(tmp_path: Path) -> None:
+    with frames._DIGEST_CACHE_LOCK:
+        frames._DIGEST_CACHE.clear()
     first = _write_clip(tmp_path, "a.mp4", body=b"same")
     second = _write_clip(tmp_path, "b.mp4", body=b"same")
     other = _write_clip(tmp_path, "c.mp4", body=b"different")
@@ -150,6 +152,37 @@ def test_content_digest_keys(tmp_path: Path) -> None:
     assert content_digest_for_path(first) == content_digest_for_path(second)
     assert content_digest_for_path(first) != content_digest_for_path(other)
     assert content_digest_for_path(tmp_path / "missing.mp4") is None
+
+
+def test_content_digest_memoizes_per_open_and_invalidates_on_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with frames._DIGEST_CACHE_LOCK:
+        frames._DIGEST_CACHE.clear()
+    video = _write_clip(tmp_path, "clip.mp4", body=b"x" * 65536)
+
+    opens = {"count": 0}
+    real_open = open
+
+    def counting_open(*args: object, **kwargs: object):
+        opens["count"] += 1
+        return real_open(*args, **kwargs)
+
+    with monkeypatch.context() as isolated:
+        isolated.setattr("builtins.open", counting_open)
+        first = content_digest_for_path(video)
+        assert first is not None
+        assert opens["count"] == 1
+        # Several exact-step equivalent reads hit the memo, not the disk.
+        for _ in range(4):
+            assert content_digest_for_path(video) == first
+        assert opens["count"] == 1
+    # Modifying the file (new size/mtime) must re-hash.
+    video.write_bytes(b"y" * 65537)
+    second = content_digest_for_path(video)
+    assert second is not None and second != first
+    # A repeat read of the modified file hits the new memo entry.
+    assert content_digest_for_path(video) == second
 
 
 def test_extract_frame_caches_and_reports_errors(

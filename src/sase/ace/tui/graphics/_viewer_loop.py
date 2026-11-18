@@ -10,19 +10,11 @@ from typing import Any
 from ._viewer_loop_media import (
     ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     artifact_text_viewer_command,
-    artifact_video_motion_command,
     artifact_video_player_command,
-    build_native_open_command,
     display_text_artifact,
-    display_video_artifact,
-    kitty_shm_available,
     load_artifact_video_playback_config,
     load_merged_artifact_video_playback_config,
-    motion_playback_allowed,
-    motion_playback_block_reason,
-    normalize_video_backend,
     parse_video_playback_config_env,
-    reset_kitty_shm_cache,
     serialize_video_playback_config,
     text_viewer_command_needs_quit_key,
     video_still_preview_required,
@@ -45,8 +37,6 @@ from ._viewer_loop_terminal import (
     clear_terminal,
     format_artifact_header_path,
     kitten_icat_command,
-    kitty_graphics_capable,
-    reset_kitty_graphics_cache,
     move_cursor_below_image,
     page_index_after_key,
     page_loop_available_keys,
@@ -65,7 +55,6 @@ from ._viewer_loop_types import (
     ArtifactVideoPlaybackConfig,
     PageLoopResult,
     TextDisplayResult,
-    VideoDisplayResult,
 )
 from ._viewer_render import render_artifact_file_pages
 from ._viewer_types import (
@@ -76,10 +65,8 @@ from ._viewer_types import (
 
 _PageLoopResult = PageLoopResult
 _TextDisplayResult = TextDisplayResult
-_VideoDisplayResult = VideoDisplayResult
 _clear_terminal = clear_terminal
 _display_text_artifact = display_text_artifact
-_display_video_artifact = display_video_artifact
 _move_cursor_below_image = move_cursor_below_image
 _print_artifact_header = print_artifact_header
 _print_artifact_warning = print_artifact_warning
@@ -138,10 +125,8 @@ __all__ = [
     "_PageLoopResult",
     "_RETURN_TO_ACE_KEY",
     "_TextDisplayResult",
-    "_VideoDisplayResult",
     "_clear_terminal",
     "_display_text_artifact",
-    "_display_video_artifact",
     "_move_cursor_below_image",
     "_print_artifact_header",
     "_print_artifact_warning",
@@ -155,21 +140,12 @@ __all__ = [
     "artifact_header_panel",
     "artifact_image_area",
     "artifact_text_viewer_command",
-    "artifact_video_motion_command",
     "artifact_video_player_command",
-    "build_native_open_command",
     "format_artifact_header_path",
     "kitten_icat_command",
-    "kitty_graphics_capable",
-    "kitty_shm_available",
     "load_artifact_video_playback_config",
     "load_merged_artifact_video_playback_config",
-    "motion_playback_allowed",
-    "motion_playback_block_reason",
-    "normalize_video_backend",
     "parse_video_playback_config_env",
-    "reset_kitty_graphics_cache",
-    "reset_kitty_shm_cache",
     "serialize_video_playback_config",
     "page_index_after_key",
     "page_loop_available_keys",

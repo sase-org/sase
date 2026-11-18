@@ -5,13 +5,14 @@ from pathlib import Path
 
 from sase.ace.tui.graphics._viewer_loop_media import (
     ArtifactVideoPlaybackConfig,
-    artifact_video_motion_command,
     artifact_video_player_command,
-    build_native_open_command,
-    kitty_shm_available,
     load_merged_artifact_video_playback_config,
+)
+from sase.ace.tui.graphics._viewer_video_motion import (
+    _kitty_shm_available as kitty_shm_available,
+    artifact_video_motion_command,
+    build_native_open_command,
     motion_playback_block_reason,
-    reset_kitty_shm_cache,
 )
 from sase.ace.tui.graphics._viewer_loop_video import run_video_inspect
 from sase.ace.tui.graphics.viewer import ArtifactFileViewSpec
@@ -88,7 +89,7 @@ def test_motion_block_reason_matrix(monkeypatch) -> None:
     monkeypatch.delenv("TMUX", raising=False)
     monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_media.shutil.which",
+        "sase.ace.tui.graphics._viewer_video_motion.shutil.which",
         lambda tool: f"/usr/bin/{tool}",
     )
     assert motion_playback_block_reason(ArtifactVideoPlaybackConfig()) is None
@@ -111,7 +112,7 @@ def test_motion_block_reason_matrix(monkeypatch) -> None:
 def test_motion_block_forbidden_topology_and_missing_mpv(monkeypatch) -> None:
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_media.shutil.which",
+        "sase.ace.tui.graphics._viewer_video_motion.shutil.which",
         lambda tool: f"/usr/bin/{tool}",
     )
     reason = motion_playback_block_reason(ArtifactVideoPlaybackConfig())
@@ -315,8 +316,14 @@ def test_video_config_snapshot_carries_backend_and_open_command() -> None:
     assert parse_video_playback_config_env(bad) is None
 
 
+def _reset_shm_cache() -> None:
+    from sase.ace.tui.graphics import _viewer_video_motion as media
+
+    media._KITTY_SHM_CACHE = None
+
+
 def test_kitty_shm_probe_gating_and_cache(monkeypatch) -> None:
-    reset_kitty_shm_cache()
+    _reset_shm_cache()
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     assert kitty_shm_available("kitty") is False
     monkeypatch.delenv("TMUX", raising=False)
@@ -330,22 +337,22 @@ def test_kitty_shm_probe_gating_and_cache(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_media._probe_kitty_shm_once",
+        "sase.ace.tui.graphics._viewer_video_motion._probe_kitty_shm_once",
         fake_probe,
     )
-    reset_kitty_shm_cache()
+    _reset_shm_cache()
     assert kitty_shm_available("kitty") is True
     assert kitty_shm_available("kitty") is True
     assert calls["count"] == 1
     assert kitty_shm_available("kitty", force=True) is True
     assert calls["count"] == 2
-    reset_kitty_shm_cache()
+    _reset_shm_cache()
 
 
 def test_kitty_shm_probe_ok_and_timeout_paths(monkeypatch) -> None:
-    from sase.ace.tui.graphics import _viewer_loop_media as media
+    from sase.ace.tui.graphics import _viewer_video_motion as media
 
-    reset_kitty_shm_cache()
+    media._KITTY_SHM_CACHE = None
     monkeypatch.delenv("TMUX", raising=False)
     monkeypatch.delenv("TMUX_PANE", raising=False)
 
@@ -377,4 +384,4 @@ def test_kitty_shm_probe_ok_and_timeout_paths(monkeypatch) -> None:
 
     monkeypatch.setattr(media, "_kitty_shm_query_exchange", lambda query, timeout: None)
     assert media._probe_kitty_shm_once() is False
-    reset_kitty_shm_cache()
+    media._KITTY_SHM_CACHE = None

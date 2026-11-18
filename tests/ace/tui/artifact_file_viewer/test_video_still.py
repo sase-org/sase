@@ -4,22 +4,18 @@ import json
 import subprocess
 from pathlib import Path
 
-from sase.ace.tui.graphics._viewer_loop_media import display_video_artifact
 from sase.ace.tui.graphics._viewer_video_media import (
     VideoMetadata,
-    _extract_video_still,
-    _terminal_pixel_width,
-    _video_still_extraction_command,
     ffprobe_metadata_command,
     format_video_metadata_summary,
     parse_ffprobe_metadata,
     probe_video_metadata,
     video_still_preview_required,
 )
+from sase.ace.tui.graphics._viewer_video_motion import artifact_video_motion_command
 from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewSpec,
     ArtifactVideoPlaybackConfig,
-    artifact_video_motion_command,
     run_artifact_sequence_loop,
     validate_artifact_file_viewer_dependencies,
 )
@@ -110,27 +106,6 @@ def test_ffprobe_metadata_command(tmp_path: Path) -> None:
     ]
 
 
-def test_video_still_extraction_command(tmp_path: Path) -> None:
-    video = _write_clip(tmp_path)
-    dest = tmp_path / "cache" / "video-still-0.png"
-
-    assert _video_still_extraction_command(video, dest, 1600) == [
-        "ffmpeg",
-        "-nostdin",
-        "-loglevel",
-        "error",
-        "-ss",
-        "0",
-        "-i",
-        str(video.resolve(strict=False)),
-        "-frames:v",
-        "1",
-        "-vf",
-        "scale=min(iw\\,1600):-2",
-        str(dest),
-    ]
-
-
 def test_parse_ffprobe_metadata_reads_first_video_stream() -> None:
     metadata = parse_ffprobe_metadata(_FFPROBE_PAYLOAD)
 
@@ -185,16 +160,6 @@ def test_parse_ffprobe_metadata_rejects_zero_frame_rate() -> None:
 
 def test_format_video_metadata_summary_returns_none_when_empty() -> None:
     assert format_video_metadata_summary(VideoMetadata()) is None
-
-
-def test_terminal_pixel_width_falls_back_without_pixels(monkeypatch) -> None:
-    import io
-
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media.stdout", io.BytesIO()
-    )
-
-    assert _terminal_pixel_width() == 1600
 
 
 def test_still_dispatch_runs_probe_extract_and_icat_without_mpv(
@@ -297,114 +262,6 @@ def test_still_r_key_rerenders(
     assert stub["extracts"].count(0.0) >= 2
 
 
-def _display_still(
-    tmp_path: Path,
-    monkeypatch,
-    missing: frozenset[str] = frozenset(),
-    *,
-    ffmpeg_returncode: int = 0,
-    icat_returncode: int = 0,
-) -> tuple[object, list[list[str]]]:
-    from sase.ace.tui.graphics import _viewer_video_media
-
-    video = _write_clip(tmp_path)
-    monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
-
-    def fake_which(tool: str) -> str | None:
-        if tool in missing:
-            return None
-        return f"/usr/bin/{tool}"
-
-    monkeypatch.setattr(_viewer_video_media.shutil, "which", fake_which)
-    captured: list[tuple[list[str], float]] = []
-    monkeypatch.setattr(
-        _viewer_video_media,
-        "_run_capture",
-        _fake_capture_factory(captured, ffmpeg_returncode=ffmpeg_returncode),
-    )
-    commands: list[list[str]] = []
-
-    def fake_run(cmd) -> subprocess.CompletedProcess:
-        commands.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, icat_returncode)
-
-    result = display_video_artifact(
-        ArtifactFileViewSpec(video, "file"),
-        _TEST_IMAGE_AREA,
-        fake_run,
-        video_config=ArtifactVideoPlaybackConfig(),
-        cache_root=tmp_path / "cache",
-    )
-    return result, commands
-
-
-def test_missing_ffprobe_keeps_viewer_alive_without_metadata(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    result, _ = _display_still(tmp_path, monkeypatch, frozenset({"ffprobe"}))
-
-    assert result.returncode == 0
-    assert result.warnings == ()
-    assert result.still_preview is True
-    assert [notice.code for notice in result.notices] == ["missing_ffprobe"]
-    assert all(notice.tool == "ffprobe" for notice in result.notices)
-    output = capsys.readouterr().out
-    assert "ffprobe executable not found" in output
-    assert "\u25b6 Video" in _strip_ansi(output)
-    assert "0:06" not in output
-
-
-def test_missing_ffmpeg_keeps_viewer_alive_without_still(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    result, commands = _display_still(tmp_path, monkeypatch, frozenset({"ffmpeg"}))
-
-    assert result.returncode == 0
-    assert result.warnings == ()
-    assert result.still_preview is True
-    assert [notice.code for notice in result.notices] == ["missing_ffmpeg"]
-    assert result.command == ()
-    assert all(cmd[0] != "kitten" for cmd in commands)
-    assert "ffmpeg executable not found" in capsys.readouterr().out
-
-
-def test_missing_kitten_keeps_viewer_alive_without_display(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    result, commands = _display_still(tmp_path, monkeypatch, frozenset({"kitten"}))
-
-    assert result.returncode == 0
-    assert result.warnings == ()
-    assert [notice.code for notice in result.notices] == ["missing_kitten"]
-    assert result.command == ()
-    assert all(cmd[0] != "kitten" for cmd in commands)
-    assert "kitten executable not found" in capsys.readouterr().out
-
-
-def test_failed_extraction_keeps_viewer_alive(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    result, commands = _display_still(tmp_path, monkeypatch, ffmpeg_returncode=1)
-
-    assert result.returncode == 0
-    assert result.warnings == ()
-    assert [notice.code for notice in result.notices] == ["ffmpeg_still_failed"]
-    assert all(notice.tool == "ffmpeg" for notice in result.notices)
-    assert result.command == ()
-    assert all(cmd[0] != "kitten" for cmd in commands)
-    assert "ffmpeg could not extract" in capsys.readouterr().out
-
-
-def test_failed_icat_keeps_viewer_alive(tmp_path: Path, monkeypatch, capsys) -> None:
-    result, _ = _display_still(tmp_path, monkeypatch, icat_returncode=2)
-
-    assert result.returncode == 0
-    assert result.warnings == ()
-    assert [notice.code for notice in result.notices] == ["kitten_icat_failed"]
-    assert result.command == ()
-    assert "kitten icat failed with exit code 2" in capsys.readouterr().out
-
-
 def test_probe_video_metadata_returns_none_for_invalid_json(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -431,18 +288,6 @@ def test_probe_video_metadata_returns_none_without_ffprobe(
     )
 
     assert probe_video_metadata(video) is None
-
-
-def test_extract_video_still_returns_false_without_ffmpeg(
-    tmp_path: Path, monkeypatch
-) -> None:
-    video = _write_clip(tmp_path)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media.shutil.which",
-        lambda _tool: None,
-    )
-
-    assert _extract_video_still(video, tmp_path / "still.png") is False
 
 
 def test_validate_video_dependencies_use_still_tools_inside_tmux(

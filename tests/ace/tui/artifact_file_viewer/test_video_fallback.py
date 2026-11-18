@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.graphics._viewer_loop_terminal import (
+from sase.ace.tui.graphics._viewer_kitty_capability import (
     _tmux_client_termname_once,
     kitty_graphics_capable,
-    reset_kitty_graphics_cache,
 )
 from sase.ace.tui.graphics._viewer_loop_video import run_video_inspect
 from sase.ace.tui.graphics._viewer_loop_video_view import _CELL_FALLBACK_BANNER
@@ -23,14 +22,16 @@ from sase.ace.tui.graphics.viewer import (
 from ._helpers import _TEST_IMAGE_AREA, _strip_ansi, stub_video_inspect_service
 
 _VIDEO_TARGET = "sase.ace.tui.graphics._viewer_loop_video_session"
-_TERMINAL_TARGET = "sase.ace.tui.graphics._viewer_loop_terminal"
+_TERMINAL_TARGET = "sase.ace.tui.graphics._viewer_kitty_capability"
 
 
 @pytest.fixture(autouse=True)
 def _reset_kitty_graphics_cache():
-    reset_kitty_graphics_cache()
+    from sase.ace.tui.graphics import _viewer_kitty_capability as capability
+
+    capability._KITTY_GRAPHICS_CACHE = None
     yield
-    reset_kitty_graphics_cache()
+    capability._KITTY_GRAPHICS_CACHE = None
 
 
 def _write_clip(tmp_path: Path, name: str = "clip.mp4") -> Path:

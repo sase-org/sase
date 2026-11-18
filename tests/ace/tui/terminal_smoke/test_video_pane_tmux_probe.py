@@ -46,6 +46,15 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
         if shutil.which(tool) is None:
             pytest.skip(f"{tool} is not on PATH")
 
+    infocmp = subprocess.run(
+        ["infocmp", "xterm-kitty"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if infocmp.returncode != 0:
+        pytest.skip("xterm-kitty terminfo not available")
+
     clip = tmp_path / "clip.mp4"
     generated = subprocess.run(
         [
@@ -56,7 +65,7 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
             "-f",
             "lavfi",
             "-i",
-            "testsrc=duration=3:size=640x360:rate=30",
+            "testsrc=duration=7:size=640x360:rate=30",
             "-pix_fmt",
             "yuv420p",
             str(clip),
@@ -85,6 +94,7 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
     }
     env["PATH"] = f"{shim_dir}{os.pathsep}{env.get('PATH', '')}"
     env["SASE_VIDEO_PROBE_MPV_MARKER"] = str(marker)
+    env["TERM"] = "xterm-kitty"
 
     socket = f"sase-video-probe-{os.getpid()}"
     try:
@@ -170,16 +180,26 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
             )
             assert title.stdout.strip() == _SENTINEL_TITLE
             time.sleep(2.0)  # sase-test-wait: let scrub track and storyboard settle
-            before_step = len(log.getvalue())
-            child.send("l")
-            stepped = time.monotonic()
-            while time.monotonic() - stepped <= 0.3:
-                data = log.getvalue()[before_step:]
-                if b"\x1b_G" in data:
+            # Burst coalescing: five queued l presses advance +5 s in one render.
+            child.send("lllll")
+            burst_reached = False
+            burst_deadline = time.monotonic() + 5.0
+            while time.monotonic() < burst_deadline:
+                captured = _tmux(socket, "capture-pane", "-p", "-t", "probe", env=env)
+                if "00:05.0" in (captured.stdout or ""):
+                    burst_reached = True
                     break
-                time.sleep(0.02)  # sase-test-wait: poll pty log for kitty APC
-            else:
-                raise AssertionError("no kitty APC within 300 ms of an l press")
+                time.sleep(0.1)  # sase-test-wait: poll pane text for burst status
+            assert burst_reached, "burst lllll did not reach 00:05.0 in pane text"
+            log.truncate(0)
+            log.seek(0)
+            child.send("l")
+            try:
+                child.expect(b"\x1b_G", timeout=0.3)
+            except pexpect.TIMEOUT:
+                raise AssertionError(
+                    "no kitty APC within 300 ms of an l press"
+                ) from None
             for _ in range(9):
                 child.send("l")
                 time.sleep(0.05)  # sase-test-wait: space l presses for byte budget

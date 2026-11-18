@@ -7,11 +7,6 @@ only helpers stay private.
 
 from __future__ import annotations
 
-import os
-import select
-import sys
-import termios
-import tty
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from subprocess import CompletedProcess
@@ -20,96 +15,20 @@ from typing import Any
 from ._viewer_loop_terminal import _MIN_IMAGE_ROWS
 from ._viewer_types import ArtifactFileImageArea
 from ._viewer_video_frames import ScrubTrack
+from ._viewer_video_input import (
+    _assemble_inspect_key,
+    _completed_inspect_escape,
+    _decode_inspect_key,
+    read_inspect_key,
+)
 
 ReadKey = Callable[..., str | None]
 RunCommand = Callable[[Sequence[str]], CompletedProcess[Any]]
 SelectPane = Callable[[str], Any]
 ToggleZoom = Callable[[], Any]
 
-_ARROW_KEY_SEQUENCES = {
-    "\x1b[C": "right",
-    "\x1b[D": "left",
-    "\x1bOC": "right",
-    "\x1bOD": "left",
-}
-_INSPECT_ESC_TIMEOUT_SECONDS = 0.03
 _STORYBOARD_MIN_ROWS = 5
 _STORYBOARD_MIN_PANE_ROWS = 20
-
-
-def _decode_inspect_key(sequence: str) -> str:
-    """Map a raw inspect-loop byte sequence onto a key name."""
-
-    if sequence in _ARROW_KEY_SEQUENCES:
-        return _ARROW_KEY_SEQUENCES[sequence]
-    return sequence
-
-
-def _completed_inspect_escape(sequence: str) -> str | None:
-    mapped = _ARROW_KEY_SEQUENCES.get(sequence)
-    if mapped is not None:
-        return mapped
-    if sequence.startswith("\x1b[") and len(sequence) >= 3 and sequence[-1].isalpha():
-        return _decode_inspect_key(sequence)
-    if sequence.startswith("\x1bO") and len(sequence) >= 3:
-        return _decode_inspect_key(sequence)
-    return None
-
-
-def _assemble_inspect_key(
-    read_chunk: Callable[[float | None], bytes | None],
-    *,
-    timeout: float | None = 0.05,
-    esc_timeout: float = _INSPECT_ESC_TIMEOUT_SECONDS,
-) -> str | None:
-    """Read one inspect key, assembling arrow escapes split across chunks.
-
-    ``read_chunk(wait)`` returns the next bytes, or ``None`` when *wait*
-    elapses. A leading ESC waits *esc_timeout* for the rest of a CSI/SS3
-    sequence so a lone Escape does not steal the next key.
-    """
-
-    first = read_chunk(timeout)
-    if not first:
-        return None
-    sequence = first.decode(errors="ignore")
-    if not sequence:
-        return None
-    if not sequence.startswith("\x1b"):
-        return sequence[:1]
-    while True:
-        completed = _completed_inspect_escape(sequence)
-        if completed is not None:
-            return completed
-        more = read_chunk(esc_timeout)
-        if not more:
-            break
-        sequence += more.decode(errors="ignore")
-    return _decode_inspect_key(sequence)
-
-
-def read_inspect_key(*, timeout: float | None = 0.05) -> str | None:
-    """Nonblocking, escape-aware stdin reader for the video inspect loop."""
-
-    try:
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-    except (OSError, termios.error, ValueError):
-        return None
-    try:
-        tty.setraw(fd)
-
-        def _read_chunk(wait: float | None) -> bytes | None:
-            ready, _, _ = select.select([fd], [], [], wait)
-            if not ready:
-                return None
-            return os.read(fd, 1)
-
-        return _assemble_inspect_key(_read_chunk, timeout=timeout)
-    except (OSError, termios.error, ValueError):
-        return None
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 @dataclass(frozen=True)
@@ -287,6 +206,9 @@ __all__ = [
     "SelectPane",
     "ToggleZoom",
     "VideoInspectLayout",
+    "_assemble_inspect_key",
+    "_completed_inspect_escape",
+    "_decode_inspect_key",
     "clamp_timestamp",
     "compute_inspect_layout",
     "decile_timestamp",

@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from ._viewer_loop_media import (
+from ._viewer_video_motion import (
     artifact_video_motion_command,
     build_native_open_command,
     motion_playback_block_reason,
@@ -113,6 +113,7 @@ class _VideoInspectSession(VideoInspectSessionBase):
                 "artifact_not_file", "Artifact path is not a file"
             )
             return VideoInspectOutcome(action="quit", returncode=1, warnings=(warning,))
+        self._enter_quiet()
         self._prepare()
         self._paint(full=True)
         self._start_background()
@@ -159,6 +160,7 @@ class _VideoInspectSession(VideoInspectSessionBase):
 
     def _paint(self, *, full: bool) -> None:
         if full:
+            self._invalidate_status_cache()
             clear_terminal()
             summary = (
                 format_video_metadata_summary(self.metadata)
@@ -229,7 +231,8 @@ class _VideoInspectSession(VideoInspectSessionBase):
                 truecolor=image_render_context().truecolor,
             )
         except (CellImageError, OSError) as exc:
-            self.notice = f"cell preview unavailable: {exc}"
+            if self.notice is None:
+                self.notice = f"cell preview unavailable: {exc}"
             return
         sys.stdout.write(f"\x1b[{max(0, area.top) + 1};1H")
         sys.stdout.flush()
@@ -252,7 +255,12 @@ class _VideoInspectSession(VideoInspectSessionBase):
             bar_width=10 if self.cell_fallback else 22,
         )
         line = text[: self.layout.columns].ljust(self.layout.columns)
-        sys.stdout.write(f"\x1b[{self.layout.status_row};1H{line}")
+        row = self.layout.status_row
+        if line == self._last_status_text and row == self._last_status_row:
+            return
+        self._last_status_text = line
+        self._last_status_row = row
+        sys.stdout.write(f"\x1b[{row};1H{line}")
         sys.stdout.flush()
 
     def _print_footer(self) -> None:
@@ -353,6 +361,8 @@ class _VideoInspectSession(VideoInspectSessionBase):
                 return VideoInspectOutcome(
                     action="quit", returncode=1, warnings=zoomed.warnings
                 )
+            if self._fixed_area is None:
+                self._term_size = shutil.get_terminal_size(fallback=(80, 24))
             self.layout = self._compute_layout()
             self._restart_storyboard()
             self._paint(full=True)
@@ -397,7 +407,14 @@ class _VideoInspectSession(VideoInspectSessionBase):
         emit_child_span(
             "motion_start", mode="video", backend=backend, at_seconds=self.at
         )
-        result = self._run(command)
+        quiet_was_active = self._quiet_saved is not None
+        if quiet_was_active:
+            self._exit_quiet()
+        try:
+            result = self._run(command)
+        finally:
+            if quiet_was_active:
+                self._enter_quiet()
         failed = getattr(result, "returncode", 0) != 0
         if failed:
             self.notice = (

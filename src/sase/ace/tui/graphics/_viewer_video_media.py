@@ -1,4 +1,4 @@
-"""ffprobe metadata and single-still extraction for terminal video artifacts."""
+"""ffprobe metadata for terminal video artifacts."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import fcntl
 import json
 import shutil
 import subprocess
-import tempfile
 import termios
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from struct import pack, unpack
@@ -19,22 +18,8 @@ from ._viewer_loop_media import (
     video_still_preview_required,
     video_vo_uses_kitty_placement,
 )
-from ._viewer_loop_terminal import (
-    clear_terminal,
-    kitten_icat_command,
-    move_cursor_below_image,
-    print_artifact_header,
-    print_artifact_warning,
-)
-from ._viewer_loop_types import VideoDisplayResult
-from ._viewer_types import (
-    ArtifactFileImageArea,
-    ArtifactFileViewerWarning,
-    ArtifactFileViewSpec,
-)
 
 _FFPROBE_TIMEOUT_SECONDS = 5.0
-_FFMPEG_TIMEOUT_SECONDS = 10.0
 _FALLBACK_TERMINAL_PIXEL_WIDTH = 1600
 _FALLBACK_TERMINAL_PIXEL_HEIGHT = 900
 
@@ -66,31 +51,6 @@ def ffprobe_metadata_command(path: str | Path) -> list[str]:
         "-select_streams",
         "v:0",
         str(expanded),
-    ]
-
-
-def _video_still_extraction_command(
-    path: str | Path,
-    dest: str | Path,
-    max_pixel_width: int,
-) -> list[str]:
-    """Build the ffmpeg command that extracts the first frame as a PNG still."""
-
-    expanded = Path(path).expanduser().resolve(strict=False)
-    return [
-        "ffmpeg",
-        "-nostdin",
-        "-loglevel",
-        "error",
-        "-ss",
-        "0",
-        "-i",
-        str(expanded),
-        "-frames:v",
-        "1",
-        "-vf",
-        f"scale=min(iw\\,{max_pixel_width}):-2",
-        str(Path(dest).expanduser()),
     ]
 
 
@@ -166,16 +126,6 @@ def terminal_pixel_size(
     return (width, height)
 
 
-def _terminal_pixel_width(
-    *,
-    fallback: int = _FALLBACK_TERMINAL_PIXEL_WIDTH,
-) -> int:
-    """Return the terminal pixel width from ``TIOCGWINSZ``, or *fallback*."""
-
-    width, _ = terminal_pixel_size(fallback_width=fallback)
-    return width
-
-
 def probe_video_metadata(path: str | Path) -> VideoMetadata | None:
     """Probe *path* with ffprobe, returning ``None`` when unavailable."""
 
@@ -196,145 +146,6 @@ def probe_video_metadata(path: str | Path) -> VideoMetadata | None:
     if not isinstance(payload, dict):
         return None
     return parse_ffprobe_metadata(payload, file_size=file_size)
-
-
-def _extract_video_still(
-    path: str | Path,
-    dest: str | Path,
-    max_pixel_width: int | None = None,
-) -> bool:
-    """Extract the first frame of *path* into *dest*, downscaling as needed."""
-
-    if shutil.which("ffmpeg") is None:
-        return False
-    width = max_pixel_width if max_pixel_width and max_pixel_width > 0 else None
-    resolved_width = width or _terminal_pixel_width()
-    output = Path(dest).expanduser()
-    try:
-        output.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return False
-    result = _run_capture(
-        _video_still_extraction_command(path, output, resolved_width),
-        _FFMPEG_TIMEOUT_SECONDS,
-    )
-    if result is None or result.returncode != 0:
-        try:
-            output.unlink(missing_ok=True)
-        except OSError:
-            pass
-        return False
-    return True
-
-
-def display_video_still_artifact(
-    spec: ArtifactFileViewSpec,
-    image_area: ArtifactFileImageArea,
-    run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
-    *,
-    cache_root: str | Path | None = None,
-    artifact_index: int = 0,
-    artifact_count: int = 1,
-) -> VideoDisplayResult:
-    """Render a video as an ffmpeg still plus ffprobe metadata, never mpv.
-
-    Every missing or failed tool prints a yellow notice naming the tool and
-    keeps the viewer alive: the result carries notices instead of warnings so
-    the sequence loop never exits on this path.
-    """
-
-    path = Path(spec.path).expanduser().resolve(strict=False)
-    notices: list[ArtifactFileViewerWarning] = []
-    metadata: VideoMetadata | None = None
-    if shutil.which("ffprobe") is None:
-        notices.append(
-            ArtifactFileViewerWarning(
-                "missing_ffprobe",
-                "ffprobe executable not found: video metadata unavailable",
-                tool="ffprobe",
-            )
-        )
-    else:
-        metadata = probe_video_metadata(path)
-        if metadata is None:
-            notices.append(
-                ArtifactFileViewerWarning(
-                    "ffprobe_failed",
-                    "ffprobe could not read video metadata",
-                    tool="ffprobe",
-                )
-            )
-
-    summary = format_video_metadata_summary(metadata) if metadata else None
-    media_label = f"\u25b6 Video {summary}" if summary else "\u25b6 Video"
-
-    still_path: Path | None = None
-    if shutil.which("ffmpeg") is None:
-        notices.append(
-            ArtifactFileViewerWarning(
-                "missing_ffmpeg",
-                "ffmpeg executable not found: video still unavailable",
-                tool="ffmpeg",
-            )
-        )
-    else:
-        root = (
-            Path(cache_root).expanduser()
-            if cache_root is not None
-            else Path(tempfile.mkdtemp(prefix="sase-video-still-"))
-        )
-        still_path = root / f"video-still-{artifact_index}.png"
-        if not _extract_video_still(path, still_path):
-            notices.append(
-                ArtifactFileViewerWarning(
-                    "ffmpeg_still_failed",
-                    "ffmpeg could not extract a video still frame",
-                    tool="ffmpeg",
-                )
-            )
-            still_path = None
-
-    clear_terminal()
-    print_artifact_header(
-        spec,
-        page_index=0,
-        page_count=1,
-        artifact_index=artifact_index,
-        artifact_count=artifact_count,
-        media_label=media_label,
-    )
-    command: tuple[str, ...] = ()
-    if still_path is not None:
-        if shutil.which("kitten") is None:
-            notices.append(
-                ArtifactFileViewerWarning(
-                    "missing_kitten",
-                    "kitten executable not found: video still cannot display",
-                    tool="kitten",
-                )
-            )
-        else:
-            icat_command = kitten_icat_command(still_path, image_area)
-            result = run_command(icat_command)
-            command = tuple(icat_command)
-            if result.returncode != 0:
-                command = ()
-                notices.append(
-                    ArtifactFileViewerWarning(
-                        "kitten_icat_failed",
-                        f"kitten icat failed with exit code {result.returncode}",
-                        tool="kitten",
-                    )
-                )
-    move_cursor_below_image(image_area)
-    for notice in notices:
-        print_artifact_warning(notice)
-    return VideoDisplayResult(
-        command=command,
-        returncode=0,
-        notices=tuple(notices),
-        still_preview=True,
-    )
 
 
 def _run_capture(
@@ -407,7 +218,6 @@ def _format_bytes(size: int) -> str:
 
 __all__ = [
     "VideoMetadata",
-    "display_video_still_artifact",
     "ffprobe_metadata_command",
     "format_video_metadata_summary",
     "parse_ffprobe_metadata",

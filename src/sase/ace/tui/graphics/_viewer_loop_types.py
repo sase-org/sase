@@ -37,14 +37,3 @@ class ArtifactVideoPlaybackConfig:
     vo: str = "kitty"
     extra_mpv_args: tuple[str, ...] = ()
     open_command: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class VideoDisplayResult:
-    """Terminal video player subprocess status."""
-
-    command: tuple[str, ...] = ()
-    returncode: int = 0
-    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
-    notices: tuple[ArtifactFileViewerWarning, ...] = ()
-    still_preview: bool = False

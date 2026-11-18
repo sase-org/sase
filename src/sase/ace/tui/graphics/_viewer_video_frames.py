@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,15 @@ _FRAME_EXTRACT_TIMEOUT_SECONDS = 15.0
 _METADATA_PROBE_TIMEOUT_SECONDS = 5.0
 _STORYBOARD_LABEL_HEIGHT_PX = 14
 _STORYBOARD_BACKGROUND = (17, 17, 17)
+_DIGEST_CACHE_MAX_ENTRIES = 64
+_DIGEST_CACHE: dict[tuple[str, int, int, int, int], str] = {}
+_DIGEST_CACHE_LOCK = threading.Lock()
+
+
+def _digest_cache_key(
+    resolved: str, stat: os.stat_result
+) -> tuple[str, int, int, int, int]:
+    return (resolved, stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
 
 
 @dataclass(frozen=True)
@@ -96,17 +106,44 @@ def artifact_video_cache_dir(
 
 
 def content_digest_for_path(path: str | Path) -> str | None:
-    """Return the streamed sha256 hex digest of *path*, or None when unreadable."""
+    """Return the streamed sha256 hex digest of *path*, or None when unreadable.
+
+    Memoized per viewer process by resolved path plus ``(st_dev, st_ino,
+    st_size, st_mtime_ns)``, so one open plus many exact steps hash the file
+    once. A changed file (new size, mtime, or inode) re-hashes.
+    """
 
     try:
-        resolved = Path(path).expanduser()
+        resolved_path = str(Path(path).expanduser())
+        stat = os.stat(resolved_path)
+    except OSError:
+        return None
+    if not os.path.isfile(resolved_path):
+        return None
+    key = _digest_cache_key(resolved_path, stat)
+    with _DIGEST_CACHE_LOCK:
+        cached = _DIGEST_CACHE.get(key)
+        if cached is not None:
+            return cached
+    try:
         digest = hashlib.sha256()
-        with resolved.open("rb") as handle:
+        with open(resolved_path, "rb") as handle:
             for chunk in iter(lambda: handle.read(_FRAME_DIGEST_CHUNK_BYTES), b""):
                 digest.update(chunk)
     except OSError:
         return None
-    return digest.hexdigest()
+    hex_digest = digest.hexdigest()
+    try:
+        fresh = os.stat(resolved_path)
+    except OSError:
+        return hex_digest
+    if _digest_cache_key(resolved_path, fresh) != key:
+        return hex_digest
+    with _DIGEST_CACHE_LOCK:
+        _DIGEST_CACHE[key] = hex_digest
+        while len(_DIGEST_CACHE) > _DIGEST_CACHE_MAX_ENTRIES:
+            _DIGEST_CACHE.pop(next(iter(_DIGEST_CACHE)))
+    return hex_digest
 
 
 def scrub_fps_for_duration(duration_seconds: float | None) -> float:

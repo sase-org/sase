@@ -14,10 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from ._viewer_kitty_capability import kitty_graphics_capable
 from ._viewer_loop_terminal import (
     artifact_image_area,
     kitten_icat_clear_command,
-    kitty_graphics_capable,
     run_command as default_run_command,
     viewer_kitten_icat_command,
 )
@@ -47,6 +47,10 @@ from ._viewer_loop_video_common import (
     ToggleZoom,
     VideoInspectLayout,
     compute_inspect_layout,
+)
+from ._viewer_video_input import (
+    enter_quiet_terminal,
+    exit_quiet_terminal,
     read_inspect_key,
 )
 
@@ -84,7 +88,11 @@ class VideoInspectSessionBase:
         self.path = Path(spec.path).expanduser().resolve(strict=False)
         self.video_config = video_config
         self._fixed_area = image_area
+        self._using_default_reader = read_key is None
         self._read = read_key or read_inspect_key
+        self._quiet_saved: list | None = None
+        self._last_status_text: str | None = None
+        self._last_status_row: int | None = None
         self._run = run_command or default_run_command
         self.artifact_index = artifact_index
         self.artifact_count = artifact_count
@@ -119,6 +127,21 @@ class VideoInspectSessionBase:
             return self.metadata.fps
         return _DEFAULT_SOURCE_FPS
 
+    def _enter_quiet(self) -> None:
+        if not self._using_default_reader:
+            return
+        if self._quiet_saved is not None:
+            return
+        self._quiet_saved = enter_quiet_terminal()
+
+    def _exit_quiet(self) -> None:
+        exit_quiet_terminal(self._quiet_saved)
+        self._quiet_saved = None
+
+    def _invalidate_status_cache(self) -> None:
+        self._last_status_text = None
+        self._last_status_row = None
+
     def cleanup(self) -> None:
         if self.scrub is not None:
             self.scrub.cancel()
@@ -130,6 +153,7 @@ class VideoInspectSessionBase:
                 self._run(kitten_icat_clear_command())
             except (OSError, TypeError, ValueError, subprocess.SubprocessError):
                 pass
+        self._exit_quiet()
 
     def _prepare(self) -> None:
         if content_digest_for_path(self.path) is None:
@@ -216,7 +240,8 @@ class VideoInspectSessionBase:
 
         if shutil.which("kitten") is None:
             self.notice = "kitten executable not found: video frame cannot display"
-            return False
+            self.cell_fallback = True
+            return True
         command = viewer_kitten_icat_command(page, area, image_id=image_id)
         result = self._run(command)
         if getattr(result, "returncode", 0) != 0:

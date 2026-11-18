@@ -153,7 +153,7 @@ def run_artifact_sequence_loop(
                     spec,
                     cache_root=root,
                     video_config=resolved_video_config,
-                    image_area=current_area,
+                    image_area=image_area,
                     read_key=read_key,
                     run_command=run,
                     artifact_index=artifact_index,

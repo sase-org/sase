@@ -188,6 +188,9 @@ _DEFERRED_MODULES = (
     "sase.ace.tui.graphics._viewer_loop_video",
     "sase.ace.tui.graphics._viewer_video_frames",
     "sase.ace.tui.graphics._viewer_video_media",
+    "sase.ace.tui.graphics._viewer_video_input",
+    "sase.ace.tui.graphics._viewer_video_motion",
+    "sase.ace.tui.graphics._viewer_kitty_capability",
     # Gate-fit teardown recovery: memory-audit query, prompt preprocessing,
     # and macro processor/source-render stay off first paint.
     "sase.llm_provider.preprocessing",
