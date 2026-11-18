@@ -1,4 +1,4 @@
-"""Opt-in GC census: survivor types and snapshot-cache ownership."""
+"""Opt-in GC census: survivor types and bounded result-cache ownership."""
 
 from __future__ import annotations
 
@@ -160,7 +160,14 @@ def _lru_cache_census(cache: Any, *, event_attr: str = "events") -> dict[str, An
     }
 
 
-def _index_file_cache_census(cache: Any, lock: Any | None = None) -> dict[str, Any]:
+def _index_file_cache_census(
+    cache: Any,
+    lock: Any | None = None,
+    *,
+    max_entries: int | None = None,
+    max_rows_per_entry: int | None = None,
+    max_bytes_per_entry: int | None = None,
+) -> dict[str, Any]:
     """Summarize targeted artifact-file association cache row counts."""
     items = _locked_mapping_items(cache, lock=lock)
     row_total = 0
@@ -181,9 +188,38 @@ def _index_file_cache_census(cache: Any, lock: Any | None = None) -> dict[str, A
         paths.append({"path": path, "rows": count})
     return {
         "entries": len(items),
-        "max_entries": getattr(cache, "max_entries", None),
+        "max_entries": max_entries,
+        "max_rows_per_entry": max_rows_per_entry,
+        "max_bytes_per_entry": max_bytes_per_entry,
         "row_total": row_total,
         "paths": paths,
+    }
+
+
+def _stranded_report_cache_census(cache: Any) -> dict[str, Any]:
+    """Count the bounded report graphs retained for each project."""
+    items = _locked_mapping_items(cache)
+    candidate_total = 0
+    title_total = 0
+    verdict_index_total = 0
+    stranded_id_total = 0
+    blocked_id_total = 0
+    for _key, entry in items:
+        snapshot = getattr(entry, "snapshot", None)
+        report = getattr(snapshot, "report", None)
+        candidate_total += _cache_event_count(report, "verdicts")
+        title_total += _cache_event_count(snapshot, "titles")
+        verdict_index_total += _cache_event_count(entry, "verdict_index")
+        stranded_id_total += _cache_event_count(report, "stranded_ids")
+        blocked_id_total += _cache_event_count(report, "blocked_ids")
+    return {
+        "entries": len(items),
+        "max_entries": getattr(cache, "_max_entries", None),
+        "candidate_verdict_total": candidate_total,
+        "title_total": title_total,
+        "verdict_index_total": verdict_index_total,
+        "stranded_id_total": stranded_id_total,
+        "blocked_id_total": blocked_id_total,
     }
 
 
@@ -204,7 +240,13 @@ def known_cache_census() -> list[dict[str, Any]]:
         ),
         (
             "sase.ace.tui.artifact_reads",
-            "_artifact_reads_snapshot_cache",
+            "_artifact_reads_cache",
+            "src/sase/ace/tui/artifact_reads.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.artifact_reads",
+            "_artifact_reads_context_cache",
             "src/sase/ace/tui/artifact_reads.py",
             "lru",
         ),
@@ -222,9 +264,21 @@ def known_cache_census() -> list[dict[str, Any]]:
         ),
         (
             "sase.ace.tui._bead_touches_loader",
-            "_bead_touches_snapshot_cache",
+            "_bead_touches_cache",
             "src/sase/ace/tui/_bead_touches_loader.py",
             "lru",
+        ),
+        (
+            "sase.ace.tui._bead_touches_loader",
+            "_bead_touches_context_cache",
+            "src/sase/ace/tui/_bead_touches_loader.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.models.agent_stranded",
+            "_STRANDED_REPORT_CACHE",
+            "src/sase/ace/tui/models/agent_stranded.py",
+            "stranded",
         ),
         (
             "sase.ace.tui.glossary_reads",
@@ -249,6 +303,7 @@ def known_cache_census() -> list[dict[str, Any]]:
                         "name": f"{module_name}.{attr}",
                         "anchor": anchor,
                         "imported": False,
+                        "status": "module_not_imported",
                     }
                 )
                 continue
@@ -260,6 +315,7 @@ def known_cache_census() -> list[dict[str, Any]]:
                         "anchor": anchor,
                         "imported": True,
                         "present": False,
+                        "status": "missing_expected_owner",
                     }
                 )
                 continue
@@ -269,15 +325,37 @@ def known_cache_census() -> list[dict[str, Any]]:
                 extra = _index_file_cache_census(
                     cache,
                     lock=getattr(module, "_artifact_file_association_cache_lock", None),
+                    max_entries=getattr(module, "_ASSOCIATION_CACHE_MAX_ENTRIES", None),
+                    max_rows_per_entry=getattr(
+                        module, "_ASSOCIATION_CACHE_MAX_ROWS", None
+                    ),
+                    max_bytes_per_entry=getattr(
+                        module, "_ASSOCIATION_CACHE_MAX_BYTES", None
+                    ),
                 )
+            elif kind == "stranded":
+                extra = _stranded_report_cache_census(cache)
             else:
                 extra = _lru_cache_census(cache)
+                row_limit = getattr(
+                    module,
+                    "MAX_KEPT_READS",
+                    getattr(module, "MAX_KEPT_TOUCHES", None),
+                )
+                if isinstance(row_limit, int) and row_limit > 0:
+                    extra["max_rows_per_entry"] = row_limit
+                    extra["max_retained_rows"] = (
+                        extra["max_entries"] * row_limit
+                        if isinstance(extra["max_entries"], int)
+                        else None
+                    )
             rows.append(
                 {
                     "name": f"{module_name}.{attr}",
                     "anchor": anchor,
                     "imported": True,
                     "present": True,
+                    "status": "present",
                     **extra,
                 }
             )
