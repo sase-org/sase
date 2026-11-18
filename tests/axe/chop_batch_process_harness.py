@@ -205,6 +205,23 @@ def _assert_receipts(config: dict[str, Any], expected: int) -> list[dict[str, An
     return rows
 
 
+def _assert_run_linkage(config: dict[str, Any], expected: int) -> None:
+    """Prove every resumed agent carries chop linkage for the original run."""
+    from sase.axe.chop_agents import get_chop_agent_records
+
+    records = get_chop_agent_records(
+        config["routine"], chop_name=config["job"], run_id=config["run_id"]
+    )
+    indexes = sorted(
+        record.proposal_index for record in records if record.run_id == config["run_id"]
+    )
+    if indexes != list(range(expected)):
+        raise AssertionError(
+            f"expected run linkage for proposal indexes 0..{expected - 1}; "
+            f"saw {indexes!r}"
+        )
+
+
 def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
     """Run one disposable subprocess acceptance scenario and return evidence."""
     root = root.resolve()
@@ -243,6 +260,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
 
         first_restart = _restart(config_path, config)
         rows = _assert_receipts(config, n)
+        _assert_run_linkage(config, n)
         second_restart = _restart(config_path, config)
         if len(_read_receipts(Path(config["receipt_file"]))) != n:
             raise AssertionError("second restart launched a duplicate member")
@@ -283,6 +301,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         after_death = len(_read_receipts(Path(config["receipt_file"])))
         _restart(config_path, config)
         rows = _assert_receipts(config, n)
+        _assert_run_linkage(config, n)
         _restart(config_path, config)
         return {
             "scenario": scenario,
@@ -335,6 +354,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
         notifications_before = load_notifications()
         _restart(config_path, config)
         rows = _assert_receipts(config, n)
+        _assert_run_linkage(config, n)
         _restart(config_path, config)
         notifications_after = load_notifications()
         events = [
@@ -384,6 +404,7 @@ def run_scenario(root: Path, scenario: str) -> dict[str, Any]:
             )
         first_restart = _restart(config_path, config)
         rows = _assert_receipts(config, n)
+        _assert_run_linkage(config, n)
         second_restart = _restart(config_path, config)
         return {
             "scenario": scenario,

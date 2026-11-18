@@ -45,7 +45,9 @@ def _wait_for_release(config: dict[str, Any], event: str) -> None:
         time.sleep(0.01)  # sase-test-wait: Poll an explicit file handshake token.
 
 
-def _fake_agent(receipt_file: Path, agent_name: str, source_index: int) -> None:
+def _fake_agent(
+    receipt_file: Path, agent_name: str, source_index: int, cl_name: str, pid: int
+) -> None:
     receipt_file.parent.mkdir(parents=True, exist_ok=True)
     with receipt_file.open("a", encoding="utf-8") as stream:
         stream.write(
@@ -53,8 +55,10 @@ def _fake_agent(receipt_file: Path, agent_name: str, source_index: int) -> None:
                 {
                     "agent_name": agent_name,
                     "source_index": source_index,
-                    "cl_name": agent_name,
-                    "pid": os.getpid(),
+                    # Production cl_name is the project name or VCS ref,
+                    # never the member identity.
+                    "cl_name": cl_name,
+                    "pid": pid,
                 }
             )
             + "\n"
@@ -63,7 +67,9 @@ def _fake_agent(receipt_file: Path, agent_name: str, source_index: int) -> None:
         os.fsync(stream.fileno())
 
 
-def _run_fake_agent(receipt_file: Path, agent_name: str, source_index: int) -> None:
+def _run_fake_agent(
+    receipt_file: Path, agent_name: str, source_index: int, cl_name: str, pid: int
+) -> None:
     subprocess.run(
         [
             sys.executable,
@@ -72,23 +78,57 @@ def _run_fake_agent(receipt_file: Path, agent_name: str, source_index: int) -> N
             str(receipt_file),
             agent_name,
             str(source_index),
+            cl_name,
+            str(pid),
         ],
         check=True,
         env=os.environ.copy(),
     )
 
 
+def _next_fake_pid(config: dict[str, Any], index: int) -> int:
+    """Return a dead pid that is distinct per run, attempt, and member.
+
+    The durable registry dedupes records by pid, so a fresh worker process
+    must not reuse the pids of the run it resumes; receipts only grow
+    within one run, and the run offset keeps separate runs apart.
+    """
+    try:
+        receipt_file = Path(config["receipt_file"])
+        prior = (
+            len(receipt_file.read_text(encoding="utf-8").splitlines())
+            if receipt_file.exists()
+            else 0
+        )
+    except OSError:
+        prior = 0
+    run_offset = abs(hash(config["run_id"])) % 200
+    return 30000 + run_offset * 10000 + prior * 100 + index
+
+
 def _fake_launcher(prompt: str, *, extra_env: dict[str, str], **kwargs: Any) -> Any:
-    del prompt
     config = _read_config()
     names = list(config["names"])
-    raw_index = extra_env.get("SASE_CHOP_PROPOSAL_INDEX")
-    if raw_index is None:
-        name = str(extra_env.get("SASE_AGENT_PLANNED_NAME") or "")
-        index = names.index(name)
-    else:
-        index = int(raw_index)
-        name = names[index]
+    # Production-shaped evidence: the launch env must carry chop linkage for
+    # the original run, and the fake records it exactly as launch_spawn
+    # would, at spawn time, before acknowledgement.
+    from sase.axe.chop_agents import (
+        extract_chop_launch_env,
+        record_chop_agent_launch_from_env,
+    )
+
+    linkage = extract_chop_launch_env(extra_env)
+    if linkage is None:
+        raise AssertionError("replayed launch lacks chop linkage env")
+    from sase.axe.chop_agents import ENV_CHOP_PROPOSAL_INDEX
+
+    index = int(linkage[ENV_CHOP_PROPOSAL_INDEX])
+    name = names[index]
+    planned_name = str(extra_env.get("SASE_AGENT_PLANNED_NAME") or "")
+    if planned_name and planned_name != name:
+        raise AssertionError(
+            f"launcher changed the accepted agent name: {planned_name!r} != {name!r}"
+        )
 
     request = SimpleNamespace(extra_env=extra_env)
     before = kwargs.get("before_agent_spawn")
@@ -99,19 +139,34 @@ def _fake_launcher(prompt: str, *, extra_env: dict[str, str], **kwargs: Any) -> 
         ):
             _wait_for_release(config, f"reserved-{index}")
 
-    _run_fake_agent(Path(config["receipt_file"]), name, index)
+    pid = _next_fake_pid(config, index)
+    project_name = "sase"
+    _run_fake_agent(Path(config["receipt_file"]), name, index, project_name, pid)
+    linkage_record = record_chop_agent_launch_from_env(
+        pid=pid,
+        project_file=str(Path(config["workspace"]) / "sase.sase"),
+        project_name=project_name,
+        workspace_num=1,
+        workflow_name="fake-chop-batch-acceptance",
+        cl_name=project_name,
+        timestamp="20261118_120000",
+        prompt=prompt,
+        env=extra_env,
+    )
+    if linkage_record is None:
+        raise AssertionError("fake spawn produced no chop-agent linkage record")
     _signal_event(config, f"spawned-{index}", name)
     if config.get("hold_mode") == "after_spawn" and index == config.get("hold_index"):
         _wait_for_release(config, f"spawned-{index}")
 
     record = SimpleNamespace(
         agent_name=name,
-        pid=10000 + index,
+        pid=pid,
         workspace_num=1,
         workspace_dir=str(config["workspace"]),
-        project_name="sase",
+        project_name=project_name,
         workflow_name="fake-chop-batch-acceptance",
-        cl_name=name,
+        cl_name=project_name,
         timestamp="20261118_120000",
         artifacts_dir=str(Path(config["events_dir"]) / "fake-artifacts" / name),
     )
@@ -143,22 +198,10 @@ def _worker(operation: str) -> int:
         _signal_event(config, "ready")
         _wait_for_release(config, "ready")
 
-    from sase.axe import chop_agents
+    # Chop-agent linkage comes from the durable registry the fake launcher
+    # writes at spawn time, exactly as production launch_spawn does. No
+    # receipt-file stand-ins: recovery must reconcile real run linkage.
     from sase.axe.chop_batch_recovery import recover_pending_chop_batches
-
-    receipt_file = Path(config["receipt_file"])
-
-    def _receipt_records(*_args: Any, **_kwargs: Any) -> list[Any]:
-        if not receipt_file.exists():
-            return []
-        rows = [
-            json.loads(line)
-            for line in receipt_file.read_text(encoding="utf-8").splitlines()
-            if line
-        ]
-        return [SimpleNamespace(cl_name=str(row["cl_name"])) for row in rows]
-
-    chop_agents.get_chop_agent_records = _receipt_records
 
     if operation == "typed-start":
         return _typed_start(config, routine)
@@ -321,7 +364,7 @@ def _typed_start(config: dict[str, Any], routine: Any) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "fake-agent":
-        _fake_agent(Path(args[1]), args[2], int(args[3]))
+        _fake_agent(Path(args[1]), args[2], int(args[3]), args[4], int(args[5]))
         return 0
     if args and args[0] in {"ordinary", "recover", "typed-start"}:
         os.environ[HARNESS_ENV] = args[1]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +21,7 @@ def _manifest(batch_id: str = "run-1", clan: str | None = "clan-a") -> dict[str,
     for index in range(3):
         member: dict[str, Any] = {
             "source_index": index,
+            "proposal_id": f"proposal-{index}",
             "agent_name": f"job-{index}",
             "prompt": f"%id:job-{index}\nDo {index}.",
             "workspace": "git:sase",
@@ -32,6 +35,44 @@ def _manifest(batch_id: str = "run-1", clan: str | None = "clan-a") -> dict[str,
         "run": {"routine": "docs", "job": "refresh", "run_id": batch_id},
         "members": members,
     }
+
+
+def _record_spawn(
+    *,
+    routine: str = "docs",
+    job: str = "refresh",
+    run_id: str,
+    index: int | None,
+    proposal_id: str | None = None,
+    cl_name: str = "sase",
+    pid: int = 4242,
+) -> None:
+    """Write one production-shaped chop-agent record for a member spawn."""
+    from sase.axe.chop_agents import (
+        build_chop_launch_env,
+        record_chop_agent_launch_from_env,
+    )
+
+    env = build_chop_launch_env(
+        lumberjack_name=routine,
+        chop_name=job,
+        prompt="%id:job-0\nDo 0.",
+        run_id=run_id,
+        proposal_index=index,
+        proposal_id=proposal_id,
+    )
+    record = record_chop_agent_launch_from_env(
+        pid=pid,
+        project_file="/tmp/projects/sase/sase.sase",
+        project_name="sase",
+        workspace_num=1,
+        workflow_name="fake-chop-batch-recovery",
+        cl_name=cl_name,
+        timestamp="20261118_120000",
+        prompt="%id:job-0\nDo 0.",
+        env=env,
+    )
+    assert record is not None
 
 
 @pytest.fixture()
@@ -89,20 +130,298 @@ def test_cancel_never_fires_for_individual_member_selection() -> None:
     assert cancel_pending_batches_for_clan_selection([member]) == 0
 
 
-def test_collect_observations_marks_recorded_spawn_as_matched(
+def test_collect_observations_matches_by_run_linkage_not_cl_name(
     isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     manifest = _manifest("run-9", None)
     chop_batch_store.create_chop_batch("docs", "refresh", manifest)
 
-    record = SimpleNamespace(cl_name="job-0")
-    monkeypatch.setattr(
-        "sase.axe.chop_agents.get_chop_agent_records", lambda *a, **k: [record]
-    )
-    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: {"job-1"})
+    # Production cl_name is the project name: it neither equals nor is
+    # matched against member identities, even as a prefix.
+    _record_spawn(run_id="run-9", index=0, proposal_id="proposal-0", pid=4242)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
     observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
     by_name = {item["agent_name"]: item["observation"] for item in observations}
     assert by_name["job-0"] == "matched_spawn"
+    # job-1 and job-2 have no record and no reservation: absent, safe to launch.
+    assert "job-1" not in by_name
+    assert "job-2" not in by_name
+
+
+def test_collect_observations_ignores_prefix_cl_name_without_linkage(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-9", None)
+    manifest["members"][1]["agent_name"] = "sase-fix"
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    # A project cl_name that is a prefix of the member name proves nothing.
+    _record_spawn(run_id="run-9", index=2, proposal_id="proposal-2", pid=4243)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
+    by_name = {item["agent_name"]: item["observation"] for item in observations}
+    assert by_name["job-2"] == "matched_spawn"
+    assert "sase-fix" not in by_name
+    assert "job-0" not in by_name
+
+
+def test_collect_observations_ignores_records_from_other_runs(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-9", None)
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    _record_spawn(run_id="other-run", index=0, proposal_id="proposal-0", pid=4244)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
+    assert observations == []
+
+
+def test_collect_observations_matches_by_proposal_id_without_index(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-9", None)
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    _record_spawn(run_id="run-9", index=None, proposal_id="proposal-1", pid=4245)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
+    by_name = {item["agent_name"]: item["observation"] for item in observations}
+    assert by_name["job-1"] == "matched_spawn"
+    assert "job-0" not in by_name
+
+
+def test_collect_observations_marks_unlinked_live_owner_as_foreign_conflict(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-9", None)
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    # A live, visible agent owns the planned name without run linkage: it
+    # is a foreign conflict and must never be relaunched under a new name.
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: {"job-1"})
+    observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
+    by_name = {item["agent_name"]: item["observation"] for item in observations}
+    assert by_name["job-1"] == "foreign_conflict"
+    assert "job-0" not in by_name
+
+
+def _replay_manifest() -> dict[str, Any]:
+    members: list[dict[str, Any]] = [
+        {
+            "source_index": 0,
+            "proposal_id": "proposal-0",
+            "agent_name": "job-0",
+            "prompt": "#git:sase\n%id:job-0\nDo 0.",
+            "workspace": "git:sase",
+        },
+        {
+            "source_index": 1,
+            "proposal_id": "proposal-1",
+            "agent_name": "job-1",
+            "prompt": "#git:sase\n%id:job-1\nDo 1.",
+            "workspace": "git:sase",
+            "status": "skipped",
+            "status_reason": "explicit agent name collision",
+        },
+        {
+            "source_index": 2,
+            "proposal_id": "proposal-2",
+            "agent_name": "job-2",
+            "prompt": "#git:sase\n%id:job-2\n%wait:job-1\nDo 2.",
+            "workspace": "git:sase",
+            "wait_on": 1,
+        },
+        {
+            "source_index": 3,
+            "proposal_id": "proposal-3",
+            "agent_name": "clan-a.worker",
+            "prompt": "#git:sase\n%id(worker, clan=clan-a)\nDo 3.",
+            "workspace": "git:sase",
+            "launch_role": "join",
+            "clan": "clan-a",
+            "clan_generation": "gen-9",
+        },
+        {
+            "source_index": 4,
+            "proposal_id": "proposal-4",
+            "agent_name": "clan-a.boss",
+            "prompt": "#git:sase\n%id:clan-a.boss\n%clan(clan-a, tribe=eng)\nDo 4.",
+            "workspace": "git:sase",
+            "launch_role": "declare",
+            "clan": "clan-a",
+            "clan_generation": "gen-9",
+        },
+    ]
+    return {
+        "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+        "batch_id": "run-9",
+        "run": {"routine": "docs", "job": "refresh", "run_id": "run-9"},
+        "clan": "clan-a",
+        "clan_generation": "gen-9",
+        "members": members,
+    }
+
+
+def test_replay_rebuilds_first_run_launch_context_and_merges_history(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import datetime
+
+    from sase.axe.state import ChopRunEntry, read_chop_run, start_chop_run
+
+    manifest = _replay_manifest()
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    start_chop_run(
+        ChopRunEntry(
+            run_id="run-9",
+            lumberjack_name="docs",
+            chop_name="refresh",
+            started_at=datetime.now().isoformat(),
+            finished_at=None,
+            duration_ms=0,
+            status="running",
+        )
+    )
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+
+    captured: list[dict[str, Any]] = []
+    pids = iter(range(9000, 9100))
+
+    def fake_launcher(
+        prompt: str,
+        *,
+        extra_env: dict[str, str],
+        before_agent_spawn: Any = None,
+        on_agent_launch_recorded: Any = None,
+        pause_requested_fn: Any = None,
+        origin: Any = None,
+    ) -> Any:
+        captured.append({"prompt": prompt, "env": dict(extra_env), "origin": origin})
+        planned = str(extra_env.get("SASE_AGENT_PLANNED_NAME") or "")
+        assert planned
+        request = SimpleNamespace(
+            name_reservation=SimpleNamespace(agent_name=planned),
+            extra_env=extra_env,
+        )
+        if before_agent_spawn is not None:
+            before_agent_spawn(0, 0, request, None)
+        record = SimpleNamespace(
+            agent_name=planned,
+            pid=next(pids),
+            workspace_num=1,
+            workspace_dir="/tmp/ws",
+            project_name="sase",
+            workflow_name="fake",
+            cl_name="sase",
+            timestamp="20261118_120000",
+            artifacts_dir="/tmp/artifacts",
+        )
+        if on_agent_launch_recorded is not None:
+            on_agent_launch_recorded(0, 0, record, None)
+        return [record]
+
+    results = recovery.recover_pending_chop_batches(
+        "docs",
+        "refresh",
+        launch_agents_from_cwd_fn=fake_launcher,
+    )
+    assert len(results) == 1
+    assert results[0].kind == "ordinary"
+    assert len(results[0].launched) == 4
+
+    by_name = {
+        str(item["env"].get("SASE_AGENT_PLANNED_NAME")): item for item in captured
+    }
+    assert set(by_name) == {"job-0", "job-2", "clan-a.worker", "clan-a.boss"}
+    for item in captured:
+        env = item["env"]
+        # Chop linkage points at the original run and proposal index.
+        assert env["SASE_CHOP_RUN_ID"] == "run-9"
+        assert env["SASE_CHOP_LUMBERJACK"] == "docs"
+        assert env["SASE_CHOP_NAME"] == "refresh"
+        assert "SASE_CHOP_PROPOSAL_INDEX" in env
+        assert item["origin"] == "generated"
+
+    from sase.agent.clan_membership import (
+        CLAN_MEMBERSHIP_ENV,
+        decode_clan_membership_plan,
+    )
+
+    for clan_member in ("clan-a.worker", "clan-a.boss"):
+        pin = decode_clan_membership_plan(
+            by_name[clan_member]["env"][CLAN_MEMBERSHIP_ENV]
+        )
+        assert pin.clan_name == "clan-a"
+        assert pin.generation == "gen-9"
+    assert "SASE_AGENT_CLAN_MEMBERSHIP" not in by_name["job-0"]["env"]
+    # The join prompt is unchanged; the declarer rejoins instead of
+    # declaring a new clan.
+    assert "%id(worker, clan=clan-a)" in by_name["clan-a.worker"]["prompt"]
+    boss_prompt = by_name["clan-a.boss"]["prompt"]
+    assert "%clan(" not in boss_prompt
+    assert "%id(boss, clan=clan-a)" in boss_prompt
+    # The dependent of the skipped member no longer waits on a name that
+    # will never launch.
+    assert "%wait:" not in by_name["job-2"]["prompt"]
+
+    entry = read_chop_run("docs", "refresh", "run-9")
+    assert entry is not None
+    launches = list(entry.launches)
+    assert len(launches) == 4
+    keys = [
+        (launch["index"], launch["agent_name"], launch["pid"]) for launch in launches
+    ]
+    assert len(set(keys)) == 4
+    assert {launch["agent_name"] for launch in launches} == set(by_name)
+    job_2 = next(launch for launch in launches if launch["agent_name"] == "job-2")
+    assert job_2["wait_name"] is None
+    assert "chop-agent" not in {launch["agent_name"] for launch in launches}
+
+    # A second restart launches nothing and merges nothing twice.
+    again = recovery.recover_pending_chop_batches(
+        "docs",
+        "refresh",
+        launch_agents_from_cwd_fn=fake_launcher,
+    )
+    assert len(again) == 0 or all(not item.launched for item in again)
+    entry = read_chop_run("docs", "refresh", "run-9")
+    assert entry is not None
+    assert len(list(entry.launches)) == 4
+
+
+def test_collect_observations_tells_live_reserver_from_dead_reservation(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agent.names import (
+        reset_name_registry_caches_for_tests,
+        reserve_registered_name,
+    )
+    from sase.core.process_identity import process_identity_token
+
+    manifest = _manifest("run-9", None)
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+
+    live_dir = isolated_home / "agents" / "live"
+    live_dir.mkdir(parents=True)
+    (live_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "process_identity": process_identity_token(os.getpid()),
+            }
+        ),
+        encoding="utf-8",
+    )
+    reserve_registered_name("job-0", live_dir)
+    # A planned reservation whose artifacts never materialized: the
+    # reserver died, so the member may relaunch under its identity.
+    reserve_registered_name("job-1", isolated_home / "agents" / "never-spawned")
+    reset_name_registry_caches_for_tests()
+
+    observations = recovery.collect_spawn_observations("docs", "refresh", manifest)
+    by_name = {item["agent_name"]: item["observation"] for item in observations}
+    assert by_name["job-0"] == "live_owner"
     assert by_name["job-1"] == "reservation_only"
-    # job-2 has no evidence and stays absent, meaning provably unspawned.
     assert "job-2" not in by_name
