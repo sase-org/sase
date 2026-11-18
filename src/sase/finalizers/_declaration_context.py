@@ -215,6 +215,20 @@ def _handoff_from_staged_record(root: Path) -> FinalizerHandoffWire | None:
     )
 
 
+def _unscanned_writes_entries(root: Path) -> list[dict[str, object]]:
+    """Return advisory unscanned-write entries; never raises."""
+
+    try:
+        from sase.llm_provider.commit_finalizer_state._unscanned_writes import (
+            find_unscanned_writes,
+        )
+
+        entries = find_unscanned_writes(resolve_finalizer_project_dir(), root)
+    except Exception:
+        return []
+    return [dict(entry) for entry in entries]
+
+
 def _assigned_bead_context(
     dirty_state: DirtyState,
     obligations: list[FinalizerObligationWire],
@@ -275,6 +289,7 @@ def _context_payload(
         "context": finalizer_wire_to_json_dict(context),
         "selected_instances": selected,
         "submission_required": context_requires_submission(context),
+        "unscanned_writes": _unscanned_writes_entries(root),
         "commit_declaration": build_commit_declaration_context(
             root=root,
             context=context,

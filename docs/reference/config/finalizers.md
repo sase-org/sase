@@ -71,14 +71,16 @@ model turn. A plain monitor profile carries no completion authority. See
 [Prepared host completion](../automation/monitors.md#prepared-host-completion).
 
 The built-in `builtin@commit` provider checks the main workspace, configured linked Git
-worktrees, and repositories opened through `/sase_repo`. Dirty enforced repositories
-become declaration obligations; each repository must receive exactly one `commit`
-decision with a Conventional Commit message, and `commit` is the only legal repository
-action. Typed deferrals can name explicit paths that must not be committed, using the
-adjudicated reasons `protected_paths`, `foreign_work`, `unsafe_content`, or
-`belongs_to_another_turn`. When the run has an assigned bead (`SASE_BEAD_ID`), the
-primary repository's commit decision also carries a `keep` or `close` bead action, which
-is forwarded to `sase stitch create -B`; see
+worktrees, and repositories opened through `/sase_repo`. `sase final context` also
+carries an advisory `unscanned_writes` list naming dirty run-written files in checkouts
+outside that scan, with a per-entry fix; it never changes requirements, obligations, or
+digests. Dirty enforced repositories become declaration obligations; each repository
+must receive exactly one `commit` decision with a Conventional Commit message, and
+`commit` is the only legal repository action. Typed deferrals can name explicit paths
+that must not be committed, using the adjudicated reasons `protected_paths`,
+`foreign_work`, `unsafe_content`, or `belongs_to_another_turn`. When the run has an
+assigned bead (`SASE_BEAD_ID`), the primary repository's commit decision also carries a
+`keep` or `close` bead action, which is forwarded to `sase stitch create -B`; see
 [Explicit Bead Action](../../contribute/commit-workflow-orchestrator.md#explicit-bead-action).
 Commit decisions dispatch through `sase stitch create` sequentially, preserve protected
 pre-existing dirt, write stitch evidence, stop on the first conflict for repair/resume,

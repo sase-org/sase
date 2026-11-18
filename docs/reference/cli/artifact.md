@@ -55,7 +55,7 @@ usage: sase artifact create [-h] [-b [ID]]
                             [-l LABEL] [-m] -p PATH
 ```
 
-Store a file as an explicit artifact for the current agent. On success prints: id: <explicit id> source: <absolute source path> path: <stored snapshot path> ref: file:<explicit id> var: artifacts[<index>] bead: <id> (only with --bead) The artifact is also recorded in the agent's `artifacts` output variable (shown in the Agents tab OUTPUT VARIABLES section, readable with `sase var get` from inside the agent and by later agents as `{{ agents["<name>"].artifacts }}`). Re-registering the same label and source replaces that entry with the newer snapshot.
+Store a file as an explicit artifact for the current agent. On success prints: id: <explicit id> source: <absolute source path> path: <stored snapshot path> ref: file:<explicit id> var: artifacts[<index>] bead: <id> (only with --bead) The artifact is also recorded in the agent's `artifacts` output variable (shown in the Agents tab OUTPUT VARIABLES section, readable with `sase var get` from inside the agent and by later agents as `{{ agents["<name>"].artifacts }}`). Re-registering the same label and source replaces that entry with the newer snapshot. When the source sits in a checkout the host will not commit, the artifact still registers and one stderr warning names the fix.
 
 Options:
 

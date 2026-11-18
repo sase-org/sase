@@ -152,7 +152,10 @@ authorized them and `unverified` otherwise.
    sase final context -f json
    ```
 
-2. If `submission_required` is false, stop here and return.
+2. If `unscanned_writes` is non-empty, follow each entry's `instruction`, then repeat
+   step 1. Stop only when `submission_required` is false and `unscanned_writes` is
+   empty. If an entry must stay where it is (for example, the user asked for that
+   location), say so in the final response.
 
 3. Build one manifest from `manifest_template`. For a `commit` payload, every repository
    in `context.obligations` with `kind: repository` needs exactly one repository

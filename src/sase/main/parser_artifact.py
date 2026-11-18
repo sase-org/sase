@@ -78,7 +78,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "readable with `sase var get` from inside the agent and by later\n"
             'agents as `{{ agents["<name>"].artifacts }}`). Re-registering\n'
             "the same label and source replaces that entry with the newer\n"
-            "snapshot."
+            "snapshot.\n\n"
+            "When the source sits in a checkout the host will not commit,\n"
+            "the artifact still registers and one stderr warning names the fix."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

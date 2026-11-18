@@ -27,11 +27,13 @@ from ._dirty_repos import (
     dirty_sdd_store_repos as _dirty_sdd_store_repos,
     known_sdd_sidecar_paths as _known_sdd_sidecar_paths,
 )
+from ._scan_roots import commit_scan_roots
 from ._sibling_targets import configured_sibling_targets as _configured_sibling_targets
 
 __all__ = [
     "collect_baseline_repositories",
     "collect_dirty_state",
+    "commit_scan_roots",
 ]
 
 

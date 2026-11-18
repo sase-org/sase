@@ -75,6 +75,8 @@ def handle_create(args: argparse.Namespace) -> int:
         reference, artifact_file.path, agent_artifacts_dir
     )
 
+    _warn_when_source_outside_commit_scan(source_path, agent_artifacts_dir)
+
     attached = True
     if bead_id is not None:
         attached = _attach_reference_to_bead(bead_id, reference) == 0
@@ -148,6 +150,46 @@ def _record_artifacts_output_variable(
             file=sys.stderr,
         )
     print(f"var: {CREATED_ARTIFACTS_OUTPUT_VARIABLE}[{merge.index}]")
+
+
+def _warn_when_source_outside_commit_scan(
+    source_path: Path, agent_artifacts_dir: str
+) -> None:
+    """Warn when the artifact source sits outside the commit scan roots.
+
+    Warn-and-register is the decided ``artifact_create_guard = warn`` branch:
+    the artifact is already stored, exit status is unchanged, and one stderr
+    warning carries the detector entry's instruction. Never raises.
+    """
+
+    try:
+        from sase.llm_provider.commit_finalizer_config import (
+            resolve_finalizer_project_dir,
+        )
+        from sase.llm_provider.commit_finalizer_state._unscanned_writes import (
+            find_unscanned_writes,
+        )
+
+        entries = find_unscanned_writes(
+            resolve_finalizer_project_dir(),
+            Path(agent_artifacts_dir),
+            extra_paths=(str(source_path),),
+            include_run_paths=False,
+        )
+    except Exception:
+        return
+    if not entries:
+        return
+    instruction = str(entries[0].get("instruction") or "").strip()
+    if not instruction:
+        instruction = (
+            "Move the source into a checkout the host commits "
+            "so the file is not stranded."
+        )
+    print(
+        f"warning: artifact source is outside the commit scan: {instruction}",
+        file=sys.stderr,
+    )
 
 
 def _resolve_bead_target(bead: str | None) -> str | None:
