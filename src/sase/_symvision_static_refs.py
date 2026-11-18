@@ -161,6 +161,9 @@ from sase.main._init_skills_manifest import (
 from sase.core.staged_handoff import (
     gate_staged_payload_schema_version as _gate_staged_payload_schema_version,
 )
+from sase.core.unscanned_writes_facade import (
+    unscanned_wire_schema_version as _unscanned_wire_schema_version,
+)
 from sase.gate_turn.staged_contract import (
     StagedGatePreparation as _StagedGatePreparation,
 )
@@ -248,6 +251,7 @@ _PUBLIC_API_REFS = (
     _run_provider_operation,
     _run_stitch_create,
     _sdk_worker_main,
+    _unscanned_wire_schema_version,
     _validate_finalizer_instance_spec,
     _validate_finalizer_plan,
     _validate_finalizer_provider_spec,

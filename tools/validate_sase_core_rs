@@ -35,6 +35,11 @@ DISTRIBUTION_NAME = "sase-core-rs"
 # rejects any payload stamped with a different version.
 EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION = 2
 
+# Unscanned-write policy wire version. Keep in lockstep with
+# sase_core::finalizer::unscanned::UNSCANNED_WIRE_SCHEMA_VERSION and
+# sase.core.unscanned_writes_facade.UNSCANNED_WIRE_SCHEMA_VERSION.
+EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION = 1
+
 # Owning snippet-catalog wire version. Keep in lockstep with sase-core's
 # EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION and
 # sase.integrations._mobile_helper_common.EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION.
@@ -413,6 +418,9 @@ REQUIRED_BINDINGS = (
     "finalizer_json_digest",
     "aggregate_finalizer_outcomes",
     "project_finalizer_node_view",
+    "unscanned_wire_schema_version",
+    "select_unscanned_coverage",
+    "suggest_unscanned_repair",
     "feature_flag_state_get",
     "feature_flag_state_set",
     "feature_flag_state_reconcile",
@@ -1321,6 +1329,63 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         return False
     if not isinstance(aggregate, dict) or aggregate.get("status") != "success":
         _error(f"finalizer aggregate probe returned stale payload: {aggregate!r}")
+        return False
+    try:
+        unscanned_version = int(module.unscanned_wire_schema_version())
+    except Exception as exc:
+        _error(f"unscanned_wire_schema_version() probe failed: {exc}")
+        return False
+    if unscanned_version != EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION:
+        _error(
+            "unscanned_wire_schema_version() returned stale schema: "
+            f"got {unscanned_version}, expected "
+            f"{EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION}"
+        )
+        return False
+    try:
+        coverage = module.select_unscanned_coverage(
+            {
+                "schema_version": EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION,
+                "candidates": [
+                    {"name": "research", "path": "/a", "kind": "sibling"},
+                    {"name": "research", "path": "/b", "kind": "sibling"},
+                ],
+                "dirty_paths": ["/a", "/b"],
+                "known_sdd_paths": [],
+            }
+        )
+        repair = module.suggest_unscanned_repair(
+            {
+                "schema_version": EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION,
+                "toplevel": "/bob",
+                "relpath": "202611/report.md",
+                "current_project": "sase",
+                "current_project_key": "gh_sase-org__sase",
+                "workspace_num": 0,
+                "records": [
+                    {
+                        "name": "research",
+                        "project": "bob-cli",
+                        "project_key": "gh_bobs-org__bob-cli",
+                        "path": "/bob",
+                        "clones": [{"workspace_num": 0, "path": "/bob"}],
+                        "remote_url": "git@github.com:bobs-org/bob-cli--research.git",
+                    }
+                ],
+            }
+        )
+    except Exception as exc:
+        _error(f"unscanned policy probe failed: {exc}")
+        return False
+    if not isinstance(coverage, dict) or coverage.get("covered_paths") != ["/a"]:
+        _error(f"unscanned coverage probe returned stale payload: {coverage!r}")
+        return False
+    if (
+        not isinstance(repair, dict)
+        or repair.get("action") != "open_and_move"
+        or "gh:bobs-org/bob-cli--research" not in str(repair.get("instruction"))
+    ):
+        _error(f"unscanned repair probe returned stale payload: {repair!r}")
         return False
     return True
 

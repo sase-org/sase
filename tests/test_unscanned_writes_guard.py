@@ -59,6 +59,22 @@ def _fake_record(name: str, own: Path | None, other: Path | None) -> RepoRecord:
     )
 
 
+def _primary_record(path: Path, project: str = "sase") -> RepoRecord:
+    return RepoRecord(
+        name=project,
+        kind="primary",
+        project=project,
+        project_key=f"gh_{project}",
+        path=str(path),
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name=None,
+        clones=(),
+    )
+
+
 def test_unopened_second_checkout_flagged_open_and_move(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -81,7 +97,7 @@ def test_unopened_second_checkout_flagged_open_and_move(
     record = _fake_record("research", own=tmp_path / "opened-research", other=second)
 
     class _Inventory:
-        records = (record,)
+        records = (_primary_record(main), record)
         issues = ()
 
     monkeypatch.setattr(
@@ -127,7 +143,7 @@ def test_same_write_not_flagged_once_checkout_opened(
     record = _fake_record("research", own=tmp_path / "opened-research", other=second)
 
     class _Inventory:
-        records = (record,)
+        records = (_primary_record(main), record)
         issues = ()
 
     monkeypatch.setattr(
@@ -209,7 +225,7 @@ def test_nested_unopened_repo_flagged_open(
     record = _fake_record("nested-repo", own=nested, other=None)
 
     class _Inventory:
-        records = (record,)
+        records = (_primary_record(main), record)
         issues = ()
 
     monkeypatch.setattr(
@@ -273,7 +289,7 @@ def test_explicit_artifact_source_flagged_without_tool_calls(
     record = _fake_record("research", own=tmp_path / "opened-research", other=second)
 
     class _Inventory:
-        records = (record,)
+        records = (_primary_record(main), record)
         issues = ()
 
     monkeypatch.setattr(
@@ -320,7 +336,7 @@ def test_tool_call_absolute_paths_used_relative_skipped(
     record = _fake_record("research", own=tmp_path / "opened-research", other=second)
 
     class _Inventory:
-        records = (record,)
+        records = (_primary_record(main), record)
         issues = ()
 
     monkeypatch.setattr(

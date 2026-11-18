@@ -245,6 +245,33 @@ def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
                 "diagnostics": [],
             }
 
+        def unscanned_wire_schema_version(self) -> int:
+            return int(validator.EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION)
+
+        def select_unscanned_coverage(
+            self, _request: dict[str, object]
+        ) -> dict[str, object]:
+            return {
+                "schema_version": validator.EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION,
+                "covered_paths": ["/a"],
+            }
+
+        def suggest_unscanned_repair(
+            self, _request: dict[str, object]
+        ) -> dict[str, object]:
+            return {
+                "schema_version": validator.EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION,
+                "repo_name": "research",
+                "action": "open_and_move",
+                "instruction": (
+                    "Run `sase repo open gh:bobs-org/bob-cli--research`, then "
+                    "move the file to the same repo-relative path "
+                    "(202611/report.md) under the printed checkout so the host "
+                    "commits it."
+                ),
+                "target": "gh:bobs-org/bob-cli--research",
+            }
+
     assert validator._validate_finalizer_contract(FinalizerModule())
 
     stale = FinalizerModule()
@@ -254,6 +281,12 @@ def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
     ahead = FinalizerModule()
     ahead.finalizer_wire_schema_version = lambda: expected + 1
     assert not validator._validate_finalizer_contract(ahead)
+
+    stale_unscanned = FinalizerModule()
+    stale_unscanned.unscanned_wire_schema_version = lambda: (
+        validator.EXPECTED_UNSCANNED_WIRE_SCHEMA_VERSION - 1
+    )
+    assert not validator._validate_finalizer_contract(stale_unscanned)
 
 
 def _skill_layout_payload(

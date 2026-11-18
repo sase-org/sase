@@ -14,7 +14,7 @@ from sase.finalizers.declaration_recovery_evidence import (
 )
 
 from .. import commit_finalizer_git as finalizer_git
-from ._scan_roots import commit_scan_roots
+from ._repository_candidates import repository_candidates
 
 _GIT_TOPLEVEL_TIMEOUT_SECONDS = 5
 _GIT_STATUS_TIMEOUT_SECONDS = 5
@@ -31,11 +31,12 @@ class _UnscannedWrite:
     repo_name: str | None
     action: str
     instruction: str
+    target: str | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         """Return a JSON-safe mapping for final-context payloads."""
 
-        return {
+        payload: dict[str, object] = {
             "path": self.path,
             "checkout": self.checkout,
             "repo_relative_path": self.repo_relative_path,
@@ -44,6 +45,9 @@ class _UnscannedWrite:
             "action": self.action,
             "instruction": self.instruction,
         }
+        if self.target is not None:
+            payload["target"] = self.target
+        return payload
 
 
 def find_unscanned_writes(
@@ -58,8 +62,10 @@ def find_unscanned_writes(
     Candidates are absolute tool-call writes plus explicit-artifact sources
     plus ``extra_paths``, deduped and capped at ``MAX_TOOL_CALL_PATHS``. A
     candidate is reported only when it exists, sits in a git work tree whose
-    toplevel is not a scan root, and is untracked or modified. Any error or
-    timeout drops that candidate. This function never raises.
+    toplevel is outside the effective finalizer coverage, and is untracked or
+    modified. Coverage is derived from the same effective eligibility and
+    selection rules as the finalizer, including duplicate names and paths.
+    Any error or timeout drops that candidate. This function never raises.
     """
 
     try:
@@ -89,24 +95,96 @@ def _find_unscanned_writes(
         return ()
 
     try:
-        scan_roots = set(commit_scan_roots(project_dir, _as_path(artifact_root)))
+        ordered, known_sdd = repository_candidates(project_dir, _as_path(artifact_root))
     except Exception:
-        scan_roots = set()
+        ordered, known_sdd = [], {}
     try:
         normalized_main = finalizer_git.normalize_path(project_dir)
     except Exception:
         normalized_main = project_dir
-    scan_roots.add(normalized_main)
+
+    try:
+        covered = _effective_covered_paths(ordered, known_sdd, normalized_main)
+    except Exception:
+        covered = set()
+    # The main checkout is always scanned; keep it covered even when the
+    # shared policy has no dirty facts for it yet.
+    covered.add(normalized_main)
+
+    try:
+        normalized_project_dir = finalizer_git.normalize_path(project_dir)
+    except Exception:
+        normalized_project_dir = project_dir
 
     entries: list[dict[str, object]] = []
     for candidate in candidates:
         try:
-            entry = _inspect_candidate(candidate, scan_roots)
+            entry = _inspect_candidate(candidate, covered, normalized_project_dir)
         except Exception:
             continue
         if entry is not None:
             entries.append(entry.to_json_dict())
     return tuple(entries)
+
+
+def _effective_covered_paths(
+    ordered: list[tuple[str, str, str]],
+    known_sdd: dict[str, str],
+    normalized_main: str,
+) -> set[str]:
+    """Compute effective coverage via the shared Rust policy."""
+
+    from sase.core.unscanned_writes_facade import select_unscanned_coverage
+
+    # Gather status facts once per normalized checkout within the scan.
+    unique_paths: list[str] = []
+    seen: set[str] = set()
+    for _name, path, _kind in ordered:
+        if path and path not in seen:
+            seen.add(path)
+            unique_paths.append(path)
+    if normalized_main and normalized_main not in seen:
+        seen.add(normalized_main)
+        unique_paths.append(normalized_main)
+
+    dirty_paths: list[str] = []
+    for path in unique_paths:
+        try:
+            changed = finalizer_git.git_changed_files(path)
+        except Exception:
+            continue
+        if changed:
+            dirty_paths.append(path)
+
+    request: dict[str, Any] = {
+        "schema_version": 1,
+        "candidates": [
+            {"name": name, "path": path, "kind": kind} for name, path, kind in ordered
+        ],
+        "dirty_paths": dirty_paths,
+        "known_sdd_paths": sorted(known_sdd.keys()),
+    }
+    # Ensure the main checkout participates even when the enumeration
+    # omitted it (defensive; the shared enumeration always includes it).
+    if not any(c["path"] == normalized_main for c in request["candidates"]):
+        request["candidates"].insert(
+            0, {"name": "main", "path": normalized_main, "kind": "main"}
+        )
+    try:
+        response = select_unscanned_coverage(request)
+    except Exception:
+        return set()
+    covered = response.get("covered_paths", [])
+    if not isinstance(covered, list):
+        return set()
+    result: set[str] = set()
+    for item in covered:
+        if isinstance(item, str) and item:
+            try:
+                result.add(finalizer_git.normalize_path(item))
+            except Exception:
+                result.add(item)
+    return result
 
 
 def _as_path(value: Path | str | None) -> Path | None:
@@ -190,7 +268,9 @@ def _explicit_artifact_sources(artifact_root: Path) -> tuple[str, ...]:
     return tuple(sources)
 
 
-def _inspect_candidate(candidate: str, scan_roots: set[str]) -> _UnscannedWrite | None:
+def _inspect_candidate(
+    candidate: str, covered: set[str], run_project_dir: str
+) -> _UnscannedWrite | None:
     try:
         candidate_path = Path(candidate)
     except Exception:
@@ -208,7 +288,7 @@ def _inspect_candidate(candidate: str, scan_roots: set[str]) -> _UnscannedWrite 
         normalized_toplevel = finalizer_git.normalize_path(toplevel)
     except Exception:
         normalized_toplevel = toplevel
-    if normalized_toplevel in scan_roots:
+    if normalized_toplevel in covered:
         return None
 
     status = _candidate_dirty_status(normalized_toplevel, candidate)
@@ -227,7 +307,9 @@ def _inspect_candidate(candidate: str, scan_roots: set[str]) -> _UnscannedWrite 
         except Exception:
             relpath = os.path.basename(candidate)
 
-    repo_name, action, instruction = _suggest_fix(normalized_toplevel, relpath)
+    repo_name, action, instruction, target = _suggest_fix(
+        normalized_toplevel, relpath, run_project_dir
+    )
     return _UnscannedWrite(
         path=candidate,
         checkout=normalized_toplevel,
@@ -236,6 +318,7 @@ def _inspect_candidate(candidate: str, scan_roots: set[str]) -> _UnscannedWrite 
         repo_name=repo_name,
         action=action,
         instruction=instruction,
+        target=target,
     )
 
 
@@ -308,43 +391,39 @@ def _candidate_dirty_status(toplevel: str, candidate: str) -> str | None:
     return "modified"
 
 
-def _suggest_fix(toplevel: str, relpath: str) -> tuple[str | None, str, str]:
-    from typing import Any as _Any
-
+def _suggest_fix(
+    toplevel: str, relpath: str, run_project_dir: str
+) -> tuple[str | None, str, str, str | None]:
     try:
-        record, workspace_num = _match_inventory_record(toplevel)
+        response = _repair_via_rust(toplevel, relpath, run_project_dir)
     except Exception:
-        record, workspace_num = None, None
-    if record is None:
+        response = None
+    if response is None:
         return (
             None,
             "relocate_or_discard",
             "Open the owning repo with /sase_repo and move the file there, "
             "or delete it if it was scratch.",
+            None,
         )
-    rec: _Any = record
-    name = str(getattr(rec, "name", "") or "").strip() or None
-    try:
-        own_clone_path = _own_clone_path(rec, workspace_num)
-    except Exception:
-        own_clone_path = None
-    if own_clone_path is not None and own_clone_path == toplevel:
-        return (
-            name,
-            "open",
-            f"Run `sase repo open {rec.name}` to register this checkout; "
-            "nothing moves.",
-        )
-    return (
-        name,
-        "open_and_move",
-        f"Run `sase repo open {rec.name}`, then move the file to the same "
-        f"repo-relative path ({relpath}) under the printed checkout so the "
-        "host commits it.",
+    repo_name = response.get("repo_name")
+    action = str(response.get("action") or "relocate_or_discard")
+    instruction = str(response.get("instruction") or "").strip() or (
+        "Open the owning repo with /sase_repo and move the file there, "
+        "or delete it if it was scratch."
     )
+    target = response.get("target")
+    if not isinstance(repo_name, str):
+        repo_name = None
+    if not isinstance(target, str):
+        target = None
+    return (repo_name, action, instruction, target)
 
 
-def _match_inventory_record(toplevel: str) -> tuple[Any | None, int | None]:
+def _repair_via_rust(
+    toplevel: str, relpath: str, run_project_dir: str
+) -> dict[str, Any] | None:
+    from sase.core.unscanned_writes_facade import suggest_unscanned_repair
     from sase.repo_inventory import collect_repo_inventory
 
     from ._workspace_num import (
@@ -354,56 +433,127 @@ def _match_inventory_record(toplevel: str) -> tuple[Any | None, int | None]:
 
     workspace_num = workspace_num_from_env()
     project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    project_dir = os.environ.get("SASE_AGENT_PROJECT_DIR") or os.environ.get(
+    env_project_dir = os.environ.get("SASE_AGENT_PROJECT_DIR") or os.environ.get(
         "SASE_WORKSPACE_DIR", ""
     )
-    if workspace_num is None and project_file and project_dir:
+    if workspace_num is None and project_file and env_project_dir:
         try:
-            workspace_num = workspace_num_for_project_file(project_file, project_dir)
+            workspace_num = workspace_num_for_project_file(
+                project_file, env_project_dir
+            )
         except Exception:
             workspace_num = None
 
+    current_project, current_project_key = _current_project_identity(
+        run_project_dir or env_project_dir, project_file
+    )
+
     inventory = collect_repo_inventory()
+    records: list[dict[str, Any]] = []
     for record in inventory.records:
-        candidates: list[str] = []
         try:
-            candidates.append(finalizer_git.normalize_path(str(record.path)))
-        except Exception:
-            pass
-        try:
-            for clone in getattr(record, "clones", ()):
-                candidates.append(finalizer_git.normalize_path(str(clone.path)))
+            path = finalizer_git.normalize_path(str(record.path))
         except Exception:
             continue
-        if toplevel in candidates:
-            return record, workspace_num
-    return None, workspace_num
-
-
-def _own_clone_path(record: object, workspace_num: int | None) -> str | None:
-    if workspace_num is None:
-        return None
-    try:
-        clone = record.clone_for_workspace(workspace_num)  # type: ignore[attr-defined]
-    except Exception:
+        clones: list[dict[str, Any]] = []
         try:
-            from sase.main.repo_handler_common import (
-                clone_for_workspace as _clone_for_workspace,
+            for clone in getattr(record, "clones", ()):
+                try:
+                    clone_path = finalizer_git.normalize_path(str(clone.path))
+                except Exception:
+                    continue
+                try:
+                    workspace = int(clone.workspace_num)
+                except Exception:
+                    continue
+                clones.append({"workspace_num": workspace, "path": clone_path})
+        except Exception:
+            clones = []
+        remote = getattr(record, "remote_url", None)
+        if remote is not None and not isinstance(remote, str):
+            remote = None
+        records.append(
+            {
+                "name": str(getattr(record, "name", "") or ""),
+                "project": str(getattr(record, "project", "") or ""),
+                "project_key": str(getattr(record, "project_key", "") or ""),
+                "path": path,
+                "clones": clones,
+                "remote_url": remote,
+            }
+        )
+
+    request: dict[str, Any] = {
+        "schema_version": 1,
+        "toplevel": toplevel,
+        "relpath": relpath,
+        "current_project": current_project,
+        "current_project_key": current_project_key,
+        "records": records,
+    }
+    if workspace_num is not None:
+        request["workspace_num"] = int(workspace_num)
+    return suggest_unscanned_repair(request)
+
+
+def _current_project_identity(
+    project_dir: str, project_file: str | None
+) -> tuple[str, str]:
+    current_project = ""
+    current_project_key = ""
+    try:
+        from sase.repo_inventory import collect_repo_inventory
+
+        if project_dir:
+            try:
+                normalized_dir = finalizer_git.normalize_path(project_dir)
+            except Exception:
+                normalized_dir = project_dir
+            try:
+                inventory = collect_repo_inventory()
+            except Exception:
+                inventory = None
+            if inventory is not None:
+                for record in inventory.records:
+                    try:
+                        if getattr(record, "kind", "") != "primary":
+                            continue
+                        if (
+                            finalizer_git.normalize_path(str(record.path))
+                            == normalized_dir
+                        ):
+                            current_project = str(getattr(record, "project", "") or "")
+                            current_project_key = str(
+                                getattr(record, "project_key", "") or ""
+                            )
+                            break
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+    if not current_project_key:
+        try:
+            from sase.finalizers.project_identity import (
+                resolve_finalizer_project_key,
             )
 
-            clone = _clone_for_workspace(record, workspace_num)  # type: ignore[arg-type]
+            key = resolve_finalizer_project_key(Path(project_dir or "."))
+            if key:
+                current_project_key = key
+                if not current_project:
+                    current_project = key
         except Exception:
-            return None
-    if clone is None:
-        return None
-    try:
-        return finalizer_git.normalize_path(str(clone.path))
-    except Exception:
+            pass
+    if not current_project and project_file:
         try:
-            fallback = str(getattr(clone, "path", "") or "")
+            parent = Path(project_file).expanduser().resolve().parent.name
+            if parent:
+                current_project = parent
+                if not current_project_key:
+                    current_project_key = parent
         except Exception:
-            return None
-        return fallback or None
+            pass
+    return current_project, current_project_key
 
 
 __all__ = ["find_unscanned_writes"]
