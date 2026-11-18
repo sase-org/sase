@@ -15,9 +15,7 @@ from typing import Any
 from ._viewer_loop_terminal import _MIN_IMAGE_ROWS
 from ._viewer_types import ArtifactFileImageArea
 from ._viewer_video_frames import ScrubTrack
-from ._viewer_video_input import (
-    read_inspect_key,
-)
+from ._viewer_video_input import read_inspect_key
 
 ReadKey = Callable[..., str | None]
 RunCommand = Callable[[Sequence[str]], CompletedProcess[Any]]
