@@ -27,7 +27,12 @@ CENSUS_WATCHLIST: frozenset[str] = frozenset(
         "sase.agents.catalog._query.AgentCatalogLinkFacets",
         "sase.artifact_read_log.ArtifactReadEvent",
         "sase.ace.tui.artifact_reads.ArtifactReadDisplayEvent",
-        "sase.core.agent_scan_wire.AgentArtifactRecordWire",
+        # Defining module, not the ``sase.core.agent_scan_wire``
+        # re-export: ``gc.get_objects()`` keys on ``__module__``.
+        "sase.core.agent_scan_wire_records.AgentArtifactRecordWire",
+        # Compact list projection retained by the one-generation snapshot
+        # cache and the bounded selected-detail owner.
+        "sase.core.agent_scan_list_wire.AgentArtifactListRecordWire",
         "sase.core.artifact_file_types.ArtifactFile",
         "sase.core.bead_touch_index_models.BeadTouch",
         "sase.ace.tui._bead_touches_shared.BeadTouchDisplayEvent",

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 import logging
+import threading
 from typing import TYPE_CHECKING, Any
+import weakref
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -21,6 +24,22 @@ log = logging.getLogger(__name__)
 
 _HYDRATION_ATTEMPTED_ATTR = "_projected_record_hydration_attempted"
 _HYDRATION_PENDING_ATTR = "_projected_record_hydration_pending"
+_PROJECTED_DETAIL_STASH_ATTR = "_projected_detail_stash"
+
+#: How many hydrated roster agents the detail owner retains. The current
+#: selection plus the most recent previous one: toggling between two rows
+#: reuses retained detail instead of re-reading the full record, while
+#: everything older falls back to the compact list facts. Roster
+#: replacement drops whole Agent objects, so the owner holds only weak
+#: references and orphaned entries vanish on the next note.
+_DETAIL_OWNER_BOUND = 2
+
+_UNSET = object()
+
+_detail_owner: OrderedDict[tuple[object, ...], weakref.ref[Any]] = OrderedDict()
+# RLock: eviction inside ``_note_projected_detail_retained`` re-enters
+# through :func:`release_projected_agent_detail`.
+_detail_owner_lock = threading.RLock()
 
 
 def resolve_step_output(agent: Agent) -> dict[str, Any] | None:
@@ -71,6 +90,124 @@ def mark_projected_agent_hydration_attempted(agent: Agent) -> None:
     setattr(agent, _HYDRATION_ATTEMPTED_ATTR, True)
 
 
+def _detail_value_unchanged(old: Any, new: Any) -> bool:
+    """Return whether a hydration write left no observable change."""
+
+    if old is new:
+        return True
+    try:
+        return bool(old == new)
+    except Exception:
+        return False
+
+
+def _stash_applied_detail(agent: Agent, pre: dict[str, Any]) -> None:
+    """Record the pre-hydration values of every field hydration wrote.
+
+    The stash maps each written field to ``(before, hydrated)`` so
+    :func:`release_projected_agent_detail` can restore the compact list
+    facts later. Fields hydration rewrote with an equal value are included;
+    restoring an equal value is still a release of the hydrated object
+    graph.
+    """
+
+    post = vars(agent)
+    stash: dict[str, tuple[Any, Any]] = {}
+    for key, new in post.items():
+        if key == _PROJECTED_DETAIL_STASH_ATTR:
+            continue
+        old = pre.get(key, _UNSET)
+        if old is _UNSET or not _detail_value_unchanged(old, new):
+            stash[key] = (old, new)
+    for key, old in pre.items():
+        if key not in post and key != _PROJECTED_DETAIL_STASH_ATTR:
+            stash[key] = (old, _UNSET)
+    setattr(agent, _PROJECTED_DETAIL_STASH_ATTR, stash)
+
+
+def _note_projected_detail_retained(agent: Agent) -> None:
+    """Register a hydrated agent with the bounded detail owner.
+
+    Evicts the oldest retained generation beyond the bound, restoring its
+    compact list facts first. Dead references (roster replacement drops
+    whole Agent objects) are pruned here so orphaned generations stay
+    collectible and are never restored.
+    """
+
+    identity = tuple(agent.identity)
+    with _detail_owner_lock:
+        _detail_owner[identity] = weakref.ref(agent)
+        _detail_owner.move_to_end(identity)
+        for known in list(_detail_owner):
+            if _detail_owner[known]() is None:
+                del _detail_owner[known]
+        while len(_detail_owner) > _DETAIL_OWNER_BOUND:
+            _oldest, oldest_ref = _detail_owner.popitem(last=False)
+            oldest = oldest_ref()
+            if oldest is not None:
+                release_projected_agent_detail(oldest)
+
+
+def release_projected_agent_detail(agent: Agent) -> bool:
+    """Release a hydrated agent's deferred detail back to list facts.
+
+    Restores the pre-hydration values stashed by
+    :func:`hydrate_projected_agent`, resets the record shape so detail can
+    re-hydrate on the next selection, and drops the owner's registration.
+    A field changed after hydration (liveness stamps, optimistic edits)
+    keeps its newer value: only fields still holding the hydrated value
+    are restored. Returns True when any roster state changed.
+    """
+
+    stash = getattr(agent, _PROJECTED_DETAIL_STASH_ATTR, None)
+    changed = False
+    if stash:
+        current_vars = vars(agent)
+        for key, (old, hydrated) in stash.items():
+            current = current_vars.get(key, _UNSET)
+            if current is _UNSET:
+                continue
+            if current is not hydrated and not _detail_value_unchanged(
+                current, hydrated
+            ):
+                continue
+            if old is _UNSET:
+                try:
+                    delattr(agent, key)
+                except AttributeError:
+                    pass
+                else:
+                    changed = True
+            elif not _detail_value_unchanged(current, old):
+                setattr(agent, key, old)
+                changed = True
+        setattr(agent, _PROJECTED_DETAIL_STASH_ATTR, {})
+    if agent.record_shape != "list":
+        agent.record_shape = "list"
+        changed = True
+    if getattr(agent, _HYDRATION_ATTEMPTED_ATTR, False):
+        try:
+            delattr(agent, _HYDRATION_ATTEMPTED_ATTR)
+        except AttributeError:
+            pass
+        else:
+            changed = True
+    with _detail_owner_lock:
+        # Only drop the registration when it still points at this agent:
+        # a newer generation under a reused identity keeps its entry.
+        known = _detail_owner.get(tuple(agent.identity))
+        if known is None or known() is None or known() is agent:
+            _detail_owner.pop(tuple(agent.identity), None)
+    return changed
+
+
+def projected_detail_owner_size() -> int:
+    """Return how many hydrated generations the detail owner retains."""
+
+    with _detail_owner_lock:
+        return len(_detail_owner)
+
+
 def hydrate_projected_agent(agent: Agent) -> bool:
     """Load and apply the full index record for one projected agent.
 
@@ -103,8 +240,15 @@ def hydrate_projected_agent(agent: Agent) -> bool:
         mark_projected_agent_hydration_attempted(agent)
         return False
 
+    # The full record stays transient: only its detail values are applied,
+    # and the pre-hydration list facts are stashed so the bounded
+    # selected-detail owner can release them without re-reading the index.
+    # ``records`` drops out of scope here; nothing retains the wire tree.
+    pre_hydration = dict(vars(agent))
     _apply_full_record(agent, records[0])
     agent.record_shape = "full"
+    _stash_applied_detail(agent, pre_hydration)
+    _note_projected_detail_retained(agent)
     mark_projected_agent_hydration_attempted(agent)
     return True
 
@@ -467,6 +611,8 @@ __all__ = [
     "mark_projected_agent_hydration_pending",
     "projected_agent_needs_hydration",
     "projected_agent_waiting_for_hydration",
+    "projected_detail_owner_size",
+    "release_projected_agent_detail",
     "resolve_linked_repos",
     "resolve_step_output",
 ]

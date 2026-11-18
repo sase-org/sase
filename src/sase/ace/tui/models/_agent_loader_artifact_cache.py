@@ -1,28 +1,31 @@
-"""Small guarded cache for warm bounded artifact-index snapshots."""
+"""Single-generation cache for warm bounded artifact-index snapshots."""
+
+from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from threading import RLock
+from typing import TYPE_CHECKING
 
 from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
-from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 from ._agent_loader_artifact_state import AgentLoadState
+
+if TYPE_CHECKING:
+    from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 
 ArtifactIndexSignature = tuple[
     tuple[str, int | None, int | None],
     tuple[str, int | None, int | None],
 ]
-#: Cache key namespaced by wire shape: the full ``"full"`` snapshot and the
-#: compact ``"list"`` snapshot never share entries even when their index
-#: query and scan options serialize identically.
+#: Cache key namespaced by wire shape. The TUI keeps only the compact
+#: ``"list"`` generation here; the legacy full ``"full"`` index path owns
+#: a separate single-generation cache so a non-TUI full read can never
+#: evict the live compact generation. Full record trees never enter the
+#: TUI cache; they stay transient inside the worker that applies their
+#: detail values.
 ArtifactSnapshotCacheKey = tuple[str, str, str, str, str]
-
-#: Snapshots retained by the TUI artifact-index cache. The TUI cutover
-#: stores compact list generations; the full shape stays for legacy
-#: callers until the bounded-retention phase replaces this cache.
-ArtifactSnapshot = AgentArtifactScanWire | AgentArtifactListSnapshotWire
 
 
 @dataclass(frozen=True)
@@ -48,14 +51,21 @@ def _cache_hit_load_state(state: AgentLoadState) -> AgentLoadState:
     )
 
 
-class _ArtifactSnapshotCache:
-    """Small mtime/size-guarded cache for warm bounded index snapshots."""
+class _ArtifactSnapshotCache[SnapshotT]:
+    """Mtime/size-guarded cache for one warm bounded index snapshot.
+
+    A single retained generation: every ``put`` with a different key
+    evicts the previous generation (counted as an eviction), so retained
+    graphs cannot grow with the number of filter, root, window, or
+    scan-option changes. Same-key lock-busy reads may still serve the one
+    stale generation; a different key never does.
+    """
 
     def __init__(self, *, max_entries: int) -> None:
         self._max_entries = max_entries
         self._entries: OrderedDict[
             ArtifactSnapshotCacheKey,
-            tuple[ArtifactIndexSignature, ArtifactSnapshot, AgentLoadState],
+            tuple[ArtifactIndexSignature, SnapshotT, AgentLoadState],
         ] = OrderedDict()
         self._stats = _ArtifactSnapshotCacheStats()
         self._lock = RLock()
@@ -64,7 +74,7 @@ class _ArtifactSnapshotCache:
         self,
         key: ArtifactSnapshotCacheKey,
         signature: ArtifactIndexSignature,
-    ) -> tuple[ArtifactSnapshot, AgentLoadState] | None:
+    ) -> tuple[SnapshotT, AgentLoadState] | None:
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
@@ -83,7 +93,7 @@ class _ArtifactSnapshotCache:
     def get_stale(
         self,
         key: ArtifactSnapshotCacheKey,
-    ) -> tuple[ArtifactSnapshot, AgentLoadState] | None:
+    ) -> tuple[SnapshotT, AgentLoadState] | None:
         """Return the last good snapshot for *key*, ignoring index signature."""
 
         with self._lock:
@@ -99,7 +109,7 @@ class _ArtifactSnapshotCache:
         self,
         key: ArtifactSnapshotCacheKey,
         signature: ArtifactIndexSignature,
-        snapshot: ArtifactSnapshot,
+        snapshot: SnapshotT,
         state: AgentLoadState,
     ) -> None:
         with self._lock:
@@ -132,4 +142,13 @@ class _ArtifactSnapshotCache:
             return self._stats
 
 
-ARTIFACT_SNAPSHOT_CACHE = _ArtifactSnapshotCache(max_entries=8)
+ARTIFACT_SNAPSHOT_CACHE: _ArtifactSnapshotCache[AgentArtifactListSnapshotWire] = (
+    _ArtifactSnapshotCache(max_entries=1)
+)
+
+#: Single-generation cache for the legacy full-shape index path (the
+#: run-log modal and CLI-adjacent full loaders). Kept separate so those
+#: readers can never evict the live compact generation above.
+FULL_ARTIFACT_SNAPSHOT_CACHE: _ArtifactSnapshotCache[AgentArtifactScanWire] = (
+    _ArtifactSnapshotCache(max_entries=1)
+)

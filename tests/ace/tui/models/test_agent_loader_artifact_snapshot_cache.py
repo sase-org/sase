@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui.models._agent_loader_artifact_cache import ARTIFACT_SNAPSHOT_CACHE
+from sase.ace.tui.models._agent_loader_artifact_cache import (
+    FULL_ARTIFACT_SNAPSHOT_CACHE as ARTIFACT_SNAPSHOT_CACHE,
+)
 from sase.ace.tui.models._agent_loader_artifacts import query_artifact_index_for_loader
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,

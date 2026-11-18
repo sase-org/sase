@@ -15,8 +15,14 @@ from sase.core.agent_scan_wire import (
 )
 
 from . import _agent_loader_artifact_config as config
+
+# NOTE: the legacy full-shape index path keeps its own single-generation
+# cache. The TUI live path uses the compact ``ARTIFACT_SNAPSHOT_CACHE``
+# (see ``_agent_loader_artifact_index_list.py``); the local alias below
+# preserves this module's call sites while guaranteeing a full read can
+# never evict the live compact generation.
 from ._agent_loader_artifact_cache import (
-    ARTIFACT_SNAPSHOT_CACHE,
+    FULL_ARTIFACT_SNAPSHOT_CACHE as ARTIFACT_SNAPSHOT_CACHE,
     ArtifactIndexSignature,
     ArtifactSnapshotCacheKey,
 )

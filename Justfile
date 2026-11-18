@@ -542,6 +542,9 @@ _lint-patch-stitch-terminology: _setup
 # ordinary-row constructors; sase-1t3.10.1.3 (workflow-list-cutover) consumes
 # them by switching TUI acquisition to the compact APIs. Drop each row once
 # that phase lands its production consumer.
+# sase-1t3.10.1.4 (bounded-retention) exports the selected-detail owner
+# seams; the child-epic land agent owns them while it verifies ownership
+# behavior and wires any explicit deselection hooks the soak requires.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -552,6 +555,8 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-1t3.10.1(query_agent_artifact_index_list)" \
         --epic-symbol "sase-1t3.10.1(scan_agent_artifact_dir_list)" \
+        --epic-symbol "sase-1t3.10.1(release_projected_agent_detail)" \
+        --epic-symbol "sase-1t3.10.1(projected_detail_owner_size)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchCorruptError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchExistsError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchNotFoundError)" \
