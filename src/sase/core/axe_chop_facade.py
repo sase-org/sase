@@ -15,6 +15,7 @@ from sase.core.rust import require_rust_binding
 CHOP_ENGINE_SCHEMA_VERSION = 1
 CHOP_RESULT_SCHEMA_VERSION = 1
 CHOP_STATE_SCHEMA_VERSION = 1
+CHOP_BATCH_SCHEMA_VERSION = 1
 
 
 def parse_chop_result(document: str) -> dict[str, Any]:
@@ -122,6 +123,34 @@ def expand_chop_targets(request: Mapping[str, Any]) -> dict[str, Any]:
 
     binding = require_rust_binding("expand_chop_targets")
     return dict(binding(dict(request)))
+
+
+def validate_chop_batch_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail-closed validate a crash-safe chop launch batch manifest."""
+
+    binding = require_rust_binding("validate_chop_batch_manifest")
+    return dict(binding(dict(manifest)))
+
+
+def apply_chop_batch_transition(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Apply one state-machine event to a chop launch batch manifest."""
+
+    binding = require_rust_binding("apply_chop_batch_transition")
+    return dict(binding(dict(request)))
+
+
+def reconcile_chop_batch(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Select the resume work for a batch from explicit spawn observations."""
+
+    binding = require_rust_binding("reconcile_chop_batch")
+    return dict(binding(dict(request)))
+
+
+def summarize_chop_batch(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Return batch identity plus progress counts."""
+
+    binding = require_rust_binding("summarize_chop_batch")
+    return dict(binding(dict(manifest)))
 
 
 def parse_chop_duration(value: str) -> int:

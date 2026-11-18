@@ -7,9 +7,11 @@ import json
 import pytest
 
 from sase.core.axe_chop_facade import (
+    CHOP_BATCH_SCHEMA_VERSION,
     CHOP_ENGINE_SCHEMA_VERSION,
     CHOP_RESULT_SCHEMA_VERSION,
     CHOP_STATE_SCHEMA_VERSION,
+    apply_chop_batch_transition,
     apply_chop_checkpoint_update,
     check_and_record_chop_once_per,
     derive_chop_agent_name,
@@ -18,9 +20,12 @@ from sase.core.axe_chop_facade import (
     normalize_chop_subprocess_diagnostic,
     parse_chop_duration,
     parse_chop_result,
+    reconcile_chop_batch,
     release_chop_once_per,
     split_axe_description,
+    summarize_chop_batch,
     validate_axe_config,
+    validate_chop_batch_manifest,
     validate_chop_proposal,
     validate_chop_report,
 )
@@ -356,5 +361,89 @@ def test_schema_versions_match_the_facade_contract() -> None:
         ("chop_engine_schema_version", CHOP_ENGINE_SCHEMA_VERSION),
         ("chop_result_schema_version", CHOP_RESULT_SCHEMA_VERSION),
         ("chop_state_schema_version", CHOP_STATE_SCHEMA_VERSION),
+        ("chop_batch_wire_schema_version", CHOP_BATCH_SCHEMA_VERSION),
     ]:
         assert require_rust_binding(binding_name)() == expected
+
+
+def _batch_manifest() -> dict:
+    return {
+        "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+        "batch_id": "batch-1",
+        "run": {
+            "routine": "guard",
+            "job": "split",
+            "run_id": "20261117T120000_000001",
+        },
+        "members": [
+            {
+                "source_index": 0,
+                "agent_name": "toobig-68.split.a1",
+                "prompt": "Fix the finding.\n#pr",
+                "workspace": "git:sase",
+            },
+            {
+                "source_index": 1,
+                "agent_name": "toobig-68.split.a2",
+                "prompt": "Document the fix.\n#pr",
+                "workspace": "git:sase",
+            },
+        ],
+    }
+
+
+def test_batch_contract_round_trips_through_rust() -> None:
+    validated = validate_chop_batch_manifest(_batch_manifest())
+    assert validated["batch_id"] == "batch-1"
+    assert validated["status"] == "open"
+
+    dispatched = apply_chop_batch_transition(
+        {
+            "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+            "manifest": validated,
+            "event": "begin_dispatch",
+            "member_index": 0,
+        }
+    )
+    launched = apply_chop_batch_transition(
+        {
+            "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+            "manifest": dispatched,
+            "event": "acknowledge_launch",
+            "member_index": 0,
+        }
+    )
+    assert launched["members"][0]["status"] == "launched"
+
+    resume = reconcile_chop_batch(
+        {
+            "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+            "manifest": launched,
+            "observations": [
+                {
+                    "agent_name": "toobig-68.split.a2",
+                    "observation": "reservation_only",
+                }
+            ],
+        }
+    )
+    assert resume["to_launch"] == [1]
+    assert resume["already_launched"] == [0]
+
+    summary = summarize_chop_batch(launched)
+    assert summary["counts"] == {
+        "total": 2,
+        "pending": 1,
+        "dispatching": 0,
+        "launched": 1,
+        "skipped": 0,
+        "blocked": 0,
+        "cancelled": 0,
+    }
+
+
+def test_batch_contract_rejects_unknown_schema() -> None:
+    manifest = _batch_manifest()
+    manifest["schema_version"] = CHOP_BATCH_SCHEMA_VERSION + 1
+    with pytest.raises(ValueError, match="schema_version_mismatch"):
+        validate_chop_batch_manifest(manifest)

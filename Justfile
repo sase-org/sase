@@ -552,6 +552,25 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-1t3.10.1(query_agent_artifact_index_list)" \
         --epic-symbol "sase-1t3.10.1(scan_agent_artifact_dir_list)" \
+        --epic-symbol "sase-1tc.3.1(ChopBatchCorruptError)" \
+        --epic-symbol "sase-1tc.3.1(ChopBatchError)" \
+        --epic-symbol "sase-1tc.3.1(ChopBatchExistsError)" \
+        --epic-symbol "sase-1tc.3.1(ChopBatchNotFoundError)" \
+        --epic-symbol "sase-1tc.3.1(acquire_chop_batch_ownership)" \
+        --epic-symbol "sase-1tc.3.1(apply_chop_batch_event)" \
+        --epic-symbol "sase-1tc.3.1(chop_batch_owner_path)" \
+        --epic-symbol "sase-1tc.3.1(chop_batch_path)" \
+        --epic-symbol "sase-1tc.3.1(chop_batches_dir)" \
+        --epic-symbol "sase-1tc.3.1(create_chop_batch)" \
+        --epic-symbol "sase-1tc.3.1(delete_chop_batch)" \
+        --epic-symbol "sase-1tc.3.1(ensure_chop_batches_dir)" \
+        --epic-symbol "sase-1tc.3.1(list_pending_chop_batches)" \
+        --epic-symbol "sase-1tc.3.1(load_chop_batch)" \
+        --epic-symbol "sase-1tc.3.1(read_chop_batch_owner)" \
+        --epic-symbol "sase-1tc.3.1(reconcile_stored_batch)" \
+        --epic-symbol "sase-1tc.3.1(release_chop_batch_ownership)" \
+        --epic-symbol "sase-1tc.3.1(summarize_stored_batch)" \
+        --epic-symbol "sase-1tc.3.1(update_chop_batch)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
