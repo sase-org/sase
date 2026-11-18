@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -79,6 +80,88 @@ class RetryState:
             path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+#: Exception class names that mark a host-owned finalizer or commit-publish
+#: failure. Provider retry classification must never match these: the
+#: finalizer's own durable retry (``sase stitch create --resume``) is the
+#: recovery path, and re-running the whole agent turn costs a full LLM turn
+#: on a misleading "provider failure" nudge.
+_HOST_FINALIZER_EXCEPTION_NAMES = frozenset(
+    {
+        "BuiltinCommitFinalizerError",
+        "FinalizerSelectorError",
+        "FinalizerControllerError",
+        "FinalizerDeclarationError",
+        "FinalizerExecutionError",
+        "FinalizerBudgetError",
+        "FinalizerPlanError",
+    }
+)
+
+#: Module prefix whose exception classes are host-owned finalizer failures,
+#: present or future. Checked alongside _HOST_FINALIZER_EXCEPTION_NAMES so a
+#: new finalizer error type is excluded from provider retry by construction.
+_HOST_FINALIZER_EXCEPTION_MODULE_PREFIX = "sase.finalizers."
+
+#: Host-owned phrases that never appear in a genuine provider API error.
+#: These cover finalizer failures that only survive as text (for example a
+#: ``WorkflowExecutionError`` whose chain was flattened), where no typed
+#: exception is available to inspect.
+_HOST_FINALIZER_TEXT_MARKERS = (
+    "sase stitch create",
+    "finalize_commit",
+    "commit finalizer",
+    "commit declaration",
+    "commit executor",
+)
+
+
+def _walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    """Yield *exc* and each linked ``__cause__``/``__context__`` once."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        cause = current.__cause__
+        context = current.__context__
+        if cause is not None:
+            current = cause
+        elif context is not None and context is not current:
+            current = context
+        else:
+            current = None
+
+
+def is_host_finalizer_failure(exc: BaseException) -> bool:
+    """Return whether *exc* is a host finalizer or commit-publish failure.
+
+    Such failures must never match provider retry patterns: the error text
+    routinely embeds host-owned stderr (for example a git push
+    ``remote: Internal Server Error`` inside a ``sase stitch create``
+    failure) that collides with generic provider patterns such as
+    ``"Internal server error"`` or ``"rate limit"``.
+
+    Detection is typed first (the exception chain is walked for finalizer
+    exception classes) with a text-marker fallback for failures that only
+    survive as a string. Never raises: an unexpected shape fails open
+    toward ordinary retry classification.
+    """
+    try:
+        for node in _walk_exception_chain(exc):
+            cls = type(node)
+            if cls.__name__ in _HOST_FINALIZER_EXCEPTION_NAMES:
+                return True
+            module = cls.__module__ or ""
+            if module == "sase.finalizers" or module.startswith(
+                _HOST_FINALIZER_EXCEPTION_MODULE_PREFIX
+            ):
+                return True
+        lowered = str(exc).lower()
+        return any(marker in lowered for marker in _HOST_FINALIZER_TEXT_MARKERS)
+    except Exception:
+        return False
 
 
 def truncate_error_snippet(error: str, max_len: int = 100) -> str:

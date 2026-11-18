@@ -11,6 +11,9 @@ from sase.axe.run_agent_exec_retry import (
     _maybe_prepend_continuation,
     handle_workflow_error,
 )
+from sase.finalizers.commit_types import BuiltinCommitFinalizerError, failed_result
+from sase.llm_provider.types import LLMInvocationError
+from sase.macro.workflow_models import WorkflowExecutionError
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
     RetryState,
@@ -351,6 +354,173 @@ class TestHandleWorkflowErrorSpawnNewAgent:
         spawn.assert_called_once()
         mark_parent.assert_called_once()
         prepare.assert_not_called()
+
+
+class TestHandleWorkflowErrorHostFinalizer:
+    """Host finalizer/publish failures must never trigger a provider retry.
+
+    Regression tests for sase-1he: a git-push 500 inside the host commit
+    finalizer matched the claude ``"Internal server error"`` retry pattern
+    and re-ran the whole agent turn.
+    """
+
+    # Bead sase-1he's finalizer push-500 text: the provider pattern
+    # "Internal server error" matches GitHub's "remote: Internal Server
+    # Error" inside the host-owned stitch/publish failure.
+    _FINALIZER_PUSH_500 = (
+        "Step 'main' failed: Error: sase stitch create --resume failed for "
+        "research: \u274c finalize_commit created local commit 99e35dd but "
+        "failed before publishing it \u2026 git push failed after rebase "
+        "retries: remote: Internal Server Error \u2026 ! [remote rejected] "
+        "main -> main (Internal Server Error)"
+    )
+
+    _FINALIZER_RATE_LIMIT = (
+        "Step 'main' failed: Error: sase stitch create --resume failed for "
+        "research: finalize_commit created local commit 99e35dd but failed "
+        "before publishing it: git push failed: remote: rate limit exceeded, "
+        "retry later"
+    )
+
+    _PROVIDER_500 = "API Error: 500 Internal server error: server overloaded"
+
+    def _claude_like_cfg(self) -> ProviderRetryConfig:
+        return ProviderRetryConfig(
+            max_retries=3,
+            error_patterns=["Internal server error", "API Error"],
+            wait_times=[0],
+            continuation_prompt="NUDGE",
+        )
+
+    def test_finalizer_push_500_returns_raise(self, tmp_path: Path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(retry_cfg=self._claude_like_cfg())
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()) as sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError(self._FINALIZER_PUSH_500), tracker, ctx, state
+            )
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        assert tracker.retry_errors == []
+        sleep.assert_not_called()
+        assert not (Path(ctx.artifacts_dir) / "attempts").exists()
+        assert RetryState.read_from(ctx.artifacts_dir) is None
+
+    def test_finalizer_rate_limit_stderr_does_not_retry(self, tmp_path: Path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(
+            retry_cfg=ProviderRetryConfig(
+                max_retries=3,
+                error_patterns=["rate limit", "Too Many Requests"],
+                wait_times=[0],
+                continuation_prompt="NUDGE",
+            )
+        )
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()) as sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError(self._FINALIZER_RATE_LIMIT), tracker, ctx, state
+            )
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        sleep.assert_not_called()
+        assert not (Path(ctx.artifacts_dir) / "attempts").exists()
+
+    def test_finalizer_failure_skips_usage_limit_disable(self, tmp_path: Path) -> None:
+        """Finalizer stderr must not trigger a provider usage-limit disable."""
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(
+            retry_cfg=ProviderRetryConfig(
+                max_retries=3,
+                error_patterns=["rate limit"],
+                wait_times=[0],
+            ),
+            execution_provider="codex",
+        )
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.handle_possible_usage_limit"
+            ) as disable,
+        ):
+            action = handle_workflow_error(
+                RuntimeError(self._FINALIZER_RATE_LIMIT), tracker, ctx, state
+            )
+
+        assert action == "raise"
+        disable.assert_not_called()
+
+    def test_genuine_provider_500_still_retries(self, tmp_path: Path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(retry_cfg=self._claude_like_cfg())
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError(self._PROVIDER_500), tracker, ctx, state
+            )
+
+        assert action == "continue"
+        assert tracker.retry_count == 1
+
+    def test_typed_finalizer_error_in_chain_returns_raise(self, tmp_path: Path) -> None:
+        """A finalizer exception with no host marker phrases still never retries."""
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(retry_cfg=self._claude_like_cfg())
+
+        finalizer_err = BuiltinCommitFinalizerError(
+            "transient boom: Internal server error",
+            result=failed_result("instance", "stitch_failed", "boom"),
+        )
+        llm_err = LLMInvocationError(f"Error: {finalizer_err}")
+        llm_err.__cause__ = finalizer_err
+        wf_exc = WorkflowExecutionError(f"Step 'main' failed: {llm_err}")
+        wf_exc.__cause__ = llm_err
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()) as sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ),
+        ):
+            action = handle_workflow_error(wf_exc, tracker, ctx, state)
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        sleep.assert_not_called()
+        assert not (Path(ctx.artifacts_dir) / "attempts").exists()
 
 
 class TestHandleWorkflowErrorPostPhaseTransition:

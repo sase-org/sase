@@ -10,6 +10,7 @@ from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
     find_retry_config_for_error,
     get_retry_config,
+    is_host_finalizer_failure,
 )
 
 # Provider name guaranteed to have no built-in or user config — used to
@@ -230,3 +231,86 @@ class TestFindRetryConfigForError:
         assert config.wait_times == [0]
         assert config.preserve_workspace is True
         assert config.spawn_new_agent is True
+
+
+class TestIsHostFinalizerFailure:
+    def test_stitch_failure_text_matches(self) -> None:
+        assert (
+            is_host_finalizer_failure(
+                RuntimeError(
+                    "Step 'main' failed: Error: sase stitch create --resume failed "
+                    "for research: remote: Internal Server Error"
+                )
+            )
+            is True
+        )
+
+    def test_finalize_commit_text_matches(self) -> None:
+        assert (
+            is_host_finalizer_failure(
+                RuntimeError(
+                    "finalize_commit created local commit 99e35dd but failed "
+                    "before publishing it: remote: rate limit exceeded"
+                )
+            )
+            is True
+        )
+
+    def test_commit_finalizer_text_matches(self) -> None:
+        assert (
+            is_host_finalizer_failure(
+                RuntimeError("commit finalizer hit a second unresolved conflict")
+            )
+            is True
+        )
+
+    def test_typed_finalizer_error_matches_without_markers(self) -> None:
+        from sase.finalizers.commit_types import (
+            BuiltinCommitFinalizerError,
+            failed_result,
+        )
+
+        err = BuiltinCommitFinalizerError(
+            "transient boom",
+            result=failed_result("instance", "stitch_failed", "boom"),
+        )
+        assert is_host_finalizer_failure(err) is True
+
+    def test_chained_finalizer_error_matches(self) -> None:
+        from sase.finalizers.commit_types import (
+            BuiltinCommitFinalizerError,
+            failed_result,
+        )
+
+        root = BuiltinCommitFinalizerError(
+            "transient boom",
+            result=failed_result("instance", "stitch_failed", "boom"),
+        )
+        outer = RuntimeError("Step 'main' failed: boom")
+        outer.__cause__ = root
+        assert is_host_finalizer_failure(outer) is True
+
+    def test_bare_provider_500_does_not_match(self) -> None:
+        assert (
+            is_host_finalizer_failure(
+                RuntimeError("API Error: 500 Internal server error: overloaded")
+            )
+            is False
+        )
+
+    def test_bare_remote_500_does_not_match(self) -> None:
+        # A bare provider-shaped 500 with no host-owned phrases is still
+        # retryable; only host finalizer vocabulary suppresses retry.
+        assert (
+            is_host_finalizer_failure(RuntimeError("remote: Internal Server Error"))
+            is False
+        )
+
+    def test_bare_rate_limit_does_not_match(self) -> None:
+        assert (
+            is_host_finalizer_failure(RuntimeError("hit a rate limit, retry later"))
+            is False
+        )
+
+    def test_plain_error_does_not_match(self) -> None:
+        assert is_host_finalizer_failure(RuntimeError("boom")) is False

@@ -26,6 +26,7 @@ from sase.llm_provider.retry_config import (
     RetryState,
     find_retry_config_for_error,
     get_wait_time,
+    is_host_finalizer_failure,
     is_retryable_error,
     truncate_error_snippet,
 )
@@ -334,6 +335,21 @@ def handle_workflow_error(
         state,
         status="failed",
     )
+
+    # Host finalizer and commit-publish failures never retry the agent turn.
+    # Their text embeds host-owned stderr (git push, `sase stitch create`)
+    # that collides with generic provider patterns ("Internal server
+    # error", "rate limit"). The finalizer's own durable retry
+    # (`sase stitch create --resume`) is the recovery path. This check runs
+    # before usage-limit handling so finalizer stderr also cannot trigger a
+    # provider disable, and it snapshots nothing: there is no retry wait
+    # and no attempt snapshot for a failure that must surface immediately.
+    if is_host_finalizer_failure(exc):
+        logger.info(
+            "host finalizer failure; skipping provider retry: %s",
+            truncate_error_snippet(error_str),
+        )
+        return "raise"
 
     # Second writer: Claude quota errors match none of Claude's retry
     # patterns, so this function used to ``return "raise"`` before any
