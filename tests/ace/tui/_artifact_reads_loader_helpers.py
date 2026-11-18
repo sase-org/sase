@@ -6,12 +6,20 @@ import json
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from sase.ace.tui import artifact_reads as artifact_reads_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
+from sase.ace.tui.util.normalized_dirs import normalize_dir
+from sase.artifact_read_log import (
+    ARTIFACT_READ_LOG_SCHEMA_VERSION,
+    ArtifactReadAuditRow,
+    ArtifactReadAuditSourceIdentity,
+    ArtifactReadEvent,
+    read_artifact_read_events,
+)
 
 _DEFAULT_RESOLVED_PATH = object()
 
@@ -79,11 +87,76 @@ def write_jsonl(path: Path, events: list[ArtifactReadEvent]) -> None:
             out.write("\n")
 
 
+def _fake_targeted_query(
+    log_path: Path | str,
+    *,
+    members: list[dict[str, Any]],
+    limit: int = 50,
+    deduplicate: bool = False,
+) -> tuple[list[ArtifactReadAuditRow], ArtifactReadAuditSourceIdentity]:
+    """Test adapter for Rust's query; core tests cover the streaming matcher."""
+    path = Path(log_path)
+    events = read_artifact_read_events(log_path=path)
+    normalized_members = [
+        (
+            normalize_dir(member.get("artifacts_dir")),
+            member.get("agent_name"),
+        )
+        for member in members
+    ]
+    selected: list[ArtifactReadAuditRow] = []
+    seen: set[str] = set()
+    for event in events:
+        event_dir = normalize_dir(event.artifacts_dir)
+        if event_dir is not None:
+            member_index = next(
+                (
+                    index
+                    for index, (member_dir, _name) in enumerate(normalized_members)
+                    if member_dir is not None and member_dir == event_dir
+                ),
+                None,
+            )
+        else:
+            member_index = next(
+                (
+                    index
+                    for index, (_directory, name) in enumerate(normalized_members)
+                    if name and name == event.agent_name
+                ),
+                None,
+            )
+        if member_index is None or (deduplicate and event.id in seen):
+            continue
+        seen.add(event.id)
+        selected.append(ArtifactReadAuditRow(event, member_index))
+    selected.sort(key=lambda row: row.event.timestamp, reverse=True)
+    if limit > 0:
+        selected = selected[:limit]
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        source = ArtifactReadAuditSourceIdentity(True, 0, 0, 0, 0)
+    else:
+        source = ArtifactReadAuditSourceIdentity(
+            False,
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_dev,
+            stat.st_ino,
+        )
+    return selected, source
+
+
 @pytest.fixture(autouse=True)
-def clear_artifact_reads_cache_fixture() -> None:
+def clear_artifact_reads_cache_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     artifact_reads_module._artifact_reads_cache.clear()
     artifact_reads_module._artifact_reads_context_cache.clear()
-    artifact_reads_module._artifact_reads_snapshot_cache.clear()
+    monkeypatch.setattr(
+        artifact_reads_module, "query_artifact_read_events", _fake_targeted_query
+    )
 
 
 @pytest.fixture(name="fake_project")

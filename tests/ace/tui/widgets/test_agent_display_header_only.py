@@ -342,7 +342,9 @@ def test_update_header_only_commit_rows_do_no_disk_io() -> None:
         patch(
             "sase.ace.tui.artifact_reads.load_artifact_reads_for_agent_context"
         ) as mock_artifact_reads,
-        patch("sase.artifact_read_log.read_artifact_read_events") as mock_read_log,
+        patch(
+            "sase.ace.tui.artifact_reads.query_artifact_read_events"
+        ) as mock_query_log,
     ):
         panel.update_header_only(agent)
 
@@ -352,8 +354,8 @@ def test_update_header_only_commit_rows_do_no_disk_io() -> None:
     assert mock_artifact_reads.call_count == 0, (
         "cheap header-only path must not load the artifact-read log"
     )
-    assert mock_read_log.call_count == 0, (
-        "cheap header-only path must not parse artifact_reads.jsonl"
+    assert mock_query_log.call_count == 0, (
+        "cheap header-only path must not query artifact_reads.jsonl"
     )
     plain = _plain_of(panel.captured[-1])
     assert "  Commits:\n" in plain

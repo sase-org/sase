@@ -13,6 +13,28 @@ from tests._validate_sase_core_rs_tool_helpers import (
 pytestmark = pytest.mark.contract
 
 
+def test_validate_sase_core_rs_requires_artifact_read_query_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "memory_audit_query",
+        "memory_audit_query_wire_schema_version",
+        "artifact_read_audit_query",
+        "artifact_read_audit_query_wire_schema_version",
+    }
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+    assert validator._validate_artifact_read_audit_query_schema(
+        SimpleNamespace(artifact_read_audit_query_wire_schema_version=lambda: 1)
+    )
+    assert not validator._validate_artifact_read_audit_query_schema(
+        SimpleNamespace(artifact_read_audit_query_wire_schema_version=lambda: 2)
+    )
+    assert not validator._validate_artifact_read_audit_query_schema(SimpleNamespace())
+
+
 def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
     validator = load_validate_sase_core_rs()
     plan_bindings = {

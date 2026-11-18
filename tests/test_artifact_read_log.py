@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -8,17 +9,21 @@ import pytest
 
 from sase.agent.identity import AgentIdentity
 from sase.artifact_read_log import (
+    ARTIFACT_READ_AUDIT_QUERY_WIRE_SCHEMA_VERSION,
     ARTIFACT_READ_LOG_SCHEMA_VERSION,
+    ArtifactReadAuditRow,
     ArtifactReadError,
+    ArtifactReadEvent,
     append_artifact_read_event,
     artifact_read_log_path,
     build_artifact_read_event,
+    query_artifact_read_events,
     read_artifact_read_events,
 )
 from tests._conftest_environment import redirect_sase_home
 
 
-def _event(**overrides: object) -> object:
+def _event(**overrides: object) -> ArtifactReadEvent:
     values: dict[str, object] = {
         "ref": "plan:202608/report.md",
         "reason": "need the design of record",
@@ -50,6 +55,23 @@ def test_append_and_read_skip_malformed_rows(tmp_path: Path) -> None:
         handle.write(json.dumps({"schema_version": 99}) + "\n")
 
     assert read_artifact_read_events(log_path=log_path) == (event,)
+
+
+def test_read_skips_non_integer_and_wrong_schema_versions(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "artifact_reads.jsonl"
+    valid = _event()
+    rows = [asdict(valid)]
+    for schema_version in (True, 1.0, 2):
+        invalid = asdict(valid)
+        invalid["schema_version"] = schema_version
+        rows.append(invalid)
+    log_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+
+    assert read_artifact_read_events(log_path=log_path) == (valid,)
 
 
 def test_interactive_identity_is_recorded_without_a_link() -> None:
@@ -188,3 +210,85 @@ def test_invalid_resolved_path_type_is_skipped(tmp_path: Path) -> None:
             + "\n"
         )
     assert read_artifact_read_events(log_path=log_path) == (valid,)
+
+
+def test_targeted_query_decodes_rows_and_returns_source_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    event = _event(resolved_path="/work/materialized.md")
+    calls: list[tuple[str, str, dict[str, object]]] = []
+
+    def require_binding(name: str):
+        if name == "artifact_read_audit_query_wire_schema_version":
+            return lambda: ARTIFACT_READ_AUDIT_QUERY_WIRE_SCHEMA_VERSION
+        assert name == "artifact_read_audit_query"
+
+        def run(path: str, query: dict[str, object]):
+            calls.append((name, path, query))
+            return {
+                "rows": [{"event": asdict(event), "member_index": 0}],
+                "source": {
+                    "missing": False,
+                    "size": 123,
+                    "mtime_ns": 456,
+                    "dev": 7,
+                    "ino": 8,
+                },
+            }
+
+        return run
+
+    monkeypatch.setattr("sase.core.rust.require_rust_binding", require_binding)
+    log_path = tmp_path / "artifact_reads.jsonl"
+    rows, source = query_artifact_read_events(
+        log_path,
+        members=[{"artifacts_dir": "/runs/a", "agent_name": "alice"}],
+        limit=50,
+        deduplicate=True,
+    )
+
+    assert rows == [ArtifactReadAuditRow(event=event, member_index=0)]
+    assert source.missing is False
+    assert (source.size, source.mtime_ns, source.dev, source.ino) == (
+        123,
+        456,
+        7,
+        8,
+    )
+    assert calls == [
+        (
+            "artifact_read_audit_query",
+            str(log_path),
+            {
+                "members": [{"artifacts_dir": "/runs/a", "agent_name": "alice"}],
+                "limit": 50,
+                "deduplicate": True,
+            },
+        )
+    ]
+
+
+def test_targeted_query_rejects_out_of_range_member_ordinal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def require_binding(name: str):
+        if name == "artifact_read_audit_query_wire_schema_version":
+            return lambda: ARTIFACT_READ_AUDIT_QUERY_WIRE_SCHEMA_VERSION
+        assert name == "artifact_read_audit_query"
+        return lambda _path, _query: {
+            "rows": [{"event": asdict(_event()), "member_index": 1}],
+            "source": {
+                "missing": False,
+                "size": 1,
+                "mtime_ns": 1,
+                "dev": 1,
+                "ino": 1,
+            },
+        }
+
+    monkeypatch.setattr("sase.core.rust.require_rust_binding", require_binding)
+    with pytest.raises(RuntimeError, match="member_index out of range"):
+        query_artifact_read_events(
+            tmp_path / "artifact_reads.jsonl",
+            members=[{"artifacts_dir": "/runs/a", "agent_name": "alice"}],
+        )

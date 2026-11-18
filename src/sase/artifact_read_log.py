@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
 import json
 from pathlib import Path
 from typing import Any
+from typing import cast
 from uuid import uuid4
 
 from sase.agent.identity import AgentIdentity, resolve_audit_identity
@@ -18,6 +19,7 @@ from sase.memory.locks import locked_file
 from sase.project_aliases import resolve_project_alias_ref
 
 ARTIFACT_READ_LOG_SCHEMA_VERSION = 1
+ARTIFACT_READ_AUDIT_QUERY_WIRE_SCHEMA_VERSION = 1
 
 
 class ArtifactReadError(ValueError):
@@ -40,6 +42,25 @@ class ArtifactReadEvent:
     artifacts_dir: str | None
     recorded_link: bool
     resolved_path: str | None = None
+
+
+@dataclass(frozen=True)
+class ArtifactReadAuditSourceIdentity:
+    """Identity of the log file read by a targeted audit query."""
+
+    missing: bool
+    size: int
+    mtime_ns: int
+    dev: int
+    ino: int
+
+
+@dataclass(frozen=True)
+class ArtifactReadAuditRow:
+    """One matching event and the member selector that claimed it."""
+
+    event: ArtifactReadEvent
+    member_index: int
 
 
 def _normalize_read_reason(reason: str) -> str:
@@ -164,6 +185,25 @@ def read_artifact_read_events(
     return tuple(events)
 
 
+def query_artifact_read_events(
+    log_path: Path | str,
+    *,
+    members: Sequence[Mapping[str, Any] | Any],
+    limit: int = 50,
+    deduplicate: bool = False,
+) -> tuple[list[ArtifactReadAuditRow], ArtifactReadAuditSourceIdentity]:
+    """Return targeted rows through a lazily loaded query adapter."""
+
+    from sase.artifact_read_audit_query import query_artifact_read_events as query
+
+    return query(
+        log_path,
+        members=members,
+        limit=limit,
+        deduplicate=deduplicate,
+    )
+
+
 def _event_from_line(line: str) -> ArtifactReadEvent | None:
     try:
         data = json.loads(line)
@@ -171,11 +211,20 @@ def _event_from_line(line: str) -> ArtifactReadEvent | None:
         return None
     if not isinstance(data, dict):
         return None
-    return _event_from_mapping(data)
+    return artifact_read_event_from_mapping(data)
 
 
-def _event_from_mapping(data: Mapping[str, Any]) -> ArtifactReadEvent | None:
-    if data.get("schema_version") != ARTIFACT_READ_LOG_SCHEMA_VERSION:
+def artifact_read_event_from_mapping(
+    data: Mapping[str, Any],
+) -> ArtifactReadEvent | None:
+    """Parse a validated artifact-read event mapping, or return ``None``."""
+
+    schema_version = data.get("schema_version")
+    if (
+        not isinstance(schema_version, int)
+        or isinstance(schema_version, bool)
+        or schema_version != ARTIFACT_READ_LOG_SCHEMA_VERSION
+    ):
         return None
     required_strings = (
         "id",
@@ -229,10 +278,15 @@ def _event_timestamp(now: datetime) -> str:
 
 __all__ = [
     "ARTIFACT_READ_LOG_SCHEMA_VERSION",
+    "ARTIFACT_READ_AUDIT_QUERY_WIRE_SCHEMA_VERSION",
+    "ArtifactReadAuditRow",
+    "ArtifactReadAuditSourceIdentity",
     "ArtifactReadError",
     "ArtifactReadEvent",
+    "artifact_read_event_from_mapping",
     "append_artifact_read_event",
     "artifact_read_log_path",
     "build_artifact_read_event",
     "read_artifact_read_events",
+    "query_artifact_read_events",
 ]
