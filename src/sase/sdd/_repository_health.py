@@ -12,11 +12,16 @@ from sase.sdd._repository_types import (
     GitRunner,
     SddRepositoryState,
     UnmergedPathsProbe,
+    is_git_timeout,
 )
 
 
 class SddRepositoryHealthError(RuntimeError):
     """Raised when an SDD Git repository is structurally unsafe to write."""
+
+
+class SddRepositoryInspectionTimeout(SddGitCommandTimeout):
+    """A health probe timed out, so the checkout state is unknown, not unsafe."""
 
 
 _OPERATION_PATHS: tuple[tuple[str, str], ...] = (
@@ -47,12 +52,22 @@ def require_sdd_repository_health(
     return state
 
 
+def _raise_for_git_timeout(result: object, *, op: str) -> None:
+    if is_git_timeout(result):
+        detail = ""
+        if isinstance(result, subprocess.CompletedProcess):
+            detail = (result.stderr or result.stdout or "").strip()
+        suffix = f": {detail}" if detail else ""
+        raise SddRepositoryInspectionTimeout(f"git operation {op!r} timed out{suffix}")
+
+
 def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryState:
     worktree = runner(
         repo_root,
         ["rev-parse", "--is-inside-work-tree"],
         op="sdd.health.worktree",
     )
+    _raise_for_git_timeout(worktree, op="sdd.health.worktree")
     valid_worktree = worktree.returncode == 0 and worktree.stdout.strip() == "true"
 
     git_dir_result = runner(
@@ -60,6 +75,7 @@ def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryS
         ["rev-parse", "--git-dir"],
         op="sdd.health.git_dir",
     )
+    _raise_for_git_timeout(git_dir_result, op="sdd.health.git_dir")
     raw_git_dir = (
         git_dir_result.stdout.strip() if git_dir_result.returncode == 0 else ".git"
     )
@@ -72,6 +88,7 @@ def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryS
         ["symbolic-ref", "--quiet", "--short", "HEAD"],
         op="sdd.health.branch",
     )
+    _raise_for_git_timeout(branch_result, op="sdd.health.branch")
     branch = branch_result.stdout.strip() if branch_result.returncode == 0 else None
     branch = branch or None
 
@@ -80,6 +97,7 @@ def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryS
         ["rev-parse", "--verify", "HEAD"],
         op="sdd.health.head",
     )
+    _raise_for_git_timeout(head_result, op="sdd.health.head")
     head = head_result.stdout.strip() if head_result.returncode == 0 else None
     head = head or None
 
@@ -96,6 +114,7 @@ def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryS
         ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
         op="sdd.health.status",
     )
+    _raise_for_git_timeout(status_result, op="sdd.health.status")
     if status_result.returncode != 0:
         valid_worktree = False
     return SddRepositoryState(
@@ -128,6 +147,7 @@ def unmerged_paths(
         ["diff", "--name-only", "--diff-filter=U", "-z"],
         op=f"{op_prefix}.conflicts",
     )
+    _raise_for_git_timeout(result, op=f"{op_prefix}.conflicts")
     if result.returncode != 0:
         return UnmergedPathsProbe(
             error=format_git_error("could not list unmerged index entries", result)
@@ -147,6 +167,12 @@ def tracked_changes_error(
         (["diff", "--cached", "--quiet"], "staged changes"),
     ):
         result = runner(repo_root, args, op=f"{op_prefix}.clean")
+        if is_git_timeout(result):
+            detail = (result.stderr or result.stdout or "").strip()
+            suffix = f": {detail}" if detail else ""
+            raise SddGitCommandTimeout(
+                f"git operation {op_prefix}.clean timed out{suffix}"
+            )
         if result.returncode == 1:
             return (
                 f"SDD repository {repo_root} needs integration but has {label}; "
@@ -165,6 +191,7 @@ def default_git_runner(
     network: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     from sase.sdd._git_contention import run_sdd_git_write, run_sdd_git_write_network
+    from sase.sdd._repository_types import SddGitTimeoutResult
 
     try:
         runner = run_sdd_git_write_network if network else run_sdd_git_write
@@ -178,7 +205,15 @@ def default_git_runner(
             text=True,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
-    except (OSError, SddGitCommandTimeout) as exc:
+    except SddGitCommandTimeout as exc:
+        return SddGitTimeoutResult(
+            ["git", *args],
+            returncode=124,
+            stdout="",
+            stderr=str(exc),
+            timeout_reason="wall_clock",
+        )
+    except OSError as exc:
         return subprocess.CompletedProcess(
             ["git", *args],
             returncode=124,

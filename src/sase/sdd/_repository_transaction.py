@@ -122,13 +122,21 @@ def integrate_machine_managed_sdd_repository(
         event_logger=event_logger,
     )
     if outcome.succeeded and require_upstream_alignment:
-        alignment_error, upstream_present = _machine_upstream_alignment_error(
-            repo_root,
-            upstream=upstream,
-            git_runner=git_runner,
-            op_prefix=op_prefix,
+        alignment_error, upstream_present, alignment_timed_out = (
+            _machine_upstream_alignment_error(
+                repo_root,
+                upstream=upstream,
+                git_runner=git_runner,
+                op_prefix=op_prefix,
+            )
         )
-        if alignment_error is not None:
+        if alignment_timed_out:
+            outcome = SddIntegrationOutcome(
+                SddIntegrationStatus.TIMED_OUT,
+                upstream_present=upstream_present,
+                error=alignment_error,
+            )
+        elif alignment_error is not None:
             outcome = SddIntegrationOutcome(
                 SddIntegrationStatus.LOCAL_CHANGES,
                 upstream_present=upstream_present,
@@ -140,6 +148,7 @@ def integrate_machine_managed_sdd_repository(
         # Another cooperating writer holds the lock; destructive recovery would
         # race it rather than repair anything.
         SddIntegrationStatus.LOCK_UNAVAILABLE,
+        SddIntegrationStatus.TIMED_OUT,
     }:
         if outcome.succeeded:
             _safe_reap_recovery_residue(
@@ -188,52 +197,90 @@ def _machine_upstream_alignment_error(
     upstream: str,
     git_runner: GitRunner | None,
     op_prefix: str,
-) -> tuple[str | None, bool]:
+) -> tuple[str | None, bool, bool]:
+    from sase.sdd._git import SddGitCommandTimeout
+    from sase.sdd._repository_types import is_git_timeout
+
     root = repo_root.expanduser().resolve()
     runner = git_runner or default_git_runner
-    upstream_result = runner(
-        root,
-        ["rev-parse", "--verify", upstream],
-        op=f"{op_prefix}.alignment.upstream",
-    )
+    try:
+        upstream_result = runner(
+            root,
+            ["rev-parse", "--verify", upstream],
+            op=f"{op_prefix}.alignment.upstream",
+        )
+    except SddGitCommandTimeout as exc:
+        return f"git timed out: {exc}", False, True
+    if is_git_timeout(upstream_result):
+        detail = (upstream_result.stderr or upstream_result.stdout or "").strip()
+        return (
+            f"git timed out: {detail}" if detail else "git timed out",
+            False,
+            True,
+        )
     if upstream_result.returncode != 0:
         return (
             f"SDD repository {root} has no tracking upstream; "
             "machine-managed recovery requires a configured upstream",
             False,
+            False,
         )
-    status = runner(
-        root,
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        op=f"{op_prefix}.alignment.status",
-    )
+    try:
+        status = runner(
+            root,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            op=f"{op_prefix}.alignment.status",
+        )
+    except SddGitCommandTimeout as exc:
+        return f"git timed out: {exc}", True, True
+    if is_git_timeout(status):
+        detail = (status.stderr or status.stdout or "").strip()
+        return (
+            f"git timed out: {detail}" if detail else "git timed out",
+            True,
+            True,
+        )
     if status.returncode != 0:
         return (
             format_git_error("could not inspect SDD repository worktree", status),
             True,
+            False,
         )
     if status.stdout:
         return (
             f"SDD repository {root} has uncommitted or untracked changes; "
             "machine-managed recovery will retain them before resetting to upstream",
             True,
+            False,
         )
-    published = runner(
-        root,
-        ["merge-base", "--is-ancestor", "HEAD", upstream],
-        op=f"{op_prefix}.alignment.published",
-    )
+    try:
+        published = runner(
+            root,
+            ["merge-base", "--is-ancestor", "HEAD", upstream],
+            op=f"{op_prefix}.alignment.published",
+        )
+    except SddGitCommandTimeout as exc:
+        return f"git timed out: {exc}", True, True
+    if is_git_timeout(published):
+        detail = (published.stderr or published.stdout or "").strip()
+        return (
+            f"git timed out: {detail}" if detail else "git timed out",
+            True,
+            True,
+        )
     if published.returncode == 0:
-        return None, True
+        return None, True, False
     if published.returncode == 1:
         return (
             f"SDD repository {root} has unpublished commits; "
             "machine-managed recovery will retain them before resetting to upstream",
             True,
+            False,
         )
     return (
         format_git_error("could not compare SDD repository with upstream", published),
         True,
+        False,
     )
 
 

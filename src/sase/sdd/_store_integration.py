@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import logging
-import os
 from pathlib import Path
 import subprocess
 import time
@@ -77,6 +76,9 @@ def pull_sdd_clone(
         integrate_machine_managed_sdd_repository,
     )
 
+    if _deadline_expired(deadline):
+        return False
+
     git_runner = _git_runner_for_deadline(deadline)
     lock_factory = _lock_factory_for_deadline(deadline)
     outcome = integrate_machine_managed_sdd_repository(
@@ -106,6 +108,16 @@ def pull_sdd_clone(
 
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
     signature = recovery_failure_signature(workspace_sdd, outcome)
+    if outcome.status is SddIntegrationStatus.TIMED_OUT:
+        if admit_recovery_notice(workspace_sdd, signature):
+            _logger.info(
+                "Deferred workspace SDD clone integration for %s: %s",
+                workspace_sdd,
+                detail,
+            )
+        if strict:
+            raise SddIntegrationError(detail)
+        return False
     if admit_recovery_notice(workspace_sdd, signature):
         _logger.warning(
             "Failed to pull workspace SDD clone %s: %s",
@@ -267,51 +279,9 @@ def _git_runner_for_deadline(
     if deadline is None:
         return None
 
-    from sase.sdd._git import network_git_timeout
-    from sase.sdd._git_contention import run_sdd_git_write, run_sdd_git_write_network
+    from sase.sdd._deadline_git_runner import DeadlineGitRunner
 
-    def _run(
-        repo_root: Path,
-        args: list[str],
-        *,
-        op: str,
-        network: bool = False,
-    ) -> subprocess.CompletedProcess[str]:
-        timeout = _deadline_timeout(
-            deadline,
-            network_git_timeout() if network else None,
-        )
-        if timeout <= 0.0:
-            return subprocess.CompletedProcess(
-                ["git", *args],
-                returncode=124,
-                stdout="",
-                stderr="deadline expired before git operation",
-            )
-        if network:
-            return run_sdd_git_write_network(
-                args,
-                cwd=repo_root,
-                op=op,
-                timeout=timeout,
-                deadline=deadline,
-                check=False,
-                capture_output=True,
-                text=True,
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-            )
-        return run_sdd_git_write(
-            args,
-            cwd=repo_root,
-            op=op,
-            timeout=timeout,
-            check=False,
-            capture_output=True,
-            text=True,
-            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-        )
-
-    return _run
+    return DeadlineGitRunner(deadline)
 
 
 def _lock_factory_for_deadline(deadline: float | None) -> LockFactory | None:

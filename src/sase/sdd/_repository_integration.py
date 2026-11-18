@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.sdd._git import SddGitCommandTimeout
 from sase.sdd._repository_health import (
+    SddRepositoryInspectionTimeout,
     format_git_error,
     health_error,
     inspect_sdd_repository,
@@ -25,7 +26,19 @@ from sase.sdd._repository_types import (
     SddIntegrationOutcome,
     SddIntegrationStatus,
     SddRepositoryState,
+    is_git_timeout,
 )
+
+
+def _timed_out_outcome(
+    detail: str, *, upstream_present: bool = False
+) -> SddIntegrationOutcome:
+    return SddIntegrationOutcome(
+        SddIntegrationStatus.TIMED_OUT,
+        upstream_present=upstream_present,
+        error=f"git timed out: {detail}",
+    )
+
 
 _logger = logging.getLogger(__name__)
 
@@ -63,6 +76,10 @@ def integrate_sdd_repository_transaction(
     # the write lock because another actor may start an operation afterward.
     try:
         preflight = inspect_sdd_repository(root, git_runner)
+    except (SddGitCommandTimeout, SddRepositoryInspectionTimeout) as exc:
+        return _timed_out_outcome(
+            f"could not inspect SDD repository {root}: {safe_git_error_text(exc)}"
+        )
     except Exception as exc:  # noqa: BLE001 - returned as a typed outcome
         return SddIntegrationOutcome(
             SddIntegrationStatus.UNRECOVERABLE,
@@ -87,7 +104,11 @@ def integrate_sdd_repository_transaction(
         except SddGitCommandTimeout as exc:
             fetch_failure = f"git fetch timed out: {exc}"
         else:
-            if fetched.returncode != 0:
+            if is_git_timeout(fetched):
+                detail = (fetched.stderr or fetched.stdout or "").strip()
+                suffix = f": {detail}" if detail else ""
+                fetch_failure = f"git fetch timed out{suffix}"
+            elif fetched.returncode != 0:
                 fetch_failure = format_git_error("git fetch failed", fetched)
 
     with lock_factory(root) as acquired:
@@ -104,6 +125,10 @@ def integrate_sdd_repository_transaction(
             )
         try:
             starting = inspect_sdd_repository(root, git_runner)
+        except (SddGitCommandTimeout, SddRepositoryInspectionTimeout) as exc:
+            return _timed_out_outcome(
+                f"could not inspect SDD repository {root}: {safe_git_error_text(exc)}"
+            )
         except Exception as exc:  # noqa: BLE001 - returned as a typed outcome
             return SddIntegrationOutcome(
                 SddIntegrationStatus.UNRECOVERABLE,
@@ -124,15 +149,28 @@ def integrate_sdd_repository_transaction(
                     error=fetch_failure,
                 )
 
-            upstream_result = git_runner(
-                root,
-                ["rev-parse", "--verify", upstream],
-                op=f"{op_prefix}.upstream",
-            )
+            try:
+                upstream_result = git_runner(
+                    root,
+                    ["rev-parse", "--verify", upstream],
+                    op=f"{op_prefix}.upstream",
+                )
+            except SddGitCommandTimeout as exc:
+                return _timed_out_outcome(str(exc))
+            if is_git_timeout(upstream_result):
+                detail = (
+                    upstream_result.stderr or upstream_result.stdout or ""
+                ).strip()
+                return _timed_out_outcome(
+                    detail or f"could not verify upstream {upstream}"
+                )
             if upstream_result.returncode != 0:
                 return SddIntegrationOutcome(SddIntegrationStatus.SUCCESS)
 
-            clean_error = tracked_changes_error(root, git_runner, op_prefix)
+            try:
+                clean_error = tracked_changes_error(root, git_runner, op_prefix)
+            except SddGitCommandTimeout as exc:
+                return _timed_out_outcome(str(exc), upstream_present=True)
             if clean_error is not None:
                 return SddIntegrationOutcome(
                     SddIntegrationStatus.LOCAL_CHANGES,
@@ -140,11 +178,20 @@ def integrate_sdd_repository_transaction(
                     error=clean_error,
                 )
 
-            ancestor = git_runner(
-                root,
-                ["merge-base", "--is-ancestor", upstream, "HEAD"],
-                op=f"{op_prefix}.ancestor",
-            )
+            try:
+                ancestor = git_runner(
+                    root,
+                    ["merge-base", "--is-ancestor", upstream, "HEAD"],
+                    op=f"{op_prefix}.ancestor",
+                )
+            except SddGitCommandTimeout as exc:
+                return _timed_out_outcome(str(exc), upstream_present=True)
+            if is_git_timeout(ancestor):
+                detail = (ancestor.stderr or ancestor.stdout or "").strip()
+                return _timed_out_outcome(
+                    detail or "could not compare SDD histories",
+                    upstream_present=True,
+                )
             if ancestor.returncode == 0:
                 return _successful_integration(
                     root,
@@ -167,11 +214,33 @@ def integrate_sdd_repository_transaction(
                     error=format_git_error("could not compare SDD histories", ancestor),
                 )
 
-            rebased = git_runner(
-                root,
-                ["rebase", upstream],
-                op=f"{op_prefix}.rebase",
-            )
+            try:
+                rebased = git_runner(
+                    root,
+                    ["rebase", upstream],
+                    op=f"{op_prefix}.rebase",
+                )
+            except SddGitCommandTimeout as exc:
+                return _abort_and_verify(
+                    root,
+                    starting=starting,
+                    primary_failure=f"git operation timed out: {exc}",
+                    runner=git_runner,
+                    op_prefix=op_prefix,
+                    timed_out=True,
+                )
+            if is_git_timeout(rebased):
+                detail = (rebased.stderr or rebased.stdout or "").strip()
+                return _abort_and_verify(
+                    root,
+                    starting=starting,
+                    primary_failure=(
+                        f"git timed out: {detail}" if detail else "git rebase timed out"
+                    ),
+                    runner=git_runner,
+                    op_prefix=op_prefix,
+                    timed_out=True,
+                )
             if rebased.returncode == 0:
                 return _successful_integration(
                     root,
@@ -208,6 +277,7 @@ def integrate_sdd_repository_transaction(
                     primary_failure=f"git operation timed out: {exc}",
                     runner=git_runner,
                     op_prefix=op_prefix,
+                    timed_out=True,
                 )
             except SddGitCommandTimeout as abort_exc:
                 return SddIntegrationOutcome(
@@ -237,7 +307,17 @@ def _repair_or_abort_rebase(
     resolved: list[str] = []
     bead_relocations: tuple[BeadIdRelocation, ...] = ()
     for _ in range(100):
-        conflicts = unmerged_paths(repo_root, runner, op_prefix)
+        try:
+            conflicts = unmerged_paths(repo_root, runner, op_prefix)
+        except SddGitCommandTimeout as exc:
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=f"{primary_failure}; git timed out: {exc}",
+                runner=runner,
+                op_prefix=op_prefix,
+                timed_out=True,
+            )
         if conflicts.error is not None:
             # "Could not tell" must never be mistaken for "no conflicts": that
             # is what let an unstaged resolution reach ``rebase --continue``.
@@ -293,11 +373,35 @@ def _repair_or_abort_rebase(
             resolution.bead_relocations,
         )
 
-        continued = runner(
-            repo_root,
-            ["-c", "core.editor=true", "rebase", "--continue"],
-            op=f"{op_prefix}.rebase_continue",
-        )
+        try:
+            continued = runner(
+                repo_root,
+                ["-c", "core.editor=true", "rebase", "--continue"],
+                op=f"{op_prefix}.rebase_continue",
+            )
+        except SddGitCommandTimeout as exc:
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=f"{primary_failure}; git timed out: {exc}",
+                runner=runner,
+                op_prefix=op_prefix,
+                timed_out=True,
+            )
+        if is_git_timeout(continued):
+            detail = (continued.stderr or continued.stdout or "").strip()
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=(
+                    f"{primary_failure}; git timed out: {detail}"
+                    if detail
+                    else f"{primary_failure}; git rebase --continue timed out"
+                ),
+                runner=runner,
+                op_prefix=op_prefix,
+                timed_out=True,
+            )
         if continued.returncode == 0:
             return _successful_integration(
                 repo_root,
@@ -366,11 +470,35 @@ def _successful_integration(
     integrated = integrated or manifest_repaired
     resolved_files = tuple(sorted(dict.fromkeys((*resolved_files, *manifest_files))))
 
-    ancestor = runner(
-        repo_root,
-        ["merge-base", "--is-ancestor", upstream, "HEAD"],
-        op=f"{op_prefix}.verify_ancestor",
-    )
+    try:
+        ancestor = runner(
+            repo_root,
+            ["merge-base", "--is-ancestor", upstream, "HEAD"],
+            op=f"{op_prefix}.verify_ancestor",
+        )
+    except SddGitCommandTimeout as exc:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=f"git timed out: {exc}",
+            runner=runner,
+            op_prefix=op_prefix,
+            timed_out=True,
+        )
+    if is_git_timeout(ancestor):
+        detail = (ancestor.stderr or ancestor.stdout or "").strip()
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=(
+                f"git timed out: {detail}"
+                if detail
+                else "completed SDD integration verification timed out"
+            ),
+            runner=runner,
+            op_prefix=op_prefix,
+            timed_out=True,
+        )
     if ancestor.returncode != 0:
         return _abort_and_verify(
             repo_root,
@@ -384,6 +512,17 @@ def _successful_integration(
 
     try:
         final = inspect_sdd_repository(repo_root, runner)
+    except (SddGitCommandTimeout, SddRepositoryInspectionTimeout) as exc:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=(
+                f"could not verify completed rebase: {safe_git_error_text(exc)}"
+            ),
+            runner=runner,
+            op_prefix=op_prefix,
+            timed_out=True,
+        )
     except Exception as exc:  # noqa: BLE001 - attempt rollback below
         return _abort_and_verify(
             repo_root,
@@ -411,7 +550,17 @@ def _successful_integration(
             runner=runner,
             op_prefix=op_prefix,
         )
-    dirty_error = tracked_changes_error(repo_root, runner, op_prefix)
+    try:
+        dirty_error = tracked_changes_error(repo_root, runner, op_prefix)
+    except SddGitCommandTimeout as exc:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=f"git timed out: {exc}",
+            runner=runner,
+            op_prefix=op_prefix,
+            timed_out=True,
+        )
     if dirty_error is not None:
         return _abort_and_verify(
             repo_root,
@@ -444,7 +593,11 @@ def _abort_and_verify(
     primary_failure: str,
     runner: GitRunner,
     op_prefix: str,
+    timed_out: bool = False,
 ) -> SddIntegrationOutcome:
+    from sase.sdd._deadline_git_runner import rollback_runner as _rollback_runner
+
+    runner = _rollback_runner(runner)
     abort_failure: str | None = None
     current: SddRepositoryState | None = None
     try:
@@ -453,28 +606,50 @@ def _abort_and_verify(
     except Exception:
         rebase_active = True
     if rebase_active:
-        aborted = runner(
-            repo_root,
-            ["rebase", "--abort"],
-            op=f"{op_prefix}.rebase_abort",
-        )
-        if aborted.returncode != 0:
-            abort_failure = format_git_error("git rebase --abort failed", aborted)
+        try:
+            aborted = runner(
+                repo_root,
+                ["rebase", "--abort"],
+                op=f"{op_prefix}.rebase_abort",
+            )
+        except SddGitCommandTimeout as exc:
+            abort_failure = f"git rebase --abort timed out: {exc}"
+        else:
+            if is_git_timeout(aborted):
+                detail = (aborted.stderr or aborted.stdout or "").strip()
+                abort_failure = (
+                    f"git rebase --abort timed out: {detail}"
+                    if detail
+                    else "git rebase --abort timed out"
+                )
+            elif aborted.returncode != 0:
+                abort_failure = format_git_error("git rebase --abort failed", aborted)
     elif (
         current is not None
         and current.branch == starting.branch
         and starting.head is not None
         and sdd_rollback_mismatch(starting, current) is not None
     ):
-        restored = runner(
-            repo_root,
-            ["reset", "--hard", starting.head],
-            op=f"{op_prefix}.rollback_reset",
-        )
-        if restored.returncode != 0:
-            abort_failure = format_git_error(
-                "git reset failed while restoring completed integration", restored
+        try:
+            restored = runner(
+                repo_root,
+                ["reset", "--hard", starting.head],
+                op=f"{op_prefix}.rollback_reset",
             )
+        except SddGitCommandTimeout as exc:
+            abort_failure = f"git reset timed out while restoring integration: {exc}"
+        else:
+            if is_git_timeout(restored):
+                detail = (restored.stderr or restored.stdout or "").strip()
+                abort_failure = (
+                    f"git reset timed out while restoring integration: {detail}"
+                    if detail
+                    else "git reset timed out while restoring integration"
+                )
+            elif restored.returncode != 0:
+                abort_failure = format_git_error(
+                    "git reset failed while restoring completed integration", restored
+                )
 
     verify_failure: str | None
     observation_delta: str | None = None
@@ -503,6 +678,13 @@ def _abort_and_verify(
         return SddIntegrationOutcome(
             SddIntegrationStatus.UNRECOVERABLE,
             upstream_present=True,
+            error=error,
+        )
+    if timed_out:
+        return SddIntegrationOutcome(
+            SddIntegrationStatus.TIMED_OUT,
+            upstream_present=True,
+            restored=True,
             error=error,
         )
     return SddIntegrationOutcome(

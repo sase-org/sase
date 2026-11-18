@@ -587,3 +587,39 @@ def test_beads_sidecar_error_hint_omitted_for_integration(
             primary_workspace_resolver=lambda _ws, _num: str(primary),
         )
     assert "Git credentials" in str(excinfo.value)
+
+
+def test_pull_sdd_clone_timed_out_is_quiet_and_cooldown_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    from sase.sdd._repository_transaction import (
+        SddIntegrationOutcome,
+        SddIntegrationStatus,
+    )
+
+    outcome = SddIntegrationOutcome(
+        SddIntegrationStatus.TIMED_OUT,
+        upstream_present=True,
+        error="git timed out: injected",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_machine_managed_sdd_repository",
+        lambda *_args, **_kwargs: outcome,
+    )
+    errors: list[dict] = []
+    monkeypatch.setattr("sase.axe.state.append_error", errors.append)
+
+    assert _pull_sdd_clone(clone_dir, fresh=True) is False
+    assert errors == []
+    assert not (clone_dir / ".git" / FAILED_INTEGRATION_MARKER).exists()

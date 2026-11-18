@@ -86,8 +86,20 @@ def recover_machine_managed_sdd_repository(
                     "writer finishes"
                 ),
             )
+        from sase.sdd._git import SddGitCommandTimeout as _Timeout
+        from sase.sdd._repository_types import is_git_timeout as _is_timeout
+
         try:
             starting = inspect_sdd_repository(root, runner)
+        except _Timeout as exc:
+            return SddIntegrationOutcome(
+                SddIntegrationStatus.TIMED_OUT,
+                upstream_present=original.upstream_present,
+                error=_recovery_error(
+                    original,
+                    f"recovery deferred: git timed out: {safe_git_error_text(exc)}",
+                ),
+            )
         except Exception as exc:  # noqa: BLE001 - typed unsafe outcome
             return SddIntegrationOutcome(
                 SddIntegrationStatus.UNRECOVERABLE,
@@ -138,12 +150,24 @@ def recover_machine_managed_sdd_repository(
                 expected_branch=branch,
             )
 
-        upstream_ref, remote, upstream_error = _configured_upstream(
-            root,
-            branch,
-            runner,
-            op_prefix,
-        )
+        def _timed_out(detail: str) -> SddIntegrationOutcome:
+            return SddIntegrationOutcome(
+                SddIntegrationStatus.TIMED_OUT,
+                upstream_present=original.upstream_present,
+                error=_recovery_error(
+                    original, f"recovery deferred: git timed out: {detail}"
+                ),
+            )
+
+        try:
+            upstream_ref, remote, upstream_error = _configured_upstream(
+                root,
+                branch,
+                runner,
+                op_prefix,
+            )
+        except _Timeout as exc:
+            return _timed_out(safe_git_error_text(exc))
         if upstream_error is not None or upstream_ref is None or remote is None:
             return _managed_recovery_failure(
                 root,
@@ -153,11 +177,17 @@ def recover_machine_managed_sdd_repository(
                 expected_branch=branch,
             )
 
-        branch_head = runner(
-            root,
-            ["rev-parse", "--verify", f"refs/heads/{branch}"],
-            op=f"{op_prefix}.recovery.branch_head",
-        )
+        try:
+            branch_head = runner(
+                root,
+                ["rev-parse", "--verify", f"refs/heads/{branch}"],
+                op=f"{op_prefix}.recovery.branch_head",
+            )
+        except _Timeout as exc:
+            return _timed_out(safe_git_error_text(exc))
+        if _is_timeout(branch_head):
+            detail = (branch_head.stderr or branch_head.stdout or "").strip()
+            return _timed_out(detail or "could not resolve the managed branch")
         if branch_head.returncode != 0 or not branch_head.stdout.strip():
             return _managed_recovery_failure(
                 root,
@@ -170,13 +200,16 @@ def recover_machine_managed_sdd_repository(
             )
         branch_sha = branch_head.stdout.strip()
         recovery_ref = _recovery_ref(root, branch, branch_sha, now)
-        ref_error = _update_and_verify_ref(
-            root,
-            recovery_ref,
-            branch_sha,
-            runner,
-            op_prefix,
-        )
+        try:
+            ref_error = _update_and_verify_ref(
+                root,
+                recovery_ref,
+                branch_sha,
+                runner,
+                op_prefix,
+            )
+        except _Timeout as exc:
+            return _timed_out(safe_git_error_text(exc))
         if ref_error is not None:
             return _managed_recovery_failure(
                 root,
@@ -185,6 +218,10 @@ def recover_machine_managed_sdd_repository(
                 runner=runner,
                 expected_branch=branch,
             )
+
+        from sase.sdd._deadline_git_runner import rollback_runner as _rollback
+
+        runner = _rollback(runner)
 
         if starting.operation_markers:
             aborted = runner(
@@ -215,12 +252,18 @@ def recover_machine_managed_sdd_repository(
                 )
 
         if remote != ".":
-            fetched = runner(
-                root,
-                ["fetch", "--prune", remote],
-                op=f"{op_prefix}.recovery.fetch",
-                network=True,
-            )
+            try:
+                fetched = runner(
+                    root,
+                    ["fetch", "--prune", remote],
+                    op=f"{op_prefix}.recovery.fetch",
+                    network=True,
+                )
+            except _Timeout as exc:
+                return _timed_out(safe_git_error_text(exc))
+            if _is_timeout(fetched):
+                detail = (fetched.stderr or fetched.stdout or "").strip()
+                return _timed_out(detail or "git fetch for recovery failed")
             if fetched.returncode != 0:
                 return _managed_recovery_failure(
                     root,
@@ -231,11 +274,21 @@ def recover_machine_managed_sdd_repository(
                     recovery_ref=recovery_ref,
                 )
 
-        upstream_sha_result = runner(
-            root,
-            ["rev-parse", "--verify", upstream_ref],
-            op=f"{op_prefix}.recovery.upstream",
-        )
+        try:
+            upstream_sha_result = runner(
+                root,
+                ["rev-parse", "--verify", upstream_ref],
+                op=f"{op_prefix}.recovery.upstream",
+            )
+        except _Timeout as exc:
+            return _timed_out(safe_git_error_text(exc))
+        if _is_timeout(upstream_sha_result):
+            detail = (
+                upstream_sha_result.stderr or upstream_sha_result.stdout or ""
+            ).strip()
+            return _timed_out(
+                detail or "could not resolve the fetched recovery upstream"
+            )
         if (
             upstream_sha_result.returncode != 0
             or not upstream_sha_result.stdout.strip()

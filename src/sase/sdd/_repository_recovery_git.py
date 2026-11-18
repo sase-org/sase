@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 
+from sase.sdd._git import SddGitCommandTimeout
 from sase.sdd._repository_transaction import (
     GitRunner,
     SddIntegrationOutcome,
@@ -69,6 +70,8 @@ def configured_upstream(
     runner: GitRunner,
     op_prefix: str,
 ) -> tuple[str | None, str | None, str | None]:
+    from sase.sdd._repository_types import is_git_timeout
+
     upstream = runner(
         repo_root,
         [
@@ -79,6 +82,11 @@ def configured_upstream(
         ],
         op=f"{op_prefix}.recovery.upstream_name",
     )
+    if is_git_timeout(upstream):
+        detail = (upstream.stderr or upstream.stdout or "").strip()
+        raise SddGitCommandTimeout(
+            f"git timed out: {detail}" if detail else "git timed out"
+        )
     if upstream.returncode != 0 or not upstream.stdout.strip():
         return (
             None,
@@ -93,6 +101,11 @@ def configured_upstream(
         ["config", "--get", f"branch.{branch}.remote"],
         op=f"{op_prefix}.recovery.remote",
     )
+    if is_git_timeout(remote):
+        detail = (remote.stderr or remote.stdout or "").strip()
+        raise SddGitCommandTimeout(
+            f"git timed out: {detail}" if detail else "git timed out"
+        )
     if remote.returncode != 0 or not remote.stdout.strip():
         return (
             None,
@@ -120,11 +133,18 @@ def update_and_verify_ref(
     runner: GitRunner,
     op_prefix: str,
 ) -> str | None:
+    from sase.sdd._repository_types import is_git_timeout
+
     updated = runner(
         repo_root,
         ["update-ref", recovery_ref, target],
         op=f"{op_prefix}.recovery.snapshot_ref",
     )
+    if is_git_timeout(updated):
+        detail = (updated.stderr or updated.stdout or "").strip()
+        raise SddGitCommandTimeout(
+            f"git timed out: {detail}" if detail else "git timed out"
+        )
     if updated.returncode != 0:
         return format_git_error("could not create the recovery ref", updated)
     verified = runner(
@@ -132,6 +152,11 @@ def update_and_verify_ref(
         ["rev-parse", "--verify", recovery_ref],
         op=f"{op_prefix}.recovery.verify_ref",
     )
+    if is_git_timeout(verified):
+        detail = (verified.stderr or verified.stdout or "").strip()
+        raise SddGitCommandTimeout(
+            f"git timed out: {detail}" if detail else "git timed out"
+        )
     if verified.returncode != 0 or verified.stdout.strip() != target:
         return "could not verify the recovery ref; the managed branch was not reset"
     return None

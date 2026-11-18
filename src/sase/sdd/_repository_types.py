@@ -8,8 +8,29 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 import subprocess
+from typing import Any, Literal
 
 from sase.bead.relocation import BeadIdRelocation
+
+
+class SddGitTimeoutResult(subprocess.CompletedProcess[str]):
+    """A git result that failed because a timeout expired, not the repo."""
+
+    def __init__(
+        self,
+        args: Any,
+        returncode: int = 124,
+        stdout: str = "",
+        stderr: str = "",
+        timeout_reason: Literal["deadline", "wall_clock"] = "deadline",
+    ) -> None:
+        super().__init__(args, returncode, stdout, stderr)
+        self.timeout_reason: Literal["deadline", "wall_clock"] = timeout_reason
+
+
+def is_git_timeout(result: object) -> bool:
+    """Return whether *result* is a typed git-timeout result."""
+    return isinstance(result, SddGitTimeoutResult)
 
 
 class SddIntegrationStatus(StrEnum):
@@ -22,6 +43,10 @@ class SddIntegrationStatus(StrEnum):
     ABORTED_UNSUPPORTED_CONFLICTS = "aborted_unsupported_conflicts"
     LOCAL_CHANGES = "local_changes_preserved"
     LOCK_UNAVAILABLE = "store_write_lock_unavailable"
+    # A git probe or operation timed out before SASE changed the checkout, or
+    # SASE's rollback was verified; the checkout is presumed as-found and the
+    # attempt should simply be retried later.
+    TIMED_OUT = "git_timed_out_state_unknown"
     RECOVERED = "machine_managed_recovered"
     RECOVERY_COOLDOWN = "machine_managed_recovery_cooldown"
     RECOVERY_FAILED = "machine_managed_recovery_failed"
