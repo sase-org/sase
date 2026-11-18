@@ -251,6 +251,75 @@ async def test_ctrl_bracket_on_image_views_it_inside_suspend_without_editor(
         assert not _top_is_jump_modal(page)
 
 
+async def test_ctrl_bracket_on_video_views_it_inside_suspend_without_editor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    video = tmp_path / "prompt-preview.MP4"
+    video.write_bytes(b"video")
+    viewer_calls: list[str] = []
+    refocus_calls: list[None] = []
+    suspended = False
+    status_messages: list[str | None] = []
+
+    @contextmanager
+    def fake_suspend(
+        *_args: object,
+        status_message: str | None = None,
+        **_kwargs: object,
+    ):
+        nonlocal suspended
+        suspended = True
+        status_messages.append(status_message)
+        try:
+            yield
+        finally:
+            suspended = False
+
+    def fake_viewer(path: str) -> ArtifactFileViewerResult:
+        assert suspended is True
+        viewer_calls.append(path)
+        return ArtifactFileViewerResult(True)
+
+    def fail_editor(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("video jump must not use an editor-backed action")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.is_tmux_session", lambda: True
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.view_artifact_file",
+        fake_viewer,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.suspend_for_external_tool",
+        fake_suspend,
+    )
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_open_jump_target_in_this_pane",
+        fail_editor,
+    )
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_open_jump_target_in_tmux_pane_async",
+        fail_editor,
+    )
+
+    prompt = f"open {video}"
+    async with PromptPage(prompt, cursor=(0, 5), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta, "_refocus_if_needed", lambda: refocus_calls.append(None)
+        )
+        await page.press("ctrl+right_square_bracket")
+        await page.wait_for(lambda: viewer_calls == [str(video)])
+
+        assert suspended is False
+        assert refocus_calls == [None]
+        assert status_messages == ["Opening video…"]
+        assert not _top_is_jump_modal(page)
+
+
 async def test_ctrl_bracket_on_image_surfaces_viewer_warning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

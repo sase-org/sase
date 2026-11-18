@@ -477,8 +477,11 @@ position captured when the finder opened. Inside the finder, type to filter, use
 and `Esc` to cancel.
 
 In prompt NORMAL mode, `K` previews the macro, slash skill, or file under the cursor.
-Image files preview inline in the reader, while `Ctrl+]` still opens images directly in
-the artifact viewer. Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]`
+Image files preview inline in the reader, and supported videos preview as a still frame
+with duration, resolution, and codec metadata. In a video preview, `h` / `l` step by
+tenths, `0`–`9` jump to a decile, and `Z` opens the full artifact viewer for frame-accurate
+inspection and playback. `Ctrl+]` opens images and videos directly in the artifact
+viewer. Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]`
 prefer a nested reference, file path, glossary term, or plain word under the cursor, and
 fall back to the macro that owns the argument text only when nothing else matches. On
 ordinary prompt text, sase's TUI checks the warm project glossary before falling back to

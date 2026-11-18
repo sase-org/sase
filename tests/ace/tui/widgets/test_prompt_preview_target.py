@@ -539,6 +539,51 @@ def test_image_directory_raises_directory_error(tmp_path: Path) -> None:
         )
 
 
+def test_resolves_video_preview_without_reading_bytes(tmp_path: Path) -> None:
+    video = tmp_path / "clip.MP4"
+    video.write_bytes(b"\x00video payload\x00")
+    payload = resolve_preview_target(
+        PreviewToken("file", "clip.MP4", "clip.MP4", 0, 7),
+        project=None,
+        base_dir=str(tmp_path),
+    )
+
+    assert payload.media == "video"
+    assert payload.kind_label == "video"
+    assert payload.source_path == str(video)
+    assert payload.content == ""
+
+
+def test_missing_video_raises_file_not_found(tmp_path: Path) -> None:
+    with pytest.raises(PreviewError, match="File not found: missing.mp4"):
+        resolve_preview_target(
+            PreviewToken("file", "missing.mp4", "missing.mp4", 0, 11),
+            project=None,
+            base_dir=str(tmp_path),
+        )
+
+
+def test_video_directory_and_unsupported_binary_errors(tmp_path: Path) -> None:
+    directory = tmp_path / "x.mp4"
+    directory.mkdir()
+    unsupported = tmp_path / "clip.mkv"
+    unsupported.write_bytes(b"\x00video payload\x00")
+
+    with pytest.raises(PreviewError, match="is a directory, not a file"):
+        resolve_preview_target(
+            PreviewToken("file", "x.mp4", "x.mp4", 0, 5),
+            project=None,
+            base_dir=str(tmp_path),
+        )
+
+    with pytest.raises(PreviewError, match="Cannot preview binary file: clip.mkv"):
+        resolve_preview_target(
+            PreviewToken("file", "clip.mkv", "clip.mkv", 0, 8),
+            project=None,
+            base_dir=str(tmp_path),
+        )
+
+
 def test_skips_double_colon_eol_argument_text() -> None:
     text = "#foo::\nbody text"
     expected = PreviewToken("macro", text, "foo", 0, len(text))

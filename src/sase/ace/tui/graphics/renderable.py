@@ -25,13 +25,17 @@ class ImageFallbackRenderable:
     path: str
     reason: str
     hint: str = "Open artifact with A"
+    heading: str = "Image preview unavailable"
+    name: str | None = None
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         del console, options
         text = Text()
-        text.append("Image preview unavailable\n", style="bold #D7AF5F")
+        text.append(f"{self.heading}\n", style="bold #D7AF5F")
+        if self.name:
+            text.append(f"{self.name}\n", style="bold")
         text.append(str(Path(self.path).expanduser()), style="#87D7FF underline")
         try:
             size = os.path.getsize(os.path.expanduser(self.path))

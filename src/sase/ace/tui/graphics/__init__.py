@@ -1,5 +1,9 @@
 """Image preview helpers for sase's TUI."""
 
+from pathlib import Path
+
+from rich.console import RenderableType
+
 from .capability import ImageRenderContext, has_truecolor, image_render_context
 from .cell import (
     CELL_IMAGE_BACKGROUND,
@@ -13,6 +17,10 @@ from .images import SUPPORTED_IMAGE_EXTENSIONS, is_supported_image_path
 from .renderable import ImageFallbackRenderable, image_preview
 from .sizing import image_preview_size_for_viewport
 from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
+from ._video_preview_types import (
+    VIDEO_PREVIEW_FRAME_PX,
+    VideoPreviewInfo,
+)
 from ._viewer_launch import (
     ArtifactViewerLaunchContext,
     artifact_file_tmux_pane_exists,
@@ -75,6 +83,8 @@ __all__ = [
     "ImageFallbackRenderable",
     "ImageRenderContext",
     "VIDEO_PLAYBACK_BACKENDS",
+    "VIDEO_PREVIEW_FRAME_PX",
+    "VideoPreviewInfo",
     "ArtifactFileImageArea",
     "ArtifactRenderResult",
     "ArtifactFileViewSpec",
@@ -126,6 +136,10 @@ __all__ = [
     "TmuxPaneDecorationState",
     "validate_artifact_file_viewer_dependencies",
     "video_still_preview_required",
+    "format_video_preview_position",
+    "load_video_preview_info",
+    "video_preview_frame",
+    "video_preview_timestamp",
     "view_registered_artifact_file",
     "view_registered_artifact_files",
     "view_registered_artifact_file_in_tmux_pane",
@@ -136,3 +150,53 @@ __all__ = [
     "view_artifact_files_in_tmux_pane",
     "view_image_file",
 ]
+
+
+def load_video_preview_info(
+    path: str | Path,
+    *,
+    cache_dir: str | Path | None = None,
+) -> VideoPreviewInfo:
+    """Load video metadata through the lazy prompt-preview service."""
+    from .video_preview import load_video_preview_info as load
+
+    return load(path, cache_dir=cache_dir)
+
+
+def video_preview_frame(
+    path: str | Path,
+    at_seconds: float,
+    context: ImageRenderContext | None = None,
+    *,
+    columns: int,
+    rows: int,
+    cache_dir: str | Path | None = None,
+) -> RenderableType:
+    """Render one video frame through the lazy prompt-preview service."""
+    from .video_preview import video_preview_frame as render
+
+    return render(
+        path,
+        at_seconds,
+        context,
+        columns=columns,
+        rows=rows,
+        cache_dir=cache_dir,
+    )
+
+
+def video_preview_timestamp(decile: int, duration_seconds: float | None) -> float:
+    """Return a video decile timestamp using the artifact viewer's seek math."""
+    from .video_preview import video_preview_timestamp as timestamp
+
+    return timestamp(decile, duration_seconds)
+
+
+def format_video_preview_position(
+    decile: int,
+    duration_seconds: float | None,
+) -> str:
+    """Format the current decile using the artifact viewer's inspect status."""
+    from .video_preview import format_video_preview_position as format_position
+
+    return format_position(decile, duration_seconds)

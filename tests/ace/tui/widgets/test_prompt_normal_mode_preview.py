@@ -418,6 +418,40 @@ async def test_k_on_image_file_pushes_image_modal(tmp_path: Path) -> None:
         )
 
 
+async def test_k_on_video_file_pushes_video_modal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.graphics import VideoPreviewInfo
+    from sase.ace.tui.graphics._viewer_video_media import VideoMetadata
+    from sase.ace.tui.modals.preview_panel_video_modal import VideoPreviewPanelModal
+
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"\x00video payload\x00")
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.preview_panel_video_modal.load_video_preview_info",
+        lambda _path: VideoPreviewInfo(VideoMetadata(duration_seconds=10), "0:10", 10),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.preview_panel_video_modal.video_preview_frame",
+        lambda *_args, **_kwargs: Text("frame"),
+    )
+
+    async with PromptPage(f"view {video}", cursor=(0, 5), size=(100, 30)) as page:
+        await page.press("K")
+        await page.wait_for(
+            lambda: isinstance(
+                page.ta.app.screen_stack[-1],
+                VideoPreviewPanelModal,
+            )
+        )
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, VideoPreviewPanelModal)
+        await page.wait_for(lambda: modal._video_info is not None)  # noqa: SLF001
+
+
 async def test_k_on_text_file_pushes_plain_preview_modal(tmp_path: Path) -> None:
     from sase.ace.tui.modals.preview_panel_image_modal import (
         ImagePreviewPanelModal,

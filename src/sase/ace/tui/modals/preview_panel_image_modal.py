@@ -63,18 +63,7 @@ class ImagePreviewPanelModal(PreviewPanelModal):
     def _schedule_image_render(self) -> None:
         if not self.is_attached:
             return
-        try:
-            scroll = self.query_one("#preview-scroll", VerticalScroll)
-        except Exception:
-            scroll = None
-        try:
-            content = self.query_one("#preview-content", Static)
-        except Exception:
-            content = None
-        columns, rows = image_preview_size_for_viewport(
-            scroll_widget=scroll,
-            content_widget=content,
-        )
+        columns, rows = self._preview_render_size()
         if (columns, rows) == self._image_requested_size:
             return
         self._image_requested_size = (columns, rows)
@@ -87,20 +76,39 @@ class ImagePreviewPanelModal(PreviewPanelModal):
             registry_attr="_pump_free_async_tasks",
         )
 
-    async def _render_image(self, request_id: int, columns: int, rows: int) -> None:
+    def _preview_render_size(self) -> tuple[int, int]:
+        try:
+            scroll = self.query_one("#preview-scroll", VerticalScroll)
+        except Exception:
+            scroll = None
+        try:
+            content = self.query_one("#preview-content", Static)
+        except Exception:
+            content = None
+        columns, rows = image_preview_size_for_viewport(
+            scroll_widget=scroll,
+            content_widget=content,
+        )
+        return columns, rows
+
+    def _invalidate_image_render(self) -> None:
+        """Invalidate any in-flight frame and permit a same-size rerender."""
+        self._image_requested_size = None
+        self._image_request_id += 1
+
+    def _render_renderable(self, columns: int, rows: int) -> RenderableType:
         path = self._payload.source_path
         if path is None:
-            return
-        renderable = await asyncio.to_thread(
-            image_preview,
+            return Text("No image path is available", style="dim italic")
+        return image_preview(
             path,
             image_render_context(),
             columns=columns,
             rows=rows,
             fallback_hint="Press Z to open it in the artifact viewer",
         )
-        if request_id != self._image_request_id or not self.is_attached:
-            return
+
+    def _update_image_renderable(self, renderable: RenderableType) -> None:
         self._image_renderable = renderable
         if not self.is_attached:
             return
@@ -108,6 +116,12 @@ class ImagePreviewPanelModal(PreviewPanelModal):
             self.query_one("#preview-content", Static).update(self._build_content())
         except Exception:
             return
+
+    async def _render_image(self, request_id: int, columns: int, rows: int) -> None:
+        renderable = await asyncio.to_thread(self._render_renderable, columns, rows)
+        if request_id != self._image_request_id or not self.is_attached:
+            return
+        self._update_image_renderable(renderable)
 
     def action_open_search(self) -> None:
         self.notify(

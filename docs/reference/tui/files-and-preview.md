@@ -146,6 +146,12 @@ re-renders on terminal resize. The footer shows
 `Y path | % copy | Z viewer | esc close`, and `Z` opens the full-fidelity artifact
 viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 
+Prompt `K` on a supported video path (`.mp4`, `.m4v`, `.mov`, `.webm`) opens a still
+frame with video metadata. Use `h` / `l` to step by tenths, `0`–`9` to jump to a decile,
+and `Z` to open the full artifact viewer for frame-accurate inspection and playback.
+`ffprobe` and `ffmpeg` are optional: without them, the reader shows the available file
+size or a frame placeholder with the `Z` hint.
+
 ## Files Pane
 
 Files browses the artifact-file index that backs

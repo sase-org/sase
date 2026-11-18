@@ -189,6 +189,14 @@ class PromptPreviewMixin(_MixinBase):
             self.app.push_screen(ImagePreviewPanelModal(payload))
             return
 
+        if payload.media == "video":
+            from sase.ace.tui.modals.preview_panel_video_modal import (
+                VideoPreviewPanelModal,
+            )
+
+            self.app.push_screen(VideoPreviewPanelModal(payload))
+            return
+
         from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 
         self.app.push_screen(PreviewPanelModal(payload))

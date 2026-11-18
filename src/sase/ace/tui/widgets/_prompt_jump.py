@@ -10,7 +10,11 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.graphics import is_supported_image_path, view_artifact_file
+from sase.ace.tui.graphics import (
+    is_supported_image_path,
+    is_supported_video_path,
+    view_artifact_file,
+)
 from sase.ace.tui.graphics._viewer_tmux_common import is_tmux_session
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.widgets._prompt_jump_target import (
@@ -153,10 +157,11 @@ class PromptJumpMixin(_MixinBase):
         self._jump_to_definition_under_cursor(prefer_load=True)
 
     def _present_jump_actions(self, payload: JumpTarget) -> None:
-        if payload.kind_label == "file" and is_supported_image_path(
-            payload.source_path
+        if payload.kind_label == "file" and (
+            is_supported_image_path(payload.source_path)
+            or is_supported_video_path(payload.source_path)
         ):
-            self._view_jump_image(payload)
+            self._view_jump_media(payload)
             return
 
         choices = self._jump_action_choices(payload)
@@ -182,15 +187,16 @@ class PromptJumpMixin(_MixinBase):
             _on_result,
         )
 
-    def _view_jump_image(self, payload: JumpTarget) -> None:
-        """Display a resolved image target with the terminal artifact viewer."""
+    def _view_jump_media(self, payload: JumpTarget) -> None:
+        """Display a resolved image or video target in the artifact viewer."""
+        media = "video" if is_supported_video_path(payload.source_path) else "image"
         try:
             with suspend_for_external_tool(
                 self.app,
                 action="jump_to_definition",
                 tool_kind="artifact_file_viewer",
                 path_count=1,
-                status_message="Opening image…",
+                status_message=f"Opening {media}…",
             ):
                 result = view_artifact_file(payload.source_path)
             if result.warning is not None:

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from sase.ace.tui.graphics.images import is_supported_image_path
+from sase.ace.tui.graphics.videos import is_supported_video_path
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     file_hint_match_span,
     iter_file_path_matches,
@@ -26,7 +27,7 @@ from sase.macro.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["macro", "file"]
 PreviewDefaultView = Literal["source", "rendered"]
-PreviewMedia = Literal["text", "image"]
+PreviewMedia = Literal["text", "image", "video"]
 
 _MAX_PREVIEW_READ_BYTES = 512_000
 _BINARY_SNIFF_BYTES = 8192
@@ -321,6 +322,16 @@ def _resolve_file_preview(
             content="",
             lexer="text",
             media="image",
+        )
+    if is_supported_video_path(resolved):
+        return PreviewPayload(
+            kind_label="video",
+            icon="@",
+            title=token.raw,
+            source_path=str(resolved),
+            content="",
+            lexer="text",
+            media="video",
         )
 
     content = _read_text_file(resolved, display_path=token.target)
