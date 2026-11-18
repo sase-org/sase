@@ -118,3 +118,29 @@ def emit_batch_notice(
         )
     except Exception:
         pass
+
+
+def summarize_manifest(manifest: Mapping[str, Any]) -> dict[str, int]:
+    try:
+        from sase.core.axe_chop_facade import summarize_chop_batch
+
+        summary = summarize_chop_batch(dict(manifest))
+        counts = summary.get("counts") or {}
+        launched = int(counts.get("launched", 0))
+        pending = int(counts.get("pending", 0))
+        dispatching = int(counts.get("dispatching", 0))
+        return {"launched": launched, "remaining": pending + dispatching}
+    except Exception:
+        members = manifest.get("members")
+        launched = 0
+        remaining = 0
+        if isinstance(members, list):
+            for item in members:
+                if not isinstance(item, Mapping):
+                    continue
+                status = str(item.get("status") or "")
+                if status == "launched":
+                    launched += 1
+                elif status in {"pending", "dispatching"}:
+                    remaining += 1
+        return {"launched": launched, "remaining": remaining}
