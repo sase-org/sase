@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from tests.ace.tui.widgets.test_agent_bead_touches_loader import (
     test_agent_session_loader_attributes_touches_with_role_labels,
-    test_loader_caches_snapshot_across_agents,
+    test_loader_caches_results_per_agent,
     test_loader_caps_at_max_kept_touches,
     test_loader_filters_to_agent_by_local_and_globalized_name,
     test_loader_respects_limit,
@@ -65,7 +65,7 @@ __all__ = [
     "test_cache_merge_keeps_bead_view_when_other_lane_rebuilds",
     "test_canonical_bead_id_stays_exact_after_prefix",
     "test_canonical_bead_id_strips_prefix_and_whitespace",
-    "test_loader_caches_snapshot_across_agents",
+    "test_loader_caches_results_per_agent",
     "test_loader_caps_at_max_kept_touches",
     "test_loader_filters_to_agent_by_local_and_globalized_name",
     "test_loader_respects_limit",

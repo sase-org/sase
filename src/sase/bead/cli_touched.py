@@ -99,27 +99,25 @@ def _load_view_touches(
 ) -> list[Any]:
     """Return the agent's synthesized ``viewed`` rows, or ``[]`` on any miss."""
     try:
-        from sase.bead.bead_views import (
-            read_bead_view_events,
-            view_touches_for_agent,
+        from sase.bead.bead_views import bead_views_log_path
+        from sase.core.bead_touch_index_facade import (
+            TouchQueryMember,
+            query_bead_view_members,
+            resolve_touch_index_project,
         )
-        from sase.core.bead_touch_index_facade import resolve_touch_index_project
 
         project = resolve_touch_index_project(cwd=Path.cwd())
         if not project:
             return []
-        events = read_bead_view_events(project=project)
-    except Exception:  # noqa: BLE001 - views are best-effort enrichment.
-        return []
-    try:
-        return list(
-            view_touches_for_agent(
-                events,
-                globalized_name=globalized_name,
-                local_name=local_name,
-                identity=identity,
-            )
+        views_path = bead_views_log_path(project)
+        rows, _source, complete = query_bead_view_members(
+            views_path,
+            [TouchQueryMember(globalized_name, local_name)],
+            identity,
         )
+        if not complete:
+            return []
+        return [row.touch for row in rows]
     except Exception:  # noqa: BLE001 - views never break the listing.
         return []
 

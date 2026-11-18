@@ -1,14 +1,21 @@
-"""Per-agent bead-touch loader with mtime-keyed caches.
+"""Per-agent bead-touch loader with identity-keyed result caches.
 
-Reads the touch index file only; it never refreshes it. Refresh runs at
-the three off-hot-path sites owned by the host-refresh phase
-(post-mutation, post-sync, lumberjack tick), so a stale index returns
-stale answers here rather than paying for freshness on the panel's
-clock. A missing, truncated, or unparseable index is a cache miss that
-returns no rows, never an error.
+Reads only the rows one agent context claims: the touch index and the
+legacy ``bead_views.jsonl`` log are queried in Rust for the context's
+ordered member selectors, and only matching rows are constructed in
+Python. No whole-project touch or view snapshot is retained; the only
+long-lived owners are the two bounded per-agent/context result caches
+(128 entries each, 50 rows per entry).
 
-The legacy, no-longer-written ``bead_views.jsonl`` log is folded in
-behind the durable index rows as ``viewed``-only synthetic touches.
+Refresh runs at the three off-hot-path sites owned by the host-refresh
+phase (post-mutation, post-sync, lumberjack tick), so a stale index
+returns stale answers here rather than paying for freshness on the
+panel's clock. A missing, truncated, or unparseable source is a cache
+miss that returns no rows, never an error. A failed query is never
+cached under an unchanged token: the next poll retries.
+
+The legacy, no-longer-written ``bead_views.jsonl`` log is folded behind
+the durable index rows as ``viewed``-only synthetic touches.
 
 Bead mutations record ``$SASE_AGENT_NAME`` as the event actor, which holds
 the session container name for pre-rename roots and in-process continuation
@@ -20,6 +27,7 @@ stay unlabeled, and non-root turn rows never take the alias.
 
 from __future__ import annotations
 
+import fcntl
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,67 +38,46 @@ from sase.ace.tui._bead_touches_shared import (
 )
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.util.bounded_lru import BoundedLRUCache
-from sase.bead.bead_views import (
-    BeadViewEvent,
-    bead_views_log_path,
-    read_bead_view_events,
-    views_to_touches,
-)
+from sase.bead.bead_views import bead_views_log_path
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_owned_agent_name,
 )
 from sase.core.bead_touch_index_facade import (
     BeadTouch,
-    BeadTouchQuery,
+    TouchMemberRow,
+    TouchQueryMember,
+    TouchSourceIdentity,
     merge_view_touches,
-    query_touch_index,
-    touch_index_path,
-    touch_matches_agent,
+    query_bead_view_members,
+    query_touch_index_members,
 )
+from sase.core.bead_touch_index_store import touch_index_path
 from sase.main.init_memory.config import project_memory_name
+from sase.memory.locks import locked_file
 
 MAX_KEPT_TOUCHES = 50
 _MIN_REREAD_INTERVAL_S = 0.5
-_MAX_SNAPSHOT_CACHE_PROJECTS = 8
 _MAX_DERIVED_CACHE_ENTRIES = 128
-_IndexStat = tuple[int, int]
+#: ``(dev, ino, mtime_ns, size, missing)``: an atomic replacement with
+#: equal size and mtime still changes ``(dev, ino)`` and revalidates.
+_SourceIdentity = tuple[int, int, int, int, bool]
 
 
 @dataclass
 class _BeadTouchesCacheEntry:
     events: tuple[BeadTouchDisplayEvent, ...]
-    index_mtime_ns: int
-    index_size: int
-    views_mtime_ns: int = 0
-    views_size: int = 0
+    index: _SourceIdentity
+    views: _SourceIdentity
     last_read_monotonic: float = 0.0
 
 
 @dataclass
 class _BeadTouchesContextCacheEntry:
     events: tuple[BeadTouchDisplayEvent, ...]
-    index_mtime_ns: int
-    index_size: int
-    views_mtime_ns: int = 0
-    views_size: int = 0
+    index: _SourceIdentity
+    views: _SourceIdentity
     last_read_monotonic: float = 0.0
-
-
-@dataclass
-class _BeadTouchesSnapshotCacheEntry:
-    touches: tuple[BeadTouch, ...]
-    index_mtime_ns: int
-    index_size: int
-    last_read_monotonic: float
-
-
-@dataclass
-class _BeadViewsSnapshotCacheEntry:
-    events: tuple[BeadViewEvent, ...]
-    views_mtime_ns: int
-    views_size: int
-    last_read_monotonic: float
 
 
 _bead_touches_cache: BoundedLRUCache[tuple[str, str], _BeadTouchesCacheEntry] = (
@@ -99,12 +86,6 @@ _bead_touches_cache: BoundedLRUCache[tuple[str, str], _BeadTouchesCacheEntry] = 
 _bead_touches_context_cache: BoundedLRUCache[
     tuple[str, tuple[str, ...]], _BeadTouchesContextCacheEntry
 ] = BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
-_bead_touches_snapshot_cache: BoundedLRUCache[str, _BeadTouchesSnapshotCacheEntry] = (
-    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
-)
-_bead_views_snapshot_cache: BoundedLRUCache[str, _BeadViewsSnapshotCacheEntry] = (
-    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
-)
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -126,33 +107,36 @@ def _cache_key(project: str, agent: Agent) -> tuple[str, str]:
     return (project, get_cache_key(agent))
 
 
-def _stat_mtime_ns(path: Path) -> int:
+def _source_identity_for_path(path: Path) -> _SourceIdentity:
     try:
-        return path.stat().st_mtime_ns
+        stat = path.stat()
+    except FileNotFoundError:
+        return (0, 0, 0, 0, True)
     except OSError:
-        return 0
-
-
-def _stat_size(path: Path) -> int:
-    try:
-        return path.stat().st_size
-    except OSError:
-        return 0
-
-
-def _index_stat(path: Path) -> _IndexStat:
-    return (_stat_mtime_ns(path), _stat_size(path))
-
-
-def _cache_entry_stat(
-    entry: _BeadTouchesCacheEntry | _BeadTouchesContextCacheEntry,
-) -> tuple[int, int, int, int]:
+        return (0, 0, 0, 0, True)
     return (
-        entry.index_mtime_ns,
-        entry.index_size,
-        entry.views_mtime_ns,
-        entry.views_size,
+        int(stat.st_dev),
+        int(stat.st_ino),
+        int(stat.st_mtime_ns),
+        int(stat.st_size),
+        False,
     )
+
+
+def _identity_from_wire(source: TouchSourceIdentity) -> _SourceIdentity:
+    return (
+        int(source.dev),
+        int(source.ino),
+        int(source.mtime_ns),
+        int(source.size),
+        bool(source.missing),
+    )
+
+
+def _cache_entry_identities(
+    entry: _BeadTouchesCacheEntry | _BeadTouchesContextCacheEntry,
+) -> tuple[_SourceIdentity, _SourceIdentity]:
+    return (entry.index, entry.views)
 
 
 def _touch_sort_key(touch: BeadTouch) -> tuple[float, str]:
@@ -215,126 +199,122 @@ def _session_container_alias(agent: Agent) -> str | None:
     return text
 
 
-def _load_touch_index_snapshot(
-    project: str,
-    *,
+def _ordered_members(
+    agent: Agent, identity: AgentIdentitySnapshot
+) -> tuple[list[tuple[str | None, TouchQueryMember]], list[TouchQueryMember]]:
+    """Return ``([(label, member), ...], [member, ...])`` for one agent.
+
+    Members keep file order with the trailing session-container alias last
+    so it never shadows a member; the alias is unlabeled. For an ordinary
+    row the member list holds exactly the agent itself.
+    """
+    from sase.ace.tui.agent_context_members import build_context_members
+
+    members = build_context_members(agent)
+    labelled: list[tuple[str | None, TouchQueryMember]] = []
+    if len(members) <= 1:
+        globalized_name, local_name = _globalized_name_for_agent(agent, identity)
+        labelled.append((None, TouchQueryMember(globalized_name, local_name)))
+    else:
+        for member in members:
+            globalized_name, local_name = _member_match_params(
+                member.agent_name, identity
+            )
+            labelled.append(
+                (member.label, TouchQueryMember(globalized_name, local_name))
+            )
+    alias = _session_container_alias(agent)
+    if alias is not None:
+        globalized_name, local_name = _member_match_params(alias, identity)
+        labelled.append((None, TouchQueryMember(globalized_name, local_name)))
+    return labelled, [member for _, member in labelled]
+
+
+def _query_index_members(
     index_path: Path,
-    now: float,
-    current_stat: _IndexStat,
-) -> tuple[tuple[BeadTouch, ...], _IndexStat] | None:
-    """Return cached-or-fresh touches, or ``None`` when the query failed.
+    touch_members: list[TouchQueryMember],
+    identity: AgentIdentitySnapshot,
+) -> tuple[list[TouchMemberRow], _SourceIdentity, str] | None:
+    """Return claimed index rows, or ``None`` when the query failed.
 
     A failed query is never cached: the next poll retries instead of
-    sticking an error-shaped empty answer to an unchanged mtime.
+    sticking an error-shaped empty answer to an unchanged token.
     """
-    cached = _bead_touches_snapshot_cache.peek(project)
-    if cached is not None:
-        cached_stat = (cached.index_mtime_ns, cached.index_size)
-        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == cached_stat:
-            _bead_touches_snapshot_cache.touch(project)
-            return cached.touches, cached_stat
-
     try:
-        query: BeadTouchQuery = query_touch_index(index_path)
+        rows, source, generation, _schema_version = query_touch_index_members(
+            index_path, touch_members, identity
+        )
     except Exception:
         return None
-    touches = query.touches
-    entry = _BeadTouchesSnapshotCacheEntry(
-        touches=touches,
-        index_mtime_ns=current_stat[0],
-        index_size=current_stat[1],
-        last_read_monotonic=now,
-    )
-    _bead_touches_snapshot_cache[project] = entry
-    return touches, current_stat
+    return rows, _identity_from_wire(source), generation
 
 
-def _load_view_snapshot(
-    project: str,
-    *,
+def _query_view_members(
     views_path: Path,
-    now: float,
-    current_stat: _IndexStat,
-) -> tuple[tuple[BeadViewEvent, ...], _IndexStat]:
-    """Return cached-or-fresh view events with their file stat.
+    touch_members: list[TouchQueryMember],
+    identity: AgentIdentitySnapshot,
+) -> tuple[list[TouchMemberRow], _SourceIdentity] | None:
+    """Return claimed folded view rows, or ``None`` when the scan failed.
 
-    The views log is append-only and small; a read failure (or an
-    unresolvable path upstream) degrades to no views rather than an error,
-    so a missing log simply contributes no ``viewed`` rows.
+    The views log is append-only and small; an incomplete scan or read
+    failure degrades to no views rather than an error, so a missing log
+    simply contributes no ``viewed`` rows.
     """
-    cached = _bead_views_snapshot_cache.peek(project)
-    if cached is not None:
-        cached_stat = (cached.views_mtime_ns, cached.views_size)
-        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == cached_stat:
-            _bead_views_snapshot_cache.touch(project)
-            return cached.events, cached_stat
-
     try:
-        events = read_bead_view_events(log_path=views_path)
+        with locked_file(views_path.with_suffix(".lock"), fcntl.LOCK_SH):
+            rows, source, complete = query_bead_view_members(
+                views_path, touch_members, identity
+            )
     except Exception:
-        return (), current_stat
-    entry = _BeadViewsSnapshotCacheEntry(
-        events=events,
-        views_mtime_ns=current_stat[0],
-        views_size=current_stat[1],
-        last_read_monotonic=now,
-    )
-    _bead_views_snapshot_cache[project] = entry
-    return events, current_stat
-
-
-def _snapshot_for_agent(
-    agent: Agent,
-) -> (
-    tuple[
-        str, tuple[BeadTouch, ...], tuple[BeadViewEvent, ...], tuple[int, int, int, int]
-    ]
-    | None
-):
-    """Resolve the project, combined stat, touches, and raw view events.
-
-    View events stay unfiltered here: the per-agent loader attributes them
-    to one agent while the session loader attributes them per member, both
-    through the facade's shared matcher.
-    """
-    project = _project_name_for_agent(agent)
-    if project is None:
         return None
+    if not complete:
+        return None
+    return rows, _identity_from_wire(source)
+
+
+def _resolve_source_paths(
+    project: str,
+) -> tuple[Path, Path | None] | None:
+    """Return ``(index_path, views_path)`` for one project, if resolvable."""
     try:
         index_path = touch_index_path(project)
     except Exception:
         return None
-    now = time.monotonic()
-    current_stat = _index_stat(index_path)
-    snapshot = _load_touch_index_snapshot(
-        project,
-        index_path=index_path,
-        now=now,
-        current_stat=current_stat,
-    )
-    if snapshot is None:
-        return None
     try:
-        views_path = bead_views_log_path(project)
+        views_path: Path | None = bead_views_log_path(project)
     except Exception:
-        index_stat = snapshot[1]
-        return project, snapshot[0], (), (*index_stat, 0, 0)
-    views_stat = _index_stat(views_path)
-    view_snapshot = _load_view_snapshot(
-        project,
-        views_path=views_path,
-        now=now,
-        current_stat=views_stat,
-    )
-    index_stat = snapshot[1]
-    return (
-        project,
-        snapshot[0],
-        view_snapshot[0],
-        (*index_stat, *view_snapshot[1]),
-    )
+        views_path = None
+    return index_path, views_path
+
+
+def _load_claimed_rows(
+    index_path: Path,
+    views_path: Path | None,
+    touch_members: list[TouchQueryMember],
+    identity: AgentIdentitySnapshot,
+) -> (
+    tuple[list[TouchMemberRow], list[TouchMemberRow], _SourceIdentity, _SourceIdentity]
+    | None
+):
+    """Query the index and views for one agent's ordered members.
+
+    Returns ``(index_rows, view_rows, index_identity, views_identity)``
+    with member ordinals attached for context attribution. ``None`` only
+    when the index query itself failed; a failed or incomplete views scan
+    degrades to no views under the views file's current identity so the
+    next mutation still revalidates.
+    """
+    claimed = _query_index_members(index_path, touch_members, identity)
+    if claimed is None:
+        return None
+    index_rows, index_identity, _generation = claimed
+    if views_path is None:
+        return index_rows, [], index_identity, (0, 0, 0, 0, True)
+    views_claimed = _query_view_members(views_path, touch_members, identity)
+    if views_claimed is None:
+        return index_rows, [], index_identity, _source_identity_for_path(views_path)
+    view_rows, views_identity = views_claimed
+    return index_rows, view_rows, index_identity, views_identity
 
 
 def _load_bead_touches_for_agent(
@@ -345,7 +325,7 @@ def _load_bead_touches_for_agent(
     A session root entry with no visible followups also matches its
     session-container alias (see :func:`_session_container_alias`), so a
     root renamed to ``--plan`` still credits touches recorded under the
-    container name. Uses an mtime-keyed cache + throttle to make repeated
+    container name. Uses an identity-keyed cache + throttle to make repeated
     calls cheap on the j/k navigation hot path. Never raises: any failure
     is an empty answer.
     """
@@ -358,55 +338,61 @@ def _load_bead_touches_for_agent(
 def _load_bead_touches_for_agent_inner(
     agent: Agent, *, limit: int
 ) -> tuple[BeadTouchDisplayEvent, ...]:
-    resolved = _snapshot_for_agent(agent)
+    from sase.ace.tui.agent_context_members import build_context_members
+
+    project = _project_name_for_agent(agent)
+    if project is None:
+        return ()
+    if len(build_context_members(agent)) > 1:
+        # A session row delegates to the context loader below; this path
+        # only serves ordinary single-member rows (plus, for a session
+        # root with no visible followups, the trailing container alias).
+        return load_bead_touches_for_agent_context(agent, limit=limit)
+    identity = AgentIdentitySnapshot.current()
+    resolved = _resolve_source_paths(project)
     if resolved is None:
         return ()
-    project, all_touches, view_events, _snapshot_stat = resolved
+    index_path, views_path = resolved
+    _labelled, touch_members = _ordered_members(agent, identity)
 
     now = time.monotonic()
     key = _cache_key(project, agent)
     cached = _bead_touches_cache.peek(key)
-    current_stat = _snapshot_stat
-
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == _cache_entry_stat(cached):
+        if recent:
+            _bead_touches_cache.touch(key)
+            return cached.events[:limit]
+        current_identities = (
+            _source_identity_for_path(index_path),
+            _source_identity_for_path(views_path)
+            if views_path is not None
+            else (0, 0, 0, 0, True),
+        )
+        if current_identities == _cache_entry_identities(cached):
             _bead_touches_cache.touch(key)
             return cached.events[:limit]
 
-    identity = AgentIdentitySnapshot.current()
-    pairs = [_globalized_name_for_agent(agent, identity)]
-    alias = _session_container_alias(agent)
-    if alias is not None:
-        pairs.append(_member_match_params(alias, identity))
+    current = _load_claimed_rows(index_path, views_path, touch_members, identity)
+    if current is None:
+        return ()
+    index_rows, view_rows, index_identity, views_identity = current
 
-    def _matches(actor: str) -> bool:
-        return any(
-            touch_matches_agent(
-                actor,
-                globalized_name=globalized_name,
-                local_name=local_name,
-                identity=identity,
-            )
-            for globalized_name, local_name in pairs
-        )
-
-    filtered = [touch for touch in all_touches if _matches(touch.actor)]
-    view_hits = [
-        touch for touch in views_to_touches(view_events) if _matches(touch.actor)
-    ]
     ordered = sorted(
-        merge_view_touches(filtered, view_hits), key=_touch_sort_key, reverse=True
+        merge_view_touches(
+            [row.touch for row in index_rows],
+            [row.touch for row in view_rows],
+        ),
+        key=_touch_sort_key,
+        reverse=True,
     )
     capped = tuple(
         BeadTouchDisplayEvent(touch=touch) for touch in ordered[:MAX_KEPT_TOUCHES]
     )
     _bead_touches_cache[key] = _BeadTouchesCacheEntry(
         events=capped,
-        index_mtime_ns=current_stat[0],
-        index_size=current_stat[1],
-        views_mtime_ns=current_stat[2],
-        views_size=current_stat[3],
+        index=index_identity,
+        views=views_identity,
         last_read_monotonic=now,
     )
     return capped[:limit]
@@ -419,15 +405,13 @@ def load_bead_touches_for_agent_context(
 
     For an ordinary row with no follow-up session members this delegates to
     the per-agent loader and wraps each touch with no label, preserving the
-    single-agent shape. For a session row it reads the index once, attributes
-    each touch to the first member whose identity matches its actor, sorts
-    newest first, caps to ``MAX_KEPT_TOUCHES``, and labels each kept touch
-    with its producer's compact role. Touches recorded under the session
-    container name match a trailing alias matcher (see
+    single-agent shape. For a session row it queries the index once,
+    attributes each claimed row to the first member whose identity matches
+    its actor, sorts newest first, caps to ``MAX_KEPT_TOUCHES``, and labels
+    each kept touch with its producer's compact role. Touches recorded under
+    the session container name match a trailing alias matcher (see
     :func:`_session_container_alias`) and stay unlabeled, because one
-    ``(actor, bead)`` row can merge several turns' events. Touches carry
-    only an actor string (no artifacts dir), so attribution is name-based
-    through the facade's shared matcher. Never raises.
+    ``(actor, bead)`` row can merge several turns' events. Never raises.
     """
     try:
         return _load_bead_touches_for_agent_context_inner(agent, limit=limit)
@@ -447,62 +431,55 @@ def _load_bead_touches_for_agent_context_inner(
     if len(members) <= 1:
         return _load_bead_touches_for_agent(agent, limit=limit)
 
-    resolved = _snapshot_for_agent(agent)
+    project = _project_name_for_agent(agent)
+    if project is None:
+        return ()
+    identity = AgentIdentitySnapshot.current()
+    resolved = _resolve_source_paths(project)
     if resolved is None:
         return ()
-    project, all_touches, view_events, _snapshot_stat = resolved
+    index_path, views_path = resolved
+    labelled, touch_members = _ordered_members(agent, identity)
 
     now = time.monotonic()
     key = (project, context_cache_key(members))
     cached = _bead_touches_context_cache.peek(key)
-    current_stat = _snapshot_stat
-
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == _cache_entry_stat(cached):
+        if recent:
+            _bead_touches_context_cache.touch(key)
+            return cached.events[:limit]
+        current_identities = (
+            _source_identity_for_path(index_path),
+            _source_identity_for_path(views_path)
+            if views_path is not None
+            else (0, 0, 0, 0, True),
+        )
+        if current_identities == _cache_entry_identities(cached):
             _bead_touches_context_cache.touch(key)
             return cached.events[:limit]
 
-    identity = AgentIdentitySnapshot.current()
-    matchers: list[tuple[str | None, str, str | None]] = [
-        (member.label, *_member_match_params(member.agent_name, identity))
-        for member in members
-    ]
-    alias = _session_container_alias(agent)
-    if alias is not None:
-        matchers.append((None, *_member_match_params(alias, identity)))
-    matched: list[BeadTouchDisplayEvent] = []
-    for touch in all_touches:
-        for label, globalized_name, local_name in matchers:
-            if touch_matches_agent(
-                touch.actor,
-                globalized_name=globalized_name,
-                local_name=local_name,
-                identity=identity,
-            ):
-                matched.append(BeadTouchDisplayEvent(touch=touch, agent_label=label))
-                break
+    current = _load_claimed_rows(index_path, views_path, touch_members, identity)
+    if current is None:
+        return ()
+    index_rows, view_rows, index_identity, views_identity = current
 
-    view_rows = views_to_touches(view_events)
-    for touch in view_rows:
-        for label, globalized_name, local_name in matchers:
-            if touch_matches_agent(
-                touch.actor,
-                globalized_name=globalized_name,
-                local_name=local_name,
-                identity=identity,
-            ):
-                matched.append(BeadTouchDisplayEvent(touch=touch, agent_label=label))
-                break
+    labels = [label for label, _ in labelled]
+    matched: list[BeadTouchDisplayEvent] = [
+        BeadTouchDisplayEvent(touch=row.touch, agent_label=labels[row.member_index])
+        for row in index_rows
+    ]
+    matched.extend(
+        BeadTouchDisplayEvent(touch=row.touch, agent_label=labels[row.member_index])
+        for row in view_rows
+    )
 
     matched.sort(key=lambda item: _touch_sort_key(item.touch), reverse=True)
     capped = tuple(matched[:MAX_KEPT_TOUCHES])
     _bead_touches_context_cache[key] = _BeadTouchesContextCacheEntry(
         events=capped,
-        index_mtime_ns=current_stat[0],
-        index_size=current_stat[1],
-        views_mtime_ns=current_stat[2],
-        views_size=current_stat[3],
+        index=index_identity,
+        views=views_identity,
         last_read_monotonic=now,
     )
     return capped[:limit]

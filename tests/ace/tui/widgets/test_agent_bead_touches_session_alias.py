@@ -3,12 +3,14 @@
 Bead mutations record ``$SASE_AGENT_NAME`` as the event actor, which holds
 the session container name for pre-rename roots and in-process continuation
 turns. The loader accepts that container name as an actor alias wherever
-the whole session is in view. Fixture and stub patterns mirror
-``test_agent_bead_touches.py`` without importing its private helpers.
+the whole session is in view. Queries run against real index and views
+files through the Rust member query, so alias precedence and attribution
+are proved end to end.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -25,100 +27,86 @@ from sase.ace.tui._bead_touches_merge import (
 from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     append_agent_bead_touch_rows,
 )
-from sase.bead.bead_views import BEAD_VIEW_LOG_SCHEMA_VERSION, BeadViewEvent
-from sase.core.agent_identity_facade import AgentIdentitySnapshot
-from sase.core.bead_touch_index_facade import (
-    BeadNotePreview,
-    BeadTouch,
-    BeadTouchClose,
-    BeadTouchQuery,
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
-
-
-def _touch(
-    actor: str,
-    bead_id: str,
-    *,
-    verbs: dict[str, int] | None = None,
-    last_at: str = "",
-    note_preview: BeadNotePreview | None = None,
-    close: BeadTouchClose | None = None,
-) -> BeadTouch:
-    return BeadTouch(
-        actor=actor,
-        bead_id=bead_id,
-        verbs=dict(verbs or {}),
-        last_at=last_at,
-        note_preview=note_preview,
-        close=close,
-    )
-
-
-_FAKE_GLOBALIZED = {
-    "alpha": "owner.machine.alpha",
-    "beta": "owner.machine.beta",
-}
-
-
-def _fake_globalize(name: str, identity: object = None) -> str:
-    return _FAKE_GLOBALIZED.get(name, name)
 
 
 class _StubSnapshot:
     @classmethod
     def current(cls) -> AgentIdentitySnapshot:
-        return AgentIdentitySnapshot.unconfigured()
+        return AgentIdentitySnapshot(AgentOwnerIdentity("owner", "machine"))
+
+
+def _write_index(index_path: Path, rows: list[dict[str, object]]) -> None:
+    """Write a schema-4 touch index with one row per mapping."""
+    doc = {
+        "schema_version": 4,
+        "generation": "gen-1",
+        "streams": {"s-1": [1, 100]},
+        "touches": [
+            {
+                "actor": row["actor"],
+                "bead_id": row["bead_id"],
+                "title": row.get("title", f"Title {row['bead_id']}"),
+                "issue_type": "task",
+                "status": "open",
+                "verbs": row.get("verbs", {"updated": 1}),
+                "first_at": row.get("last_at", "2026-09-20T16:00:00Z"),
+                "last_at": row.get("last_at", "2026-09-20T16:00:00Z"),
+                "current_note_count": row.get("current_note_count", 0),
+                **(
+                    {"note_preview": row["note_preview"]}
+                    if "note_preview" in row
+                    else {}
+                ),
+                **({"close": row["close"]} if "close" in row else {}),
+                "creation_reason_truncated": False,
+                "stream_id": "s-1",
+            }
+            for row in rows
+        ],
+    }
+    index_path.write_text(json.dumps(doc), encoding="utf-8")
+
+
+def _write_views(views_path: Path, rows: list[tuple[str, str]]) -> None:
+    with views_path.open("w", encoding="utf-8") as handle:
+        for number, (agent_name, bead_id) in enumerate(rows):
+            json.dump(
+                {
+                    "schema_version": 1,
+                    "id": f"view-{number}",
+                    "timestamp": "2026-09-20T16:00:00Z",
+                    "project": "test-proj",
+                    "cwd": "/tmp/test",
+                    "bead_id": bead_id,
+                    "agent_name": agent_name,
+                },
+                handle,
+            )
+            handle.write("\n")
 
 
 @pytest.fixture
 def _loader_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, object]:
-    """Stub project, index path, identity, and caches for loader tests."""
+    """Stub project, index/views paths, identity, and caches for loader tests."""
     index_path = tmp_path / "agent_bead_touches.json"
-    index_path.write_text("{}\n", encoding="utf-8")
+    views_path = tmp_path / "bead_views.jsonl"
+    _write_index(index_path, [])
     monkeypatch.setattr(
         bead_touches, "_project_name_for_agent", lambda agent: "test-proj"
     )
     monkeypatch.setattr(bead_touches, "touch_index_path", lambda project: index_path)
+    monkeypatch.setattr(bead_touches, "bead_views_log_path", lambda project: views_path)
     monkeypatch.setattr(bead_touches, "AgentIdentitySnapshot", _StubSnapshot)
-    monkeypatch.setattr(bead_touches, "globalize_owned_agent_name", _fake_globalize)
     monkeypatch.setattr(bead_touches, "_bead_touches_cache", BoundedLRUCache(128))
     monkeypatch.setattr(
         bead_touches, "_bead_touches_context_cache", BoundedLRUCache(128)
     )
-    monkeypatch.setattr(
-        bead_touches, "_bead_touches_snapshot_cache", BoundedLRUCache(8)
-    )
-    monkeypatch.setattr(bead_touches, "_bead_views_snapshot_cache", BoundedLRUCache(8))
-    return {"index_path": index_path}
-
-
-def _stub_query(monkeypatch: pytest.MonkeyPatch, touches: list[BeadTouch]) -> None:
-    def _query(index_path: object, actors: object = None) -> BeadTouchQuery:
-        return BeadTouchQuery(schema_version=1, generation="g", touches=tuple(touches))
-
-    monkeypatch.setattr(bead_touches, "query_touch_index", _query)
-
-
-def _stub_views(monkeypatch: pytest.MonkeyPatch, events: list[BeadViewEvent]) -> None:
-    def _read(
-        *, project: object = None, log_path: object = None
-    ) -> tuple[BeadViewEvent, ...]:
-        return tuple(events)
-
-    monkeypatch.setattr(bead_touches, "read_bead_view_events", _read)
-
-
-def _view(agent_name: str, bead_id: str) -> BeadViewEvent:
-    return BeadViewEvent(
-        schema_version=BEAD_VIEW_LOG_SCHEMA_VERSION,
-        id=f"{agent_name}:{bead_id}",
-        timestamp="2026-09-20T16:00:00Z",
-        project="test-proj",
-        cwd="/tmp/test",
-        bead_id=bead_id,
-        agent_name=agent_name,
-    )
+    return {"index_path": index_path, "views_path": views_path}
 
 
 _BASE_TIME = datetime(2024, 1, 1, 14, 0, 0)
@@ -195,27 +183,33 @@ def test_session_container_row_credits_container_actor(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(
-        monkeypatch,
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
         [
-            _touch(
-                "alpha",
-                "sase-1",
-                verbs={"closed": 1, "noted": 1},
-                last_at="2026-09-20T16:00:00Z",
-                close=BeadTouchClose(
-                    closed_at="2026-09-20T16:00:00Z",
-                    resolution="done",
-                    standing=True,
-                ),
-            ),
-            _touch(
-                "alpha--code",
-                "sase-2",
-                verbs={"noted": 1},
-                last_at="2026-09-20T17:00:00Z",
-            ),
-            _touch("stranger", "sase-3", last_at="2026-09-20T18:00:00Z"),
+            {
+                "actor": "alpha",
+                "bead_id": "sase-1",
+                "verbs": {"closed": 1, "noted": 1},
+                "last_at": "2026-09-20T16:00:00Z",
+                "close": {
+                    "closed_at": "2026-09-20T16:00:00Z",
+                    "resolution": "done",
+                    "standing": True,
+                },
+            },
+            {
+                "actor": "alpha--code",
+                "bead_id": "sase-2",
+                "verbs": {"noted": 1},
+                "last_at": "2026-09-20T17:00:00Z",
+            },
+            {
+                "actor": "stranger",
+                "bead_id": "sase-3",
+                "last_at": "2026-09-20T18:00:00Z",
+            },
         ],
     )
     root = _session_root(tmp_path)
@@ -233,9 +227,17 @@ def test_globalized_container_spelling_matches(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(
-        monkeypatch,
-        [_touch("owner.machine.alpha", "sase-1", last_at="2026-09-20T16:00:00Z")],
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
+        [
+            {
+                "actor": "owner.machine.alpha",
+                "bead_id": "sase-1",
+                "last_at": "2026-09-20T16:00:00Z",
+            },
+        ],
     )
     root = _session_root(tmp_path)
 
@@ -250,9 +252,11 @@ def test_members_win_over_alias_for_never_renamed_root(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(
-        monkeypatch,
-        [_touch("alpha", "sase-1", last_at="2026-09-20T16:00:00Z")],
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
+        [{"actor": "alpha", "bead_id": "sase-1", "last_at": "2026-09-20T16:00:00Z"}],
     )
     code = _member(
         tmp_path,
@@ -288,9 +292,11 @@ def test_root_without_followups_matches_alias_on_single_member_path(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(
-        monkeypatch,
-        [_touch("alpha", "sase-1", last_at="2026-09-20T16:00:00Z")],
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
+        [{"actor": "alpha", "bead_id": "sase-1", "last_at": "2026-09-20T16:00:00Z"}],
     )
     root_dir = tmp_path / "root-artifacts"
     root_dir.mkdir(exist_ok=True)
@@ -317,9 +323,11 @@ def test_non_root_member_row_gets_no_alias(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(
-        monkeypatch,
-        [_touch("alpha", "sase-1", last_at="2026-09-20T16:00:00Z")],
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
+        [{"actor": "alpha", "bead_id": "sase-1", "last_at": "2026-09-20T16:00:00Z"}],
     )
     code = _member(
         tmp_path,
@@ -339,8 +347,9 @@ def test_viewed_rows_use_container_alias(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    _stub_query(monkeypatch, [])
-    _stub_views(monkeypatch, [_view("alpha", "sase-9")])
+    views_path = _loader_env["views_path"]
+    assert isinstance(views_path, Path)
+    _write_views(views_path, [("alpha", "sase-9")])
     root = _session_root(tmp_path)
 
     events = load_bead_touches_for_agent_context(root)  # type: ignore[arg-type]
@@ -356,33 +365,36 @@ def test_merge_and_render_fold_container_close(
     _loader_env: dict[str, object],
     tmp_path: Path,
 ) -> None:
-    preview = BeadNotePreview(
-        id="sase-1:1",
-        author="alpha",
-        timestamp="2026-09-20T16:00:00Z",
-        text="bench note",
-    )
-    _stub_query(
-        monkeypatch,
+    index_path = _loader_env["index_path"]
+    assert isinstance(index_path, Path)
+    _write_index(
+        index_path,
         [
-            _touch(
-                "alpha",
-                "sase-1",
-                verbs={"closed": 1, "noted": 1},
-                last_at="2026-09-20T16:00:00Z",
-                note_preview=preview,
-                close=BeadTouchClose(
-                    closed_at="2026-09-20T16:00:00Z",
-                    resolution="done",
-                    standing=True,
-                ),
-            ),
-            _touch(
-                "alpha--code",
-                "sase-2",
-                verbs={"noted": 1},
-                last_at="2026-09-20T17:00:00Z",
-            ),
+            {
+                "actor": "alpha",
+                "bead_id": "sase-1",
+                "verbs": {"closed": 1, "noted": 1},
+                "last_at": "2026-09-20T16:00:00Z",
+                "current_note_count": 1,
+                "note_preview": {
+                    "id": "sase-1:1",
+                    "author": "alpha",
+                    "timestamp": "2026-09-20T16:00:00Z",
+                    "text": "bench note",
+                    "truncated": False,
+                },
+                "close": {
+                    "closed_at": "2026-09-20T16:00:00Z",
+                    "resolution": "done",
+                    "standing": True,
+                },
+            },
+            {
+                "actor": "alpha--code",
+                "bead_id": "sase-2",
+                "verbs": {"noted": 1},
+                "last_at": "2026-09-20T17:00:00Z",
+            },
         ],
     )
     root = _session_root(tmp_path, phase_bead_id="sase-1")

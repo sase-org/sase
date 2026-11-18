@@ -11,7 +11,7 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
 )
-from sase.core.bead_touch_index_query import _touch_from_dict, _touches_for_agent
+from sase.core.bead_touch_index_query import _touch_from_dict
 from sase.core.bead_touch_index_store import _refresh_touch_index
 
 _CREATOR = "claude_coder"
@@ -47,7 +47,12 @@ def test_mutation_refresh_reduces_exactly_the_streams_it_wrote(
         assert report.reused_streams == 0
         assert report.touch_count >= 1
 
-        query = touch_index.query_touch_index(index_path)
+        query = touch_index.query_touches_for_agent(
+            index_path,
+            globalized_name=_CREATOR,
+            local_name=_CREATOR,
+            identity=_IDENTITY,
+        )
         rows = [
             touch
             for touch in query.touches
@@ -77,12 +82,30 @@ def test_query_actor_filter_and_missing_index_are_harmless(
         index_path = tmp_path / "agent_bead_touches.json"
         _refresh_touch_index(project.beads_dir, index_path)
 
-        assert len(touch_index.query_touch_index(index_path, [_CREATOR]).touches) == 1
-        assert touch_index.query_touch_index(index_path, ["nobody"]).touches == ()
+        rows, _source, generation, schema = touch_index.query_touch_index_members(
+            index_path,
+            [touch_index.TouchQueryMember(_CREATOR, _CREATOR)],
+            _IDENTITY,
+        )
+        assert len(rows) == 1
+        assert schema == 4
+        assert generation != ""
 
-        missing = touch_index.query_touch_index(tmp_path / "absent.json")
-        assert missing.touches == ()
-        assert missing.generation == ""
+        nobody, _source, _generation, _schema = touch_index.query_touch_index_members(
+            index_path,
+            [touch_index.TouchQueryMember("nobody", "nobody")],
+            _IDENTITY,
+        )
+        assert nobody == []
+
+        missing, source, generation, _schema = touch_index.query_touch_index_members(
+            tmp_path / "absent.json",
+            [touch_index.TouchQueryMember(_CREATOR, _CREATOR)],
+            _IDENTITY,
+        )
+        assert missing == []
+        assert generation == ""
+        assert source.missing is True
 
         status = touch_index.touch_index_status(
             project.beads_dir, tmp_path / "absent.json"
@@ -254,7 +277,13 @@ def test_touch_matches_agent_identity_rules() -> None:
         touch_index.BeadTouch(actor="someone.else", bead_id="sase-2"),
         touch_index.BeadTouch(actor=_GLOBALIZED, bead_id="sase-3"),
     ]
-    matched = _touches_for_agent(rows, globalized_name=_GLOBALIZED, identity=_IDENTITY)
+    matched = [
+        touch
+        for touch in rows
+        if touch_index.touch_matches_agent(
+            touch.actor, globalized_name=_GLOBALIZED, identity=_IDENTITY
+        )
+    ]
     assert [touch.bead_id for touch in matched] == ["sase-1", "sase-3"]
 
 
@@ -302,6 +331,272 @@ def test_fold_touches_per_bead_carries_read_reasons() -> None:
         ]
     )
     assert folded[0].read_reasons == ("newer reason", "older reason")
+
+
+def _write_member_index(index_path: Path, touches: list[dict[str, object]]) -> None:
+    """Write a raw schema-4 touch index with one row per mapping."""
+    import json
+
+    doc = {
+        "schema_version": 4,
+        "generation": "gen-member",
+        "streams": {"s-1": [7, 700]},
+        "touches": [
+            {
+                "actor": row["actor"],
+                "bead_id": row["bead_id"],
+                "title": row.get("title", ""),
+                "issue_type": "task",
+                "status": "open",
+                "verbs": row.get("verbs", {"updated": 1}),
+                "first_at": row.get("last_at", "2026-06-01T00:00:00Z"),
+                "last_at": row.get("last_at", "2026-06-01T00:00:00Z"),
+                "current_note_count": 0,
+                "creation_reason_truncated": False,
+                "stream_id": "s-1",
+            }
+            for row in touches
+        ],
+    }
+    index_path.write_text(json.dumps(doc), encoding="utf-8")
+
+
+def test_member_query_matches_exact_local_and_legacy_bare_names(
+    tmp_path: Path,
+) -> None:
+    """Exact, local, and recovered bare-local actors match; rest do not."""
+    index_path = tmp_path / "agent_bead_touches.json"
+    _write_member_index(
+        index_path,
+        [
+            {
+                "actor": _GLOBALIZED,
+                "bead_id": "sase-g",
+                "last_at": "2026-06-03T00:00:00Z",
+            },
+            {"actor": "0oa", "bead_id": "sase-b", "last_at": "2026-06-02T00:00:00Z"},
+            {
+                "actor": "  0oa  ",
+                "bead_id": "sase-w",
+                "last_at": "2026-06-01T00:00:00Z",
+            },
+            {
+                "actor": "someone.else",
+                "bead_id": "sase-x",
+                "last_at": "2026-06-04T00:00:00Z",
+            },
+            {
+                "actor": "bryanbugyi34@gmail.com",
+                "bead_id": "sase-e",
+                "last_at": "2026-06-05T00:00:00Z",
+            },
+        ],
+    )
+    rows, _source, _generation, _schema = touch_index.query_touch_index_members(
+        index_path,
+        [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")],
+        _IDENTITY,
+    )
+    # Newest first; the email and unrelated dotted actors never match.
+    assert [(row.touch.bead_id, row.member_index) for row in rows] == [
+        ("sase-g", 0),
+        ("sase-b", 0),
+        ("sase-w", 0),
+    ]
+
+
+def test_member_query_attributes_context_members_in_order(
+    tmp_path: Path,
+) -> None:
+    """First claiming member wins, so context labels stay stable."""
+    index_path = tmp_path / "agent_bead_touches.json"
+    _write_member_index(
+        index_path,
+        [
+            {"actor": "0oa", "bead_id": "sase-1", "last_at": "2026-06-01T00:00:00Z"},
+            {"actor": "other", "bead_id": "sase-2", "last_at": "2026-06-02T00:00:00Z"},
+        ],
+    )
+    rows, _source, _generation, _schema = touch_index.query_touch_index_members(
+        index_path,
+        [
+            touch_index.TouchQueryMember(_GLOBALIZED, "0oa"),
+            touch_index.TouchQueryMember("other-global", "other"),
+        ],
+        _IDENTITY,
+    )
+    assert [(row.touch.bead_id, row.member_index) for row in rows] == [
+        ("sase-2", 1),
+        ("sase-1", 0),
+    ]
+
+
+def test_member_query_rejects_truncated_and_wrong_schema_indexes(
+    tmp_path: Path,
+) -> None:
+    """Corrupt indexes are empty misses, never partial answers."""
+    members = [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")]
+
+    truncated = tmp_path / "truncated.json"
+    truncated.write_bytes(b'{"schema_version":4,"touches":[{')
+    rows, source, generation, _schema = touch_index.query_touch_index_members(
+        truncated, members, _IDENTITY
+    )
+    assert rows == [] and generation == "" and source.missing is False
+
+    wrong_schema = tmp_path / "wrong.json"
+    wrong_schema.write_text(
+        '{"schema_version": 3, "generation": "g", "touches": []}',
+        encoding="utf-8",
+    )
+    rows, _source, generation, _schema = touch_index.query_touch_index_members(
+        wrong_schema, members, _IDENTITY
+    )
+    assert rows == [] and generation == ""
+
+
+def test_member_query_source_identity_tracks_replacement(
+    tmp_path: Path,
+) -> None:
+    """Atomic replacement — even with equal size — changes the identity."""
+    index_path = tmp_path / "agent_bead_touches.json"
+    members = [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")]
+    _write_member_index(index_path, [{"actor": "0oa", "bead_id": "sase-1"}])
+    _rows, first, _generation, _schema = touch_index.query_touch_index_members(
+        index_path, members, _IDENTITY
+    )
+
+    import os
+
+    replacement = tmp_path / "replacement.json"
+    _write_member_index(replacement, [{"actor": "0oa", "bead_id": "sase-1"}])
+    # Atomic replacement hands the path a new inode; force the mtime back
+    # so only the file identity can distinguish the new content.
+    os.replace(replacement, index_path)
+    os.utime(index_path, ns=(first.mtime_ns, first.mtime_ns))
+    _rows, second, _generation, _schema = touch_index.query_touch_index_members(
+        index_path, members, _IDENTITY
+    )
+
+    first_key = (first.dev, first.ino, first.mtime_ns, first.size)
+    second_key = (second.dev, second.ino, second.mtime_ns, second.size)
+    assert first_key != second_key
+
+
+def test_view_member_query_folds_only_claimed_events(tmp_path: Path) -> None:
+    """Only claimed view events fold; malformed rows are skipped."""
+    import json
+
+    views_path = tmp_path / "bead_views.jsonl"
+    lines = [
+        {
+            "schema_version": 1,
+            "id": "v-1",
+            "timestamp": "2026-06-01T00:00:00Z",
+            "project": "p",
+            "cwd": "/",
+            "bead_id": "sase-1",
+            "agent_name": _GLOBALIZED,
+        },
+        {
+            "schema_version": 1,
+            "id": "v-2",
+            "timestamp": "2026-06-03T00:00:00Z",
+            "project": "p",
+            "cwd": "/",
+            "bead_id": "sase-1",
+            "agent_name": _GLOBALIZED,
+        },
+        {
+            "schema_version": 1,
+            "id": "v-3",
+            "timestamp": "not-a-time",
+            "project": "p",
+            "cwd": "/",
+            "bead_id": "sase-1",
+            "agent_name": _GLOBALIZED,
+        },
+        {
+            "schema_version": 1,
+            "id": "v-4",
+            "timestamp": "2026-06-02T00:00:00Z",
+            "project": "p",
+            "cwd": "/",
+            "bead_id": "sase-2",
+            "agent_name": "stranger",
+        },
+        {"schema_version": 999, "id": "v-5"},
+        "not-json",
+    ]
+    with views_path.open("w", encoding="utf-8") as handle:
+        for line in lines:
+            if isinstance(line, str):
+                handle.write(line + "\n")
+            else:
+                json.dump(line, handle)
+                handle.write("\n")
+
+    rows, source, complete = touch_index.query_bead_view_members(
+        views_path,
+        [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")],
+        _IDENTITY,
+    )
+    assert complete is True
+    assert source.missing is False
+    assert len(rows) == 1
+    assert rows[0].member_index == 0
+    assert rows[0].touch.verbs == {"viewed": 3}
+    assert rows[0].touch.first_at == "2026-06-01T00:00:00Z"
+    assert rows[0].touch.last_at == "2026-06-03T00:00:00Z"
+
+
+def test_view_member_query_reports_incomplete_for_unreadable_source(
+    tmp_path: Path,
+) -> None:
+    """A directory as the views path is a miss, never partial rows."""
+    rows, _source, complete = touch_index.query_bead_view_members(
+        tmp_path,
+        [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")],
+        _IDENTITY,
+    )
+    assert rows == [] and complete is False
+
+
+def test_member_query_scales_with_matches_not_source(tmp_path: Path) -> None:
+    """Twenty thousand unrelated touches cost one scan, not one snapshot."""
+    import gc
+
+    index_path = tmp_path / "agent_bead_touches.json"
+    _write_member_index(
+        index_path,
+        [{"actor": f"unrelated-{n}", "bead_id": f"sase-9.{n}"} for n in range(20_000)]
+        + [
+            {"actor": "0oa", "bead_id": "sase-keep.1"},
+            {"actor": _GLOBALIZED, "bead_id": "sase-keep.2"},
+        ],
+    )
+    gc.collect()
+    before = sum(
+        1
+        for obj in gc.get_objects()
+        if type(obj).__module__ == "sase.core.bead_touch_index_models"
+        and type(obj).__qualname__ == "BeadTouch"
+    )
+    rows, _source, _generation, _schema = touch_index.query_touch_index_members(
+        index_path,
+        [touch_index.TouchQueryMember(_GLOBALIZED, "0oa")],
+        _IDENTITY,
+    )
+    assert [row.touch.bead_id for row in rows] == ["sase-keep.1", "sase-keep.2"]
+    gc.collect()
+    after = sum(
+        1
+        for obj in gc.get_objects()
+        if type(obj).__module__ == "sase.core.bead_touch_index_models"
+        and type(obj).__qualname__ == "BeadTouch"
+    )
+    # Only the two claimed rows survive the query as Python objects.
+    assert after - before == 2
 
 
 def test_fold_touches_per_bead_prefers_standing_close() -> None:

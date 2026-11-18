@@ -37,8 +37,6 @@ _SNAPSHOT_CACHE_TABLES = (
     artifact_reads._artifact_reads_snapshot_cache,
     skill_uses._skill_uses_snapshot_cache,
     glossary_reads._glossary_reads_snapshot_cache,
-    _bead_touches_loader._bead_touches_snapshot_cache,
-    _bead_touches_loader._bead_views_snapshot_cache,
 )
 
 

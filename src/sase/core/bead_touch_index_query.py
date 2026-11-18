@@ -10,7 +10,8 @@ through :mod:`sase.core.bead_touch_index_facade`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,29 +25,244 @@ from sase.core.bead_touch_index_models import (
 from sase.core.rust import require_rust_binding
 
 
-def query_touch_index(
-    index_path: Path | str, actors: list[str] | tuple[str, ...] | None = None
-) -> BeadTouchQuery:
-    """Return the indexed touches, optionally restricted to *actors*.
+TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION = 1
 
-    Read-only: loads the index file only, never scans or parses streams. A
-    missing, truncated, unparseable, or wrong-schema index is a cache miss
-    that returns no rows, never an error. ``actors=None`` returns every
-    actor's touches so the facade can apply the legacy bare-local-name match
-    itself.
+
+@dataclass(frozen=True)
+class TouchQueryMember:
+    """One exact agent-identity selector in priority order."""
+
+    globalized_name: str
+    local_name: str | None = None
+
+
+@dataclass(frozen=True)
+class TouchSourceIdentity:
+    """Identity of the source file a targeted touch query actually read."""
+
+    missing: bool
+    size: int
+    mtime_ns: int
+    dev: int
+    ino: int
+
+
+@dataclass(frozen=True)
+class TouchMemberRow:
+    """One claimed touch row plus the ordinal of the claiming member."""
+
+    member_index: int
+    touch: BeadTouch
+
+
+def _require_member_query_schema() -> None:
+    binding = require_rust_binding("bead_touch_member_query_wire_schema_version")
+    version = int(binding())
+    if version != TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs touch member query wire is stale: "
+            f"expected {TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION}, got {version}"
+        )
+
+
+def _member_payload(
+    members: Sequence[TouchQueryMember | Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+    for member in members:
+        if isinstance(member, Mapping):
+            globalized = member.get("globalized_name")
+            local = member.get("local_name")
+        else:
+            globalized = member.globalized_name
+            local = member.local_name
+        payload.append(
+            {
+                "globalized_name": str(globalized or ""),
+                "local_name": None if local is None else str(local),
+            }
+        )
+    return payload
+
+
+def _owner_payload(identity: Any | None) -> dict[str, Any] | None:
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+    snapshot = identity if identity is not None else AgentIdentitySnapshot.current()
+    owner = getattr(snapshot, "owner", None)
+    if owner is None:
+        return None
+    return {
+        "username": str(getattr(owner, "username", "")),
+        "machine_name": str(getattr(owner, "machine_name", "")),
+    }
+
+
+def _roots_payload(identity: Any | None) -> list[str]:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        known_owner_roots,
+    )
+
+    snapshot = identity if identity is not None else AgentIdentitySnapshot.current()
+    try:
+        roots = known_owner_roots(snapshot)
+    except Exception:
+        return []
+    return [str(root) for root in roots]
+
+
+def _request_payload(
+    members: Sequence[TouchQueryMember | Mapping[str, Any]],
+    identity: Any | None,
+) -> dict[str, Any]:
+    return {
+        "members": _member_payload(members),
+        "owner": _owner_payload(identity),
+        "known_owner_roots": _roots_payload(identity),
+    }
+
+
+def _source_identity_from_wire(raw: object, *, what: str) -> TouchSourceIdentity:
+    if not isinstance(raw, Mapping):
+        raise RuntimeError(
+            f"sase_core_rs returned an incompatible {what} source identity: "
+            "expected an object"
+        )
+    missing = raw.get("missing", False)
+    if not isinstance(missing, bool):
+        raise RuntimeError(
+            f"sase_core_rs returned an incompatible {what} source identity: "
+            "missing must be a boolean"
+        )
+    return TouchSourceIdentity(
+        missing=missing,
+        size=_require_identity_int(raw, "size", what),
+        mtime_ns=_require_identity_int(raw, "mtime_ns", what),
+        dev=_require_identity_int(raw, "dev", what),
+        ino=_require_identity_int(raw, "ino", what),
+    )
+
+
+def _require_identity_int(raw: Mapping[str, Any], field: str, what: str) -> int:
+    value = raw.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise RuntimeError(
+            f"sase_core_rs returned an incompatible {what} source identity: "
+            f"{field} must be a non-negative integer"
+        )
+    return value
+
+
+def _member_rows_from_wire(
+    raw: object, *, member_count: int, what: str
+) -> list[TouchMemberRow]:
+    if not isinstance(raw, list):
+        raise RuntimeError(
+            f"sase_core_rs returned an incompatible {what} result: "
+            "expected rows to be a list"
+        )
+    rows: list[TouchMemberRow] = []
+    for position, item in enumerate(raw, start=1):
+        if not isinstance(item, Mapping):
+            raise RuntimeError(
+                f"sase_core_rs returned an incompatible {what} row "
+                f"{position}: expected an object"
+            )
+        member_index = item.get("member_index")
+        if (
+            not isinstance(member_index, int)
+            or isinstance(member_index, bool)
+            or member_index < 0
+            or member_index >= member_count
+        ):
+            raise RuntimeError(
+                f"sase_core_rs returned an incompatible {what} row "
+                f"{position}: member_index out of range"
+            )
+        raw_touch = item.get("touch")
+        if not isinstance(raw_touch, Mapping):
+            raise RuntimeError(
+                f"sase_core_rs returned an incompatible {what} row "
+                f"{position}: touch must be an object"
+            )
+        rows.append(
+            TouchMemberRow(
+                member_index=member_index,
+                touch=_touch_from_dict(raw_touch),
+            )
+        )
+    return rows
+
+
+def query_touch_index_members(
+    index_path: Path | str,
+    members: Sequence[TouchQueryMember | Mapping[str, Any]],
+    identity: Any | None = None,
+) -> tuple[list[TouchMemberRow], TouchSourceIdentity, str, int]:
+    """Return the indexed touches claimed by ordered *members*.
+
+    Only matching rows are constructed: unrelated actors are dropped inside
+    the Rust query, so a large index costs one scan, not a full Python
+    snapshot. A missing, truncated, unparseable, or wrong-schema index is a
+    cache miss that returns no rows with an empty generation, never an
+    error. Returns ``(rows, source, generation, schema_version)``; rows
+    arrive newest touch first, then by bead id and actor, like the
+    unfiltered query.
     """
-    binding = require_rust_binding("bead_touch_index_query")
-    payload: Mapping[str, Any] = binding(
-        str(index_path), None if actors is None else list(actors)
+    _require_member_query_schema()
+    request = _request_payload(members, identity)
+    binding = require_rust_binding("bead_touch_member_query")
+    payload = binding(str(index_path), request)
+    if not isinstance(payload, Mapping):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible touch member query "
+            "result: expected an object"
+        )
+    rows = _member_rows_from_wire(
+        payload.get("rows"), member_count=len(request["members"]), what="touch"
     )
-    touches = payload.get("touches") or ()
-    return BeadTouchQuery(
-        schema_version=int(payload.get("schema_version", 0)),
-        generation=str(payload.get("generation", "")),
-        touches=tuple(
-            _touch_from_dict(row) for row in touches if isinstance(row, dict)
-        ),
+    source = _source_identity_from_wire(payload.get("source"), what="touch")
+    return (
+        rows,
+        source,
+        str(payload.get("generation", "")),
+        int(payload.get("schema_version", 0)),
     )
+
+
+def query_bead_view_members(
+    views_path: Path | str,
+    members: Sequence[TouchQueryMember | Mapping[str, Any]],
+    identity: Any | None = None,
+) -> tuple[list[TouchMemberRow], TouchSourceIdentity, bool]:
+    """Return the folded viewed rows claimed by ordered *members*.
+
+    Streams the legacy views log and folds only claimed events, so unrelated
+    agents' views are released as the log is scanned instead of retained as
+    a whole-project snapshot. Malformed single lines are skipped. Returns
+    ``(rows, source, complete)``; rows arrive in first-seen order and the
+    caller merges them behind durable index rows. ``complete`` is false when
+    an I/O error cut the scan short: discard such an answer and treat the
+    query as a miss, never publish it.
+    """
+    _require_member_query_schema()
+    request = _request_payload(members, identity)
+    binding = require_rust_binding("bead_view_member_query")
+    payload = binding(str(views_path), request)
+    if not isinstance(payload, Mapping):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible bead view member query "
+            "result: expected an object"
+        )
+    rows = _member_rows_from_wire(
+        payload.get("rows"), member_count=len(request["members"]), what="view"
+    )
+    source = _source_identity_from_wire(payload.get("source"), what="view")
+    complete = payload.get("complete", False)
+    if complete is not True:
+        return [], source, False
+    return rows, source, True
 
 
 def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
@@ -208,26 +424,6 @@ def touch_matches_agent(
         return False
 
 
-def _touches_for_agent(
-    touches: Any,
-    *,
-    globalized_name: str,
-    local_name: str | None = None,
-    identity: Any | None = None,
-) -> list[BeadTouch]:
-    """Filter touch rows down to one agent's work, preserving order."""
-    return [
-        touch
-        for touch in touches
-        if touch_matches_agent(
-            touch.actor,
-            globalized_name=globalized_name,
-            local_name=local_name,
-            identity=identity,
-        )
-    ]
-
-
 def merge_view_touches(
     durable_touches: Any,
     view_touches: Any,
@@ -253,28 +449,31 @@ def query_touches_for_agent(
 ) -> BeadTouchQuery:
     """Query the index and return one agent's touches, newest first.
 
-    Loads every actor's touches (``actors=None``) so the legacy
-    bare-local-name match applies, then filters to the agent. A cache miss
+    Only the agent's rows are constructed: the ordered single-member query
+    applies the shared matcher (exact globalized and local spellings plus
+    legacy bare-local-name recovery) inside the Rust core. A cache miss
     returns an empty query, never an error.
     """
-    query = query_touch_index(index_path)
+    rows, _source, generation, schema_version = query_touch_index_members(
+        index_path,
+        [TouchQueryMember(globalized_name, local_name)],
+        identity,
+    )
     return BeadTouchQuery(
-        schema_version=query.schema_version,
-        generation=query.generation,
-        touches=tuple(
-            _touches_for_agent(
-                query.touches,
-                globalized_name=globalized_name,
-                local_name=local_name,
-                identity=identity,
-            )
-        ),
+        schema_version=schema_version,
+        generation=generation,
+        touches=tuple(row.touch for row in rows),
     )
 
 
 __all__ = [
+    "TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION",
+    "TouchMemberRow",
+    "TouchQueryMember",
+    "TouchSourceIdentity",
     "merge_view_touches",
+    "query_bead_view_members",
     "query_touches_for_agent",
-    "query_touch_index",
+    "query_touch_index_members",
     "touch_matches_agent",
 ]

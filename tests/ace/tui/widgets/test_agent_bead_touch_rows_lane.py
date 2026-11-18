@@ -180,7 +180,12 @@ def test_cheap_header_renders_beads_without_index_read(
     monkeypatch.setattr(
         "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context", fail
     )
-    monkeypatch.setattr("sase.ace.tui._bead_touches_loader.query_touch_index", fail)
+    monkeypatch.setattr(
+        "sase.ace.tui._bead_touches_loader.query_touch_index_members", fail
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui._bead_touches_loader.query_bead_view_members", fail
+    )
     header, _ = build_header_text(
         make_agent(agent_name="worker"),
         cheap=True,

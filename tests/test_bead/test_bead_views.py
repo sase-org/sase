@@ -1,9 +1,12 @@
 """Tests for legacy agent bead views (bead sase-14j.6).
 
 ``bead_views.jsonl`` is no longer written — agents are refused at
-``sase bead show`` — but the panel loader still folds legacy rows behind the
-durable index facts as a weaker ``viewed`` signal that is never promoted to
-``read`` and never touches the audited artifact-read log.
+``sase bead show`` — but the panel loader folds legacy rows behind the
+durable index facts as a weaker ``viewed`` signal that is never promoted
+to ``read`` and never touches the audited artifact-read log. The fold
+itself runs in the Rust member query; these tests prove the loader
+surfaces the folded rows, refreshes when the log changes, and keeps the
+established merge/render contract.
 """
 
 from __future__ import annotations
@@ -25,17 +28,12 @@ from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     _styled_bead_verb_chips,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import MEMORY_GLYPH
-from sase.bead.bead_views import (
-    BEAD_VIEW_LOG_SCHEMA_VERSION,
-    BeadViewEvent,
-    read_bead_view_events,
-    view_touches_for_agent,
-    views_to_touches,
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
 )
-from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.bead_touch_index_facade import (
     BeadTouch,
-    BeadTouchQuery,
     merge_view_touches,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -46,7 +44,7 @@ _AGENT = "owner.machine.alpha"
 
 def _view_row(bead_id: str, agent_name: str = _AGENT) -> dict[str, object]:
     return {
-        "schema_version": BEAD_VIEW_LOG_SCHEMA_VERSION,
+        "schema_version": 1,
         "id": "view-1",
         "timestamp": "2026-09-20T16:00:00+00:00",
         "project": _PROJECT,
@@ -64,94 +62,50 @@ def _write_views_log(path: Path, rows: list[dict[str, object]]) -> None:
             handle.write("\n")
 
 
-# --- read -----------------------------------------------------------------
-
-
-def test_read_skips_malformed_rows(tmp_path: Path) -> None:
-    log_path = tmp_path / "bead_views.jsonl"
-    _write_views_log(
-        log_path,
-        [
-            _view_row("sase-1"),
-            {"schema_version": 99, "bead_id": "sase-bad-schema"},
-            {"schema_version": BEAD_VIEW_LOG_SCHEMA_VERSION},
-            _view_row("   "),
-            _view_row("sase-2", agent_name="  "),
+def _write_index(index_path: Path, rows: list[dict[str, object]]) -> None:
+    doc = {
+        "schema_version": 4,
+        "generation": "gen-1",
+        "streams": {"s-1": [1, 100]},
+        "touches": [
+            {
+                "actor": row["actor"],
+                "bead_id": row["bead_id"],
+                "title": f"Title {row['bead_id']}",
+                "issue_type": "task",
+                "status": "open",
+                "verbs": row.get("verbs", {"updated": 1}),
+                "first_at": row.get("last_at", "2026-09-20T16:00:00Z"),
+                "last_at": row.get("last_at", "2026-09-20T16:00:00Z"),
+                "current_note_count": 0,
+                "creation_reason_truncated": False,
+                "stream_id": "s-1",
+            }
+            for row in rows
         ],
-    )
-    with log_path.open("a", encoding="utf-8") as handle:
-        handle.write("not-json\n")
-
-    events = read_bead_view_events(log_path=log_path)
-
-    assert [event.bead_id for event in events] == ["sase-1"]
+    }
+    index_path.write_text(json.dumps(doc), encoding="utf-8")
 
 
-def test_read_missing_file_returns_empty(tmp_path: Path) -> None:
-    assert read_bead_view_events(log_path=tmp_path / "missing.jsonl") == ()
-
-
-def test_read_requires_project_or_path() -> None:
-    with pytest.raises(ValueError, match="project is required"):
-        read_bead_view_events()
-
-
-# --- synthesize -----------------------------------------------------------
-
-
-def _event(
-    bead_id: str, agent_name: str = _AGENT, timestamp: str = "2026-09-20T16:00:00+00:00"
-) -> BeadViewEvent:
-    return BeadViewEvent(
-        schema_version=BEAD_VIEW_LOG_SCHEMA_VERSION,
-        id="view-1",
-        timestamp=timestamp,
-        project=_PROJECT,
-        cwd="/work",
+def _viewed_touch(
+    bead_id: str,
+    *,
+    actor: str = "alpha",
+    count: int = 1,
+    first_at: str = "2026-09-20T16:00:00+00:00",
+    last_at: str = "2026-09-20T16:00:00+00:00",
+) -> BeadTouch:
+    """Build the folded ``viewed`` row the member query returns."""
+    return BeadTouch(
+        actor=actor,
         bead_id=bead_id,
-        agent_name=agent_name,
+        verbs={"viewed": count},
+        first_at=first_at,
+        last_at=last_at,
     )
 
 
-def test_views_to_touches_groups_counts_and_moments() -> None:
-    rows = views_to_touches(
-        [
-            _event("sase-1", timestamp="2026-09-20T16:00:00+00:00"),
-            _event("sase-1", timestamp="2026-09-20T17:00:00+00:00"),
-            _event("sase-2", timestamp="2026-09-20T15:00:00+00:00"),
-            _event("sase-2", agent_name="other", timestamp="2026-09-20T15:30:00+00:00"),
-        ]
-    )
-
-    assert [(row.bead_id, row.actor) for row in rows] == [
-        ("sase-1", _AGENT),
-        ("sase-2", _AGENT),
-        ("sase-2", "other"),
-    ]
-    assert rows[0].verbs == {"viewed": 2}
-    assert rows[0].first_at == "2026-09-20T16:00:00+00:00"
-    assert rows[0].last_at == "2026-09-20T17:00:00+00:00"
-    assert rows[0].title == ""
-
-
-def test_views_to_touches_empty() -> None:
-    assert views_to_touches(()) == ()
-
-
-def test_view_touches_for_agent_matches_like_durable() -> None:
-    events = (
-        _event("sase-1", agent_name=_AGENT),
-        _event("sase-2", agent_name="alpha"),
-        _event("sase-3", agent_name="stranger"),
-        _event("sase-4", agent_name=""),
-    )
-
-    rows = view_touches_for_agent(events, globalized_name=_AGENT, local_name="alpha")
-
-    assert [(row.bead_id, row.actor) for row in rows] == [
-        ("sase-1", _AGENT),
-        ("sase-2", "alpha"),
-    ]
+# --- merge + render -------------------------------------------------------
 
 
 def test_facade_merge_orders_durable_first() -> None:
@@ -162,9 +116,6 @@ def test_facade_merge_orders_durable_first() -> None:
 
     assert [row.bead_id for row in merged] == ["sase-1", "sase-2"]
     assert durable[0].verbs == {"noted": 1}
-
-
-# --- merge + render -------------------------------------------------------
 
 
 def _display(touch: BeadTouch) -> _BeadTouchDisplayEvent:
@@ -180,9 +131,7 @@ def test_merge_folds_viewed_behind_durable_title_and_verbs() -> None:
         first_at="2026-09-20T14:00:00Z",
         last_at="2026-09-20T15:00:00Z",
     )
-    (viewed,) = views_to_touches(
-        [_event("sase-14j.6", timestamp="2026-09-20T16:00:00+00:00")]
-    )
+    viewed = _viewed_touch("sase-14j.6")
 
     (entry,) = merge_bead_touch_entries((_display(durable), _display(viewed)), (), ())
 
@@ -193,11 +142,11 @@ def test_merge_folds_viewed_behind_durable_title_and_verbs() -> None:
 
 
 def test_viewed_only_entry_renders_weakest_and_never_read() -> None:
-    (viewed,) = views_to_touches(
-        [
-            _event("sase-9v", timestamp="2026-09-20T16:00:00+00:00"),
-            _event("sase-9v", timestamp="2026-09-20T16:05:00+00:00"),
-        ]
+    viewed = _viewed_touch(
+        "sase-9v",
+        first_at="2026-09-20T16:00:00+00:00",
+        last_at="2026-09-20T16:05:00+00:00",
+        count=2,
     )
     (entry,) = merge_bead_touch_entries((_display(viewed),), (), ())
 
@@ -232,17 +181,10 @@ def test_viewed_chip_sorts_after_read() -> None:
 # --- loader ---------------------------------------------------------------
 
 
-_FAKE_GLOBALIZED = {"alpha": _AGENT}
-
-
-def _fake_globalize(name: str, identity: object = None) -> str:
-    return _FAKE_GLOBALIZED.get(name, name)
-
-
 class _StubSnapshot:
     @classmethod
     def current(cls) -> AgentIdentitySnapshot:
-        return AgentIdentitySnapshot.unconfigured()
+        return AgentIdentitySnapshot(AgentOwnerIdentity("owner", "machine"))
 
 
 @pytest.fixture
@@ -250,29 +192,42 @@ def _views_loader_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> dict[str, object]:
     index_path = tmp_path / "agent_bead_touches.json"
-    index_path.write_text("{}\n", encoding="utf-8")
+    index_path.write_text(
+        json.dumps(
+            {"schema_version": 4, "generation": "gen-1", "streams": {}, "touches": []}
+        ),
+        encoding="utf-8",
+    )
     views_path = tmp_path / "bead_views.jsonl"
     monkeypatch.setattr(
         bead_touches, "_project_name_for_agent", lambda agent: "test-proj"
     )
     monkeypatch.setattr(bead_touches, "touch_index_path", lambda project: index_path)
     monkeypatch.setattr(bead_touches, "AgentIdentitySnapshot", _StubSnapshot)
-    monkeypatch.setattr(bead_touches, "globalize_owned_agent_name", _fake_globalize)
     monkeypatch.setattr(bead_touches, "_bead_touches_cache", BoundedLRUCache(128))
     monkeypatch.setattr(
         bead_touches, "_bead_touches_context_cache", BoundedLRUCache(128)
     )
-    monkeypatch.setattr(
-        bead_touches, "_bead_touches_snapshot_cache", BoundedLRUCache(8)
-    )
-    monkeypatch.setattr(bead_touches, "_bead_views_snapshot_cache", BoundedLRUCache(8))
     monkeypatch.setattr(bead_touches, "bead_views_log_path", lambda project: views_path)
+    counts = {"index": 0, "views": 0}
+    real_index = bead_touches.query_touch_index_members
+    real_views = bead_touches.query_bead_view_members
 
-    def _query(index_path: object, actors: object = None) -> BeadTouchQuery:
-        return BeadTouchQuery(schema_version=1, generation="g", touches=())
+    def _counted_index(
+        path: object, members: object, identity: object = None
+    ) -> object:
+        counts["index"] += 1
+        return real_index(path, members, identity)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(bead_touches, "query_touch_index", _query)
-    return {"views_path": views_path}
+    def _counted_views(
+        path: object, members: object, identity: object = None
+    ) -> object:
+        counts["views"] += 1
+        return real_views(path, members, identity)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(bead_touches, "query_touch_index_members", _counted_index)
+    monkeypatch.setattr(bead_touches, "query_bead_view_members", _counted_views)
+    return {"index_path": index_path, "views_path": views_path, "counts": counts}
 
 
 def test_loader_surfaces_viewed_only_beads(
@@ -299,6 +254,40 @@ def test_loader_surfaces_viewed_only_beads(
     ]
 
 
+def test_loader_folds_view_counts_and_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    _views_loader_env: dict[str, object],
+) -> None:
+    views_path = _views_loader_env["views_path"]
+    assert isinstance(views_path, Path)
+    _write_views_log(
+        views_path,
+        [
+            dict(
+                _view_row("sase-9v", agent_name=_AGENT),
+                timestamp="2026-09-20T16:00:00+00:00",
+            ),
+            dict(
+                _view_row("sase-9v", agent_name=_AGENT),
+                timestamp="2026-09-20T17:00:00+00:00",
+            ),
+            dict(_view_row("sase-9v", agent_name=_AGENT), timestamp="not-a-time"),
+            dict(_view_row("sase-9w", agent_name="stranger")),
+        ],
+    )
+
+    events = load_bead_touches_for_agent_context(
+        make_agent(agent_name="alpha", cl_name="alpha_cl")
+    )
+
+    assert [(event.touch.bead_id, event.touch.verbs) for event in events] == [
+        ("sase-9v", {"viewed": 3})
+    ]
+    assert events[0].touch.first_at == "2026-09-20T16:00:00+00:00"
+    assert events[0].touch.last_at == "2026-09-20T17:00:00+00:00"
+
+
 def test_loader_refreshes_when_views_log_changes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -311,12 +300,8 @@ def test_loader_refreshes_when_views_log_changes(
     assert load_bead_touches_for_agent_context(agent) == ()
 
     _write_views_log(views_path, [_view_row("sase-9v", agent_name=_AGENT)])
-    for cache in (
-        bead_touches._bead_touches_cache,
-        bead_touches._bead_views_snapshot_cache,
-    ):
-        for entry in cache.values():
-            entry.last_read_monotonic -= 10.0
+    for entry in bead_touches._bead_touches_cache.values():
+        entry.last_read_monotonic -= 10.0
 
     events = load_bead_touches_for_agent_context(agent)
     assert [event.touch.bead_id for event in events] == ["sase-9v"]

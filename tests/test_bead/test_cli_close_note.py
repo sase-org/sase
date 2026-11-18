@@ -221,15 +221,22 @@ def test_close_without_note_credits_acting_agent_not_creator(
     with BeadProject(project_dir) as project:
         index_path = project_dir / "agent_bead_touches.json"
         _refresh_touch_index(project.beads_dir, index_path)
-    query = touch_index.query_touch_index(index_path)
+    rows, _source, _generation, _schema = touch_index.query_touch_index_members(
+        index_path,
+        [
+            touch_index.TouchQueryMember("agent-b", "agent-b"),
+            touch_index.TouchQueryMember("agent-a", "agent-a"),
+        ],
+    )
+    touches = [row.touch for row in rows]
     closer_rows = [
         touch
-        for touch in query.touches
+        for touch in touches
         if touch.bead_id == issue.id and touch.actor == "agent-b"
     ]
     creator_rows = [
         touch
-        for touch in query.touches
+        for touch in touches
         if touch.bead_id == issue.id and touch.actor == "agent-a"
     ]
     assert len(closer_rows) == 1

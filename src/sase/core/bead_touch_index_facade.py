@@ -3,8 +3,11 @@
 The reduction itself lives in ``sase-core`` (``bead/touch_index.rs``): it
 reduces per-bead event streams into actor-keyed touch rows, keeps a
 signature-cached index at ``~/.sase/projects/<key>/agent_bead_touches.json``,
-and answers read-only queries from that file. The implementation lives in
-the sibling modules below; this facade only re-exports the public names so
+and answers read-only queries from that file. Targeted member queries live
+in ``bead/touch_member_query.rs``: they push the agent-identity matching
+into core and return only the rows the caller's ordered members claim, so
+no whole-project snapshot is retained. The implementation lives in the
+sibling modules below; this facade only re-exports the public names so
 the original import path keeps working:
 
 - :mod:`sase.core.bead_touch_index_models` — wire-stable records.
@@ -32,9 +35,14 @@ from sase.core.bead_touch_index_models import (
     FoldedBeadTouch,
 )
 from sase.core.bead_touch_index_query import (
+    TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION,
+    TouchMemberRow,
+    TouchQueryMember,
+    TouchSourceIdentity,
     merge_view_touches,
+    query_bead_view_members,
     query_touches_for_agent,
-    query_touch_index,
+    query_touch_index_members,
     touch_matches_agent,
 )
 from sase.core.bead_touch_index_store import (
@@ -46,6 +54,7 @@ from sase.core.bead_touch_index_store import (
 
 __all__ = [
     "TOUCH_INDEX_FILENAME",
+    "TOUCH_MEMBER_QUERY_WIRE_SCHEMA_VERSION",
     "BeadNotePreview",
     "BeadTouch",
     "BeadTouchClose",
@@ -53,13 +62,17 @@ __all__ = [
     "BeadTouchQuery",
     "BeadTouchRefresh",
     "FoldedBeadTouch",
+    "TouchMemberRow",
+    "TouchQueryMember",
+    "TouchSourceIdentity",
     "canonical_bead_touch_id",
     "fold_read_reasons",
     "fold_touches_per_bead",
     "merge_view_touches",
     "prefer_bead_touch_close",
+    "query_bead_view_members",
     "query_touches_for_agent",
-    "query_touch_index",
+    "query_touch_index_members",
     "refresh_touch_index_best_effort",
     "resolve_touch_index_project",
     "touch_index_path",

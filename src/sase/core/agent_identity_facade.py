@@ -247,7 +247,7 @@ def _source_owner_roots(
     return (canonical,)
 
 
-def _known_owner_roots(
+def known_owner_roots(
     snapshot: AgentIdentitySnapshot,
 ) -> tuple[str, ...]:
     if snapshot.owner is None:
@@ -283,9 +283,7 @@ def validate_new_agent_name(
         binding(name)
         return
     binding = require_rust_binding("validate_owned_agent_name")
-    binding(
-        name, owner.username, owner.machine_name, list(_known_owner_roots(snapshot))
-    )
+    binding(name, owner.username, owner.machine_name, list(known_owner_roots(snapshot)))
 
 
 def validate_agent_owner(owner: AgentOwnerIdentity) -> None:
@@ -331,7 +329,7 @@ def normalize_owned_agent_name(
             name,
             owner.username,
             owner.machine_name,
-            list(_known_owner_roots(snapshot)),
+            list(known_owner_roots(snapshot)),
         )
     )
 
@@ -351,7 +349,7 @@ def globalize_owned_agent_name(
             name,
             owner.username,
             owner.machine_name,
-            list(_known_owner_roots(snapshot)),
+            list(known_owner_roots(snapshot)),
         )
     )
 
@@ -466,7 +464,7 @@ def foreign_agent_owner_root(
         name,
         owner.username,
         owner.machine_name,
-        list(_known_owner_roots(snapshot)),
+        list(known_owner_roots(snapshot)),
     )
     return str(value) if value is not None else None
 
@@ -476,7 +474,7 @@ def _parse_owned_agent_name(
     identity: AgentIdentitySnapshot | None = None,
 ) -> _ParsedOwnedAgentName:
     snapshot = identity or AgentIdentitySnapshot.current()
-    roots = _known_owner_roots(snapshot)
+    roots = known_owner_roots(snapshot)
     binding = require_rust_binding("parse_owned_agent_name")
     payload: Mapping[str, Any] = binding(name, list(roots))
     # Core serializes ``agent_session_name`` and still reads the legacy
@@ -542,7 +540,7 @@ def agent_local_hood(
     snapshot = identity or AgentIdentitySnapshot.current()
     if snapshot.owner is not None:
         binding = require_rust_binding("agent_local_hood")
-        return str(binding(name, list(_known_owner_roots(snapshot))))
+        return str(binding(name, list(known_owner_roots(snapshot))))
     binding = require_rust_binding("agent_local_hood")
     return str(binding(name))
 
@@ -555,7 +553,7 @@ def agent_name_in_hood(
     snapshot = identity or AgentIdentitySnapshot.current()
     if snapshot.owner is not None:
         binding = require_rust_binding("agent_name_in_hood")
-        return bool(binding(name, hood, list(_known_owner_roots(snapshot))))
+        return bool(binding(name, hood, list(known_owner_roots(snapshot))))
     binding = require_rust_binding("agent_name_in_hood")
     return bool(binding(name, hood))
 
@@ -568,7 +566,7 @@ def agent_name_ancestors(
     if snapshot.owner is not None:
         binding = require_rust_binding("agent_name_ancestors")
         return tuple(
-            str(value) for value in binding(name, list(_known_owner_roots(snapshot)))
+            str(value) for value in binding(name, list(known_owner_roots(snapshot)))
         )
     binding = require_rust_binding("agent_name_ancestors")
     return tuple(str(value) for value in binding(name))
@@ -586,7 +584,7 @@ def agent_link_target(
             name,
             owner.username,
             owner.machine_name,
-            list(_known_owner_roots(snapshot)),
+            list(known_owner_roots(snapshot)),
         )
         return _AgentLinkTarget(
             kind=_AgentLinkTargetKind(str(rooted_payload["kind"])),
@@ -659,6 +657,7 @@ __all__ = [
     "globalize_owned_agent_name",
     "imported_owner_badge_label",
     "imported_source_owner_from_mapping",
+    "known_owner_roots",
     "normalize_owned_agent_name",
     "normalize_agent_archive_name",
     "parse_agent_session_name",
