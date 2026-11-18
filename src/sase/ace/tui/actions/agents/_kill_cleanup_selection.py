@@ -190,6 +190,12 @@ class AgentCleanupSelectionMixin:
         seen_selected: set[tuple[AgentType, str, str | None]] = set()
         from ._clan_cleanup import clan_members_for_container
 
+        selected_containers = [
+            agent
+            for agent in self._agents_with_children
+            if agent.identity in selected and agent.is_clan_container
+        ]
+
         for agent in self._agents_with_children:
             if agent.identity not in selected:
                 continue
@@ -217,4 +223,8 @@ class AgentCleanupSelectionMixin:
             identities=selected_wire,
             include_pidless_as_dismissable=True,
         )
-        self._present_planned_cleanup(request, header=_custom_cleanup_header(self))  # type: ignore[attr-defined]
+        self._present_planned_cleanup(  # type: ignore[attr-defined]
+            request,
+            header=_custom_cleanup_header(self),
+            clan_containers=selected_containers,
+        )

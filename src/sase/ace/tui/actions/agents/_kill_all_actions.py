@@ -40,6 +40,7 @@ class AgentKillAllActionsMixin:
         from ._core import DISMISSABLE_STATUSES
         from ._remote_lifecycle import is_remote_fleet_agent
 
+        original_selection = list(agents)
         agents = expand_clan_containers_for_cleanup(
             agents,
             self._agents_with_children,  # type: ignore[attr-defined]
@@ -101,6 +102,9 @@ class AgentKillAllActionsMixin:
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 return
+            from ._clan_cleanup import cancel_pending_batches_for_clan_selection
+
+            cancel_pending_batches_for_clan_selection(original_selection)
             if killable or dismissable:
                 self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
             if named_procs:

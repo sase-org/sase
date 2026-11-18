@@ -214,6 +214,7 @@ class AgentCleanupPanelMixin:
         *,
         header: str,
         targets: list[Agent] | None = None,
+        clan_containers: list[Agent] | None = None,
     ) -> None:
         """Preview and confirm a planner-backed cleanup request."""
         from sase.core.agent_cleanup_facade import (
@@ -245,9 +246,26 @@ class AgentCleanupPanelMixin:
         if not killable and not dismissable:
             self.notify("No selected agents can be cleaned up", severity="warning")  # type: ignore[attr-defined]
             return
+        containers = list(clan_containers or [])
+
+        def _on_confirm(
+            killable_arg: list[Agent],
+            dismissable_arg: list[Agent],
+            proc_arg: list[Agent],
+            gates_arg: list[Agent],
+        ) -> None:
+            from ._clan_cleanup import cancel_pending_batches_for_clan_selection
+
+            if containers:
+                cancel_pending_batches_for_clan_selection(containers)
+            self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                killable_arg, dismissable_arg, proc_arg, gates_arg
+            )
+
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
             [*killable, *dismissable],
             header=header,
+            on_confirm=_on_confirm if containers else None,
         )
 
     def _notify_no_focused_cleanup_action(

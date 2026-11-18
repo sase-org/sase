@@ -152,6 +152,8 @@ def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
 
     Entries with status ``running`` are always kept regardless of position;
     pruning never deletes a run whose process is still being tracked.
+    Runs that still own pending batch dispatch are also retained so a
+    resumable batch is never pruned before recovery completes.
     """
     index_path = chop_index_path(lumberjack_name, chop_name)
     raw = _state.read_json(index_path)
@@ -168,7 +170,16 @@ def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
             continue
         if entry.status in ACTIVE_CHOP_RUN_STATUSES:
             kept.append(rid)
-        elif terminal_kept < MAX_CHOP_RUN_HISTORY:
+            continue
+        try:
+            from .chop_batch_recovery import pending_batch_for_run
+
+            if pending_batch_for_run(lumberjack_name, chop_name, rid) is not None:
+                kept.append(rid)
+                continue
+        except Exception:
+            pass
+        if terminal_kept < MAX_CHOP_RUN_HISTORY:
             kept.append(rid)
             terminal_kept += 1
         else:

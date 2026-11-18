@@ -43,10 +43,25 @@ class InflightChopLaunch:
             head = f"Scheduler is launching {self.chop_name} ({self.clan})"
         else:
             head = f"Scheduler is launching {self.chop_name}"
+        try:
+            from sase.axe.chop_batch_recovery import pending_batch_for_run
+
+            journaled = (
+                pending_batch_for_run(self.lumberjack_name, self.chop_name, self.run_id)
+                is not None
+            )
+        except Exception:
+            journaled = False
+        if journaled:
+            return (
+                f"{head}: {self.launched_count}/{self.proposed_count} agents "
+                f"launched \u2014 stopping it pauses the batch; the remaining "
+                f"{self.remaining_count} resume automatically"
+            )
         return (
             f"{head}: {self.launched_count}/{self.proposed_count} agents "
             f"launched \u2014 stopping it drops the remaining "
-            f"{self.remaining_count}"
+            f"{self.remaining_count} (unjournaled run)"
         )
 
 

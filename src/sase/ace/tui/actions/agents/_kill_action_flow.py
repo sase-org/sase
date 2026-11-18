@@ -116,9 +116,25 @@ class AgentKillActionFlowMixin:
             if not members:
                 self.notify("No agents remain in clan", severity="warning")  # type: ignore[attr-defined]
                 return
+            container = agent
+
+            def _on_confirm(
+                killable_arg: list[Agent],
+                dismissable_arg: list[Agent],
+                proc_arg: list[Agent],
+                gates_arg: list[Agent],
+            ) -> None:
+                from ._clan_cleanup import cancel_pending_batches_for_clan_selection
+
+                cancel_pending_batches_for_clan_selection([container])
+                self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                    killable_arg, dismissable_arg, proc_arg, gates_arg
+                )
+
             self._present_bulk_kill_modal(  # type: ignore[attr-defined]
                 members,
                 header=f"Clan: {agent.agent_clan}",
+                on_confirm=_on_confirm,
             )
             return
 

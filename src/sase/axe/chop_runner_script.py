@@ -86,8 +86,17 @@ def run_script_chop_once(
     is_process_running_fn: Callable[[int], bool] = is_process_running,
     launch_agent_from_cwd_fn: Callable[..., Any] | None = None,
     launch_agents_from_cwd_fn: Callable[..., Any] | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     resolved_timeout = chop.timeout or chop_timeout_default
+    _recover_batches_before_guards(
+        lumberjack_name,
+        chop.name,
+        launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+        launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+        pause_requested_fn=pause_requested_fn,
+        dry_run=dry_run,
+    )
     finalize_launched_chop_runs(lumberjack_name, [chop.name])
     live = active_script_chop_run(
         lumberjack_name,
@@ -476,7 +485,40 @@ def run_script_chop_once(
         wait_runners_default=wait_runners_default,
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+        pause_requested_fn=pause_requested_fn,
     )
+
+
+def _recover_batches_before_guards(
+    lumberjack_name: str,
+    chop_name: str,
+    *,
+    launch_agent_from_cwd_fn: Callable[..., Any] | None,
+    launch_agents_from_cwd_fn: Callable[..., Any] | None,
+    pause_requested_fn: Callable[[], bool] | None,
+    dry_run: bool,
+) -> None:
+    """Reconcile pending batches before lifecycle cleanup or new work.
+
+    Manual encounters reuse the same entry point as routine ticks so an
+    unfinished batch resumes under its original run ID instead of being
+    inhibited by its own partial clan.
+    """
+    try:
+        from .chop_batch_recovery import recover_pending_chop_batches
+    except Exception:
+        return
+    try:
+        recover_pending_chop_batches(
+            lumberjack_name,
+            chop_name,
+            launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+            launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+            pause_requested_fn=pause_requested_fn,
+            dry_run=dry_run,
+        )
+    except Exception:
+        pass
 
 
 _active_script_chop_run = active_script_chop_run

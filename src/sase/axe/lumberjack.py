@@ -31,6 +31,7 @@ from .chop_runner import (
     ChopRunOutcome,
     run_configured_chop_once,
 )
+from .chop_stop_signal import ChopStopSignal
 from .chop_script_context import (
     ChopScriptContext,
     serialize_patches,
@@ -111,6 +112,7 @@ class Lumberjack:
         self._state_dir = ensure_lumberjack_dirs(name)
         self._start_time = datetime.now(get_timezone())
         self._running = True
+        self._stop_signal = ChopStopSignal()
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(axe_config.query or None, self._log)
@@ -151,6 +153,7 @@ class Lumberjack:
         except Exception:  # noqa: BLE001 - log keeps stale labels; next tick retries.
             pass
         _tick_start = time.monotonic()
+        self._recover_pending_batches()
         finalized_actions = finalize_launched_chop_runs(
             self.name,
             self.config.chop_names,
@@ -231,12 +234,17 @@ class Lumberjack:
             eligible_chops.append(chop)
 
         # Script chops within one lumberjack tick run concurrently.
+        # A shutdown request prevents any new worker from starting; the
+        # current dispatch is allowed to acknowledge at its next boundary.
         results: list[_ChopResult] = []
         with ThreadPoolExecutor() as executor:
-            futures = {
-                executor.submit(self._run_single_chop, chop, context_file): chop
-                for chop in eligible_chops
-            }
+            futures = {}
+            for chop in eligible_chops:
+                if self._stop_signal.stop_requested() or not self._running:
+                    break
+                futures[executor.submit(self._run_single_chop, chop, context_file)] = (
+                    chop
+                )
             for future in as_completed(futures):
                 results.append(future.result())
 
@@ -295,6 +303,29 @@ class Lumberjack:
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
+    def _recover_pending_batches(self) -> None:
+        """Reconcile pending launch batches before lifecycle cleanup or new work."""
+        try:
+            from sase.agent.launcher import (
+                launch_agent_from_cwd,
+                launch_agents_from_cwd,
+            )
+
+            from .chop_batch_recovery import recover_pending_chop_batches
+        except Exception:
+            return
+        try:
+            recover_pending_chop_batches(
+                self.name,
+                self.config.chop_names[0] if self.config.chop_names else "",
+                launch_agents_from_cwd_fn=launch_agents_from_cwd,
+                launch_agent_from_cwd_fn=launch_agent_from_cwd,
+                pause_requested_fn=self._stop_signal.as_pause_fn(),
+                jobs=list(self.config.chop_names),
+            )
+        except Exception:
+            pass
+
     def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
         """Execute a single chop via the shared chop-runner service.
 
@@ -303,6 +334,15 @@ class Lumberjack:
         into the tick-level :class:`_ChopResult` (log lines for the aggregate
         log, run_every timestamp updates, agent PID tracking).
         """
+        if self._stop_signal.stop_requested() or not self._running:
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=False,
+                success=True,
+                update_timestamp=False,
+                log_lines=[],
+                skip_reason="shutdown",
+            )
         outcome = run_configured_chop_once(
             lumberjack_name=self.name,
             chop=chop,
@@ -311,6 +351,7 @@ class Lumberjack:
             wait_runners_default=self.config.wait_runners,
             context_file=context_file,
             source="scheduled",
+            pause_requested_fn=self._stop_signal.as_pause_fn(),
         )
         return self._outcome_to_result(chop, outcome)
 
@@ -501,8 +542,14 @@ class Lumberjack:
         write_lumberjack_metrics(self.name, self._metrics)
 
     def _handle_shutdown(self, _signum: int, _frame: object) -> None:
+        # Signal handlers set state only; workers perform journaling and
+        # notification work at safe boundaries.
         self._log("Received shutdown signal, stopping...")
         self._running = False
+        try:
+            self._stop_signal.request_stop()
+        except Exception:
+            pass
 
     def run(self) -> bool:
         """Run the lumberjack main loop.

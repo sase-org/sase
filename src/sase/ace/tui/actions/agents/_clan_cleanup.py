@@ -81,4 +81,45 @@ def expand_clan_containers_for_cleanup(
     return expanded
 
 
-__all__ = ["clan_members_for_container", "expand_clan_containers_for_cleanup"]
+def cancel_pending_batches_for_clan_selection(agents: list[Agent]) -> int:
+    """Persist explicit clan-generation cancellation for selected containers.
+
+    Must be called with the explicit container selection before
+    :func:`expand_clan_containers_for_cleanup` loses the container
+    identity. Individual member rows never trigger cancellation; only a
+    synthetic clan container does. Returns the number of batches cancelled.
+    """
+    try:
+        from sase.axe.chop_batch_recovery import cancel_chop_batches_for_clan
+    except Exception:
+        return 0
+    cancelled = 0
+    for agent in agents:
+        try:
+            is_container = bool(getattr(agent, "is_clan_container", False))
+        except Exception:
+            continue
+        if not is_container:
+            continue
+        clan = str(getattr(agent, "agent_clan", "") or "")
+        if not clan:
+            continue
+        generation = getattr(agent, "agent_clan_generation", None)
+        try:
+            cancelled += len(
+                cancel_chop_batches_for_clan(
+                    clan,
+                    generation=str(generation) if generation is not None else None,
+                    reason=f"explicit TUI clan kill of {clan}",
+                )
+            )
+        except Exception:
+            continue
+    return cancelled
+
+
+__all__ = [
+    "cancel_pending_batches_for_clan_selection",
+    "clan_members_for_container",
+    "expand_clan_containers_for_cleanup",
+]

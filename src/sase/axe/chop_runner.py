@@ -99,6 +99,7 @@ def _run_script_chop_once(
     chop_verbose: bool,
     force: bool,
     code_swap_writer_holder_fn: Callable[[], str | None] | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     return run_script_chop_once(
         lumberjack_name=lumberjack_name,
@@ -119,6 +120,7 @@ def _run_script_chop_once(
         is_process_running_fn=is_process_running,
         launch_agent_from_cwd_fn=launch_agent_from_cwd,
         launch_agents_from_cwd_fn=launch_agents_from_cwd,
+        pause_requested_fn=pause_requested_fn,
     )
 
 
@@ -136,6 +138,7 @@ def run_configured_chop_once(
     chop_verbose: bool = False,
     force: bool = False,
     code_swap_writer_holder_fn: Callable[[], str | None] | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     """Execute one configured chop once, sharing logic across all callers.
 
@@ -165,6 +168,7 @@ def run_configured_chop_once(
         chop_verbose=chop_verbose,
         force=force,
         code_swap_writer_holder_fn=code_swap_writer_holder_fn,
+        pause_requested_fn=pause_requested_fn,
     )
 
 

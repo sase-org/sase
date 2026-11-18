@@ -295,6 +295,10 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         from ._clan_cleanup import clan_members_for_container
         from ._core import DISMISSABLE_STATUSES
 
+        # Capture the explicit container selection before expansion; the
+        # confirmed kill persists cancellation before any signal work.
+        original_selection = list(agents)
+
         off_tab_marked = 0
         if marked_total is not None:
             from ._agent_tabs import marked_off_tab_count_for_owner
@@ -419,7 +423,18 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal
 
-        confirm = on_confirm or self._do_bulk_kill_agents  # type: ignore[attr-defined]
+        base_confirm = on_confirm or self._do_bulk_kill_agents  # type: ignore[attr-defined]
+
+        def confirm(
+            killable_arg: list[Agent],
+            dismissable_arg: list[Agent],
+            proc_arg: list[Agent],
+            gates_arg: list[Agent],
+        ) -> None:
+            from ._clan_cleanup import cancel_pending_batches_for_clan_selection
+
+            cancel_pending_batches_for_clan_selection(original_selection)
+            base_confirm(killable_arg, dismissable_arg, proc_arg, gates_arg)
 
         if (
             not killable

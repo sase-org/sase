@@ -48,6 +48,18 @@ def finalize_launched_chop_runs(
             entry = read_chop_run(lumberjack_name, chop_name, run_id)
             if entry is None or entry.status != "launched":
                 continue
+            # A paused batch whose launched members are terminal remains
+            # resumable; finalizers must not pronounce it complete while
+            # recovery still owns the remaining dispatch. Failure batches
+            # keep the existing finalize-and-merge behavior.
+            try:
+                from .chop_batch_recovery import pending_batch_for_run
+
+                pending = pending_batch_for_run(lumberjack_name, chop_name, run_id)
+                if pending is not None and str(pending.get("status") or "") == "paused":
+                    continue
+            except Exception:
+                pass
 
             records = get_chop_agent_records(
                 lumberjack_name,
