@@ -257,6 +257,45 @@ def test_warmup_candidates_include_stale_wait_bead_statuses() -> None:
     )
 
 
+def test_warmup_candidates_bound_historical_waiters_and_stranded_projects() -> None:
+    app = _FakeApp()
+    app._agents = []
+    app._agents_with_children = [
+        _agent(
+            agent_name=f"waiter-{index}",
+            cl_name=f"waiter-{index}",
+            raw_suffix=f"waiter-{index}",
+            status="WAITING",
+            project_file=f"/tmp/project-{index}/proj.sase",
+            waiting_for_beads=[f"sase-{index}"],
+        )
+        for index in range(80)
+    ]
+    app._surfaced_bead_warmup_agents = lambda: []  # type: ignore[method-assign]
+
+    first = app._bead_warmup_candidates()
+    second = app._bead_warmup_candidates()
+
+    assert len(first.wait_bead_status_agents) == 32
+    assert len(second.wait_bead_status_agents) == 32
+    assert (
+        len(
+            {
+                agent.identity
+                for agent in (
+                    *first.wait_bead_status_agents,
+                    *second.wait_bead_status_agents,
+                )
+            }
+        )
+        == 64
+    )
+    assert len(first.stranded_projects) <= 4
+    assert len(second.stranded_projects) <= 4
+    assert first.stranded_scan_more is True
+    assert second.stranded_scan_more is True
+
+
 # --- compute (off-thread body) -----------------------------------------------
 
 
@@ -538,7 +577,7 @@ async def test_run_defers_behind_navigation_gate() -> None:
     await app._run_bead_confirmation_warmup()
 
     assert len(app._timer_calls) == 1
-    assert app._timer_calls[0][1] == app._spawn_bead_confirmation_warmup_task
+    assert callable(app._timer_calls[0][1])
     assert app._patched == []
     assert app._bead_warmup_scan_scheduled is False
 
@@ -602,6 +641,63 @@ async def test_run_suppresses_pending_when_caches_are_fresh(
 
 
 @pytest.mark.asyncio
+async def test_run_retries_pending_request_after_roster_generation_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _FakeApp()
+    agent = _agent()
+    app._agents = [agent]
+    app._agents_with_children = [agent]
+    app._agents_roster_generation = 1
+    app._bead_warmup_scan_scheduled = True
+    app._bead_warmup_scan_pending = True
+    app._bead_warmup_scheduled_candidates = _AgentBeadWarmupCandidates(
+        bead_display_agents=(agent,),
+        roster_generation=0,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
+        lambda _candidates: _AgentBeadWarmupResults({}, set()),
+    )
+
+    await app._run_bead_confirmation_warmup()
+
+    assert app._timer_calls
+    assert app._timer_calls[-1][0] == 0.0
+    assert callable(app._timer_calls[-1][1])
+
+
+@pytest.mark.asyncio
+async def test_forced_stranded_warmup_failure_keeps_project_and_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _FakeApp()
+    app._agents = [_agent()]
+    app._bead_warmup_forced_projects = {"proj"}
+    app._bead_warmup_forced_immediate_projects = {"proj"}
+    app._bead_warmup_scan_scheduled = True
+    app._bead_warmup_scheduled_candidates = _AgentBeadWarmupCandidates(
+        force_stranded_projects=("proj",),
+        force_stranded_immediate=True,
+    )
+
+    def fail_warmup(_candidates: object) -> _AgentBeadWarmupResults:
+        raise RuntimeError("test worker failure")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
+        fail_warmup,
+    )
+
+    await app._run_bead_confirmation_warmup()
+
+    assert app._bead_warmup_scan_running is False
+    assert app._bead_warmup_forced_projects == {"proj"}
+    assert app._timer_calls
+    assert app._timer_calls[-1][0] >= 1.0
+
+
+@pytest.mark.asyncio
 async def test_run_noop_without_candidates() -> None:
     app = _FakeApp()
     app._agents = [_agent(agent_name="reviewer")]
@@ -628,6 +724,7 @@ class _PumpResponsiveApp(AgentBeadWarmupMixin, App[None]):
         self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
         self._agents = [agent]
         self._agents_with_children = [agent]
+        self.current_idx = 0
         self._nav_gate = NavigationGate(window_s=0.25)
         self.probe_processed = asyncio.Event()
 

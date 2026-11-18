@@ -50,6 +50,7 @@ class _FakeApp:
         self.prompts: list[dict[str, Any]] = []
         self.notifies: list[tuple[str, str | None]] = []
         self.warmup_sources: list[str] = []
+        self.warmup_projects: list[str | None] = []
         self.beads_forced: list[bool] = []
         self._agents: list[Any] = []
 
@@ -63,8 +64,11 @@ class _FakeApp:
     def _show_prompt_input_bar_for_home(self, **kwargs: Any) -> None:
         self.prompts.append(kwargs)
 
-    def _schedule_bead_confirmation_warmup(self, *, source: str = "unknown") -> None:
+    def _schedule_bead_confirmation_warmup(
+        self, *, source: str = "unknown", stranded_project: str | None = None
+    ) -> None:
         self.warmup_sources.append(source)
+        self.warmup_projects.append(stranded_project)
 
     def _beads_pane(self) -> Any:
         return SimpleNamespace(
@@ -95,6 +99,7 @@ def test_continue_prefills_fork_prompt() -> None:
     )
     assert text == expected
     assert app.warmup_sources == ["stranded_resolve"]
+    assert app.warmup_projects == ["demo"]
     assert app.beads_forced == [True]
 
 
@@ -105,6 +110,7 @@ def test_schedule_refresh_expires_and_warms() -> None:
     schedule_stranded_resolve_refresh(app, "demo")
     assert agent_stranded.should_resolve_stranded_report("demo") is True
     assert app.warmup_sources == ["stranded_resolve"]
+    assert app.warmup_projects == ["demo"]
     assert app.beads_forced == [True]
 
 

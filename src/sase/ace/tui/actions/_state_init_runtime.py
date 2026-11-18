@@ -191,6 +191,17 @@ def init_runtime_state(
     self._bead_warmup_scan_running = False
     self._bead_warmup_scan_pending = False
     self._bead_warmup_scan_source = "unknown"
+    self._bead_warmup_scheduled_candidates = None
+    self._bead_warmup_forced_projects = set()
+    self._bead_warmup_forced_immediate_projects = set()
+    self._bead_warmup_index_generation = None
+    self._bead_warmup_agent_by_identity = {}
+    self._bead_warmup_waiting_agents = {}
+    self._bead_warmup_stranded_projects = ()
+    self._bead_warmup_waiter_cursor = 0
+    self._bead_warmup_stranded_cursor = 0
+    self._bead_warmup_stranded_scan_remaining = 0
+    self._bead_warmup_stranded_scan_next_at = 0.0
     self._bead_warmup_async_tasks = set()
     # Deferred agent-session plan-preview warmup coalescing. Completion rows
     # read session previews from memory only; plan/bead resolution runs after

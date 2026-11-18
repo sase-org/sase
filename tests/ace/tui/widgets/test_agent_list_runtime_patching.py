@@ -92,6 +92,44 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
 
 
 @pytest.mark.asyncio
+async def test_runtime_tick_patches_only_rows_in_the_scrolled_viewport() -> None:
+    app = AgentListHarness()
+    async with app.run_test(size=(80, 8)) as pilot:
+        widget = app.query_one(AgentList)
+        rows = [
+            agent(
+                status="RUNNING",
+                start=datetime(2026, 4, 25, 14, 0, 0),
+                cl_name=f"agent-{index}",
+                raw_suffix=f"suffix-{index}",
+            )
+            for index in range(40)
+        ]
+        widget.update_list(rows, current_idx=0, now=datetime(2026, 4, 25, 14, 0, 0))
+        await pilot.pause()
+
+        first_surface = widget._surfaced_agent_rows()
+        assert 0 < len(first_surface) < len(rows)
+        assert first_surface[0][0] == 0
+        assert widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0)) == len(
+            first_surface
+        )
+
+        widget.scroll_to(y=12, animate=False, immediate=True)
+        await pilot.pause()
+        scrolled_surface = widget._surfaced_agent_rows()
+
+        assert scrolled_surface
+        assert scrolled_surface[0][0] >= 12
+        assert {agent.identity for _, agent in scrolled_surface}.isdisjoint(
+            agent.identity for _, agent in first_surface
+        )
+        assert widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 2, 0)) == len(
+            scrolled_surface
+        )
+
+
+@pytest.mark.asyncio
 async def test_patch_active_runtime_rows_advances_agent_session_current_and_total() -> (
     None
 ):

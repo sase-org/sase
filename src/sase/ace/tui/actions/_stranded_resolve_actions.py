@@ -44,7 +44,7 @@ def schedule_stranded_resolve_refresh(app: Any, project: str) -> None:
     force_stranded_refresh(project)
     schedule = getattr(app, "_schedule_bead_confirmation_warmup", None)
     if callable(schedule):
-        schedule(source="stranded_resolve")
+        schedule(source="stranded_resolve", stranded_project=project)
     pane_getter = getattr(app, "_beads_pane", None)
     pane = pane_getter() if callable(pane_getter) else None
     if pane is None:

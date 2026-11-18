@@ -315,6 +315,57 @@ class AgentList(AgentListRailMixin, AgentListBase):
             visible.append(agent)
         return visible
 
+    def surfaced_agents(self) -> list[Agent]:
+        """Return the distinct agents whose option geometry intersects the viewport.
+
+        ``visible_agents`` intentionally means every row currently rendered by
+        this panel. Periodic work needs the narrower set that is actually
+        surfaced. Use Textual's option-to-line map so multiline options,
+        scroll offsets, folding, rail rendering, and width changes all share
+        the geometry used by paint.
+        """
+        return [agent for _agent_idx, agent in self._surfaced_agent_rows()]
+
+    def _surfaced_agent_rows(self) -> list[tuple[int, Agent]]:
+        """Return surfaced rows with their local roster indexes."""
+        if self._panel_collapsed or not self.display:
+            return []
+        if not self.is_mounted:
+            # Headless/unit callers have no viewport geometry. Preserve the
+            # historical helper behavior there; live periodic ticks only visit
+            # mounted panels and use the clipped line map below.
+            return list(enumerate(self._agents))
+        try:
+            self._update_lines()
+            viewport_height = self.scrollable_content_region.height
+            if viewport_height <= 0:
+                return []
+            top = int(self.scroll_y)
+            bottom = top + viewport_height
+            lines = self._line_cache.lines
+        except Exception:  # noqa: BLE001 - partial/unmounted layouts have no surface.
+            return []
+
+        surfaced: list[tuple[int, Agent]] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+        first_line = max(0, top)
+        last_line = min(len(lines), bottom)
+        option_indices = dict.fromkeys(
+            lines[line_index][0] for line_index in range(first_line, last_line)
+        )
+        for option_index in option_indices:
+            if not (0 <= option_index < len(self._row_entries)):
+                continue
+            agent_idx, _attempt_number = self._row_entries[option_index]
+            if agent_idx == BANNER_ROW or not (0 <= agent_idx < len(self._agents)):
+                continue
+            agent = self._agents[agent_idx]
+            if agent.identity in seen:
+                continue
+            seen.add(agent.identity)
+            surfaced.append((agent_idx, agent))
+        return surfaced
+
     def try_remove_rows(
         self,
         removed_identities: set[tuple[AgentType, str, str | None]],
@@ -372,7 +423,7 @@ class AgentList(AgentListRailMixin, AgentListBase):
         normal refresh rebuilds stale rows.
         """
         patched = 0
-        for local_idx, agent in enumerate(self._agents):
+        for local_idx, agent in self._surfaced_agent_rows():
             if not self._runtime_suffix_ticks(agent):
                 continue
             try:

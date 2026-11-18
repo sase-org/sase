@@ -46,6 +46,11 @@ class EventCountdownMixin(EventHandlersBase):
             ):
                 self._update_agents_info_panel()  # type: ignore[attr-defined]
                 self._patch_agent_runtime_rows()  # type: ignore[attr-defined]
+                schedule_bead_warmup = getattr(
+                    self, "_schedule_bead_confirmation_warmup", None
+                )
+                if callable(schedule_bead_warmup):
+                    schedule_bead_warmup(source="runtime_tick")
                 self._poll_starting_agent_transitions()  # type: ignore[attr-defined]
                 get_panel = getattr(self, "_deck_source_panel", None)
                 if callable(get_panel):
