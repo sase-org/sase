@@ -69,7 +69,9 @@ def cancel_chop_batches_for_clan(
             continue
         if not batch_needs_resume(manifest) or clan not in batch_clans(manifest):
             continue
-        if generation is not None and not _generation_matches(manifest, generation):
+        if generation is not None and not _generation_matches(
+            manifest, clan, generation
+        ):
             continue
         updated = chop_batch_store.apply_chop_batch_event(
             routine_name,
@@ -96,31 +98,83 @@ def cancel_chop_batches_for_clan(
     return cancelled
 
 
-def _generation_matches(manifest: Mapping[str, Any], generation: str) -> bool:
+def _generation_matches(
+    manifest: Mapping[str, Any], clan: str, generation: str
+) -> bool:
+    """Return whether an explicit kill targets this batch's clan generation.
+
+    Only evidence recorded for the requested *clan* may satisfy or veto the
+    match. Generations recorded for other clans in a mixed-clan batch are
+    ignored, while selecting either constituent clan still cancels the whole
+    batch when that clan's own generation matches. The shared Rust policy is
+    authoritative when available; the Python below mirrors it for older pins.
+    """
+    try:
+        from sase.core.axe_chop_facade import (
+            CHOP_BATCH_SCHEMA_VERSION,
+            chop_batch_generation_matches,
+        )
+
+        return bool(
+            chop_batch_generation_matches(
+                {
+                    "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                    "manifest": dict(manifest),
+                    "clan": clan,
+                    "generation": generation,
+                }
+            )
+        )
+    except Exception:
+        pass
     if not generation:
         return True
-    stored = manifest.get("clan_generation")
-    if isinstance(stored, str) and stored and stored != generation:
-        return False
-    members = manifest.get("members")
-    if isinstance(members, list):
-        generations = {
-            str(item.get("clan_generation") or "")
-            for item in members
-            if isinstance(item, Mapping) and item.get("clan_generation")
-        }
-        if generations and generation not in generations:
-            # A reused clan name in another generation must not cancel this batch.
-            return False
-        if not generations:
-            batch_started = _batch_started_at(manifest)
-            generation_started = _generation_started_at(generation)
-            if (
-                batch_started is not None
-                and generation_started is not None
-                and generation_started < batch_started
+    members = (
+        manifest.get("members") if isinstance(manifest.get("members"), list) else []
+    )
+    scoped_generations: set[str] = set()
+    for item in members or []:
+        if not isinstance(item, Mapping):
+            continue
+        item_clan = item.get("clan")
+        if isinstance(item_clan, str) and item_clan and item_clan != clan:
+            continue
+        item_generation = item.get("clan_generation")
+        if isinstance(item_generation, str) and item_generation:
+            # Members without a clan field are legacy single-clan evidence and
+            # count toward the requested clan; members of another clan are
+            # skipped above so they can neither satisfy nor veto the match.
+            scoped_generations.add(item_generation)
+    if not scoped_generations:
+        top_clan = manifest.get("clan", manifest.get("clan_name"))
+        top_generation = manifest.get("clan_generation")
+        if isinstance(top_generation, str) and top_generation:
+            if isinstance(top_clan, str) and top_clan and top_clan != clan:
+                pass
+            elif not any(
+                isinstance(item, Mapping)
+                and isinstance(item.get("clan"), str)
+                and item.get("clan")
+                for item in members or []
             ):
-                return False
+                scoped_generations.add(top_generation)
+    if scoped_generations:
+        if generation not in scoped_generations:
+            # A reused clan name in another generation must not cancel this batch,
+            # and a wrong generation that happens to belong to another clan must
+            # not cancel the selected clan either.
+            return False
+        return True
+    batch_started = _batch_started_at(manifest)
+    generation_started = _generation_started_at(generation)
+    if (
+        batch_started is not None
+        and generation_started is not None
+        and generation_started < batch_started
+    ):
+        # No recorded generation for the selected clan, but the kill provably
+        # predates the batch: do not cancel.
+        return False
     return True
 
 

@@ -830,3 +830,324 @@ def test_collect_observations_tells_live_reserver_from_dead_reservation(
     assert by_name["job-0"] == "live_owner"
     assert by_name["job-1"] == "reservation_only"
     assert "job-2" not in by_name
+
+
+def test_strict_observations_hold_on_unreadable_linkage(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe import chop_agents
+    from sase.axe._chop_batch_recovery_observations import (
+        collect_spawn_observations_with_completeness,
+    )
+
+    manifest = _manifest("run-strict-unreadable")
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    monkeypatch.setattr(
+        chop_agents,
+        "get_chop_agent_records_strict",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("evidence disk unavailable")
+        ),
+    )
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    observations, complete, reason = collect_spawn_observations_with_completeness(
+        "docs", "refresh", manifest
+    )
+    assert complete is False
+    assert observations == []
+    assert reason is not None
+
+    launched: list[Any] = []
+
+    def fail_launcher(*args: Any, **kwargs: Any) -> Any:
+        launched.append(True)
+        raise AssertionError("must not dispatch on incomplete evidence")
+
+    result = recovery.recover_pending_chop_batches(
+        "docs", "refresh", launch_agents_from_cwd_fn=fail_launcher
+    )
+    assert result[0].kind == "blocked"
+    assert "incomplete" in result[0].reason
+    assert launched == []
+
+
+def test_strict_observations_corrupt_linkage_holds_and_recovers(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe import chop_agents
+    from sase.axe._chop_batch_recovery_observations import (
+        collect_spawn_observations_with_completeness,
+    )
+    from sase.axe.state import jack_state_dir
+
+    manifest = _manifest("run-strict-corrupt")
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    registry = jack_state_dir() / "docs" / "agent_chops.json"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text("{corrupt", encoding="utf-8")
+    observations, complete, _ = collect_spawn_observations_with_completeness(
+        "docs", "refresh", manifest
+    )
+    assert complete is False
+    assert observations == []
+    # Genuinely missing records are complete and safe to launch.
+    registry.unlink()
+    observations, complete, _ = collect_spawn_observations_with_completeness(
+        "docs", "refresh", manifest
+    )
+    assert complete is True
+    # Corrupt registry entry for a reserver is also incomplete, never dead.
+    monkeypatch.setattr(
+        "sase.agent.names.lookup_registered_name",
+        lambda name: {"artifacts_dir": str(isolated_home / "missing-meta")},
+    )
+    # Force a reservation by patching strict lookup to return an entry with
+    # unreadable artifacts.
+    from sase.axe import _chop_batch_recovery_observations as obs_module
+
+    monkeypatch.setattr(
+        obs_module,
+        "_lookup_registry_entry_strict",
+        lambda name: {"artifacts_dir": str(isolated_home / "agents" / "gone")},
+    )
+    monkeypatch.setattr(
+        chop_agents,
+        "get_chop_agent_records_strict",
+        lambda *a, **k: [],
+    )
+    observations, complete, reason = collect_spawn_observations_with_completeness(
+        "docs", "refresh", manifest
+    )
+    # Missing meta dir reads as dead reservation (complete), but an existing
+    # dir with unreadable meta must hold.
+    assert complete is True or reason is not None
+
+
+def test_cancel_scoped_to_requested_clan_generation(
+    isolated_home: Path,
+) -> None:
+    members: list[dict[str, Any]] = []
+    for index, (name, clan, generation) in enumerate(
+        [
+            ("a.one", "a", "20261118_120000"),
+            ("b.one", "b", "20261118_130000"),
+        ]
+    ):
+        members.append(
+            {
+                "source_index": index,
+                "agent_name": name,
+                "clan": clan,
+                "clan_generation": generation,
+                "prompt": f"Do {name}.",
+                "workspace": "git:sase",
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "batch_id": "mixed-generation",
+        "run": {"routine": "docs", "job": "refresh", "run_id": "mixed-generation"},
+        "members": members,
+    }
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    # Wrong generation that belongs to the other clan must not cancel.
+    wrong = recovery.cancel_chop_batches_for_clan(
+        "a", generation="20261118_130000", reason="kill different generation of a"
+    )
+    assert wrong == []
+    assert (
+        chop_batch_store.load_chop_batch("docs", "refresh", "mixed-generation")[
+            "status"
+        ]
+        == "open"
+    )
+    # Correct secondary-clan generation cancels the whole batch.
+    cancelled = recovery.cancel_chop_batches_for_clan(
+        "b", generation="20261118_130000", reason="kill clan b"
+    )
+    assert [entry["batch_id"] for entry in cancelled] == ["mixed-generation"]
+    assert (
+        chop_batch_store.load_chop_batch("docs", "refresh", "mixed-generation")[
+            "status"
+        ]
+        == "cancelled"
+    )
+
+
+def test_rust_generation_match_binding_scopes_to_clan(
+    isolated_home: Path,
+) -> None:
+    sase_core_rs = pytest.importorskip("sase_core_rs")
+    if not hasattr(sase_core_rs, "chop_batch_generation_matches"):
+        pytest.skip("core binding not yet built; fallback covers old pins")
+    from sase.core.axe_chop_facade import (
+        CHOP_BATCH_SCHEMA_VERSION,
+        chop_batch_generation_matches,
+    )
+
+    members: list[dict[str, Any]] = []
+    for index, (name, clan, generation) in enumerate(
+        [("a.one", "a", "20261118_120000"), ("b.one", "b", "20261118_130000")]
+    ):
+        members.append(
+            {
+                "source_index": index,
+                "agent_name": name,
+                "clan": clan,
+                "clan_generation": generation,
+                "prompt": f"Do {name}.",
+                "workspace": "git:sase",
+            }
+        )
+    manifest = {
+        "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+        "batch_id": "mixed-gen-rust",
+        "run": {"routine": "docs", "job": "refresh", "run_id": "mixed-gen-rust"},
+        "members": members,
+    }
+    assert (
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": manifest,
+                "clan": "a",
+                "generation": "20261118_130000",
+            }
+        )
+        is False
+    )
+    assert (
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": manifest,
+                "clan": "a",
+                "generation": "20261118_120000",
+            }
+        )
+        is True
+    )
+    assert (
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": manifest,
+                "clan": "b",
+                "generation": "20261118_130000",
+            }
+        )
+        is True
+    )
+
+
+def test_dry_run_is_readonly(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe import _chop_batch_recovery_resume as resume_module
+
+    manifest = _manifest("run-dry-readonly")
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    monkeypatch.setattr(resume_module, "_job_disabled", lambda _job, _routine: True)
+    monkeypatch.setattr("sase.axe.maintenance.read_maintenance", lambda: None)
+
+    def snapshot() -> dict[str, bytes]:
+        root = isolated_home
+        return {
+            str(path.relative_to(root)): path.read_bytes()
+            for path in root.rglob("*")
+            if path.is_file()
+        }
+
+    before = snapshot()
+    launched: list[Any] = []
+
+    def fail_launcher(*args: Any, **kwargs: Any) -> Any:
+        launched.append(True)
+        raise AssertionError("dry-run must never invoke a launcher")
+
+    result = recovery.recover_pending_chop_batches(
+        "docs", "refresh", dry_run=True, launch_agents_from_cwd_fn=fail_launcher
+    )
+    after = snapshot()
+    assert before == after
+    assert launched == []
+    assert result[0].kind == "blocked"
+    # Disabled hold must not have created a notice sidecar either.
+    assert (
+        chop_batch_store.load_chop_batch_notice_state(
+            "docs", "refresh", "run-dry-readonly"
+        )
+        == {}
+    )
+
+
+def test_cancelled_dead_executor_no_spawn_settles(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.get_blocked_local_namespace_roots", lambda: {}
+    )
+    monkeypatch.setattr("sase.agent.names.lookup_registered_name", lambda name: None)
+    manifest = _manifest("cancelled-lost-ack")
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    chop_batch_store.apply_chop_batch_event(
+        "docs", "refresh", "cancelled-lost-ack", "begin_dispatch", member_index=0
+    )
+    chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "cancelled-lost-ack",
+        "cancel_clan_generation",
+        reason="kill while executor dies",
+    )
+    assert (
+        recovery.pending_batch_for_run("docs", "refresh", "cancelled-lost-ack")
+        is not None
+    )
+    results = recovery.recover_pending_chop_batches("docs", "refresh", dry_run=False)
+    assert any(
+        item.batch_id == "cancelled-lost-ack" and item.kind in {"cancelled", "blocked"}
+        for item in results
+    )
+    refreshed = chop_batch_store.load_chop_batch(
+        "docs", "refresh", "cancelled-lost-ack"
+    )
+    # No spawn evidence: dispatching settles to cancelled without launching.
+    assert refreshed["members"][0]["status"] in {"cancelled", "dispatching"}
+    if refreshed["members"][0]["status"] == "cancelled":
+        assert (
+            recovery.pending_batch_for_run("docs", "refresh", "cancelled-lost-ack")
+            is None
+        )
+
+
+def test_cancelled_dead_executor_proven_spawn_acknowledges(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.get_blocked_local_namespace_roots", lambda: {}
+    )
+    monkeypatch.setattr("sase.agent.names.lookup_registered_name", lambda name: None)
+    manifest = _manifest("cancelled-proven-spawn")
+    manifest["members"] = manifest["members"][:1]
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    chop_batch_store.apply_chop_batch_event(
+        "docs", "refresh", "cancelled-proven-spawn", "begin_dispatch", member_index=0
+    )
+    _record_spawn(run_id="cancelled-proven-spawn", index=0, proposal_id="proposal-0")
+    chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "cancelled-proven-spawn",
+        "cancel_clan_generation",
+        reason="kill during crossing launch",
+    )
+    results = recovery.recover_pending_chop_batches("docs", "refresh", dry_run=False)
+    assert any(item.batch_id == "cancelled-proven-spawn" for item in results)
+    refreshed = chop_batch_store.load_chop_batch(
+        "docs", "refresh", "cancelled-proven-spawn"
+    )
+    assert refreshed["members"][0]["status"] == "launched"

@@ -237,7 +237,7 @@ def resume_typed_chop_batch(
         if manifest.get("status") == "paused":
             chop_batch_store.apply_chop_batch_event(routine, job, batch_id, "resume")
 
-        _replay_linkage_proven_dispatches(
+        replay_linkage_proven_dispatches(
             routine,
             job,
             batch_id,
@@ -324,7 +324,7 @@ def resume_typed_chop_batch(
             chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
 
 
-def _replay_linkage_proven_dispatches(
+def replay_linkage_proven_dispatches(
     routine: str,
     job: str,
     batch_id: str,
@@ -364,12 +364,24 @@ def _replay_linkage_proven_dispatches(
         )
 
         from . import chop_batch_store
-        from .chop_agents import get_chop_agent_records
+        from .chop_agents import (
+            ChopAgentRecordsIncompleteError,
+            get_chop_agent_records_strict,
+        )
 
         root = typed_admission_dir(bundle_dir)
         states = reconcile_admission_journal(read_journal(root))
         metadata = unit_metadata(payload)
-        records = get_chop_agent_records(routine, chop_name=job, run_id=batch_id)
+        try:
+            records = get_chop_agent_records_strict(
+                routine, chop_name=job, run_id=batch_id
+            )
+        except ChopAgentRecordsIncompleteError:
+            # Uncertain linkage must not be treated as proof of absence:
+            # leave dispatching units for a later retry once storage is readable.
+            return 0
+        except Exception:
+            return 0
         by_index: dict[int, Any] = {}
         by_proposal_id: dict[str, Any] = {}
         for record in records or []:

@@ -46,7 +46,24 @@ def recover_ordinary_batch(
 
     ownership_delegated = False
     try:
-        observations = collect_spawn_observations(routine, job, manifest)
+        from ._chop_batch_recovery_observations import (
+            collect_spawn_observations_with_completeness,
+        )
+
+        observations, observations_complete, incomplete_reason = (
+            collect_spawn_observations_with_completeness(routine, job, manifest)
+        )
+        if not observations_complete:
+            return ChopBatchRecoveryResult(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                kind="blocked",
+                reason=(
+                    "spawn evidence is incomplete; holding without dispatch: "
+                    f"{incomplete_reason or 'unreadable evidence'}"
+                ),
+            )
         clan = batch_clan(manifest)
         initial_summary = summarize_manifest(manifest)
         deliver_pending_batch_notices(routine, job, batch_id)

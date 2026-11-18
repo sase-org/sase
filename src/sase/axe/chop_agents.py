@@ -283,6 +283,72 @@ def _write_records_unlocked(
                 pass
 
 
+class ChopAgentRecordsIncompleteError(Exception):
+    """Spawn linkage storage could not be read completely."""
+
+
+def _read_records_strict_unlocked(
+    lumberjack_name: str,
+) -> list[_ChopAgentRecord]:
+    """Read linkage records, raising on corrupt/unreadable storage.
+
+    Missing storage (no file) means genuinely absent evidence and returns
+    an empty list. Any other I/O failure, invalid JSON, or invalid record
+    shape raises :class:`ChopAgentRecordsIncompleteError` so callers never
+    mistake corruption for absence.
+    """
+    import errno
+
+    path = _registry_path(lumberjack_name)
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        if exc.errno == errno.ENOENT:
+            return []
+        raise ChopAgentRecordsIncompleteError(
+            f"cannot read chop-agent records for {lumberjack_name!r}: {exc}"
+        ) from exc
+    try:
+        raw = json.loads(raw_text)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ChopAgentRecordsIncompleteError(
+            f"chop-agent records for {lumberjack_name!r} are corrupt: {exc}"
+        ) from exc
+    if not isinstance(raw, list):
+        raise ChopAgentRecordsIncompleteError(
+            f"chop-agent records for {lumberjack_name!r} have an invalid shape"
+        )
+    records: list[_ChopAgentRecord] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ChopAgentRecordsIncompleteError(
+                f"chop-agent records for {lumberjack_name!r} contain a corrupt entry"
+            )
+        try:
+            records.append(_ChopAgentRecord(**item))
+        except (TypeError, ValueError) as exc:
+            raise ChopAgentRecordsIncompleteError(
+                f"chop-agent records for {lumberjack_name!r} contain a corrupt entry: {exc}"
+            ) from exc
+    return records
+
+
+def get_chop_agent_records_strict(
+    lumberjack_name: str,
+    *,
+    chop_name: str | None = None,
+    run_id: str | None = None,
+) -> list[_ChopAgentRecord]:
+    """Return durable records, raising when storage is unreadable/corrupt."""
+    with _registry_lock(lumberjack_name):
+        records = _read_records_strict_unlocked(lumberjack_name)
+    if chop_name is not None:
+        records = [record for record in records if record.chop_name == chop_name]
+    if run_id is not None:
+        records = [record for record in records if record.run_id == run_id]
+    return records
+
+
 def get_chop_agent_records(
     lumberjack_name: str,
     *,

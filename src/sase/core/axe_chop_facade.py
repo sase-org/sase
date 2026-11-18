@@ -153,6 +153,13 @@ def summarize_chop_batch(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return dict(binding(dict(manifest)))
 
 
+def chop_batch_generation_matches(request: Mapping[str, Any]) -> bool:
+    """Decide whether an explicit kill targets the requested clan generation."""
+
+    binding = require_rust_binding("chop_batch_generation_matches")
+    return bool(binding(dict(request)))
+
+
 def parse_chop_duration(value: str) -> int:
     """Parse a strict positive compound chop duration into seconds."""
 

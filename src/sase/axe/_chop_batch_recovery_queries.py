@@ -13,7 +13,9 @@ from .chop_batch_store import ChopBatchError
 def has_unfinished_chop_batch(routine: str, job: str) -> bool:
     """Return whether any stored batch still owns pending dispatch work."""
     try:
-        batches = chop_batch_store.list_pending_chop_batches(routine, job)
+        batches = chop_batch_store.list_pending_chop_batches(
+            routine, job, repair_index=False, retire_terminal=False
+        )
     except Exception:
         return False
     for manifest in batches:

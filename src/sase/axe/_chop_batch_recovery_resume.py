@@ -21,7 +21,11 @@ from ._chop_batch_recovery_shared import (
     emit_batch_notice,
     summarize_manifest,
 )
-from .chop_batch_store import ChopBatchError, retire_chop_batch
+from .chop_batch_store import (
+    ChopBatchError,
+    batch_has_unsettled_cancelled_dispatch,
+    retire_chop_batch,
+)
 
 
 def recover_pending_chop_batches(
@@ -51,7 +55,12 @@ def recover_pending_chop_batches(
         maintenance = None
     for job_name in targets:
         try:
-            batches = chop_batch_store.list_pending_chop_batches(routine, job_name)
+            batches = chop_batch_store.list_pending_chop_batches(
+                routine,
+                job_name,
+                repair_index=not dry_run,
+                retire_terminal=not dry_run,
+            )
         except Exception as exc:
             results.append(
                 ChopBatchRecoveryResult(
@@ -66,6 +75,22 @@ def recover_pending_chop_batches(
         for manifest in batches:
             batch_id = str(manifest.get("batch_id") or "")
             if not batch_id:
+                continue
+            if dry_run:
+                # Strictly read-only: no notice delivery, no index repair,
+                # no retirement, no hold emission, no owner acquisition.
+                if batch_has_unsettled_cancelled_dispatch(
+                    manifest
+                ) or batch_needs_resume(manifest):
+                    results.append(
+                        _blocked_result(
+                            routine,
+                            job_name,
+                            batch_id,
+                            manifest,
+                            "dry-run holds pending batch without dispatch",
+                        )
+                    )
                 continue
             try:
                 deliver_pending_batch_notices(routine, job_name, batch_id)
@@ -83,6 +108,25 @@ def recover_pending_chop_batches(
                     kind="blocked",
                     reason=f"could not deliver a saved recovery notice: {exc}",
                 )
+                results.append(result)
+                continue
+            if batch_has_unsettled_cancelled_dispatch(manifest):
+                from ._chop_batch_recovery_cancel_settlement import (
+                    recover_cancelled_batch,
+                )
+
+                try:
+                    result = recover_cancelled_batch(
+                        routine, job_name, batch_id, manifest
+                    )
+                except Exception as exc:
+                    result = _blocked_result(
+                        routine,
+                        job_name,
+                        batch_id,
+                        manifest,
+                        f"cancelled settlement failed: {type(exc).__name__}: {exc}",
+                    )
                 results.append(result)
                 continue
             if not batch_needs_resume(manifest):

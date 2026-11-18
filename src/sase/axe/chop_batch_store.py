@@ -310,14 +310,21 @@ def reconcile_stored_batch(
 
 
 def list_pending_chop_batches(
-    routine: str, job: str, *, limit: int = MAX_PENDING_BATCHES
+    routine: str,
+    job: str,
+    *,
+    limit: int = MAX_PENDING_BATCHES,
+    repair_index: bool = True,
+    retire_terminal: bool = True,
 ) -> list[dict[str, Any]]:
     """Enumerate stored batch manifests, newest filename first.
 
     Settled manifests do not consume the unfinished-batch bound. Old settled
     files are moved to run history as they are encountered; corrupt or
     unreadable manifests are skipped so one bad file cannot block recovery
-    of the rest.
+    of the rest. Pass ``repair_index=False, retire_terminal=False`` for a
+    strictly read-only enumeration that changes no filesystem state (dry-run
+    and query helpers must use the read-only form).
     """
     if limit <= 0:
         return []
@@ -342,14 +349,28 @@ def list_pending_chop_batches(
         except ChopBatchError:
             continue
         if _batch_is_terminal(manifest):
-            if not _has_pending_chop_batch_notices(routine, job, batch_id):
-                retire_chop_batch(routine, job, batch_id)
+            if batch_has_unsettled_cancelled_dispatch(manifest):
+                if repair_index:
+                    _update_clan_batch_index(
+                        routine, job, batch_id, set(), _manifest_clans(manifest)
+                    )
+                batches.append(manifest)
+                if len(batches) >= limit:
+                    break
                 continue
-            batches.append(manifest)
+            if _has_pending_chop_batch_notices(routine, job, batch_id):
+                batches.append(manifest)
+                if len(batches) >= limit:
+                    break
+                continue
+            if retire_terminal:
+                retire_chop_batch(routine, job, batch_id)
+            continue
         elif _batch_has_dispatch_work(manifest):
-            _update_clan_batch_index(
-                routine, job, batch_id, set(), _manifest_clans(manifest)
-            )
+            if repair_index:
+                _update_clan_batch_index(
+                    routine, job, batch_id, set(), _manifest_clans(manifest)
+                )
             batches.append(manifest)
         if len(batches) >= limit:
             break
@@ -402,6 +423,8 @@ def retire_chop_batch(routine: str, job: str, batch_id: str) -> bool:
         if not _batch_is_terminal(manifest) or _has_pending_chop_batch_notices(
             routine, job, batch_id
         ):
+            return False
+        if batch_has_unsettled_cancelled_dispatch(manifest):
             return False
         with _locked(owner_lock):
             current_owner = _read_owner_record(owner_path)
@@ -683,6 +706,23 @@ def _has_pending_chop_batch_notices(routine: str, job: str, batch_id: str) -> bo
 
 def _batch_is_terminal(manifest: dict[str, Any]) -> bool:
     return str(manifest.get("status") or "") in {"complete", "cancelled"}
+
+
+def batch_has_unsettled_cancelled_dispatch(manifest: dict[str, Any]) -> bool:
+    """Return whether a cancelled batch still owns in-flight dispatch evidence.
+
+    A live crossing launch stays ``dispatching`` so its executor can settle it.
+    When that executor dies, the batch must stay discoverable until dead-owner
+    reconciliation proves spawn or no-spawn; it must never retire while a
+    ``dispatching`` member remains.
+    """
+    if str(manifest.get("status") or "") != "cancelled":
+        return False
+    members = manifest.get("members")
+    return isinstance(members, list) and any(
+        isinstance(member, dict) and str(member.get("status") or "") == "dispatching"
+        for member in members
+    )
 
 
 def _batch_has_dispatch_work(manifest: dict[str, Any]) -> bool:
