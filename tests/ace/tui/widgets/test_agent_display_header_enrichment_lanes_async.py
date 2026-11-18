@@ -128,3 +128,31 @@ def test_superseded_selection_intermediate_batch_caches_without_repaint(
     cached = get_cached_detail_header_summary(panel, agent)
     assert cached is not None
     assert cached.ready_lanes == LANE_RESOLUTION_BATCHES[0] | LANE_RESOLUTION_BATCHES[1]
+
+
+def test_cancelled_worker_skips_later_lane_batches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(status="RUNNING")
+    panel = StreamingHeaderEnrichmentPanel()
+    stop = False
+    seen_batches: list[frozenset[DetailContextLane]] = []
+
+    def build(
+        agent_arg: object, *, lanes: frozenset[DetailContextLane]
+    ) -> _DetailHeaderSummary:
+        del agent_arg
+        nonlocal stop
+        seen_batches.append(lanes)
+        stop = True
+        return _DetailHeaderSummary(ready_lanes=lanes)
+
+    patch_summary_builder(monkeypatch, build)
+    result = panel._build_detail_header_summary(
+        agent,
+        should_continue=lambda: not stop,
+        publish=lambda _summary: None,
+    )
+
+    assert seen_batches == [LANE_RESOLUTION_BATCHES[0]]
+    assert cast(_DetailHeaderSummary, result).ready_lanes == LANE_RESOLUTION_BATCHES[0]

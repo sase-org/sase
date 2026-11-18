@@ -155,6 +155,11 @@ class DetailHeaderSummary:
     # Session question rounds for the QUESTIONS section. Not a SASE CONTEXT
     # lane: `append_agent_questions_section` renders it separately.
     question_rounds: tuple[NumberedQuestionRound, ...] = ()
+    # Resolved by the worker alongside each lane's content. Hot cache-key
+    # lookups use the stored token and never serialize these summary fields.
+    lane_content_tokens: tuple[tuple[DetailContextLane, str], ...] = field(
+        default=(), repr=False, compare=False
+    )
     # Lanes this instance actually resolved (attempted), as opposed to lanes
     # that were never requested. A lane in `ready_lanes` whose field is still
     # falsy resolved to "nothing" rather than "not yet resolved". Defaults to

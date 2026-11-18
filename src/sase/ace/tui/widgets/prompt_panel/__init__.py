@@ -328,6 +328,7 @@ class AgentPromptPanel(
     def on_unmount(self) -> None:
         self.cancel_live_reply_follow()
         self._cancel_slow_tool_render_tick()
+        self._cancel_agent_detail_header_worker_for_selection_change(None)
 
 
 __all__ = [

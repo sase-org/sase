@@ -232,6 +232,11 @@ def _pending_visual_work(
                         or getattr(worker, "description", worker)
                     )
                 )
+    header_enrichment = getattr(
+        page.app, "_agent_detail_header_enrichment_service", None
+    )
+    if bool(getattr(header_enrichment, "is_running", False)):
+        workers.append("agent detail header enrichment")
 
     # Animator state is deliberately checked even though visual tests disable
     # animations by default. This keeps convergence safe if an individual test

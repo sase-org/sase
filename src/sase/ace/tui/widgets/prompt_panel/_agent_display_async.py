@@ -25,6 +25,7 @@ from ._agent_display_header_summary import (
     enrich_memory_versions,
     merge_detail_header_summary_lanes,
     should_refresh_detail_header_summary,
+    with_detail_header_summary_lane_tokens,
 )
 from ._agent_display_state import (
     ALL_DETAIL_CONTEXT_LANES,
@@ -110,31 +111,31 @@ class AgentDisplayWorkerMixin(
         agent: Agent,
         *,
         lanes: frozenset[DetailContextLane] = ALL_DETAIL_CONTEXT_LANES,
+        should_continue: Callable[[], bool] | None = None,
+        publish: Callable[[DetailHeaderSummary], None] | None = None,
     ) -> object:
         """Keep the historical header-builder patch point stable.
 
         Resolves ``lanes`` cheapest-first across ``LANE_RESOLUTION_BATCHES``
-        (bead sase-l6.4), merging each batch into a running summary so the
-        return value is always a complete, self-contained result -- the
-        publish below is a UX optimization, not something the return value
-        depends on. Every batch but the last is also handed to the main
-        thread via ``call_from_thread`` as it lands, so the SASE CONTEXT
-        section can render it immediately instead of waiting for the
-        slowest lane; the final batch is left for the existing
-        ``Worker.StateChanged`` SUCCESS path (``_apply_agent_detail_header_
-        enrichment_result``), which already caches and posts
-        ``AgentDetailHeaderEnriched``, so completion has exactly one place
-        that does it.
+        (bead sase-l6.4), merging each completed batch into a self-contained
+        partial summary. A superseded request may stop between batches and
+        return only the lanes it completed. The app-owned worker publishes
+        intermediate batches and commits the final result on the UI thread.
         """
-        try:
-            app = self.app  # type: ignore[attr-defined]
-        except Exception:
-            app = None
-        call_from_thread = getattr(app, "call_from_thread", None)
+        call_from_thread = None
+        if publish is None:
+            try:
+                app = self.app  # type: ignore[attr-defined]
+            except Exception:
+                app = None
+            call_from_thread = getattr(app, "call_from_thread", None)
 
+        should_continue = should_continue or (lambda: True)
         remaining = set(lanes)
         merged: DetailHeaderSummary | None = None
         for batch in LANE_RESOLUTION_BATCHES:
+            if not should_continue():
+                break
             batch_lanes = frozenset(batch & remaining)
             if not batch_lanes:
                 continue
@@ -152,16 +153,22 @@ class AgentDisplayWorkerMixin(
                 # Only visible rows plus the launch row resolve.
                 try:
                     merged = enrich_memory_versions(merged, agent)
+                    merged = with_detail_header_summary_lane_tokens(
+                        merged, frozenset({"memory"}), force=True
+                    )
                 except Exception:
                     pass
-            if remaining and callable(call_from_thread):
-                call_from_thread(
-                    self._publish_partial_detail_header_summary,  # type: ignore[attr-defined]
-                    agent,
-                    merged,
-                )
+            if remaining:
+                if publish is not None:
+                    publish(merged)
+                elif callable(call_from_thread):
+                    call_from_thread(
+                        self._publish_partial_detail_header_summary,  # type: ignore[attr-defined]
+                        agent,
+                        merged,
+                    )
         if merged is None:
-            return build_detail_header_summary(agent, lanes=frozenset())
+            return None
         return merged
 
     @staticmethod

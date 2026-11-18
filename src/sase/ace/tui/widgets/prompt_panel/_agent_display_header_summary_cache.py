@@ -24,6 +24,7 @@ class DetailHeaderSummaryCacheEntry:
     summary: DetailHeaderSummary
     cached_monotonic: float
     associated_plan_key: tuple[object, ...]
+    content_token: int
     questions_key: tuple[tuple[str, str | None], ...] | None = None
 
 
@@ -152,16 +153,18 @@ def detail_header_summary_cache_key(
 ) -> tuple[object, ...] | None:
     """Return a panel-local key for the summary currently used by ``agent``.
 
-    Use a semantic digest rather than object identity so a periodic enrichment
-    that returns the same header inputs does not invalidate the annotated hint
-    document merely because the worker constructed a new dataclass instance.
+    Use the token stored when content was resolved or merged. Equal content
+    keeps its token, so hot hint-cache reads never serialize the summary.
     """
-    summary = get_cached_detail_header_summary(widget, agent)
-    if summary is None:
+    cache = _detail_header_summary_cache(widget)
+    entry = cache.get(agent.identity)
+    if entry is None:
         return None
-    encoded = repr(summary).encode("utf-8", errors="replace")
-    summary_digest = blake2b(encoded, digest_size=16).hexdigest()
-    return (agent.identity, summary_digest)
+    if entry.associated_plan_key != associated_plan_cache_key(agent):
+        del cache[agent.identity]
+        return None
+    cache.move_to_end(agent.identity)
+    return (agent.identity, entry.content_token)
 
 
 def _hint_detail_header_refresh_active(widget: object) -> bool:
@@ -240,15 +243,44 @@ def merge_detail_header_summary_lanes(
     widget-cache merge below.
     """
     kept_lanes = previous.ready_lanes - incoming.ready_lanes
-    if not kept_lanes:
-        return incoming
     overrides: dict[str, Any] = {
         field_name: getattr(previous, field_name)
         for lane in kept_lanes
         for field_name in _LANE_FIELDS[lane]
     }
     overrides["ready_lanes"] = previous.ready_lanes | incoming.ready_lanes
+    previous_tokens = dict(previous.lane_content_tokens)
+    incoming_tokens = dict(incoming.lane_content_tokens)
+    resolved_lanes = previous.ready_lanes | incoming.ready_lanes
+    merged_tokens = {**previous_tokens, **incoming_tokens}
+    overrides["lane_content_tokens"] = tuple(
+        sorted(
+            (lane, merged_tokens[lane])
+            for lane in resolved_lanes
+            if lane in merged_tokens
+        )
+    )
     return replace(incoming, **overrides)
+
+
+def with_detail_header_summary_lane_tokens(
+    summary: DetailHeaderSummary,
+    lanes: frozenset[DetailContextLane],
+    *,
+    force: bool = False,
+) -> DetailHeaderSummary:
+    """Attach semantic lane digests while resolved content is off the UI thread."""
+    tokens = dict(summary.lane_content_tokens)
+    for lane in lanes:
+        if lane in tokens and not force:
+            continue
+        fields = tuple(
+            (field_name, getattr(summary, field_name))
+            for field_name in _LANE_FIELDS[lane]
+        )
+        encoded = repr((lane, fields)).encode("utf-8", errors="replace")
+        tokens[lane] = blake2b(encoded, digest_size=16).hexdigest()
+    return replace(summary, lane_content_tokens=tuple(sorted(tokens.items())))
 
 
 def immediate_detail_header_summary(
@@ -302,19 +334,35 @@ def cache_detail_header_summary(
     cache = _detail_header_summary_cache(widget)
     current_plan_key = associated_plan_cache_key(agent)
     previous_entry = cache.get(agent.identity)
-    merged = summary
+    merged = with_detail_header_summary_lane_tokens(summary, summary.ready_lanes)
+    content_token: int | None = None
     if previous_entry is not None and previous_entry.associated_plan_key == (
         current_plan_key
     ):
-        merged = merge_detail_header_summary_lanes(previous_entry.summary, summary)
+        previous_summary = with_detail_header_summary_lane_tokens(
+            previous_entry.summary, previous_entry.summary.ready_lanes
+        )
+        merged = merge_detail_header_summary_lanes(previous_summary, merged)
+        if (
+            merged.ready_lanes == previous_summary.ready_lanes
+            and merged.bead_display == previous_summary.bead_display
+            and merged.lane_content_tokens == previous_summary.lane_content_tokens
+        ):
+            content_token = previous_entry.content_token
     # Use-site import: keep `agent_question_rounds` out of the TUI startup
     # closure (see `test_tui_app_import_stays_under_startup_budget`).
     from ...models.agent_question_rounds import questions_cache_key
 
+    if content_token is None:
+        content_token = (
+            int(getattr(widget, "_agent_detail_header_content_token", 0)) + 1
+        )
+        cast(Any, widget)._agent_detail_header_content_token = content_token
     cache[agent.identity] = DetailHeaderSummaryCacheEntry(
         summary=merged,
         cached_monotonic=time.monotonic(),
         associated_plan_key=current_plan_key,
+        content_token=content_token,
         questions_key=questions_cache_key(agent),
     )
     cache.move_to_end(agent.identity)

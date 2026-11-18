@@ -20,6 +20,7 @@ from ._agent_display_header_summary import (
     cache_detail_header_summary,
     get_cached_detail_header_summary,
 )
+from ._agent_display_header_worker import app_header_enrichment_service
 from ._agent_display_state import (
     ALL_DETAIL_CONTEXT_LANES,
     DetailContextLane,
@@ -103,10 +104,6 @@ class AgentDisplayAgentWorkerMixin:
         thread batch by batch as it lands (bead sase-l6.4); see
         ``_build_detail_header_summary`` in ``_agent_display_async.py``.
         """
-        run_worker = getattr(self, "run_worker", None)
-        if not callable(run_worker):
-            return
-
         request = DetailHeaderEnrichmentRequest(
             agent=agent,
             agent_identity=agent.identity,
@@ -116,6 +113,19 @@ class AgentDisplayAgentWorkerMixin:
             attempt_pinned_number=attempt_pinned_number,
             is_current=is_current,
         )
+
+        service = app_header_enrichment_service(self)
+        if service is not None:
+            self._agent_detail_header_request = request  # type: ignore[attr-defined]
+            service.submit(self, request)
+            return
+
+        # Mixin-only users (including focused unit-test panels) retain the
+        # Textual worker adapter. A mounted SASE app always uses its bounded,
+        # app-owned executor above.
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            return
 
         current_worker = getattr(self, "_agent_detail_header_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
@@ -147,8 +157,15 @@ class AgentDisplayAgentWorkerMixin:
 
     def _cancel_agent_detail_header_worker_for_selection_change(
         self,
-        agent: Agent,
+        agent: Agent | None,
     ) -> None:
+        service = app_header_enrichment_service(self)
+        if service is not None:
+            service.cancel(
+                self,
+                keep_identity=agent.identity if agent is not None else None,
+            )
+            return
         current_worker = getattr(self, "_agent_detail_header_worker", None)
         if current_worker is None or not getattr(current_worker, "is_running", False):
             return
@@ -157,8 +174,56 @@ class AgentDisplayAgentWorkerMixin:
             "_agent_detail_header_request",
             None,
         )
-        if current_request is None or current_request.agent_identity != agent.identity:
+        if (
+            agent is None
+            or current_request is None
+            or current_request.agent_identity != agent.identity
+        ):
             current_worker.cancel()
+
+    def _publish_detail_header_summary(
+        self,
+        request: DetailHeaderEnrichmentRequest,
+        partial: DetailHeaderSummary,
+    ) -> None:
+        """Cache a completed lane batch and repaint only its still-current row."""
+        cache_detail_header_summary(self, request.agent, partial)
+        if not request.is_current(
+            request.agent_identity,
+            request.generation,
+            request.attempt_view_mode,
+            request.attempt_pinned_number,
+        ):
+            return
+        post_message = getattr(self, "post_message", None)
+        if callable(post_message):
+            post_message(AgentDetailHeaderEnriched(request.agent_identity))
+
+    def _finish_detail_header_summary(
+        self,
+        request: DetailHeaderEnrichmentRequest,
+        summary: object,
+        error: BaseException | None,
+    ) -> None:
+        """Cache completed work even after selection moves, then revalidate paint."""
+        if error is not None or not isinstance(summary, DetailHeaderSummary):
+            return
+        cache_detail_header_summary(self, request.agent, summary)
+        if not request.is_current(
+            request.agent_identity,
+            request.generation,
+            request.attempt_view_mode,
+            request.attempt_pinned_number,
+        ):
+            return
+        post_message = getattr(self, "post_message", None)
+        if callable(post_message):
+            post_message(AgentDetailHeaderEnriched(request.agent_identity))
+        else:
+            self._update_display_impl(request.agent)  # type: ignore[attr-defined]
+        configure_slow_tick = getattr(self, "_configure_slow_tool_render_tick", None)
+        if callable(configure_slow_tick):
+            configure_slow_tick(request.agent)
 
     def start_agent_linked_delta_refresh(
         self,
@@ -337,26 +402,7 @@ class AgentDisplayAgentWorkerMixin:
         )
         if request is None:
             return
-        summary = cast(Any, worker.result)
-        cache_detail_header_summary(self, request.agent, summary)
-
-        if not request.is_current(
-            request.agent_identity,
-            request.generation,
-            request.attempt_view_mode,
-            request.attempt_pinned_number,
-        ):
-            return
-
-        post_message = getattr(self, "post_message", None)
-        if callable(post_message):
-            post_message(AgentDetailHeaderEnriched(request.agent_identity))
-        else:
-            # Mixin-only consumers have no Textual message path.
-            self._update_display_impl(request.agent)  # type: ignore[attr-defined]
-        configure_slow_tick = getattr(self, "_configure_slow_tool_render_tick", None)
-        if callable(configure_slow_tick):
-            configure_slow_tick(request.agent)
+        self._finish_detail_header_summary(request, cast(Any, worker.result), None)
 
     def _apply_agent_linked_delta_worker_result(
         self, worker: Worker[Any], state: WorkerState

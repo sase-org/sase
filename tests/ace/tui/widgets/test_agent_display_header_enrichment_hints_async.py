@@ -162,4 +162,4 @@ def test_hint_request_replaces_same_agent_in_flight_render_context(
         cast(Worker[Any], first_worker),
         WorkerState.SUCCESS,
     )
-    assert get_cached_detail_header_summary(panel, agent) is summary
+    assert get_cached_detail_header_summary(panel, agent) == summary

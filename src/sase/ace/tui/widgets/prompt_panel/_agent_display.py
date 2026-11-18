@@ -197,12 +197,12 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             for worker_name in (
                 "_agent_bead_display_worker",
                 "_agent_linked_delta_worker",
-                "_agent_detail_header_worker",
                 "_clan_section_worker",
             ):
                 worker = getattr(self, worker_name, None)
                 if worker is not None and getattr(worker, "is_running", False):
                     worker.cancel()
+            self._cancel_agent_detail_header_worker_for_selection_change(None)
 
             fold_level, fold_overrides = panel_fold_state_from_widget(self)
             try:

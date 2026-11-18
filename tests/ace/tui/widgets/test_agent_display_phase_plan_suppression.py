@@ -31,7 +31,7 @@ def test_phase_role_change_invalidates_cached_plan_summary() -> None:
     summary = DetailHeaderSummary()
 
     cache_detail_header_summary(widget, agent, summary)
-    assert get_cached_detail_header_summary(widget, agent) is summary
+    assert get_cached_detail_header_summary(widget, agent) == summary
 
     agent.agent_session_role = "phase"
 
@@ -51,7 +51,7 @@ def test_project_file_change_invalidates_cached_phase_association() -> None:
     summary = DetailHeaderSummary()
 
     cache_detail_header_summary(widget, agent, summary)
-    assert get_cached_detail_header_summary(widget, agent) is summary
+    assert get_cached_detail_header_summary(widget, agent) == summary
 
     agent.project_file = "/tmp/projects/beta/beta.sase"
 

@@ -69,6 +69,7 @@ from ._agent_display_header_summary_cache import (
     immediate_detail_header_summary,
     merge_detail_header_summary_lanes,
     should_refresh_detail_header_summary,
+    with_detail_header_summary_lane_tokens,
 )
 from ._agent_display_header_memory_versions import enrich_memory_versions
 
@@ -338,7 +339,7 @@ def _build_detail_header_summary_impl(
         with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.question_rounds"):
             question_rounds = _resolve_question_rounds(agent)
 
-    return DetailHeaderSummary(
+    summary = DetailHeaderSummary(
         macros_used=macros_used,
         bead_display=bead_display,
         wait_bead_statuses=wait_bead_statuses,
@@ -359,6 +360,7 @@ def _build_detail_header_summary_impl(
         question_rounds=question_rounds,
         ready_lanes=lanes,
     )
+    return with_detail_header_summary_lane_tokens(summary, lanes)
 
 
 def _resolve_question_rounds(agent: Agent) -> tuple[NumberedQuestionRound, ...]:

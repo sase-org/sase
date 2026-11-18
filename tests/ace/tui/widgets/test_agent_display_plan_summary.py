@@ -223,7 +223,7 @@ def test_approval_metadata_change_invalidates_cached_plan_summary() -> None:
     summary = DetailHeaderSummary(associated_plan=_plan_summary())
 
     cache_detail_header_summary(widget, agent, summary)
-    assert get_cached_detail_header_summary(widget, agent) is summary
+    assert get_cached_detail_header_summary(widget, agent) == summary
 
     agent.plan_committed = False
 

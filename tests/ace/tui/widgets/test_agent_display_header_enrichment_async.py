@@ -51,7 +51,7 @@ def test_update_display_schedules_header_enrichment_without_sync_build(
     # set cheapest-first across three batches, calling the patched builder
     # once per batch; every batch here returns the same fixed summary, so
     # the merge across batches collapses back to that same object.
-    assert panel.worker_fn() is summary
+    assert panel.worker_fn() == summary
     assert calls == [agent, agent, agent]
 
 
@@ -139,7 +139,7 @@ def test_successful_header_enrichment_posts_completion_message(
     )
 
     assert len(panel.captured) == captured_count
-    assert get_cached_detail_header_summary(panel, agent) is summary
+    assert get_cached_detail_header_summary(panel, agent) == summary
     assert len(panel.messages) == 1
     message = panel.messages[0]
     assert isinstance(message, AgentDetailHeaderEnriched)
@@ -166,7 +166,7 @@ def test_stale_header_enrichment_result_is_cached_without_repaint(
     )
 
     assert len(panel.captured) == captured_count
-    assert get_cached_detail_header_summary(panel, agent) is summary
+    assert get_cached_detail_header_summary(panel, agent) == summary
 
 
 def test_completed_phase_enrichment_cannot_overwrite_new_phase_selection(

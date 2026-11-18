@@ -28,6 +28,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary_cache import (
+    detail_header_summary_cache_key,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
@@ -248,7 +251,62 @@ def test_cache_merge_full_rebuild_replaces_every_lane() -> None:
     replacement = DetailHeaderSummary()
     cache_detail_header_summary(widget, agent, replacement)
 
-    assert get_cached_detail_header_summary(widget, agent) is replacement
+    assert get_cached_detail_header_summary(widget, agent) == replacement
+
+
+def test_summary_content_token_tracks_semantic_changes_only() -> None:
+    widget = _Widget()
+    agent = make_agent()
+    first = DetailHeaderSummary(
+        macros_used=[{"name": "lint"}],
+        ready_lanes=frozenset({"macros"}),
+    )
+    cache_detail_header_summary(widget, agent, first)
+    first_key = detail_header_summary_cache_key(widget, agent)
+
+    equal_copy = DetailHeaderSummary(
+        macros_used=[{"name": "lint"}],
+        ready_lanes=frozenset({"macros"}),
+    )
+    cache_detail_header_summary(widget, agent, equal_copy)
+    assert detail_header_summary_cache_key(widget, agent) == first_key
+
+    changed_content = DetailHeaderSummary(
+        macros_used=[{"name": "test"}],
+        ready_lanes=frozenset({"macros"}),
+    )
+    cache_detail_header_summary(widget, agent, changed_content)
+    changed_key = detail_header_summary_cache_key(widget, agent)
+    assert changed_key != first_key
+
+    changed_readiness = DetailHeaderSummary(
+        macros_used=[{"name": "test"}],
+        skill_uses=(),
+        ready_lanes=frozenset({"macros", "skills"}),
+    )
+    cache_detail_header_summary(widget, agent, changed_readiness)
+    assert detail_header_summary_cache_key(widget, agent) != changed_key
+
+
+def test_hot_summary_key_lookup_does_not_serialize_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    widget = _Widget()
+    agent = make_agent()
+    cache_detail_header_summary(
+        widget,
+        agent,
+        DetailHeaderSummary(
+            macros_used=[{"name": "lint", "payload": "x" * 100_000}],
+            ready_lanes=frozenset({"macros"}),
+        ),
+    )
+
+    def fail_repr(_self: object) -> str:
+        raise AssertionError("hot cache lookup serialized the summary")
+
+    monkeypatch.setattr(DetailHeaderSummary, "__repr__", fail_repr)
+    assert detail_header_summary_cache_key(widget, agent) is not None
 
 
 def test_stationary_selection_settles_into_per_lane_revalidation(

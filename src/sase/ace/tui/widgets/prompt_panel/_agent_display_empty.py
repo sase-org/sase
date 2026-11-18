@@ -25,9 +25,17 @@ class AgentDisplayEmptyMixin:
         current_worker = getattr(self, "_agent_bead_display_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
-        current_worker = getattr(self, "_agent_detail_header_worker", None)
-        if current_worker is not None and getattr(current_worker, "is_running", False):
-            current_worker.cancel()
+        cancel_header_worker = getattr(
+            self, "_cancel_agent_detail_header_worker_for_selection_change", None
+        )
+        if callable(cancel_header_worker):
+            cancel_header_worker(None)
+        else:
+            current_worker = getattr(self, "_agent_detail_header_worker", None)
+            if current_worker is not None and getattr(
+                current_worker, "is_running", False
+            ):
+                current_worker.cancel()
         current_worker = getattr(self, "_clan_section_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
