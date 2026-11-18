@@ -16,9 +16,6 @@ from ._viewer_loop_terminal import _MIN_IMAGE_ROWS
 from ._viewer_types import ArtifactFileImageArea
 from ._viewer_video_frames import ScrubTrack
 from ._viewer_video_input import (
-    _assemble_inspect_key,
-    _completed_inspect_escape,
-    _decode_inspect_key,
     read_inspect_key,
 )
 
@@ -206,9 +203,6 @@ __all__ = [
     "SelectPane",
     "ToggleZoom",
     "VideoInspectLayout",
-    "_assemble_inspect_key",
-    "_completed_inspect_escape",
-    "_decode_inspect_key",
     "clamp_timestamp",
     "compute_inspect_layout",
     "decile_timestamp",

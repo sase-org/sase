@@ -10,7 +10,12 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from sase.ace.tui.graphics import _viewer_video_frames as frames
+from sase.ace.tui.graphics import (
+    _viewer_video_cache as frame_cache,
+    _viewer_video_extract as frame_extract,
+    _viewer_video_scrub as frame_scrub,
+    _viewer_video_storyboard as frame_storyboard,
+)
 from sase.ace.tui.graphics._viewer_video_frames import (
     ScrubTrack,
     build_storyboard,
@@ -73,7 +78,7 @@ def test_extract_frame_command_golden(tmp_path: Path) -> None:
     video = _write_clip(tmp_path)
     dest = tmp_path / "frame.png"
 
-    assert frames._extract_frame_command(video, 1.5, dest, 800) == [
+    assert frame_extract._extract_frame_command(video, 1.5, dest, 800) == [
         "ffmpeg",
         "-nostdin",
         "-loglevel",
@@ -93,7 +98,7 @@ def test_extract_frame_command_golden(tmp_path: Path) -> None:
 def test_scrub_track_command_golden(tmp_path: Path) -> None:
     video = _write_clip(tmp_path)
 
-    assert frames._scrub_track_command(video, "frame-%04d.png", 2.0, 800) == [
+    assert frame_scrub._scrub_track_command(video, "frame-%04d.png", 2.0, 800) == [
         "ffmpeg",
         "-nostdin",
         "-loglevel",
@@ -139,12 +144,12 @@ def test_scrub_fps_for_duration(duration: float | None, expected: float) -> None
 def test_scrub_frame_count_for_duration(
     duration: float | None, fps: float, expected: int
 ) -> None:
-    assert frames._scrub_frame_count_for_duration(duration, fps) == expected
+    assert frame_scrub._scrub_frame_count_for_duration(duration, fps) == expected
 
 
 def test_content_digest_keys(tmp_path: Path) -> None:
-    with frames._DIGEST_CACHE_LOCK:
-        frames._DIGEST_CACHE.clear()
+    with frame_cache._DIGEST_CACHE_LOCK:
+        frame_cache._DIGEST_CACHE.clear()
     first = _write_clip(tmp_path, "a.mp4", body=b"same")
     second = _write_clip(tmp_path, "b.mp4", body=b"same")
     other = _write_clip(tmp_path, "c.mp4", body=b"different")
@@ -157,8 +162,8 @@ def test_content_digest_keys(tmp_path: Path) -> None:
 def test_content_digest_memoizes_per_open_and_invalidates_on_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with frames._DIGEST_CACHE_LOCK:
-        frames._DIGEST_CACHE.clear()
+    with frame_cache._DIGEST_CACHE_LOCK:
+        frame_cache._DIGEST_CACHE.clear()
     video = _write_clip(tmp_path, "clip.mp4", body=b"x" * 65536)
 
     opens = {"count": 0}
@@ -254,9 +259,9 @@ def test_enforce_cache_budget_evicts_oldest(tmp_path: Path) -> None:
 
 
 def test_storyboard_grid_for_aspect() -> None:
-    assert frames._storyboard_grid_for_aspect(1200, 400) == (10, 1)
-    assert frames._storyboard_grid_for_aspect(800, 600) == (5, 2)
-    assert frames._storyboard_grid_for_aspect(0, 0) == (5, 2)
+    assert frame_storyboard._storyboard_grid_for_aspect(1200, 400) == (10, 1)
+    assert frame_storyboard._storyboard_grid_for_aspect(800, 600) == (5, 2)
+    assert frame_storyboard._storyboard_grid_for_aspect(0, 0) == (5, 2)
 
 
 def _write_synthetic_frames(tmp_path: Path) -> list[Path]:

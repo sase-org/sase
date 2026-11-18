@@ -6,14 +6,16 @@ from pathlib import Path
 from sase.ace.tui.graphics._viewer_loop_terminal import kitten_icat_clear_command
 from sase.ace.tui.graphics._viewer_loop_video import run_video_inspect
 from sase.ace.tui.graphics._viewer_loop_video_common import (
-    _assemble_inspect_key,
-    _decode_inspect_key,
     clamp_timestamp,
     compute_inspect_layout,
     decile_timestamp,
     format_inspect_status,
     snap_timestamp,
     step_timestamp,
+)
+from sase.ace.tui.graphics._viewer_video_input import (
+    _assemble_inspect_key,
+    _decode_inspect_key,
 )
 from sase.ace.tui.graphics._viewer_video_motion import artifact_video_motion_command
 from sase.ace.tui.graphics.viewer import (
