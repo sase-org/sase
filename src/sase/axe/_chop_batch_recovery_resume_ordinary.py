@@ -11,7 +11,10 @@ from ._chop_batch_recovery_observations import collect_spawn_observations
 from ._chop_batch_recovery_shared import (
     ChopBatchRecoveryResult,
     batch_clan,
+    deliver_pending_batch_notices,
     emit_batch_notice,
+    pending_interruption_episode,
+    prepare_batch_notice,
     summarize_manifest,
 )
 from .chop_batch_store import ChopBatchError
@@ -29,100 +32,130 @@ def recover_ordinary_batch(
 ) -> ChopBatchRecoveryResult:
     from .chop_batch_replay import replay_ordinary_chop_batch
 
-    observations = collect_spawn_observations(routine, job, manifest)
-    clan = batch_clan(manifest)
-    initial_summary = summarize_manifest(manifest)
-    matched_names = {
-        str(item.get("agent_name") or "")
-        for item in observations
-        if item.get("observation") == "matched_spawn"
-    }
-    matched_pending = sum(
-        1
-        for member in manifest.get("members", [])
-        if isinstance(member, Mapping)
-        and str(member.get("status") or "pending") in {"pending", "dispatching"}
-        and str(member.get("agent_name") or "") in matched_names
-    )
-    interruption_summary = {
-        "launched": initial_summary["launched"] + matched_pending,
-        "remaining": max(0, initial_summary["remaining"] - matched_pending),
-    }
-    _pending_resumed_launches: list[dict[str, Any]] = []
+    if not chop_batch_store.acquire_chop_batch_ownership(
+        routine, job, batch_id, owner="ordinary-recovery"
+    ):
+        return ChopBatchRecoveryResult(
+            routine=routine,
+            job=job,
+            batch_id=batch_id,
+            kind="blocked",
+            reason=f"batch {batch_id!r} already has a live owner",
+        )
 
-    def _dispatch_member(
-        member: dict[str, Any], *, before_spawn: Any, on_spawn_recorded: Any
-    ) -> Any:
-        launcher = launch_agent_from_cwd_fn or launch_agents_from_cwd_fn
-        if launcher is None:
-            raise ChopBatchError("no launcher available for ordinary batch recovery")
-        prompt, wait_name, effective_ref = _replay_prompt(member, manifest)
-        env = _replay_env(routine, job, batch_id, member, prompt)
-
-        def _before(
-            _segment: int, _slot: int, request: Any, _membership: Any | None
-        ) -> None:
-            before_spawn(request)
-
-        def _recorded(
-            _segment: int, _slot: int, record: Any, _membership: Any | None
-        ) -> None:
-            merge_record = _resumed_launch_descriptor(
-                member, record, wait_name, effective_ref
-            )
-            if merge_record is not None:
-                _pending_resumed_launches.append(merge_record)
-            on_spawn_recorded(record)
-
-        kwargs: dict[str, Any] = {
-            "extra_env": env,
-            "before_agent_spawn": _before,
-            "on_agent_launch_recorded": _recorded,
-            "pause_requested_fn": pause_requested_fn,
-        }
-        if _launcher_supports_kwarg(launcher, "origin"):
-            # Resumed agents are machine-generated continuations of the
-            # accepted run, exactly like the first-run dispatch.
-            kwargs["origin"] = "generated"
-        results = launcher(prompt, **kwargs)
-        if isinstance(results, list):
-            return results[0] if results else None
-        return results
-
+    ownership_delegated = False
     try:
+        observations = collect_spawn_observations(routine, job, manifest)
+        clan = batch_clan(manifest)
+        initial_summary = summarize_manifest(manifest)
+        deliver_pending_batch_notices(routine, job, batch_id)
+        matched_names = {
+            str(item.get("agent_name") or "")
+            for item in observations
+            if item.get("observation") == "matched_spawn"
+        }
+        matched_pending = sum(
+            1
+            for member in manifest.get("members", [])
+            if isinstance(member, Mapping)
+            and str(member.get("status") or "pending") in {"pending", "dispatching"}
+            and str(member.get("agent_name") or "") in matched_names
+        )
+        interruption_summary = {
+            "launched": initial_summary["launched"] + matched_pending,
+            "remaining": max(0, initial_summary["remaining"] - matched_pending),
+        }
+        episode_id = pending_interruption_episode(routine, job, batch_id)
+        recovery_evidence = (
+            interruption_summary["launched"] > 0
+            or matched_pending > 0
+            or str(manifest.get("status") or "") == "paused"
+            or any(
+                isinstance(member, Mapping)
+                and str(member.get("status") or "") == "dispatching"
+                for member in manifest.get("members", [])
+            )
+        )
+        if episode_id is None and recovery_evidence:
+            episode_id = emit_batch_notice(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                event="interrupted",
+                launched=interruption_summary["launched"],
+                remaining=interruption_summary["remaining"],
+                clan=clan,
+            )
+        if episode_id is not None:
+            prepare_batch_notice(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                event="resumed",
+                launched=interruption_summary["launched"],
+                remaining=interruption_summary["remaining"],
+                clan=clan,
+                episode_id=episode_id,
+            )
+        pending_resumed_launches: list[dict[str, Any]] = []
+
+        def dispatch_member(
+            member: dict[str, Any], *, before_spawn: Any, on_spawn_recorded: Any
+        ) -> Any:
+            launcher = launch_agent_from_cwd_fn or launch_agents_from_cwd_fn
+            if launcher is None:
+                raise ChopBatchError(
+                    "no launcher available for ordinary batch recovery"
+                )
+            prompt, wait_name, effective_ref = _replay_prompt(member, manifest)
+            env = _replay_env(routine, job, batch_id, member, prompt)
+
+            def before(
+                _segment: int, _slot: int, request: Any, _membership: Any | None
+            ) -> None:
+                before_spawn(request)
+
+            def recorded(
+                _segment: int, _slot: int, record: Any, _membership: Any | None
+            ) -> None:
+                merge_record = _resumed_launch_descriptor(
+                    member, record, wait_name, effective_ref
+                )
+                if merge_record is not None:
+                    pending_resumed_launches.append(merge_record)
+                on_spawn_recorded(record)
+
+            kwargs: dict[str, Any] = {
+                "extra_env": env,
+                "before_agent_spawn": before,
+                "on_agent_launch_recorded": recorded,
+                "pause_requested_fn": pause_requested_fn,
+            }
+            if _launcher_supports_kwarg(launcher, "origin"):
+                kwargs["origin"] = "generated"
+            results = launcher(prompt, **kwargs)
+            if isinstance(results, list):
+                return results[0] if results else None
+            return results
+
+        ownership_delegated = True
         replay = replay_ordinary_chop_batch(
             routine,
             job,
             batch_id,
             observations=observations,
             observations_are_complete=True,
-            dispatch_member=_dispatch_member,
+            dispatch_member=dispatch_member,
             pause_requested_fn=pause_requested_fn,
+            ownership_acquired=True,
         )
-    except ChopBatchError as exc:
-        return ChopBatchRecoveryResult(
-            routine=routine,
-            job=job,
-            batch_id=batch_id,
-            kind="blocked",
-            reason=str(exc),
+        _merge_resumed_launches_into_run(
+            routine, job, batch_id, pending_resumed_launches
         )
-    _merge_resumed_launches_into_run(routine, job, batch_id, _pending_resumed_launches)
-    refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
-    summary = summarize_manifest(refreshed)
-    cancelled = refreshed.get("status") == "cancelled"
-    if not cancelled:
-        notice_summary = summary if replay.paused else interruption_summary
-        emit_batch_notice(
-            routine=routine,
-            job=job,
-            batch_id=batch_id,
-            event="interrupted",
-            launched=notice_summary["launched"],
-            remaining=notice_summary["remaining"],
-            clan=clan,
-        )
-        if not replay.paused:
+        refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
+        summary = summarize_manifest(refreshed)
+        cancelled = refreshed.get("status") == "cancelled"
+        if episode_id is not None:
             emit_batch_notice(
                 routine=routine,
                 job=job,
@@ -131,18 +164,41 @@ def recover_ordinary_batch(
                 launched=summary["launched"],
                 remaining=summary["remaining"],
                 clan=clan,
+                episode_id=episode_id,
             )
-    return ChopBatchRecoveryResult(
-        routine=routine,
-        job=job,
-        batch_id=batch_id,
-        launched=tuple(replay.launched),
-        already_launched=tuple(replay.already_launched),
-        blocked=tuple(replay.blocked),
-        paused=bool(replay.paused),
-        kind="cancelled" if cancelled else "ordinary",
-        reason="batch was explicitly cancelled" if cancelled else None,
-    )
+        if cancelled:
+            emit_batch_notice(
+                routine=routine,
+                job=job,
+                batch_id=batch_id,
+                event="cancelled",
+                launched=summary["launched"],
+                remaining=summary["remaining"],
+                clan=clan,
+                reason="explicit clan kill",
+            )
+        return ChopBatchRecoveryResult(
+            routine=routine,
+            job=job,
+            batch_id=batch_id,
+            launched=tuple(replay.launched),
+            already_launched=tuple(replay.already_launched),
+            blocked=tuple(replay.blocked),
+            paused=bool(replay.paused),
+            kind="cancelled" if cancelled else "ordinary",
+            reason="batch was explicitly cancelled" if cancelled else None,
+        )
+    except Exception as exc:
+        return ChopBatchRecoveryResult(
+            routine=routine,
+            job=job,
+            batch_id=batch_id,
+            kind="blocked",
+            reason=str(exc),
+        )
+    finally:
+        if not ownership_delegated:
+            chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
 
 
 def _launcher_supports_kwarg(function: Callable[..., Any], name: str) -> bool:

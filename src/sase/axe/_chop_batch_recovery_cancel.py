@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from . import chop_batch_store
 from ._chop_batch_recovery_shared import (
-    batch_clan,
+    batch_clans,
     batch_needs_resume,
     emit_batch_notice,
+    summarize_manifest,
 )
-from .chop_batch_store import ChopBatchError
+from .chop_batch_store import (
+    ChopBatchError,
+    list_chop_batches_for_clan,
+    retire_chop_batch,
+)
+from datetime import UTC
 
 
 def cancel_chop_batches_for_clan(
@@ -31,76 +37,63 @@ def cancel_chop_batches_for_clan(
     observes the same state. Killing an individual member must not call
     this; only an explicit clan-container kill does.
     """
-    from .state import list_lumberjack_names
-
     cancelled: list[dict[str, Any]] = []
     if not clan:
         return cancelled
-    routines = [routine] if routine else _safe_list_routines(list_lumberjack_names)
-    for routine_name in routines:
-        jobs = [job] if job else _safe_list_jobs(routine_name)
-        for job_name in jobs:
-            try:
-                batches = chop_batch_store.list_pending_chop_batches(
-                    routine_name, job_name
-                )
-            except Exception:
-                continue
-            for manifest in batches:
-                batch_id = str(manifest.get("batch_id") or "")
-                if not batch_id or not batch_needs_resume(manifest):
-                    continue
-                if batch_clan(manifest) != clan:
-                    continue
-                if generation is not None and not _generation_matches(
-                    manifest, generation
-                ):
-                    continue
-                try:
-                    updated = chop_batch_store.apply_chop_batch_event(
-                        routine_name,
-                        job_name,
-                        batch_id,
-                        "cancel_clan_generation",
-                        reason=reason or f"explicit clan kill of {clan}",
-                    )
-                except ChopBatchError:
-                    continue
-                emit_batch_notice(
-                    routine=routine_name,
-                    job=job_name,
-                    batch_id=batch_id,
-                    event="cancelled",
-                    launched=int(updated.get("counts", {}).get("launched", 0))
-                    if isinstance(updated.get("counts"), Mapping)
-                    else 0,
-                    remaining=0,
-                    clan=clan,
-                )
-                _cancel_linked_typed_bundle(updated, reason=reason)
-                cancelled.append(
-                    {"routine": routine_name, "job": job_name, "batch_id": batch_id}
-                )
+    if routine is not None and job is not None:
+        candidates = [
+            {
+                "routine": routine,
+                "job": job,
+                "batch_id": str(item.get("batch_id") or ""),
+            }
+            for item in chop_batch_store.list_pending_chop_batches(routine, job)
+        ]
+    else:
+        candidates = list_chop_batches_for_clan(clan)
+        if routine is not None:
+            candidates = [item for item in candidates if item.get("routine") == routine]
+        if job is not None:
+            candidates = [item for item in candidates if item.get("job") == job]
+    for candidate in candidates:
+        routine_name = str(candidate.get("routine") or "")
+        job_name = str(candidate.get("job") or "")
+        batch_id = str(candidate.get("batch_id") or "")
+        if not routine_name or not job_name or not batch_id:
+            continue
+        try:
+            manifest = chop_batch_store.load_chop_batch(
+                routine_name, job_name, batch_id
+            )
+        except ChopBatchError:
+            continue
+        if not batch_needs_resume(manifest) or clan not in batch_clans(manifest):
+            continue
+        if generation is not None and not _generation_matches(manifest, generation):
+            continue
+        updated = chop_batch_store.apply_chop_batch_event(
+            routine_name,
+            job_name,
+            batch_id,
+            "cancel_clan_generation",
+            reason=reason or f"explicit clan kill of {clan}",
+        )
+        counts = summarize_manifest(manifest)
+        emit_batch_notice(
+            routine=routine_name,
+            job=job_name,
+            batch_id=batch_id,
+            event="cancelled",
+            launched=counts["launched"],
+            remaining=counts["remaining"],
+            clan=clan,
+        )
+        _cancel_linked_typed_bundle(updated, reason=reason)
+        retire_chop_batch(routine_name, job_name, batch_id)
+        cancelled.append(
+            {"routine": routine_name, "job": job_name, "batch_id": batch_id}
+        )
     return cancelled
-
-
-def _safe_list_routines(list_fn: Callable[[], list[str]]) -> list[str]:
-    try:
-        return list(list_fn())
-    except Exception:
-        return []
-
-
-def _safe_list_jobs(routine: str) -> list[str]:
-    try:
-        from .state import lumberjack_state_dir
-
-        chops_dir = lumberjack_state_dir(routine) / "chops"
-        if not chops_dir.exists():
-            return []
-        return sorted(d.name for d in chops_dir.iterdir() if d.is_dir())
-    except Exception:
-        return []
 
 
 def _generation_matches(manifest: Mapping[str, Any], generation: str) -> bool:
@@ -119,7 +112,47 @@ def _generation_matches(manifest: Mapping[str, Any], generation: str) -> bool:
         if generations and generation not in generations:
             # A reused clan name in another generation must not cancel this batch.
             return False
+        if not generations:
+            batch_started = _batch_started_at(manifest)
+            generation_started = _generation_started_at(generation)
+            if (
+                batch_started is not None
+                and generation_started is not None
+                and generation_started < batch_started
+            ):
+                return False
     return True
+
+
+def _batch_started_at(manifest: Mapping[str, Any]) -> Any:
+    from datetime import datetime, timezone
+
+    for value in (
+        manifest.get("created_at"),
+        (manifest.get("run") or {}).get("run_started_at")
+        if isinstance(manifest.get("run"), Mapping)
+        else None,
+    ):
+        if not isinstance(value, str) or not value:
+            continue
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+        except ValueError:
+            continue
+    return None
+
+
+def _generation_started_at(generation: str) -> Any:
+    from datetime import datetime, timezone
+
+    digits = "".join(character for character in generation if character.isdigit())
+    if len(digits) < 14:
+        return None
+    try:
+        return datetime.strptime(digits[:14], "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+    except ValueError:
+        return None
 
 
 def _cancel_linked_typed_bundle(manifest: Mapping[str, Any], *, reason: str) -> None:

@@ -146,6 +146,203 @@ def test_cancel_targets_only_matching_clan_generation(
     assert recovery.pending_batch_for_run("docs", "refresh", "run-2") is not None
 
 
+def test_cancel_matches_a_secondary_clan_in_the_batch(
+    isolated_home: Path,
+) -> None:
+    manifest = _manifest("run-multi-clan", "clan-a")
+    manifest["members"][1]["clan"] = "clan-b"
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    cancelled = recovery.cancel_chop_batches_for_clan(
+        "clan-b", reason="explicit TUI clan kill of clan-b"
+    )
+
+    assert [entry["batch_id"] for entry in cancelled] == ["run-multi-clan"]
+    assert (
+        chop_batch_store.load_chop_batch("docs", "refresh", "run-multi-clan")["status"]
+        == "cancelled"
+    )
+
+
+def test_older_generation_does_not_cancel_a_batch_without_recorded_generation(
+    isolated_home: Path,
+) -> None:
+    manifest = _manifest("run-new-clan", None)
+    manifest["created_at"] = "2026-11-18T12:00:00+00:00"
+    manifest["members"][0]["clan"] = "reused-clan"
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    cancelled = recovery.cancel_chop_batches_for_clan(
+        "reused-clan",
+        generation="20261117_120000",
+        reason="explicit TUI clan kill of the old generation",
+    )
+
+    assert cancelled == []
+    assert (
+        chop_batch_store.load_chop_batch("docs", "refresh", "run-new-clan")["status"]
+        == "open"
+    )
+
+
+def test_disabled_batch_hold_is_notified_once(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe import _chop_batch_recovery_resume as resume
+    from sase.notifications.store import load_notifications
+
+    chop_batch_store.create_chop_batch("docs", "refresh", _manifest("run-disabled"))
+    monkeypatch.setattr(resume, "_job_disabled", lambda _job, _routine: True)
+    monkeypatch.setattr("sase.axe.maintenance.read_maintenance", lambda: None)
+
+    first = recovery.recover_pending_chop_batches("docs", "refresh")
+    second = recovery.recover_pending_chop_batches("docs", "refresh")
+
+    assert first[0].kind == second[0].kind == "blocked"
+    notices = [
+        item
+        for item in load_notifications(include_dismissed=True)
+        if item.sender == "chop-batch-recovery"
+    ]
+    assert len(notices) == 1
+    assert notices[0].tags == ["chop", "batch", "hold"]
+    state = chop_batch_store.load_chop_batch_notice_state(
+        "docs", "refresh", "run-disabled"
+    )
+    episodes = list(state["episodes"].values())
+    assert len(episodes) == 1
+    assert episodes[0]["events"]["hold"]["delivered"] is True
+
+
+def test_notice_delivery_retry_reuses_one_notification_row(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe import _chop_batch_recovery_shared as recovery_shared
+    from sase.notifications.store import load_notifications
+
+    chop_batch_store.create_chop_batch("docs", "refresh", _manifest("run-notice-retry"))
+    episode_id = recovery_shared.prepare_batch_notice(
+        routine="docs",
+        job="refresh",
+        batch_id="run-notice-retry",
+        event="hold",
+        launched=0,
+        remaining=3,
+        reason="maintenance",
+        hold_key="maintenance",
+    )
+    update_notice_state = recovery_shared.update_chop_batch_notice_state
+
+    def fail_delivery_ack(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("simulated crash before outbox acknowledgement")
+
+    monkeypatch.setattr(
+        recovery_shared, "update_chop_batch_notice_state", fail_delivery_ack
+    )
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        recovery_shared.deliver_pending_batch_notices(
+            "docs", "refresh", "run-notice-retry"
+        )
+
+    monkeypatch.setattr(
+        recovery_shared, "update_chop_batch_notice_state", update_notice_state
+    )
+    recovery_shared.deliver_pending_batch_notices("docs", "refresh", "run-notice-retry")
+    recovery_shared.deliver_pending_batch_notices("docs", "refresh", "run-notice-retry")
+
+    notices = [
+        item
+        for item in load_notifications(include_dismissed=True)
+        if item.sender == "chop-batch-recovery"
+    ]
+    assert len(notices) == 1
+    assert notices[0].dedup_key.endswith(episode_id)
+    assert notices[0].plus_ones == []
+    event = chop_batch_store.load_chop_batch_notice_state(
+        "docs", "refresh", "run-notice-retry"
+    )["episodes"][episode_id]["events"]["hold"]
+    assert event["delivered"] is True
+
+
+def test_interruption_and_resume_notices_have_separate_episode_keys(
+    isolated_home: Path,
+) -> None:
+    from sase.axe._chop_batch_recovery_shared import emit_batch_notice
+    from sase.notifications.store import load_notifications
+
+    chop_batch_store.create_chop_batch("docs", "refresh", _manifest("run-two-episodes"))
+    first_episode = emit_batch_notice(
+        routine="docs",
+        job="refresh",
+        batch_id="run-two-episodes",
+        event="interrupted",
+        launched=0,
+        remaining=3,
+    )
+    emit_batch_notice(
+        routine="docs",
+        job="refresh",
+        batch_id="run-two-episodes",
+        event="resumed",
+        launched=0,
+        remaining=3,
+        episode_id=first_episode,
+    )
+    second_episode = emit_batch_notice(
+        routine="docs",
+        job="refresh",
+        batch_id="run-two-episodes",
+        event="interrupted",
+        launched=1,
+        remaining=2,
+    )
+    emit_batch_notice(
+        routine="docs",
+        job="refresh",
+        batch_id="run-two-episodes",
+        event="resumed",
+        launched=1,
+        remaining=2,
+        episode_id=second_episode,
+    )
+
+    assert first_episode != second_episode
+    notices = [
+        item
+        for item in load_notifications(include_dismissed=True)
+        if item.sender == "chop-batch-recovery"
+    ]
+    assert len(notices) == 4
+    assert len({item.dedup_key for item in notices}) == 4
+    assert all(
+        first_episode in item.dedup_key or second_episode in item.dedup_key
+        for item in notices
+    )
+
+
+def test_deterministic_recovery_launch_failure_is_bounded(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-bounded-failure")
+    manifest["members"] = manifest["members"][:1]
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    monkeypatch.setattr("sase.agent.names.get_active_agent_names", lambda: set())
+
+    def fail_launch(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("deterministic launcher refusal")
+
+    for _ in range(3):
+        result = recovery.recover_pending_chop_batches(
+            "docs", "refresh", launch_agents_from_cwd_fn=fail_launch
+        )
+
+    stored = chop_batch_store.load_chop_batch("docs", "refresh", "run-bounded-failure")
+    assert stored["members"][0]["status"] == "blocked"
+    assert "3 times" in stored["members"][0]["status_reason"]
+    assert result[0].blocked[0]["status"] == "blocked"
+    assert "deterministic launcher refusal" in result[0].blocked[0]["reason"]
+
+
 def test_typed_bundle_cancel_failure_is_logged_and_surfaced(
     isolated_home: Path,
     tmp_path: Path,

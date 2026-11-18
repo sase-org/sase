@@ -191,6 +191,12 @@ def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
         _safe_unlink(chop_run_log_path(lumberjack_name, chop_name, old_id))
         _safe_unlink(chop_run_result_path(lumberjack_name, chop_name, old_id))
         _safe_unlink(chop_run_context_path(lumberjack_name, chop_name, old_id))
+        try:
+            from .chop_batch_store import delete_archived_chop_batch
+
+            delete_archived_chop_batch(lumberjack_name, chop_name, old_id)
+        except Exception:
+            pass
 
 
 def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:

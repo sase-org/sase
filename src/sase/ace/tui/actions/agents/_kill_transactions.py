@@ -89,12 +89,6 @@ def persist_single_kill_transaction(
     *added* is this operation's identities. They merge into the on-disk
     dismissed index, so concurrent cleanup procs never overwrite each other.
     """
-    try:
-        from ._clan_cleanup import cancel_pending_batches_for_clan_selection
-
-        cancel_pending_batches_for_clan_selection([agent])
-    except Exception:
-        pass
     killing_compat = _killing_compat_module()
     dismissed = add_dismissed_batch(added)
     if dismissed is not None:
@@ -157,12 +151,6 @@ def persist_bulk_kill_transaction(
     not settle fails the transaction with the identities to resurface.
     *added* is this operation's identities, merged into the dismissed index.
     """
-    try:
-        from ._clan_cleanup import cancel_pending_batches_for_clan_selection
-
-        cancel_pending_batches_for_clan_selection([item.agent for item in kill_items])
-    except Exception:
-        pass
     killing_compat = _killing_compat_module()
     dismissed = add_dismissed_batch(added)
     if dismissed is not None:

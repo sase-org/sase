@@ -257,7 +257,14 @@ class AgentCleanupPanelMixin:
             from ._clan_cleanup import cancel_pending_batches_for_clan_selection
 
             if containers:
-                cancel_pending_batches_for_clan_selection(containers)
+                try:
+                    cancel_pending_batches_for_clan_selection(containers)
+                except Exception as exc:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Cleanup stopped because batch cancellation failed: {exc}",
+                        severity="error",
+                    )
+                    return
             self._do_bulk_kill_agents(  # type: ignore[attr-defined]
                 killable_arg, dismissable_arg, proc_arg, gates_arg
             )

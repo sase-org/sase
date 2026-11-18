@@ -118,6 +118,45 @@ def test_corrupt_payload_refuses_dispatch_but_does_not_block_listing(
     assert limited == []
 
 
+def test_retired_batches_leave_pending_bound_and_remain_in_run_history(
+    isolated_home: Path,
+) -> None:
+    settled = _manifest(batch_id="z-settled")
+    settled["members"] = settled["members"][:1]
+    store.create_chop_batch("guard", "split", settled)
+    store.apply_chop_batch_event(
+        "guard", "split", "z-settled", "begin_dispatch", member_index=0
+    )
+    store.apply_chop_batch_event(
+        "guard", "split", "z-settled", "acknowledge_launch", member_index=0
+    )
+    store.create_chop_batch("guard", "split", _manifest("a-unfinished"))
+
+    pending = store.list_pending_chop_batches("guard", "split", limit=1)
+
+    assert [item["batch_id"] for item in pending] == ["a-unfinished"]
+    assert not store.chop_batch_path("guard", "split", "z-settled").exists()
+    archived_path = (
+        store.chop_batches_dir("guard", "split").parent
+        / "runs"
+        / "z-settled.batch.json"
+    )
+    assert archived_path.exists()
+    assert store.load_chop_batch("guard", "split", "z-settled")["status"] == "complete"
+
+
+def test_dispatch_attempts_are_durable_per_member(isolated_home: Path) -> None:
+    store.create_chop_batch("guard", "split", _manifest())
+
+    assert (
+        store.increment_chop_batch_dispatch_attempt("guard", "split", "batch-1", 1) == 1
+    )
+    assert (
+        store.increment_chop_batch_dispatch_attempt("guard", "split", "batch-1", 1) == 2
+    )
+    assert store.chop_batch_dispatch_attempts("guard", "split", "batch-1") == {1: 2}
+
+
 def test_writes_are_restart_safe_with_no_temp_debris(
     isolated_home: Path,
 ) -> None:
@@ -143,10 +182,10 @@ def test_stale_and_live_ownership(isolated_home: Path) -> None:
     try:
         assert store.acquire_chop_batch_ownership(routine, job, "batch-1") is False
         assert store.read_chop_batch_owner(routine, job, "batch-1") is not None
-        assert store.release_chop_batch_ownership(routine, job, "batch-1")
+        assert store._release_chop_batch_ownership(routine, job, "batch-1")
         assert store.acquire_chop_batch_ownership(routine, job, "batch-1")
     finally:
-        store.release_chop_batch_ownership(routine, job, "batch-1")
+        store._release_chop_batch_ownership(routine, job, "batch-1")
 
     # A stale record from a dead process may be superseded.
     dead_pid = _reaped_child_pid()
@@ -157,8 +196,8 @@ def test_stale_and_live_ownership(isolated_home: Path) -> None:
         encoding="utf-8",
     )
     assert store.acquire_chop_batch_ownership(routine, job, "batch-stale")
-    store.release_chop_batch_ownership(routine, job, "batch-stale")
-    assert store.release_chop_batch_ownership(routine, job, "batch-stale") is False
+    store._release_chop_batch_ownership(routine, job, "batch-stale")
+    assert store._release_chop_batch_ownership(routine, job, "batch-stale") is False
 
 
 def test_create_can_claim_ownership_before_manifest_becomes_visible(
@@ -174,7 +213,7 @@ def test_create_can_claim_ownership_before_manifest_becomes_visible(
     assert owner is not None
     assert owner["owner"] == "ordinary-first-run"
     assert store.acquire_chop_batch_ownership("guard", "split", batch_id) is False
-    assert store.release_chop_batch_ownership("guard", "split", batch_id) is True
+    assert store._release_chop_batch_ownership("guard", "split", batch_id) is True
 
 
 def _reaped_child_pid() -> int:

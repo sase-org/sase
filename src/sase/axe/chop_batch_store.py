@@ -46,12 +46,15 @@ from .state import lumberjack_state_dir
 CHOP_BATCH_DIRNAME = "pending_batches"
 CHOP_BATCH_FILENAME_SUFFIX = ".batch.json"
 CHOP_BATCH_OWNER_SUFFIX = ".owner.json"
+CHOP_BATCH_NOTICES_SUFFIX = ".notices.json"
+CHOP_BATCH_ATTEMPTS_SUFFIX = ".attempts.json"
 CHOP_BATCH_MUTATION_LOCK_FILENAME = "pending_batches.lock"
 CHOP_BATCH_OWNERSHIP_LOCK_FILENAME = "pending_batches.ownership.lock"
 
 #: Upper bound for one recovery scan; the directory holds one small manifest
 #: per interrupted batch, so this cap only bites on corruption or misuse.
 MAX_PENDING_BATCHES = 256
+MAX_CLAN_BATCH_INDEX_ENTRIES = 256
 
 _MUTEXES_LOCK = threading.Lock()
 _MUTEXES: dict[str, threading.Lock] = {}
@@ -94,6 +97,38 @@ def chop_batch_owner_path(routine: str, job: str, batch_id: str) -> Path:
     return chop_batches_dir(routine, job) / f"{batch_id}{CHOP_BATCH_OWNER_SUFFIX}"
 
 
+def _chop_batch_notices_path(routine: str, job: str, batch_id: str) -> Path:
+    """Return the durable notification outbox beside one batch manifest."""
+    _require_safe_batch_id(batch_id)
+    return chop_batches_dir(routine, job) / f"{batch_id}{CHOP_BATCH_NOTICES_SUFFIX}"
+
+
+def _chop_batch_attempts_path(routine: str, job: str, batch_id: str) -> Path:
+    """Return recovery attempt metadata beside one batch manifest."""
+    _require_safe_batch_id(batch_id)
+    return chop_batches_dir(routine, job) / f"{batch_id}{CHOP_BATCH_ATTEMPTS_SUFFIX}"
+
+
+def _archived_chop_batch_path(routine: str, job: str, batch_id: str) -> Path:
+    """Return the run-history copy of a settled batch manifest."""
+    _require_safe_batch_id(batch_id)
+    return (
+        lumberjack_state_dir(routine)
+        / "chops"
+        / job
+        / "runs"
+        / f"{batch_id}{CHOP_BATCH_FILENAME_SUFFIX}"
+    )
+
+
+def _clan_batch_index_path() -> Path:
+    return lumberjack_state_dir("") / "pending_batches_by_clan.json"
+
+
+def _clan_batch_index_lock_path() -> Path:
+    return lumberjack_state_dir("") / "pending_batches_by_clan.lock"
+
+
 def ensure_chop_batches_dir(routine: str, job: str) -> Path:
     """Create the pending-batch directory for one routine/job pair."""
     directory = chop_batches_dir(routine, job)
@@ -130,9 +165,16 @@ def create_chop_batch(
                 )
         try:
             _atomic_write_manifest(path, validated)
+            _update_clan_batch_index(
+                routine, job, batch_id, set(), _manifest_clans(validated)
+            )
         except BaseException:
+            try:
+                path.unlink()
+            except OSError:
+                pass
             if claimed:
-                release_chop_batch_ownership(routine, job, batch_id)
+                _release_chop_batch_ownership(routine, job, batch_id)
             raise
     return validated
 
@@ -148,8 +190,19 @@ def load_chop_batch(routine: str, job: str, batch_id: str) -> dict[str, Any]:
         raw = path.read_bytes()
     except OSError as exc:
         if exc.errno == errno.ENOENT:
-            raise ChopBatchNotFoundError(f"batch {batch_id!r} not found") from exc
-        raise ChopBatchError(f"cannot read batch {batch_id!r}: {exc}") from exc
+            archived_path = _archived_chop_batch_path(routine, job, batch_id)
+            try:
+                raw = archived_path.read_bytes()
+            except OSError as archived_exc:
+                if archived_exc.errno == errno.ENOENT:
+                    raise ChopBatchNotFoundError(
+                        f"batch {batch_id!r} not found"
+                    ) from archived_exc
+                raise ChopBatchError(
+                    f"cannot read batch {batch_id!r}: {archived_exc}"
+                ) from archived_exc
+        else:
+            raise ChopBatchError(f"cannot read batch {batch_id!r}: {exc}") from exc
     try:
         manifest = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
@@ -187,6 +240,14 @@ def update_chop_batch(
                 f"batch {batch_id!r} update failed validation: {exc}"
             ) from exc
         _atomic_write_manifest(path, validated)
+        old_clans = _manifest_clans(current)
+        new_clans = _manifest_clans(validated)
+        if old_clans != new_clans:
+            try:
+                _update_clan_batch_index(routine, job, batch_id, old_clans, new_clans)
+            except BaseException:
+                _atomic_write_manifest(path, current)
+                raise
     return validated
 
 
@@ -253,10 +314,13 @@ def list_pending_chop_batches(
 ) -> list[dict[str, Any]]:
     """Enumerate stored batch manifests, newest filename first.
 
-    Corrupt or unreadable manifests are skipped so one bad file cannot block
-    recovery of the rest; use :func:`load_chop_batch` to surface a single
-    file's failure.
+    Settled manifests do not consume the unfinished-batch bound. Old settled
+    files are moved to run history as they are encountered; corrupt or
+    unreadable manifests are skipped so one bad file cannot block recovery
+    of the rest.
     """
+    if limit <= 0:
+        return []
     directory = chop_batches_dir(routine, job)
     try:
         candidates = sorted(
@@ -271,22 +335,44 @@ def list_pending_chop_batches(
     except OSError:
         return []
     batches: list[dict[str, Any]] = []
-    for path in candidates[: max(0, limit)]:
+    for path in candidates:
         batch_id = path.name[: -len(CHOP_BATCH_FILENAME_SUFFIX)]
         try:
-            batches.append(load_chop_batch(routine, job, batch_id))
+            manifest = load_chop_batch(routine, job, batch_id)
         except ChopBatchError:
             continue
+        if _batch_is_terminal(manifest):
+            if not _has_pending_chop_batch_notices(routine, job, batch_id):
+                retire_chop_batch(routine, job, batch_id)
+                continue
+            batches.append(manifest)
+        elif _batch_has_dispatch_work(manifest):
+            _update_clan_batch_index(
+                routine, job, batch_id, set(), _manifest_clans(manifest)
+            )
+            batches.append(manifest)
+        if len(batches) >= limit:
+            break
     return batches
 
 
 def delete_chop_batch(routine: str, job: str, batch_id: str) -> bool:
-    """Delete one batch manifest and its ownership sidecar."""
+    """Delete one pending batch and its sidecars."""
     manifest_path = chop_batch_path(routine, job, batch_id)
     owner_path = chop_batch_owner_path(routine, job, batch_id)
+    sidecars = (
+        _chop_batch_notices_path(routine, job, batch_id),
+        _chop_batch_attempts_path(routine, job, batch_id),
+    )
     with _locked(_mutation_lock_path(routine, job)):
         missing = not manifest_path.exists()
-        for path in (manifest_path, owner_path):
+        manifest = None
+        if not missing:
+            try:
+                manifest = load_chop_batch(routine, job, batch_id)
+            except ChopBatchError:
+                pass
+        for path in (manifest_path, owner_path, *sidecars):
             try:
                 path.unlink()
             except OSError as exc:
@@ -294,7 +380,320 @@ def delete_chop_batch(routine: str, job: str, batch_id: str) -> bool:
                     raise ChopBatchError(
                         f"cannot delete batch {batch_id!r}: {exc}"
                     ) from exc
+        if manifest is not None:
+            _update_clan_batch_index(
+                routine, job, batch_id, _manifest_clans(manifest), set()
+            )
     return not missing
+
+
+def retire_chop_batch(routine: str, job: str, batch_id: str) -> bool:
+    """Move a settled, unowned batch and its evidence into bounded run history."""
+    manifest_path = chop_batch_path(routine, job, batch_id)
+    owner_path = chop_batch_owner_path(routine, job, batch_id)
+    notice_path = _chop_batch_notices_path(routine, job, batch_id)
+    attempts_path = _chop_batch_attempts_path(routine, job, batch_id)
+    owner_lock = _ownership_lock_path(routine, job)
+    with _locked(_mutation_lock_path(routine, job)):
+        try:
+            manifest = load_chop_batch(routine, job, batch_id)
+        except ChopBatchError:
+            return False
+        if not _batch_is_terminal(manifest) or _has_pending_chop_batch_notices(
+            routine, job, batch_id
+        ):
+            return False
+        with _locked(owner_lock):
+            current_owner = _read_owner_record(owner_path)
+            if current_owner is not None and _pid_is_live(current_owner.get("pid")):
+                return False
+            destination = _archived_chop_batch_path(routine, job, batch_id)
+            if not _writes_allowed(destination, category="axe-chop-state"):
+                return False
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            for source, target in (
+                (manifest_path, destination),
+                (
+                    notice_path,
+                    destination.with_name(f"{batch_id}{CHOP_BATCH_NOTICES_SUFFIX}"),
+                ),
+                (
+                    attempts_path,
+                    destination.with_name(f"{batch_id}{CHOP_BATCH_ATTEMPTS_SUFFIX}"),
+                ),
+            ):
+                if source.exists():
+                    os.replace(source, target)
+            _update_clan_batch_index(
+                routine, job, batch_id, _manifest_clans(manifest), set()
+            )
+            try:
+                owner_path.unlink()
+            except OSError as exc:
+                if exc.errno != errno.ENOENT:
+                    raise ChopBatchError(
+                        f"cannot retire batch {batch_id!r}: {exc}"
+                    ) from exc
+            _fsync_dir(manifest_path.parent)
+            _fsync_dir(destination.parent)
+            return True
+
+
+def delete_archived_chop_batch(routine: str, job: str, batch_id: str) -> bool:
+    """Remove archived batch evidence when its bounded run history is pruned."""
+    manifest_path = _archived_chop_batch_path(routine, job, batch_id)
+    paths = (
+        manifest_path,
+        manifest_path.with_name(f"{batch_id}{CHOP_BATCH_NOTICES_SUFFIX}"),
+        manifest_path.with_name(f"{batch_id}{CHOP_BATCH_ATTEMPTS_SUFFIX}"),
+    )
+    existed = False
+    for path in paths:
+        try:
+            path.unlink()
+            existed = True
+        except OSError as exc:
+            if exc.errno != errno.ENOENT:
+                raise ChopBatchError(
+                    f"cannot delete archived batch {batch_id!r}: {exc}"
+                ) from exc
+    if existed:
+        _fsync_dir(manifest_path.parent)
+    return existed
+
+
+def list_chop_batches_for_clan(clan: str) -> list[dict[str, str]]:
+    """Return indexed pending batches for a clan without scanning job trees."""
+    if not clan:
+        return []
+    index_path = _clan_batch_index_path()
+    with _locked(_clan_batch_index_lock_path()):
+        index = _read_clan_batch_index(index_path)
+        raw_entries = index.get("clans")
+        entries = raw_entries.get(clan, []) if isinstance(raw_entries, dict) else []
+        if not isinstance(entries, list):
+            return []
+        if len(entries) > MAX_CLAN_BATCH_INDEX_ENTRIES:
+            raise ChopBatchError(
+                f"clan {clan!r} has more than {MAX_CLAN_BATCH_INDEX_ENTRIES} "
+                "pending batches; refusing an unbounded cleanup scan"
+            )
+        return [
+            {key: str(value) for key, value in item.items()}
+            for item in entries
+            if isinstance(item, dict)
+        ]
+
+
+def _manifest_clans(manifest: dict[str, Any]) -> set[str]:
+    clans: set[str] = set()
+    for key in ("clan", "clan_name"):
+        value = manifest.get(key)
+        if isinstance(value, str) and value:
+            clans.add(value)
+    members = manifest.get("members")
+    if isinstance(members, list):
+        for member in members:
+            if isinstance(member, dict):
+                clan = member.get("clan")
+                if isinstance(clan, str) and clan:
+                    clans.add(clan)
+    return clans
+
+
+def _update_clan_batch_index(
+    routine: str,
+    job: str,
+    batch_id: str,
+    old_clans: set[str],
+    new_clans: set[str],
+) -> None:
+    path = _clan_batch_index_path()
+    with _locked(_clan_batch_index_lock_path()):
+        index = _read_clan_batch_index(path)
+        clans = index.get("clans")
+        if not isinstance(clans, dict):
+            clans = {}
+        entry = {"routine": routine, "job": job, "batch_id": batch_id}
+        for clan in old_clans | new_clans:
+            rows = clans.get(clan)
+            if not isinstance(rows, list):
+                rows = []
+            rows = [
+                item
+                for item in rows
+                if not (
+                    isinstance(item, dict)
+                    and item.get("routine") == routine
+                    and item.get("job") == job
+                    and item.get("batch_id") == batch_id
+                )
+            ]
+            if clan in new_clans:
+                rows.append(entry)
+                if len(rows) > MAX_CLAN_BATCH_INDEX_ENTRIES:
+                    raise ChopBatchError(
+                        f"clan {clan!r} reached the bounded pending batch index "
+                        f"limit ({MAX_CLAN_BATCH_INDEX_ENTRIES})"
+                    )
+            if rows:
+                clans[clan] = rows
+            else:
+                clans.pop(clan, None)
+        index["schema_version"] = 1
+        index["clans"] = clans
+        _atomic_write_manifest(path, index)
+
+
+def _read_clan_batch_index(path: Path) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        if exc.errno == errno.ENOENT:
+            return {"schema_version": 1, "clans": {}}
+        raise ChopBatchError(f"cannot read pending batch clan index: {exc}") from exc
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ChopBatchCorruptError(
+            f"pending batch clan index is corrupt: {exc}"
+        ) from exc
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != 1
+        or not isinstance(value.get("clans"), dict)
+    ):
+        raise ChopBatchCorruptError("pending batch clan index has an invalid shape")
+    return value
+
+
+def increment_chop_batch_dispatch_attempt(
+    routine: str, job: str, batch_id: str, member_index: int
+) -> int:
+    """Durably count a failed recovery dispatch for one accepted member."""
+    path = _chop_batch_attempts_path(routine, job, batch_id)
+    with _locked(_mutation_lock_path(routine, job)):
+        data = _read_json_object(path)
+        attempts = data.get("attempts")
+        if not isinstance(attempts, dict):
+            attempts = {}
+        key = str(member_index)
+        current = attempts.get(key, 0)
+        count = (
+            int(current)
+            if isinstance(current, int) and not isinstance(current, bool)
+            else 0
+        )
+        attempts[key] = count + 1
+        _atomic_write_manifest(path, {"batch_id": batch_id, "attempts": attempts})
+        return count + 1
+
+
+def chop_batch_dispatch_attempts(
+    routine: str, job: str, batch_id: str
+) -> dict[int, int]:
+    """Return persisted recovery attempt counts keyed by member index."""
+    data = _read_json_object(_chop_batch_attempts_path(routine, job, batch_id))
+    attempts = data.get("attempts")
+    if not isinstance(attempts, dict):
+        return {}
+    result: dict[int, int] = {}
+    for key, value in attempts.items():
+        try:
+            index = int(key)
+        except (TypeError, ValueError):
+            continue
+        if index >= 0 and isinstance(value, int) and not isinstance(value, bool):
+            result[index] = max(0, value)
+    return result
+
+
+def load_chop_batch_notice_state(
+    routine: str, job: str, batch_id: str
+) -> dict[str, Any]:
+    """Load the durable outbox state, returning an empty state when absent."""
+    return _read_json_object(_chop_batch_notices_path(routine, job, batch_id))
+
+
+def pending_chop_batch_notices(
+    routine: str, job: str, batch_id: str
+) -> list[dict[str, Any]]:
+    """Return notice outbox entries that still need external delivery."""
+    state = load_chop_batch_notice_state(routine, job, batch_id)
+    episodes = state.get("episodes")
+    if not isinstance(episodes, dict):
+        return []
+    pending: list[dict[str, Any]] = []
+    for episode_id, episode in episodes.items():
+        if not isinstance(episode, dict):
+            continue
+        events = episode.get("events")
+        if not isinstance(events, dict):
+            continue
+        for event_name, event in events.items():
+            if isinstance(event, dict) and not event.get("delivered"):
+                pending.append(
+                    {"episode_id": str(episode_id), "event": str(event_name), **event}
+                )
+    return pending
+
+
+def update_chop_batch_notice_state(
+    routine: str,
+    job: str,
+    batch_id: str,
+    transform: Callable[[dict[str, Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Atomically update the per-batch notice outbox sidecar."""
+    path = _chop_batch_notices_path(routine, job, batch_id)
+    with _locked(_mutation_lock_path(routine, job)):
+        current = _read_json_object(path)
+        updated = transform(dict(current))
+        if not isinstance(updated, dict):
+            raise ChopBatchError("notice state transform must return an object")
+        updated.setdefault("schema_version", 1)
+        updated.setdefault("batch_id", batch_id)
+        _atomic_write_manifest(path, updated)
+        return updated
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _has_pending_chop_batch_notices(routine: str, job: str, batch_id: str) -> bool:
+    state = _read_json_object(_chop_batch_notices_path(routine, job, batch_id))
+    episodes = state.get("episodes")
+    if isinstance(episodes, dict):
+        for episode in episodes.values():
+            if not isinstance(episode, dict):
+                continue
+            events = episode.get("events")
+            if isinstance(events, dict) and any(
+                isinstance(event, dict) and not event.get("delivered")
+                for event in events.values()
+            ):
+                return True
+    return False
+
+
+def _batch_is_terminal(manifest: dict[str, Any]) -> bool:
+    return str(manifest.get("status") or "") in {"complete", "cancelled"}
+
+
+def _batch_has_dispatch_work(manifest: dict[str, Any]) -> bool:
+    if _batch_is_terminal(manifest):
+        return False
+    members = manifest.get("members")
+    return isinstance(members, list) and any(
+        isinstance(member, dict)
+        and str(member.get("status") or "pending") in {"pending", "dispatching"}
+        for member in members
+    )
 
 
 def acquire_chop_batch_ownership(
@@ -323,7 +722,7 @@ def acquire_chop_batch_ownership(
         return True
 
 
-def release_chop_batch_ownership(routine: str, job: str, batch_id: str) -> bool:
+def _release_chop_batch_ownership(routine: str, job: str, batch_id: str) -> bool:
     """Release executor ownership held by this process."""
     owner_path = chop_batch_owner_path(routine, job, batch_id)
     with _locked(_ownership_lock_path(routine, job)):
@@ -339,7 +738,16 @@ def release_chop_batch_ownership(routine: str, job: str, batch_id: str) -> bool:
                 raise ChopBatchError(
                     f"cannot release batch {batch_id!r}: {exc}"
                 ) from exc
-        return True
+        released = True
+    return released
+
+
+def release_and_retire_chop_batch(routine: str, job: str, batch_id: str) -> bool:
+    """Release this executor and archive the batch if its work is settled."""
+    released = _release_chop_batch_ownership(routine, job, batch_id)
+    if released:
+        retire_chop_batch(routine, job, batch_id)
+    return released
 
 
 def read_chop_batch_owner(routine: str, job: str, batch_id: str) -> dict | None:
@@ -489,6 +897,8 @@ def _pid_is_live(pid: Any) -> bool:
 __all__ = [
     "CHOP_BATCH_DIRNAME",
     "CHOP_BATCH_FILENAME_SUFFIX",
+    "CHOP_BATCH_NOTICES_SUFFIX",
+    "CHOP_BATCH_ATTEMPTS_SUFFIX",
     "CHOP_BATCH_MUTATION_LOCK_FILENAME",
     "CHOP_BATCH_OWNER_SUFFIX",
     "CHOP_BATCH_OWNERSHIP_LOCK_FILENAME",
@@ -504,12 +914,20 @@ __all__ = [
     "chop_batches_dir",
     "create_chop_batch",
     "delete_chop_batch",
+    "delete_archived_chop_batch",
+    "chop_batch_dispatch_attempts",
+    "increment_chop_batch_dispatch_attempt",
     "ensure_chop_batches_dir",
     "list_pending_chop_batches",
+    "list_chop_batches_for_clan",
     "load_chop_batch",
+    "load_chop_batch_notice_state",
+    "pending_chop_batch_notices",
     "read_chop_batch_owner",
     "reconcile_stored_batch",
-    "release_chop_batch_ownership",
+    "retire_chop_batch",
+    "release_and_retire_chop_batch",
     "summarize_stored_batch",
+    "update_chop_batch_notice_state",
     "update_chop_batch",
 ]

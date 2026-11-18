@@ -13,6 +13,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 import schedule
 from rich.console import Console
@@ -153,7 +154,26 @@ class Lumberjack:
         except Exception:  # noqa: BLE001 - log keeps stale labels; next tick retries.
             pass
         _tick_start = time.monotonic()
-        self._recover_pending_batches()
+        recovery_results = self._recover_pending_batches()
+        # The recovery entry point owns persistence and notices; retain the
+        # returned outcomes here as well so routine logs show normal owner
+        # holds, per-member conflicts, and failures without suppressing them.
+        for result in recovery_results:
+            if result.kind == "blocked":
+                self._log(
+                    f"Chop batch recovery held for {result.job} run {result.batch_id}: "
+                    f"{result.reason or result.blocked}",
+                    style="yellow",
+                )
+            elif result.kind == "cancelled":
+                self._log(
+                    f"Chop batch {result.batch_id} for {result.job} was cancelled"
+                )
+        recovery_held_jobs = {
+            result.job
+            for result in recovery_results
+            if result.kind == "blocked" or result.blocked or result.paused
+        }
         finalized_actions = finalize_launched_chop_runs(
             self.name,
             self.config.chop_names,
@@ -221,8 +241,12 @@ class Lumberjack:
         # Filter eligible chops by their optional cadence.
         eligible_chops: list[ChopConfig] = []
         run_every_skips = 0
+        recovery_skips = 0
         for chop in self.config.chops:
             if not chop.enabled:
+                continue
+            if chop.name in recovery_held_jobs:
+                recovery_skips += 1
                 continue
             if chop.run_every is not None:
                 last_run = self._chop_timestamps.get(chop.name)
@@ -255,6 +279,9 @@ class Lumberjack:
         tick_skipped = run_every_skips
         if run_every_skips:
             self._metrics.record_skips("run_every", run_every_skips)
+        if recovery_skips:
+            self._metrics.record_skips("recovery_hold", recovery_skips)
+            tick_skipped += recovery_skips
         for result in results:
             for line in result.log_lines:
                 self._log(line)
@@ -303,7 +330,7 @@ class Lumberjack:
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
-    def _recover_pending_batches(self) -> None:
+    def _recover_pending_batches(self) -> list[Any]:
         """Reconcile pending launch batches before lifecycle cleanup or new work."""
         try:
             from sase.agent.launcher import (
@@ -312,10 +339,11 @@ class Lumberjack:
             )
 
             from .chop_batch_recovery import recover_pending_chop_batches
-        except Exception:
-            return
+        except Exception as exc:
+            self._log(f"Unable to load chop batch recovery: {exc}", style="red")
+            return []
         try:
-            recover_pending_chop_batches(
+            results = recover_pending_chop_batches(
                 self.name,
                 self.config.chop_names[0] if self.config.chop_names else "",
                 launch_agents_from_cwd_fn=launch_agents_from_cwd,
@@ -323,8 +351,10 @@ class Lumberjack:
                 pause_requested_fn=self._stop_signal.as_pause_fn(),
                 jobs=list(self.config.chop_names),
             )
-        except Exception:
-            pass
+            return results
+        except Exception as exc:
+            self._log(f"Chop batch recovery failed: {exc}", style="red")
+            return []
 
     def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
         """Execute a single chop via the shared chop-runner service.

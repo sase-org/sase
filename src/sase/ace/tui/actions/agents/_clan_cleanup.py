@@ -91,9 +91,10 @@ def cancel_pending_batches_for_clan_selection(agents: list[Agent]) -> int:
     """
     try:
         from sase.axe.chop_batch_recovery import cancel_chop_batches_for_clan
-    except Exception:
-        return 0
+    except Exception as exc:
+        raise RuntimeError(f"unable to load chop batch cancellation: {exc}") from exc
     cancelled = 0
+    failures: list[str] = []
     for agent in agents:
         try:
             is_container = bool(getattr(agent, "is_clan_container", False))
@@ -113,8 +114,13 @@ def cancel_pending_batches_for_clan_selection(agents: list[Agent]) -> int:
                     reason=f"explicit TUI clan kill of {clan}",
                 )
             )
-        except Exception:
-            continue
+        except Exception as exc:
+            failures.append(f"{clan}: {exc}")
+    if failures:
+        raise RuntimeError(
+            "unable to persist chop batch cancellation before clan cleanup: "
+            + "; ".join(failures)
+        )
     return cancelled
 
 

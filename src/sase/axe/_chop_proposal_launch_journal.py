@@ -102,7 +102,7 @@ class OrdinaryLaunchJournal:
             return
         from .chop_batch_store import apply_chop_batch_event
 
-        apply_chop_batch_event(
+        manifest = apply_chop_batch_event(
             self.lumberjack_name,
             self.chop_name,
             self.batch_id,
@@ -110,6 +110,24 @@ class OrdinaryLaunchJournal:
             member_index=member_index,
             reason=reason,
         )
+        if event == "request_pause":
+            from ._chop_batch_recovery_shared import (
+                batch_clan,
+                emit_batch_notice,
+                summarize_manifest,
+            )
+
+            counts = summarize_manifest(manifest)
+            emit_batch_notice(
+                routine=self.lumberjack_name,
+                job=self.chop_name,
+                batch_id=self.batch_id,
+                event="interrupted",
+                launched=counts["launched"],
+                remaining=counts["remaining"],
+                clan=batch_clan(manifest),
+                reason=reason,
+            )
 
     def prepare_member(
         self,

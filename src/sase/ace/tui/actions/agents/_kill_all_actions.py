@@ -104,7 +104,14 @@ class AgentKillAllActionsMixin:
                 return
             from ._clan_cleanup import cancel_pending_batches_for_clan_selection
 
-            cancel_pending_batches_for_clan_selection(original_selection)
+            try:
+                cancel_pending_batches_for_clan_selection(original_selection)
+            except Exception as exc:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Cleanup stopped because batch cancellation failed: {exc}",
+                    severity="error",
+                )
+                return
             if killable or dismissable:
                 self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
             if named_procs:

@@ -240,6 +240,68 @@ def test_collapsed_panel_expands_clan_members_without_duplicates() -> None:
     bulk.assert_called_once_with([running], [done], [], [])
 
 
+def test_panel_kill_cancels_selected_clan_before_expanding_members() -> None:
+    running = _agent(
+        "research.one",
+        "one",
+        agent_clan="research",
+        agent_clan_generation="g1",
+    )
+    done = _agent(
+        "research.two",
+        "two",
+        status="DONE",
+        pid=None,
+        agent_clan="research",
+        agent_clan_generation="g1",
+    )
+    projected = project_clan_tree([running, done])
+    app = _CollapsedPanelKillApp(projected)
+    events: list[str] = []
+
+    def cancel(clan: str, *, generation: str, reason: str) -> list[dict[str, str]]:
+        events.append(f"cancel:{clan}:{generation}:{reason}")
+        return []
+
+    with (
+        patch("sase.axe.chop_batch_recovery.cancel_chop_batches_for_clan", cancel),
+        patch.object(
+            app,
+            "_do_bulk_kill_agents",
+            side_effect=lambda *_args: events.append("kill"),
+        ),
+    ):
+        app.action_kill_agent()
+        app.pushed_callbacks[0](True)
+
+    assert events[0].startswith("cancel:research:g1:explicit TUI clan kill")
+    assert events[1] == "kill"
+
+
+def test_panel_kill_stops_and_notifies_when_batch_cancellation_fails() -> None:
+    running = _agent(
+        "research.one",
+        "one",
+        agent_clan="research",
+        agent_clan_generation="g1",
+    )
+    projected = project_clan_tree([running])
+    app = _CollapsedPanelKillApp(projected)
+    with (
+        patch(
+            "sase.axe.chop_batch_recovery.cancel_chop_batches_for_clan",
+            side_effect=RuntimeError("index unavailable"),
+        ),
+        patch.object(app, "_do_bulk_kill_agents") as bulk,
+    ):
+        app.action_kill_agent()
+        app.pushed_callbacks[0](True)
+
+    bulk.assert_not_called()
+    assert app.notifications[-1][1] == "error"
+    assert "index unavailable" in app.notifications[-1][0]
+
+
 def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> None:
     parent = _agent(
         "workflow-parent",

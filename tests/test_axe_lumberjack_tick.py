@@ -55,6 +55,51 @@ def test_run_tick_multiple_chops(
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_patches", return_value=[])
+def test_run_tick_skips_jobs_with_a_held_recovery_batch(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    from sase.axe._chop_batch_recovery_shared import ChopBatchRecoveryResult
+
+    config = LumberjackConfig(
+        name="recovery-held",
+        description="Skip only the job whose batch recovery is held",
+        interval=5,
+        chops=[
+            ChopConfig(name="held_chop", description=""),
+            ChopConfig(name="healthy_chop", description=""),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.side_effect = streamed_ok()
+
+    lumberjack = Lumberjack("recovery-held", config, axe_config)
+    with patch.object(
+        lumberjack,
+        "_recover_pending_batches",
+        return_value=[
+            ChopBatchRecoveryResult(
+                routine="recovery-held",
+                job="held_chop",
+                batch_id="run-held",
+                kind="blocked",
+                reason="maintenance",
+            )
+        ],
+    ):
+        lumberjack._run_tick()
+
+    assert mock_discover.call_count == 1
+    assert lumberjack._metrics.chops_executed == 1
+    assert lumberjack._metrics.chops_skipped.get("recovery_hold") == 1
+
+
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_run_tick_error_handling(
     mock_find: MagicMock,
     mock_discover: MagicMock,

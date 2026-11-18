@@ -126,7 +126,14 @@ class AgentKillActionFlowMixin:
             ) -> None:
                 from ._clan_cleanup import cancel_pending_batches_for_clan_selection
 
-                cancel_pending_batches_for_clan_selection([container])
+                try:
+                    cancel_pending_batches_for_clan_selection([container])
+                except Exception as exc:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Clan cleanup stopped because batch cancellation failed: {exc}",
+                        severity="error",
+                    )
+                    return
                 self._do_bulk_kill_agents(  # type: ignore[attr-defined]
                     killable_arg, dismissable_arg, proc_arg, gates_arg
                 )
@@ -237,6 +244,7 @@ class AgentKillActionFlowMixin:
 
         from ._marking_kill import gate_is_waiting
 
+        containers = [agent for agent in panel_agents if agent.is_clan_container]
         targets = self._agent_cleanup_targets_from_candidates(panel_agents)  # type: ignore[attr-defined]
         named_procs = [
             agent
@@ -266,9 +274,32 @@ class AgentKillActionFlowMixin:
         from ...models.agent_panels import agent_panel_label
 
         label = agent_panel_label(focus.panel_key)
+
+        def _on_confirm(
+            killable_arg: list[Agent],
+            dismissable_arg: list[Agent],
+            proc_arg: list[Agent],
+            gates_arg: list[Agent],
+        ) -> None:
+            from ._clan_cleanup import cancel_pending_batches_for_clan_selection
+
+            if containers:
+                try:
+                    cancel_pending_batches_for_clan_selection(containers)
+                except Exception as exc:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Panel cleanup stopped because batch cancellation failed: {exc}",
+                        severity="error",
+                    )
+                    return
+            self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                killable_arg, dismissable_arg, proc_arg, gates_arg
+            )
+
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
             [*targets, *named_procs, *active_named_procs, *waiting_gates],
             header=f"Panel: {label}",
+            on_confirm=_on_confirm,
         )
 
     def _bulk_kill_collapsed_panel_agents(

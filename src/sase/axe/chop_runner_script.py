@@ -89,7 +89,7 @@ def run_script_chop_once(
     pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     resolved_timeout = chop.timeout or chop_timeout_default
-    _recover_batches_before_guards(
+    recovery_results = _recover_batches_before_guards(
         lumberjack_name,
         chop.name,
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
@@ -97,6 +97,29 @@ def run_script_chop_once(
         pause_requested_fn=pause_requested_fn,
         dry_run=dry_run,
     )
+    recovery_hold = next(
+        (
+            result
+            for result in recovery_results
+            if result.kind == "blocked" or result.blocked or result.paused
+        ),
+        None,
+    )
+    if recovery_hold is not None:
+        detail = recovery_hold.reason or "; ".join(
+            str(item.get("reason") or item.get("status") or item.get("agent_name"))
+            for item in recovery_hold.blocked
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="skipped",
+            run_id=(recovery_hold.batch_id if recovery_hold.batch_id != "*" else None),
+            reason=f"pending batch recovery is held: {detail or 'unknown reason'}",
+            skip_reason="inhibited",
+            dry_run=dry_run,
+            advances_cadence=False,
+        )
     finalize_launched_chop_runs(lumberjack_name, [chop.name])
     live = active_script_chop_run(
         lumberjack_name,
@@ -497,7 +520,7 @@ def _recover_batches_before_guards(
     launch_agents_from_cwd_fn: Callable[..., Any] | None,
     pause_requested_fn: Callable[[], bool] | None,
     dry_run: bool,
-) -> None:
+) -> list[Any]:
     """Reconcile pending batches before lifecycle cleanup or new work.
 
     Manual encounters reuse the same entry point as routine ticks so an
@@ -506,10 +529,20 @@ def _recover_batches_before_guards(
     """
     try:
         from .chop_batch_recovery import recover_pending_chop_batches
-    except Exception:
-        return
+    except Exception as exc:
+        from ._chop_batch_recovery_shared import ChopBatchRecoveryResult
+
+        return [
+            ChopBatchRecoveryResult(
+                routine=lumberjack_name,
+                job=chop_name,
+                batch_id="*",
+                kind="blocked",
+                reason=f"cannot load chop batch recovery: {exc}",
+            )
+        ]
     try:
-        recover_pending_chop_batches(
+        return recover_pending_chop_batches(
             lumberjack_name,
             chop_name,
             launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
@@ -517,8 +550,18 @@ def _recover_batches_before_guards(
             pause_requested_fn=pause_requested_fn,
             dry_run=dry_run,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        from ._chop_batch_recovery_shared import ChopBatchRecoveryResult
+
+        return [
+            ChopBatchRecoveryResult(
+                routine=lumberjack_name,
+                job=chop_name,
+                batch_id="*",
+                kind="blocked",
+                reason=f"chop batch recovery failed: {exc}",
+            )
+        ]
 
 
 _active_script_chop_run = active_script_chop_run

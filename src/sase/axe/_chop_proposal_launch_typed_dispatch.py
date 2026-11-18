@@ -129,7 +129,7 @@ def _persist_typed_outer_batch(
             batch_created_fn(run_id)
         except BaseException:
             if ownership_acquired:
-                chop_batch_store.release_chop_batch_ownership(
+                chop_batch_store.release_and_retire_chop_batch(
                     lumberjack_name, chop_name, run_id
                 )
             raise
@@ -246,7 +246,7 @@ def maybe_dispatch_typed_chop_proposals(
                 )
             finally:
                 if ownership_acquired:
-                    chop_batch_store.release_chop_batch_ownership(
+                    chop_batch_store.release_and_retire_chop_batch(
                         lumberjack_name, chop_name, recovered_batch_id
                     )
             return ChopProposalLaunches(
@@ -339,7 +339,7 @@ def maybe_dispatch_typed_chop_proposals(
             )
         finally:
             if ownership_acquired:
-                chop_batch_store.release_chop_batch_ownership(
+                chop_batch_store.release_and_retire_chop_batch(
                     lumberjack_name, chop_name, batch_id
                 )
         return ChopProposalLaunches(

@@ -76,10 +76,10 @@ def launch_chop_proposals(
         )
     finally:
         if owned_batch_ids:
-            from .chop_batch_store import release_chop_batch_ownership
+            from .chop_batch_store import release_and_retire_chop_batch
 
             for batch_id in owned_batch_ids:
-                release_chop_batch_ownership(lumberjack_name, chop_name, batch_id)
+                release_and_retire_chop_batch(lumberjack_name, chop_name, batch_id)
 
 
 __all__ = ["ChopProposalLaunches", "launch_chop_proposals"]

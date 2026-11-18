@@ -430,11 +430,19 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             dismissable_arg: list[Agent],
             proc_arg: list[Agent],
             gates_arg: list[Agent],
-        ) -> None:
+        ) -> bool:
             from ._clan_cleanup import cancel_pending_batches_for_clan_selection
 
-            cancel_pending_batches_for_clan_selection(original_selection)
+            try:
+                cancel_pending_batches_for_clan_selection(original_selection)
+            except Exception as exc:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Clan cleanup stopped because batch cancellation failed: {exc}",
+                    severity="error",
+                )
+                return False
             base_confirm(killable_arg, dismissable_arg, proc_arg, gates_arg)
+            return True
 
         if (
             not killable
@@ -455,7 +463,10 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                     on_cancel()
                 return
             if killable or dismissable or active_named_procs or waiting_gates:
-                confirm(killable, dismissable, active_named_procs, waiting_gates)
+                if not confirm(
+                    killable, dismissable, active_named_procs, waiting_gates
+                ):
+                    return
             if proc_dismissable:
                 self._dismiss_named_proc_rows(proc_dismissable)  # type: ignore[attr-defined]
 

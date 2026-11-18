@@ -267,11 +267,28 @@ def resume_typed_chop_batch(
         if paused:
             current = chop_batch_store.load_chop_batch(routine, job, batch_id)
             if current.get("status") in {"open", "paused"}:
-                chop_batch_store.apply_chop_batch_event(
+                paused_manifest = chop_batch_store.apply_chop_batch_event(
                     routine,
                     job,
                     batch_id,
                     "request_pause",
+                    reason="cooperative stop requested during typed admission",
+                )
+                from ._chop_batch_recovery_shared import (
+                    batch_clan,
+                    emit_batch_notice,
+                    summarize_manifest,
+                )
+
+                counts = summarize_manifest(paused_manifest)
+                emit_batch_notice(
+                    routine=routine,
+                    job=job,
+                    batch_id=batch_id,
+                    event="interrupted",
+                    launched=counts["launched"],
+                    remaining=counts["remaining"],
+                    clan=batch_clan(paused_manifest),
                     reason="cooperative stop requested during typed admission",
                 )
         launches = list(recorded)
@@ -290,7 +307,7 @@ def resume_typed_chop_batch(
             waiting=not result.admission_complete and not paused,
         )
     finally:
-        chop_batch_store.release_chop_batch_ownership(routine, job, batch_id)
+        chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
 
 
 def _reconstruct_typed_launches(

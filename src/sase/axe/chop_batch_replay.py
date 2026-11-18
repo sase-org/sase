@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import chop_batch_store
+from .chop_batch_store import (
+    chop_batch_dispatch_attempts,
+    increment_chop_batch_dispatch_attempt,
+)
+
+MAX_RECOVERY_DISPATCH_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,7 @@ def replay_ordinary_chop_batch(
     observations_are_complete: bool,
     dispatch_member: Callable[..., Any],
     pause_requested_fn: Callable[[], bool] | None = None,
+    ownership_acquired: bool = False,
 ) -> ChopBatchReplayResult:
     """Replay only members the Rust reconciler identifies as safe to launch.
 
@@ -48,7 +55,7 @@ def replay_ordinary_chop_batch(
             "ordinary batch replay requires a complete spawn observation snapshot"
         )
 
-    if not chop_batch_store.acquire_chop_batch_ownership(
+    if not ownership_acquired and not chop_batch_store.acquire_chop_batch_ownership(
         routine, job, batch_id, owner="ordinary-replay"
     ):
         raise ChopBatchReplayError(f"batch {batch_id!r} already has a live owner")
@@ -97,15 +104,33 @@ def replay_ordinary_chop_batch(
                 )
 
         launched: list[Any] = []
+        dispatch_blocked: list[dict[str, Any]] = []
         paused = False
 
         def request_pause(reason: str) -> bool:
             try:
-                chop_batch_store.apply_chop_batch_event(
+                updated_manifest = chop_batch_store.apply_chop_batch_event(
                     routine,
                     job,
                     batch_id,
                     "request_pause",
+                    reason=reason,
+                )
+                from ._chop_batch_recovery_shared import (
+                    batch_clan,
+                    emit_batch_notice,
+                    summarize_manifest,
+                )
+
+                counts = summarize_manifest(updated_manifest)
+                emit_batch_notice(
+                    routine=routine,
+                    job=job,
+                    batch_id=batch_id,
+                    event="interrupted",
+                    launched=counts["launched"],
+                    remaining=counts["remaining"],
+                    clan=batch_clan(updated_manifest),
                     reason=reason,
                 )
             except chop_batch_store.ChopBatchError:
@@ -132,6 +157,31 @@ def replay_ordinary_chop_batch(
                 break
 
             member = manifest["members"][member_index]
+            attempts = chop_batch_dispatch_attempts(routine, job, batch_id).get(
+                member_index, 0
+            )
+            if attempts >= MAX_RECOVERY_DISPATCH_ATTEMPTS:
+                reason = (
+                    "recovery launch failed "
+                    f"{MAX_RECOVERY_DISPATCH_ATTEMPTS} times; resolve the launch "
+                    "error and start a new chop run"
+                )
+                chop_batch_store.apply_chop_batch_event(
+                    routine,
+                    job,
+                    batch_id,
+                    "mark_blocked",
+                    member_index=member_index,
+                    reason=reason,
+                )
+                dispatch_blocked.append(
+                    {
+                        "agent_name": member.get("agent_name"),
+                        "status": "blocked",
+                        "reason": reason,
+                    }
+                )
+                continue
             boundary = {"started": False, "acknowledged": False}
 
             def before_spawn(
@@ -198,12 +248,45 @@ def replay_ordinary_chop_batch(
                     before_spawn=before_spawn,
                     on_spawn_recorded=on_spawn_recorded,
                 )
-            except ChopBatchReplayError:
-                raise
-            except chop_batch_store.ChopBatchError:
+            except Exception as exc:
                 if _batch_is_cancelled(routine, job, batch_id):
                     break
-                raise
+                # Once the spawn boundary is crossed, the external process may
+                # exist even if journaling failed. Preserve that uncertainty for
+                # reconciliation instead of counting it as a safe retry.
+                if boundary["started"]:
+                    raise
+                failure_count = increment_chop_batch_dispatch_attempt(
+                    routine, job, batch_id, member_index
+                )
+                failure_reason = (
+                    f"launch attempt {failure_count}/"
+                    f"{MAX_RECOVERY_DISPATCH_ATTEMPTS} failed: {exc}"
+                )
+                if (
+                    failure_count >= MAX_RECOVERY_DISPATCH_ATTEMPTS
+                    and not boundary["started"]
+                ):
+                    chop_batch_store.apply_chop_batch_event(
+                        routine,
+                        job,
+                        batch_id,
+                        "mark_blocked",
+                        member_index=member_index,
+                        reason=(
+                            "recovery launch failed "
+                            f"{MAX_RECOVERY_DISPATCH_ATTEMPTS} times: {exc}"
+                        ),
+                    )
+                    dispatch_blocked.append(
+                        {
+                            "agent_name": member.get("agent_name"),
+                            "status": "blocked",
+                            "reason": failure_reason,
+                        }
+                    )
+                    continue
+                raise ChopBatchReplayError(failure_reason) from exc
             if _batch_is_cancelled(routine, job, batch_id):
                 break
             if boundary["started"] and not boundary["acknowledged"]:
@@ -235,7 +318,9 @@ def replay_ordinary_chop_batch(
                     break
 
         refreshed = chop_batch_store.load_chop_batch(routine, job, batch_id)
-        held = tuple(dict(item) for item in reconciliation["blocked"])
+        held = tuple(
+            [dict(item) for item in reconciliation["blocked"]] + dispatch_blocked
+        )
         return ChopBatchReplayResult(
             batch_id=batch_id,
             launched=tuple(launched),
@@ -244,7 +329,7 @@ def replay_ordinary_chop_batch(
             paused=paused or refreshed.get("status") == "paused",
         )
     finally:
-        chop_batch_store.release_chop_batch_ownership(routine, job, batch_id)
+        chop_batch_store.release_and_retire_chop_batch(routine, job, batch_id)
 
 
 def _request_agent_name(request: Any) -> str:
