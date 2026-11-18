@@ -314,7 +314,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/macro/workflow_runner.py:_write_failed_workflow_state": Review(
+    "src/sase/macro/workflow_runner_execute.py:_write_failed_workflow_state": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

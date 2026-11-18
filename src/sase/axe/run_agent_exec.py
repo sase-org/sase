@@ -99,7 +99,7 @@ def _publish_root_timestamp(ctx: AgentExecContext) -> None:
 
 
 def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
-    from sase.macro.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+    from sase.macro._workflow_runner_args import WORKFLOW_INHERITED_VCS_TAG_ARG
 
     named_args: dict[str, Any] = {
         "patch_name": ctx.cl_name,
@@ -118,7 +118,7 @@ def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
         named_args["wait_chats"] = ctx.wait_chats
     vcs_tag = getattr(ctx, "vcs_tag", None)
     if vcs_tag:
-        named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
+        named_args[WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
     # ``agents`` is the single reserved Jinja named arg holding every
     # producer's output variables (keyed by agent name). Fail clearly if
     # another context source already provided it.

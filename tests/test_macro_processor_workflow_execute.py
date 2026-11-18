@@ -2,11 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.macro.workflow_runner import (
-    _WORKFLOW_INHERITED_VCS_TAG_ARG,
-    _WORKFLOW_MODEL_OVERRIDE_ARG,
-    execute_workflow,
+from sase.macro._workflow_runner_args import (
+    WORKFLOW_INHERITED_VCS_TAG_ARG,
+    WORKFLOW_MODEL_OVERRIDE_ARG,
 )
+from sase.macro.workflow_runner import execute_workflow
 from sase.macro.workflow_models import StepState, StepStatus, Workflow, WorkflowStep
 
 
@@ -116,7 +116,7 @@ def test_execute_workflow_flatten_preserves_wrapper_model_override(
 
     call_kwargs = mock_workflow_executor.call_args.kwargs
     assert call_kwargs["inherited_model_override"] == "gemini-3-flash-preview"
-    assert _WORKFLOW_MODEL_OVERRIDE_ARG not in call_kwargs["args"]
+    assert WORKFLOW_MODEL_OVERRIDE_ARG not in call_kwargs["args"]
     assert call_kwargs["args"]["cl_name"] == "my_feature"
 
 
@@ -143,7 +143,7 @@ def test_execute_workflow_passes_inherited_vcs_tag_without_context_leak(
         positional_args=[],
         named_args={
             "cl_name": "my_feature",
-            _WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
+            WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
         },
         workflow_obj=anon_wf,
         silent=True,
@@ -151,7 +151,7 @@ def test_execute_workflow_passes_inherited_vcs_tag_without_context_leak(
 
     call_kwargs = mock_workflow_executor.call_args.kwargs
     assert call_kwargs["inherited_vcs_tag"] == "#gh:sase "
-    assert _WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
+    assert WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
     assert call_kwargs["args"]["cl_name"] == "my_feature"
 
 
@@ -181,7 +181,7 @@ def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_macro_template
         positional_args=[],
         named_args={
             "topic": "visible",
-            _WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
+            WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
         },
         workflow_obj=simple_wf,
         silent=True,
@@ -190,7 +190,7 @@ def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_macro_template
     call_kwargs = mock_workflow_executor.call_args.kwargs
     assert call_kwargs["inherited_vcs_tag"] == "#gh:sase "
     assert call_kwargs["workflow"].steps[0].agent == "false visible"
-    assert _WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
+    assert WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
 
 
 @patch("sase.macro.workflow_executor.WorkflowExecutor")

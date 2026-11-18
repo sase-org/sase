@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.macro.models import InputArg, InputType
-from sase.macro.workflow_runner import (
-    _WORKFLOW_HITL_OVERRIDE_ARG,
-    _WORKFLOW_MODEL_OVERRIDE_ARG,
-    _flatten_anonymous_workflow,
+from sase.macro._workflow_runner_args import (
+    WORKFLOW_HITL_OVERRIDE_ARG,
+    WORKFLOW_MODEL_OVERRIDE_ARG,
 )
+from sase.macro.workflow_runner_flatten import flatten_anonymous_workflow
 from sase.macro.workflow_models import Workflow, WorkflowStep, WorkflowValidationError
 
 
@@ -31,14 +31,14 @@ def test_flatten_anonymous_workflow_returns_none_for_non_single_step() -> None:
             WorkflowStep(name="step2", agent="second"),
         ],
     )
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
 
 
 def test_flatten_anonymous_workflow_returns_none_for_non_hash_prompt() -> None:
     """Test that prompts not starting with # are not flattened."""
     workflow = _make_anonymous_workflow("just a plain prompt")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
 
 
@@ -49,7 +49,7 @@ def test_flatten_anonymous_workflow_returns_none_for_unknown_ref(
     """Test that references to unknown workflows return None."""
     mock_get_all_prompts.return_value = {}
     workflow = _make_anonymous_workflow("#unknown_workflow")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
 
 
@@ -69,7 +69,7 @@ def test_flatten_anonymous_workflow_returns_none_for_prompt_part_ref(
     )
     mock_get_all_prompts.return_value = {"greeting": simple_macro_wf}
     workflow = _make_anonymous_workflow("#greeting")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
     assert workflow.name == "greeting"
 
@@ -90,7 +90,7 @@ def test_flatten_anonymous_workflow_no_rename_for_multi_ref_prompt(
     )
     mock_get_all_prompts.return_value = {"gh": gh_wf}
     workflow = _make_anonymous_workflow("#gh:sase #bd/next %i:sase-svxv.1")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
     # Should NOT be renamed to "gh" — this is a multi-reference prompt
     assert workflow.name == "tmp_abc123"
@@ -111,7 +111,7 @@ def test_flatten_anonymous_workflow_returns_workflow_for_pure_multistep(
     )
     mock_get_all_prompts.return_value = {"split": target_wf}
     workflow = _make_anonymous_workflow("#split")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is not None
     ref_wf, pos_args, named_args = result
     assert ref_wf.name == "split"
@@ -134,7 +134,7 @@ def test_flatten_anonymous_workflow_accepts_explicit_standalone_marker(
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        result = _flatten_anonymous_workflow(workflow)
+        result = flatten_anonymous_workflow(workflow)
 
     assert caught == []
     assert result is not None
@@ -156,13 +156,13 @@ def test_flatten_anonymous_workflow_preserves_explicit_hitl_override(
     mock_get_all_prompts.return_value = {"sync": target_wf}
     workflow = _make_anonymous_workflow("#!sync!!")
 
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
 
     assert result is not None
     ref_wf, pos_args, named_args = result
     assert ref_wf.name == "sync"
     assert pos_args == []
-    assert named_args == {_WORKFLOW_HITL_OVERRIDE_ARG: "1"}
+    assert named_args == {WORKFLOW_HITL_OVERRIDE_ARG: "1"}
 
 
 @patch("sase.macro.loader.get_all_prompts")
@@ -178,7 +178,7 @@ def test_flatten_anonymous_workflow_warns_for_legacy_standalone_marker(
     workflow = _make_anonymous_workflow("#split")
 
     with pytest.warns(UserWarning, match="use '#!split'"):
-        result = _flatten_anonymous_workflow(workflow)
+        result = flatten_anonymous_workflow(workflow)
 
     assert result is not None
     assert result[0].name == "split"
@@ -197,7 +197,7 @@ def test_flatten_anonymous_workflow_rejects_bang_for_embeddable(
     workflow = _make_anonymous_workflow("#!commit")
 
     with pytest.raises(WorkflowValidationError, match="Only standalone workflows"):
-        _flatten_anonymous_workflow(workflow)
+        flatten_anonymous_workflow(workflow)
 
 
 @patch("sase.macro.loader.get_all_prompts")
@@ -229,7 +229,7 @@ def test_flatten_anonymous_workflow_slow_path_with_macro_and_workflow(
         "batch_split": batch_split_wf,
     }
     workflow = _make_anonymous_workflow("#gh:sase #batch_split")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is not None
     ref_wf, pos_args, named_args = result
     assert ref_wf.name == "batch_split"
@@ -256,7 +256,7 @@ def test_flatten_anonymous_workflow_slow_path_prefers_explicit_standalone(
     }
     workflow = _make_anonymous_workflow("#legacy #!explicit")
 
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
 
     assert result is not None
     assert result[0].name == "explicit"
@@ -281,7 +281,7 @@ def test_flatten_anonymous_workflow_slow_path_no_standalone_workflow(
     )
     mock_get_all_prompts.return_value = {"gh": gh_wf, "context": context_wf}
     workflow = _make_anonymous_workflow("#gh:sase #context")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is None
 
 
@@ -311,7 +311,7 @@ def test_flatten_anonymous_workflow_slow_path_multiple_standalone_workflows(
     mock_get_all_prompts.return_value = {"split": wf1, "merge": wf2}
     workflow = _make_anonymous_workflow("#split #merge")
     with pytest.raises(WorkflowValidationError, match="Ambiguous standalone"):
-        _flatten_anonymous_workflow(workflow)
+        flatten_anonymous_workflow(workflow)
 
 
 @patch("sase.macro.loader.get_all_prompts")
@@ -347,7 +347,7 @@ def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
         "```\n"
     )
     workflow = _make_anonymous_workflow(prompt)
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     # Should NOT flatten — the only standalone workflow ref is inside a code block
     assert result is None
 
@@ -371,7 +371,7 @@ def test_flatten_anonymous_workflow_slow_path_with_args(
     )
     mock_get_all_prompts.return_value = {"gh": gh_wf, "deploy": target_wf}
     workflow = _make_anonymous_workflow("#gh:sase #deploy:prod")
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
     assert result is not None
     ref_wf, pos_args, named_args = result
     assert ref_wf.name == "deploy"
@@ -394,7 +394,7 @@ def test_flatten_anonymous_workflow_decodes_plus_space_substitution(
         "#!deploy:/Users/me/Library/Application+Support/sase"
     )
 
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
 
     assert result is not None
     ref_wf, pos_args, named_args = result
@@ -418,12 +418,12 @@ def test_flatten_anonymous_workflow_preserves_wrapper_model_directive(
     mock_get_all_prompts.return_value = {"split": target_wf}
     workflow = _make_anonymous_workflow("#split %model:gemini-3-flash-preview")
 
-    result = _flatten_anonymous_workflow(workflow)
+    result = flatten_anonymous_workflow(workflow)
 
     assert result is not None
     ref_wf, pos_args, named_args = result
     assert ref_wf.name == "split"
     assert pos_args == []
     assert named_args == {
-        _WORKFLOW_MODEL_OVERRIDE_ARG: "gemini-3-flash-preview",
+        WORKFLOW_MODEL_OVERRIDE_ARG: "gemini-3-flash-preview",
     }

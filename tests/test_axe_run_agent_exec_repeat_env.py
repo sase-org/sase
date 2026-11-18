@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.run_agent_exec import AgentExecContext
-from sase.macro.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+from sase.macro._workflow_runner_args import WORKFLOW_INHERITED_VCS_TAG_ARG
 
 
 def _mock_exec_ctx(tmp_path: Path, **overrides: Any) -> MagicMock:
@@ -215,4 +215,4 @@ class TestInheritedVcsInjection:
         run_execution_loop(ctx, "test prompt")
 
         named_args = mock_execute.call_args[0][2]
-        assert named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] == "#gh:sase "
+        assert named_args[WORKFLOW_INHERITED_VCS_TAG_ARG] == "#gh:sase "
