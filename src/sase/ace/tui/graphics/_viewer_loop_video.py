@@ -33,6 +33,7 @@ from ._viewer_loop_terminal import (
     artifact_image_area,
     clear_terminal,
     kitten_icat_clear_command,
+    kitty_graphics_capable,
     print_artifact_header,
     print_artifact_warning,
     run_command as default_run_command,
@@ -66,6 +67,7 @@ from ._viewer_video_media import (
 )
 
 _FRAME_IMAGE_ID = 1
+_CELL_FALLBACK_BANNER = "terminal without kitty graphics: cell preview"
 _STORYBOARD_IMAGE_ID = 2
 _STORYBOARD_MIN_ROWS = 5
 _STORYBOARD_MIN_PANE_ROWS = 20
@@ -419,6 +421,7 @@ class _InspectSession:
         self._storyboard_thread: threading.Thread | None = None
         self._first_visual = False
         self._want_exact = False
+        self.cell_fallback = not kitty_graphics_capable()
         self._term_size = shutil.get_terminal_size(fallback=(80, 24))
         self.layout = self._compute_layout()
 
@@ -506,6 +509,8 @@ class _InspectSession:
         self._start_storyboard()
 
     def _start_storyboard(self) -> None:
+        if self.cell_fallback:
+            return
         if not self.layout.show_storyboard or self.layout.storyboard is None:
             return
         duration = self.duration
@@ -564,7 +569,9 @@ class _InspectSession:
             area = artifact_image_area(self._term_size)
             pane_rows = int(self._term_size.lines)
         return _compute_inspect_layout(
-            area, storyboard_enabled=self.storyboard_enabled, pane_rows=pane_rows
+            area,
+            storyboard_enabled=self.storyboard_enabled and not self.cell_fallback,
+            pane_rows=pane_rows,
         )
 
     def _frame_max_px(self) -> int:
@@ -599,7 +606,15 @@ class _InspectSession:
         result = self._frame_at(self.at, exact=self._want_exact)
         self._want_exact = False
         if result.ok and result.path is not None:
-            self._icat(result.path, self.layout.frame, _FRAME_IMAGE_ID)
+            if self.cell_fallback:
+                self._render_frame_cells(result.path)
+            elif self._icat(result.path, self.layout.frame, _FRAME_IMAGE_ID):
+                self.layout = self._compute_layout()
+                self._restart_storyboard()
+                self._paint(full=True)
+                if span:
+                    emit_child_span("key_to_frame", mode="video", at_seconds=self.at)
+                return
             if not self._first_visual:
                 mark_first_visual("video")
                 self._first_visual = True
@@ -628,21 +643,60 @@ class _InspectSession:
             self.path, at_seconds, self._frame_max_px(), cache_dir=self.cache
         )
 
-    def _icat(self, page: Path, area: ArtifactFileImageArea, image_id: int) -> None:
+    def _icat(self, page: Path, area: ArtifactFileImageArea, image_id: int) -> bool:
+        """Display *page* with kitten icat; return True when it fell back."""
+
         if shutil.which("kitten") is None:
             self.notice = "kitten executable not found: video frame cannot display"
-            return
+            return False
         command = viewer_kitten_icat_command(page, area, image_id=image_id)
         result = self._run(command)
         if getattr(result, "returncode", 0) != 0:
+            self.cell_fallback = True
             self.notice = (
                 f"kitten icat failed with exit code {getattr(result, 'returncode', 1)}"
             )
+            return True
+        return False
+
+    def _render_frame_cells(self, frame: Path) -> None:
+        """Render *frame* as Unicode cells for terminals without kitty graphics."""
+
+        from rich.console import Console
+
+        from .capability import image_render_context
+        from .cell import CellImageError, CellImageRenderable
+
+        area = self.layout.frame
+        try:
+            renderable = CellImageRenderable.from_path(
+                str(frame),
+                columns=max(1, area.columns),
+                rows=max(1, area.rows),
+                truecolor=image_render_context().truecolor,
+            )
+        except (CellImageError, OSError) as exc:
+            self.notice = f"cell preview unavailable: {exc}"
+            return
+        sys.stdout.write(f"\x1b[{max(0, area.top) + 1};1H")
+        sys.stdout.flush()
+        Console(width=max(1, area.columns)).print(renderable, end="")
 
     def _print_status(self) -> None:
         progress = None if self.scrub is None else self.scrub.progress
+        notice: str | None
+        if self.cell_fallback:
+            notice = _CELL_FALLBACK_BANNER
+            if self.notice:
+                notice = f"{notice} ({self.notice})"
+        else:
+            notice = self.notice
         text = _format_inspect_status(
-            self.at, self.duration, scrub_progress=progress, notice=self.notice
+            self.at,
+            self.duration,
+            scrub_progress=progress,
+            notice=notice,
+            bar_width=10 if self.cell_fallback else 22,
         )
         line = text[: self.layout.columns].ljust(self.layout.columns)
         sys.stdout.write(f"\x1b[{self.layout.status_row};1H{line}")

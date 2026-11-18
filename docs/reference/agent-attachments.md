@@ -745,26 +745,26 @@ Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
-sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same viewer used
-for images and PDFs. Video always opens on inspect: `ffprobe` metadata such as
-`▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB`, the `ffmpeg` frame at t=0, and a
-decile storyboard once ready, shown with `kitten icat`. Motion is opt-in on `space`; `o`
-hands off to native playback. Nothing autoplays.
+sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the image/PDF viewer.
+Video opens on inspect: `ffprobe` metadata such as `▶ Video 0:07 · 30 fps · h264`, the
+`ffmpeg` frame at t=0, and a decile storyboard once ready, shown with `kitten icat`.
+Motion starts on `space`; `o` hands off to native playback. Nothing autoplays.
 
 Keys: `h`/`←`/`l`/`→` seek 1 s, `,`/`.` step one frame, `0`–`9` jump deciles, `s`
 storyboard, `o` native player, `r` re-render, `z` zoom, `n`/`p` sequence, `<tab>` focus,
 `q` close; `j`/`k` unused.
 
-`space` runs mpv outside tmux or with a non-kitty `vo` (`tct`). `backend` selects the
-behavior: `auto` (the default) plays where possible and otherwise shows the poster,
-`poster` never plays, `mpv` requires playback. A blocked `space` names the reason, and
-the explicit `mpv` choice without mpv also banners. Motion returns to inspect at the
-same timestamp and owns `space`, arrows, `m`, and `q` while running. Missing
-`ffprobe`/`ffmpeg`/`kitten` banners name the tool; without frames, `o`/`n`/`p`/`q` keep
-working.
+`space` runs mpv outside tmux or with a non-kitty `vo` (`tct`). `backend` selects:
+`auto` (the default) plays where possible and else shows the poster, `poster` never
+plays, `mpv` requires playback. A blocked `space` names the reason; explicit `mpv`
+without mpv banners too. Motion returns to inspect at the same timestamp and owns
+`space`, arrows, `m`, and `q` while running. Missing `ffprobe`/`ffmpeg`/`kitten` banners
+name the tool; `o`/`n`/`p`/`q` keep working. Without kitty graphics (other terminals, or
+a non-kitty tmux client), the frame shows as a Unicode cell preview with no storyboard;
+stepping still works.
 
 `o` runs `open_command` detached (`{path}` substituted or appended), else macOS `open`,
-else Linux `xdg-open` with a graphical session. Otherwise it names `open_command`.
+else Linux `xdg-open` when graphical. Otherwise it names `open_command`.
 
 In-pane motion is muted (`--audio=no` unless `audio: true`); native handoff keeps audio.
 Configure playback under `ace.artifact_file_viewer.video`:
@@ -781,10 +781,10 @@ ace:
       open_command: []
 ```
 
-`backend` is `auto | poster | mpv`; `audio: true` unmutes motion, `loop: true` passes
+`backend` is `auto | poster | mpv`; `audio: true` unmutes, `loop: true` passes
 `--loop-file=inf`, `vo` picks another mpv output (`tct`), `extra_mpv_args` appends flags
-after the `--no-config --profile=sw-fast` defaults, and `open_command` (an argv list or
-shlex string) sets native playback. All but `open_command` affect the mpv backend only.
+after the `--no-config --profile=sw-fast` defaults, and `open_command` (argv list or
+shlex string) sets native playback. The rest affect the mpv backend only.
 
 ## sase's TUI Image Preview Foundation
 

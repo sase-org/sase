@@ -93,6 +93,7 @@ def stub_video_inspect_service(
         return f"/usr/bin/{tool}"
 
     target = "sase.ace.tui.graphics._viewer_loop_video"
+    monkeypatch.setattr(f"{target}.kitty_graphics_capable", lambda **_k: True)
     monkeypatch.setattr(f"{target}.extract_frame", fake_extract)
     monkeypatch.setattr(f"{target}.metadata_for_frame_service", fake_metadata)
     monkeypatch.setattr(f"{target}.build_storyboard", fake_storyboard)
