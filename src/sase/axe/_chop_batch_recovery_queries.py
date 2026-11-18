@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from . import chop_batch_store
@@ -22,11 +23,20 @@ def has_unfinished_chop_batch(routine: str, job: str) -> bool:
 
 
 def pending_batch_for_run(routine: str, job: str, run_id: str) -> dict[str, Any] | None:
-    """Return the stored batch for one run, if it still owns dispatch work."""
+    """Return a run batch while it has pending or in-flight dispatch work."""
     try:
         manifest = chop_batch_store.load_chop_batch(routine, job, run_id)
     except ChopBatchError:
         return None
-    if not batch_needs_resume(manifest):
+    if not batch_needs_resume(manifest) and not _has_dispatching_member(manifest):
         return None
     return manifest
+
+
+def _has_dispatching_member(manifest: Mapping[str, Any]) -> bool:
+    members = manifest.get("members")
+    return isinstance(members, list) and any(
+        str(item.get("status") or "pending") == "dispatching"
+        for item in members
+        if isinstance(item, Mapping)
+    )

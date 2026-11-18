@@ -13,6 +13,7 @@ from ._chop_typed_admission_dispatch import (
 from ._chop_typed_admission_utils import (
     AXE_CHOP_SOURCE_SURFACE,
     UNIT_DISPATCH_METADATA_KEY,
+    chop_batch_cancelled_for_typed_request,
 )
 
 
@@ -24,6 +25,7 @@ def is_axe_chop_typed_request(data: Mapping[str, Any]) -> bool:
 __all__ = [
     "AXE_CHOP_SOURCE_SURFACE",
     "UNIT_DISPATCH_METADATA_KEY",
+    "chop_batch_cancelled_for_typed_request",
     "is_axe_chop_typed_request",
     "launch_descriptor_from_metadata",
     "make_axe_chop_agent_dispatcher",

@@ -257,6 +257,15 @@ class AdmissionEngine(AdmissionConditionMixin):
                     self.agent_dispatcher(unit, fingerprint)
                 )
             self.results.extend(spawned)
+            if not ok and extra.get("cancelled_before_dispatch") is True:
+                self._journal(
+                    logical_id,
+                    "cancelled",
+                    fingerprint=fingerprint,
+                    message=message or "cancelled before dispatch",
+                    extra=extra,
+                )
+                return "replan"
             if ok:
                 reanchor_dispatched_agent_hold(
                     self.admission_dir,

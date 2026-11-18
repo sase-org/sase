@@ -12,7 +12,9 @@ import pytest
 
 from sase.axe import chop_batch_recovery as recovery
 from sase.axe import chop_batch_store
+from sase.axe import chop_runner_script_result_keys as claim_keys
 from sase.axe.chop_stop_signal import ChopStopSignal
+from sase.axe.state import ChopRunEntry, chop_run_log_path, start_chop_run
 from sase.core.axe_chop_facade import CHOP_BATCH_SCHEMA_VERSION
 
 
@@ -105,6 +107,31 @@ def test_pending_batch_for_run_skips_complete_batches(
     assert recovery.pending_batch_for_run("docs", "refresh", "run-1") is None
 
 
+def test_pending_batch_for_run_waits_for_cancelled_inflight_dispatch(
+    isolated_home: Path,
+) -> None:
+    chop_batch_store.create_chop_batch("docs", "refresh", _manifest("run-cancel"))
+    chop_batch_store.apply_chop_batch_event(
+        "docs", "refresh", "run-cancel", "begin_dispatch", member_index=0
+    )
+
+    cancelled = chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "run-cancel",
+        "cancel_clan_generation",
+        reason="kill during spawn",
+    )
+
+    assert cancelled["members"][0]["status"] == "dispatching"
+    assert recovery.pending_batch_for_run("docs", "refresh", "run-cancel") is not None
+
+    chop_batch_store.apply_chop_batch_event(
+        "docs", "refresh", "run-cancel", "acknowledge_launch", member_index=0
+    )
+    assert recovery.pending_batch_for_run("docs", "refresh", "run-cancel") is None
+
+
 def test_cancel_targets_only_matching_clan_generation(
     isolated_home: Path,
 ) -> None:
@@ -117,6 +144,187 @@ def test_cancel_targets_only_matching_clan_generation(
     assert [entry["batch_id"] for entry in cancelled] == ["run-1"]
     assert recovery.pending_batch_for_run("docs", "refresh", "run-1") is None
     assert recovery.pending_batch_for_run("docs", "refresh", "run-2") is not None
+
+
+def test_typed_bundle_cancel_failure_is_logged_and_surfaced(
+    isolated_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = _manifest("run-typed-cancel", "clan-a")
+    start_chop_run(
+        ChopRunEntry(
+            run_id="run-typed-cancel",
+            lumberjack_name="docs",
+            chop_name="refresh",
+            started_at="2026-11-18T12:00:00+00:00",
+            finished_at=None,
+            duration_ms=0,
+            status="running",
+        )
+    )
+    manifest["typed_bundle"] = {
+        "bundle_id": "typed-cancel-bundle",
+        "bundle_digest": "typed-cancel-digest",
+    }
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+
+    def _fail_cancel(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("could not write cancellation marker")
+
+    monkeypatch.setattr(
+        "sase.agent.direct_typed_launch.typed_launch_bundle_dir",
+        lambda _bundle_id: tmp_path,
+    )
+    import sase.agent.launch_admission as launch_admission
+
+    monkeypatch.setattr(
+        launch_admission,
+        "cancel_typed_launch_request",
+        _fail_cancel,
+        raising=False,
+    )
+
+    with pytest.raises(chop_batch_store.ChopBatchError, match="persisted"):
+        recovery.cancel_chop_batches_for_clan(
+            "clan-a",
+            reason="explicit clan kill",
+            routine="docs",
+            job="refresh",
+        )
+
+    cancelled = chop_batch_store.load_chop_batch("docs", "refresh", "run-typed-cancel")
+    assert cancelled["status"] == "cancelled"
+    log = chop_run_log_path("docs", "refresh", "run-typed-cancel")
+    assert "could not write cancellation marker" in log.read_text(encoding="utf-8")
+
+
+def test_once_per_claim_release_follows_batch_member_journal(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-claims", None)
+    manifest["members"].append(
+        {
+            "source_index": 3,
+            "proposal_id": "proposal-3",
+            "agent_name": "job-3",
+            "prompt": "%id:job-3\nDo 3.",
+            "workspace": "git:sase",
+        }
+    )
+    for index, member in enumerate(manifest["members"]):
+        member["dedupe_key"] = "shared-key" if index in {2, 3} else f"key-{index}"
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    chop_batch_store.apply_chop_batch_event(
+        "docs", "refresh", "run-claims", "begin_dispatch", member_index=0
+    )
+    chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "run-claims",
+        "record_skip",
+        member_index=1,
+        reason="explicit name collision",
+    )
+
+    released: list[str] = []
+    monkeypatch.setattr(
+        claim_keys,
+        "release_chop_once_per_keys",
+        lambda _routine, _job, keys: released.extend(keys) or len(keys),
+    )
+    proposals = [
+        SimpleNamespace(
+            index=index,
+            dedupe_key="shared-key" if index in {2, 3} else f"key-{index}",
+        )
+        for index in range(4)
+    ]
+
+    claim_keys.release_unlaunched_once_per_keys(
+        lumberjack_name="docs",
+        chop_name="refresh",
+        run_id="run-claims",
+        accepted_proposals=proposals,
+        successful_launches=[],
+    )
+
+    assert released == ["key-1"]
+
+
+def test_typed_once_per_claim_release_uses_outer_journal(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest("run-typed-claims", None)
+    manifest["members"].append(
+        {
+            "source_index": 3,
+            "proposal_id": "proposal-3",
+            "agent_name": "job-3",
+            "prompt": "%id:job-3\nDo 3.",
+            "workspace": "git:sase",
+        }
+    )
+    manifest["typed_bundle"] = {
+        "bundle_id": "bundle-typed-claims",
+        "bundle_digest": "digest-typed-claims",
+    }
+    for index, member in enumerate(manifest["members"]):
+        member["dedupe_key"] = (
+            "shared-typed-key" if index in {2, 3} else f"typed-key-{index}"
+        )
+    chop_batch_store.create_chop_batch("docs", "refresh", manifest)
+    chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "run-typed-claims",
+        "begin_dispatch",
+        member_index=0,
+    )
+    chop_batch_store.apply_chop_batch_event(
+        "docs",
+        "refresh",
+        "run-typed-claims",
+        "record_skip",
+        member_index=1,
+        reason="condition false",
+    )
+
+    released: list[str] = []
+    monkeypatch.setattr(
+        claim_keys,
+        "release_chop_once_per_keys",
+        lambda _routine, _job, keys: released.extend(keys) or len(keys),
+    )
+    typed_admission = {
+        "units": [
+            {
+                "logical_id": f"unit-{index}",
+                "proposal_index": index,
+                "dedupe_key": (
+                    "shared-typed-key" if index in {2, 3} else f"typed-key-{index}"
+                ),
+            }
+            for index in range(3)
+        ]
+    }
+    result = SimpleNamespace(
+        unit_results=[
+            SimpleNamespace(logical_id=f"unit-{index}", outcome="launch_error")
+            for index in range(4)
+        ]
+    )
+
+    claim_keys.release_typed_nonlaunched_once_per_keys(
+        lumberjack_name="docs",
+        chop_name="refresh",
+        run_id="run-typed-claims",
+        typed_admission=typed_admission,
+        admission_result=result,
+        after="typed test",
+    )
+
+    assert released == ["typed-key-1"]
 
 
 def test_cancel_never_fires_for_individual_member_selection() -> None:

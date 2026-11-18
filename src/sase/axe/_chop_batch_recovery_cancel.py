@@ -136,9 +136,27 @@ def _cancel_linked_typed_bundle(manifest: Mapping[str, Any], *, reason: str) -> 
         if not bundle_id:
             return
         bundle_dir: Path = typed_launch_bundle_dir(bundle_id)
-        try:
-            cancel_typed_launch_request(bundle_dir, reason=reason)
-        except Exception:
-            pass
-    except Exception:
-        pass
+        cancel_typed_launch_request(bundle_dir, reason=reason)
+    except Exception as exc:
+        run = manifest.get("run")
+        if isinstance(run, Mapping):
+            routine = str(run.get("routine") or "")
+            job = str(run.get("job") or "")
+            run_id = str(run.get("run_id") or "")
+            if routine and job and run_id:
+                try:
+                    from .state import append_chop_run_output
+
+                    append_chop_run_output(
+                        routine,
+                        job,
+                        run_id,
+                        "Outer batch cancellation was persisted, but typed bundle "
+                        f"cancellation failed: {exc}\n",
+                    )
+                except Exception:
+                    pass
+        raise ChopBatchError(
+            "outer batch cancellation was persisted, but linked typed bundle "
+            f"cancellation failed: {exc}"
+        ) from exc

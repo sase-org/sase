@@ -13,12 +13,22 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
+from sase.axe import chop_batch_store
 from sase.axe.chop_proposal_launch import launch_chop_proposals
+from sase.axe.chop_proposal_planning import plan_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
+from sase.axe.chop_runner_script_result_launch import (
+    launch_accepted_script_chop_proposals,
+)
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
 from sase.axe.config import ChopConfig
-from sase.axe.state import chop_run_log_path, read_chop_run
+from sase.axe.state import (
+    ChopRunEntry,
+    chop_run_log_path,
+    read_chop_run,
+    start_chop_run,
+)
 from sase.core.agent_launch_wire import AgentUnitWire, HoldFieldsWire, LaunchUnitWire
 from sase.feature_flags import override_flags
 from sase.macro import extract_vcs_workflow_tag
@@ -31,6 +41,167 @@ from tests._axe_chop_proposal_launch_helpers import (
 )
 
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
+
+
+def test_ordinary_first_run_owns_batch_through_launch(
+    temp_state_dir: Path,
+) -> None:
+    prepared = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "id": "refresh",
+                    "prompt": "Review the docs.",
+                    "workspace": "git:sase",
+                    "agent_name": "refresh",
+                }
+            ]
+        },
+    )
+    run_id = "run-owned-first-dispatch"
+    ownership_seen: list[bool] = []
+
+    def _launch(
+        _prompt: str, *, extra_env: dict[str, str], **_kwargs: object
+    ) -> SimpleNamespace:
+        owner = chop_batch_store.read_chop_batch_owner("docs", "docs", run_id)
+        ownership_seen.append(owner is not None)
+        assert (
+            chop_batch_store.acquire_chop_batch_ownership("docs", "docs", run_id)
+            is False
+        )
+        return SimpleNamespace(pid=701, agent_name="refresh", timestamp="")
+
+    launches = launch_chop_proposals(
+        lumberjack_name="docs",
+        chop_name="docs",
+        run_id=run_id,
+        proposals=prepared,
+        launch_agent_from_cwd_fn=_launch,
+        run_started_at=datetime.now(UTC),
+        preflight=SimpleNamespace(decision={}),
+    )
+
+    assert len(launches) == 1
+    assert ownership_seen == [True]
+    assert chop_batch_store.read_chop_batch_owner("docs", "docs", run_id) is None
+
+
+def test_ordinary_clan_kill_settles_crossing_launch_without_failing_run(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    prepared = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "id": "first",
+                    "prompt": "Review the first file.",
+                    "workspace": "git:sase",
+                    "agent_name": "first",
+                    "dedupe_key": "docs:first",
+                },
+                {
+                    "id": "second",
+                    "prompt": "Review the second file.",
+                    "workspace": "git:sase",
+                    "agent_name": "second",
+                    "dedupe_key": "docs:second",
+                },
+            ]
+        },
+    )
+    run_id = "run-crossing-clan-kill"
+    started_at = datetime.now(UTC)
+    start_chop_run(
+        ChopRunEntry(
+            run_id=run_id,
+            lumberjack_name="docs",
+            chop_name="docs",
+            started_at=started_at.isoformat(),
+            finished_at=None,
+            duration_ms=0,
+            status="running",
+        )
+    )
+    launch_calls: list[str] = []
+
+    def _launch(
+        _prompt: str,
+        *,
+        extra_env: dict[str, str],
+        before_agent_spawn: Any,
+        on_agent_launch_recorded: Any,
+        **_kwargs: object,
+    ) -> SimpleNamespace:
+        planned_name = str(extra_env.get("SASE_AGENT_PLANNED_NAME") or "first")
+        request = SimpleNamespace(
+            extra_env=extra_env,
+            name_reservation=SimpleNamespace(agent_name=planned_name),
+        )
+        before_agent_spawn(0, 0, request, None)
+        chop_batch_store.apply_chop_batch_event(
+            "docs",
+            "docs",
+            run_id,
+            "cancel_clan_generation",
+            reason="test clan kill during launch",
+        )
+        result = SimpleNamespace(
+            pid=702,
+            agent_name=planned_name,
+            timestamp="",
+            workspace_num=1,
+            workspace_dir="/workspace/1",
+            project_name="sase",
+            workflow_name="test",
+        )
+        on_agent_launch_recorded(
+            0,
+            0,
+            SimpleNamespace(result=result, request=request),
+            None,
+        )
+        launch_calls.append(planned_name)
+        return result
+
+    outcome = launch_accepted_script_chop_proposals(
+        lumberjack_name="docs",
+        chop=ChopConfig(name="docs", description=""),
+        run_id=run_id,
+        started_at=started_at,
+        result_path=tmp_path / "result.json",
+        chop_verbose=False,
+        preflight=SimpleNamespace(decision={}),
+        structured_result={"status": "ok"},
+        prepared_proposals=prepared,
+        accepted_proposals=prepared,
+        proposals=[],
+        once_per_decisions={},
+        once_per_effective_waits={
+            proposal.index: proposal.wait_on for proposal in prepared
+        },
+        launch_plans=plan_chop_proposals(prepared),
+        launch_agent_from_cwd_fn=_launch,
+        launch_agents_from_cwd_fn=None,
+    )
+
+    manifest = chop_batch_store.load_chop_batch("docs", "docs", run_id)
+    entry = read_chop_run("docs", "docs", run_id)
+    assert outcome.status == "launched"
+    assert outcome.error is None
+    assert entry is not None
+    assert entry.status == "launched"
+    assert len(entry.launches) == 1
+    assert launch_calls == ["first"]
+    assert manifest["status"] == "cancelled"
+    assert [member["status"] for member in manifest["members"]] == [
+        "launched",
+        "cancelled",
+    ]
 
 
 def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
@@ -68,11 +239,15 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
     )
     patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
+    owners_during_dispatch: list[dict[str, object] | None] = []
 
     def _launch(
         prompt: str, *, extra_env: dict[str, str], origin: object = None
     ) -> list[SimpleNamespace]:
         calls.append((prompt, extra_env))
+        owners_during_dispatch.append(
+            chop_batch_store.read_chop_batch_owner("docs", "docs", "run-typed")
+        )
         return [
             SimpleNamespace(
                 pid=501,
@@ -95,11 +270,19 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
             proposals=prepared,
             launch_agent_from_cwd_fn=lambda *args, **kwargs: None,
             launch_agents_from_cwd_fn=_launch,
+            run_started_at=datetime.now(UTC),
+            preflight=SimpleNamespace(decision={}),
         )
 
     assert len(launches) == 1
     assert launches.typed_admission is not None
     assert launches.admission_result.admission_complete
+    assert len(owners_during_dispatch) == 1
+    owner_during_dispatch = owners_during_dispatch[0]
+    assert owner_during_dispatch is not None
+    assert owner_during_dispatch["batch_id"] == "run-typed"
+    assert owner_during_dispatch["owner"] == "typed-admission-first-run"
+    assert chop_batch_store.read_chop_batch_owner("docs", "docs", "run-typed") is None
     assert pwd_capture.read_text(encoding="utf-8").strip() == str(repo)
     prompt, env = calls[0]
     assert "%if" not in prompt

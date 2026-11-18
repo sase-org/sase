@@ -8,11 +8,6 @@ from typing import Literal
 from sase.core.time import get_timezone
 
 from ._chop_lifecycle_completion import agent_completion
-from ._chop_lifecycle_keys import (
-    log_unmatched_records,
-    release_failed_launch_keys,
-    release_typed_nonlaunched_keys,
-)
 from ._chop_lifecycle_matching import duration_ms, match_records_to_launches
 from ._chop_lifecycle_types import AgentCompletion
 from ._chop_lifecycle_typed_admission import typed_admission_reconciliation
@@ -41,6 +36,12 @@ def finalize_launched_chop_runs(
     Missing linkage and dead agents without completion artifacts fail closed so
     a run cannot remain in ``launched`` forever.
     """
+    from ._chop_lifecycle_keys import (
+        log_unmatched_records,
+        release_failed_launch_keys,
+        release_typed_nonlaunched_keys,
+    )
+
     garbage_collect_chop_agent_records(lumberjack_name)
     finalized = 0
     for chop_name in chop_names:
@@ -48,15 +49,13 @@ def finalize_launched_chop_runs(
             entry = read_chop_run(lumberjack_name, chop_name, run_id)
             if entry is None or entry.status != "launched":
                 continue
-            # A paused batch whose launched members are terminal remains
-            # resumable; finalizers must not pronounce it complete while
-            # recovery still owns the remaining dispatch. Failure batches
-            # keep the existing finalize-and-merge behavior.
+            # Any unfinished batch remains resumable, whether it is open or
+            # paused. Finalizers must wait until its remaining dispatch settles.
             try:
                 from .chop_batch_recovery import pending_batch_for_run
 
                 pending = pending_batch_for_run(lumberjack_name, chop_name, run_id)
-                if pending is not None and str(pending.get("status") or "") == "paused":
+                if pending is not None:
                     continue
             except Exception:
                 pass
@@ -78,6 +77,11 @@ def finalize_launched_chop_runs(
                     chop_name=chop_name,
                     run_id=run_id,
                     keys=list(typed_reconciliation.release_keys or []),
+                    typed_admission=(
+                        entry.typed_admission
+                        if isinstance(entry.typed_admission, dict)
+                        else None
+                    ),
                 )
             launches = (
                 list(typed_reconciliation.launches or [])

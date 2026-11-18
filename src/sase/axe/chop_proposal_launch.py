@@ -52,21 +52,34 @@ def launch_chop_proposals(
         launch_chop_proposals as launch_chop_proposals_impl,
     )
 
-    return launch_chop_proposals_impl(
-        lumberjack_name=lumberjack_name,
-        chop_name=chop_name,
-        run_id=run_id,
-        proposals=proposals,
-        launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
-        launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
-        launch_plans=launch_plans,
-        launch_recorded_fn=launch_recorded_fn,
-        proposal_skipped_fn=proposal_skipped_fn,
-        run_started_at=run_started_at,
-        preflight=preflight,
-        batch_created_fn=batch_created_fn,
-        pause_requested_fn=pause_requested_fn,
-    )
+    owned_batch_ids: list[str] = []
+
+    def _batch_owner_registered(batch_id: str) -> None:
+        owned_batch_ids.append(batch_id)
+
+    try:
+        return launch_chop_proposals_impl(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop_name,
+            run_id=run_id,
+            proposals=proposals,
+            launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+            launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+            launch_plans=launch_plans,
+            launch_recorded_fn=launch_recorded_fn,
+            proposal_skipped_fn=proposal_skipped_fn,
+            run_started_at=run_started_at,
+            preflight=preflight,
+            batch_created_fn=batch_created_fn,
+            pause_requested_fn=pause_requested_fn,
+            batch_owner_registered_fn=_batch_owner_registered,
+        )
+    finally:
+        if owned_batch_ids:
+            from .chop_batch_store import release_chop_batch_ownership
+
+            for batch_id in owned_batch_ids:
+                release_chop_batch_ownership(lumberjack_name, chop_name, batch_id)
 
 
 __all__ = ["ChopProposalLaunches", "launch_chop_proposals"]

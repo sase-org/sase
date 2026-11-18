@@ -375,10 +375,11 @@ def test_cancel_after_first_mixed_unit_preserves_launched(tmp_path: Path) -> Non
     )
     assert progress.summary is not None
     assert progress.summary.launched == 1
-    assert progress.summary.launch_errors == 1
+    assert progress.summary.skipped == 1
+    assert progress.summary.launch_errors == 0
     outcomes = {result.logical_id: result.outcome for result in progress.unit_results}
     assert outcomes["unit-1"] == "launched"
-    assert outcomes["unit-2"] == "launch_error"
+    assert outcomes["unit-2"] == "cancelled"
     _assert_receipt_agrees(progress, response_dir, plan)
 
 

@@ -7,13 +7,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
+from sase.axe import chop_batch_store
+from sase.axe.chop_typed_admission import (
+    chop_batch_cancelled_for_typed_request,
+    make_axe_chop_agent_dispatcher,
+)
+from sase.core.axe_chop_facade import CHOP_BATCH_SCHEMA_VERSION
 from sase.macro.directives import extract_prompt_directives
 from tests._axe_chop_proposal_launch_clan_dispatch_helpers import (
     capturing_launch,
     clan_marker_path,
     clan_unit,
     clan_unit_metadata,
+    wait_unit,
+    wait_unit_metadata,
 )
 
 
@@ -284,3 +291,63 @@ def test_typed_clan_dispatch_failed_declarer_blocks_second_declaration(
     assert directives.clan_declared is False
     assert directives.clan == "toobig-x"
     assert directives.name == "toobig-x.second"
+
+
+def test_typed_dispatch_stops_when_outer_batch_was_cancelled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "run-wait"
+    data = {
+        "unit_dispatch_metadata": {
+            "unit-1": wait_unit_metadata(
+                "unit-1", index=0, proposal_id="first", agent_name="first"
+            )
+        }
+    }
+    chop_batch_store.create_chop_batch(
+        "split",
+        "split",
+        {
+            "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+            "batch_id": run_id,
+            "run": {"routine": "split", "job": "split", "run_id": run_id},
+            "typed_bundle": {
+                "bundle_id": "axe-chop-run-wait",
+                "bundle_digest": "digest-run-wait",
+            },
+            "members": [
+                {
+                    "source_index": 0,
+                    "proposal_id": "first",
+                    "agent_name": "first",
+                    "prompt": "Do the work.",
+                    "workspace": "git:sase",
+                }
+            ],
+        },
+    )
+    chop_batch_store.apply_chop_batch_event(
+        "split",
+        "split",
+        run_id,
+        "cancel_clan_generation",
+        reason="user killed the clan",
+    )
+
+    calls: list[tuple[str, dict[str, str]]] = []
+    dispatcher = make_axe_chop_agent_dispatcher(
+        data,
+        launch_agents_from_cwd_fn=capturing_launch(calls, "first"),
+        bundle_dir=tmp_path,
+    )
+    assert dispatcher is not None
+
+    result = dispatcher(wait_unit("unit-1", identity="first"), "fp-1")
+
+    assert result[0] is False
+    assert result[2] == "outer chop batch was cancelled"
+    assert calls == []
+    assert chop_batch_cancelled_for_typed_request(data) is True

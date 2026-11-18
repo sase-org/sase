@@ -161,6 +161,22 @@ def test_stale_and_live_ownership(isolated_home: Path) -> None:
     assert store.release_chop_batch_ownership(routine, job, "batch-stale") is False
 
 
+def test_create_can_claim_ownership_before_manifest_becomes_visible(
+    isolated_home: Path,
+) -> None:
+    created = store.create_chop_batch(
+        "guard", "split", _manifest(), owner="ordinary-first-run"
+    )
+    batch_id = created["batch_id"]
+
+    assert store.load_chop_batch("guard", "split", batch_id) == created
+    owner = store.read_chop_batch_owner("guard", "split", batch_id)
+    assert owner is not None
+    assert owner["owner"] == "ordinary-first-run"
+    assert store.acquire_chop_batch_ownership("guard", "split", batch_id) is False
+    assert store.release_chop_batch_ownership("guard", "split", batch_id) is True
+
+
 def _reaped_child_pid() -> int:
     pid = os.fork()
     if pid == 0:  # pragma: no cover - child exits immediately
@@ -232,7 +248,12 @@ def test_cancellation_priority_and_reconcile_selection(
         reason="user killed clan toobig-68",
     )
     assert cancelled["status"] == "cancelled"
-    assert cancelled["members"][0]["status"] == "cancelled"
+    assert cancelled["members"][0]["status"] == "dispatching"
+    settled = store.apply_chop_batch_event(
+        "guard", "split", "batch-1", "acknowledge_launch", member_index=0
+    )
+    assert settled["members"][0]["status"] == "launched"
+    assert settled["members"][1]["status"] == "cancelled"
     with pytest.raises(store.ChopBatchError):
         store.apply_chop_batch_event(
             "guard", "split", "batch-1", "begin_dispatch", member_index=1

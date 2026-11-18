@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ._chop_typed_admission_utils import int_or_none, unit_metadata
+from ._chop_typed_admission_utils import (
+    chop_batch_is_cancelled,
+    int_or_none,
+    unit_metadata,
+)
 
 
 def mirror_typed_dispatch_start(
@@ -13,11 +17,11 @@ def mirror_typed_dispatch_start(
     job: str,
     batch_id: str,
     metadata: Mapping[str, Any],
-) -> None:
+) -> bool:
     source_index = int_or_none(metadata.get("proposal_index"))
     if source_index is None:
-        return
-    _ensure_typed_member_dispatching(routine, job, batch_id, source_index)
+        return True
+    return _ensure_typed_member_dispatching(routine, job, batch_id, source_index)
 
 
 def mirror_typed_launch(
@@ -62,22 +66,32 @@ def _ensure_typed_member_dispatching(
     job: str,
     batch_id: str,
     source_index: int,
-) -> None:
+) -> bool:
     from . import chop_batch_store
 
     manifest = chop_batch_store.load_chop_batch(routine, job, batch_id)
     member_index = _typed_member_index(manifest, source_index)
     if member_index is None:
-        return
+        return True
+    if str(manifest.get("status") or "") == "cancelled":
+        return False
     status = str(manifest["members"][member_index].get("status") or "pending")
+    if status == "cancelled":
+        return False
     if status in {"pending", "dispatching"}:
-        chop_batch_store.apply_chop_batch_event(
-            routine,
-            job,
-            batch_id,
-            "begin_dispatch",
-            member_index=member_index,
-        )
+        try:
+            chop_batch_store.apply_chop_batch_event(
+                routine,
+                job,
+                batch_id,
+                "begin_dispatch",
+                member_index=member_index,
+            )
+        except chop_batch_store.ChopBatchError:
+            if chop_batch_is_cancelled(routine, job, batch_id):
+                return False
+            raise
+    return True
 
 
 def mirror_typed_unit_results(

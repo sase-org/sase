@@ -571,7 +571,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1tc.3.1(list_pending_chop_batches)" \
         --epic-symbol "sase-1tc.3.1(read_chop_batch_owner)" \
         --epic-symbol "sase-1tc.3.1(reconcile_stored_batch)" \
-        --epic-symbol "sase-1tc.3.1(release_chop_batch_ownership)" \
         --epic-symbol "sase-1tc.3.1(summarize_stored_batch)" \
         {{ args }}
 

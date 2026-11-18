@@ -62,6 +62,7 @@ def launch_chop_proposals(
     preflight: Any | None = None,
     batch_created_fn: Callable[[str], None] | None = None,
     pause_requested_fn: Callable[[], bool] | None = None,
+    batch_owner_registered_fn: Callable[[str], None] | None = None,
 ) -> ChopProposalLaunches:
     """Launch proposals, batching clan members through multi-prompt preflight."""
     plans = list(launch_plans or plan_chop_proposals(proposals))
@@ -81,6 +82,21 @@ def launch_chop_proposals(
         return typed_launches
 
     batch_id: str | None = None
+    cancelled = False
+
+    def _batch_is_cancelled() -> bool:
+        if batch_id is None:
+            return False
+        from .chop_batch_store import load_chop_batch
+
+        manifest = load_chop_batch(lumberjack_name, chop_name, batch_id)
+        return str(manifest.get("status") or "") == "cancelled"
+
+    def _stop_requested() -> bool:
+        return _batch_is_cancelled() or (
+            pause_requested_fn is not None and pause_requested_fn()
+        )
+
     if run_started_at is not None and preflight is not None:
         from .chop_batch_store import create_chop_batch
 
@@ -93,8 +109,19 @@ def launch_chop_proposals(
             plans=plans,
         )
         batch_id = str(
-            create_chop_batch(lumberjack_name, chop_name, manifest)["batch_id"]
+            create_chop_batch(
+                lumberjack_name,
+                chop_name,
+                manifest,
+                owner=(
+                    "ordinary-first-run"
+                    if batch_owner_registered_fn is not None
+                    else None
+                ),
+            )["batch_id"]
         )
+        if batch_owner_registered_fn is not None:
+            batch_owner_registered_fn(batch_id)
         if batch_created_fn is not None:
             batch_created_fn(batch_id)
 
@@ -104,7 +131,8 @@ def launch_chop_proposals(
         batch_id=batch_id,
         plans=plans,
         launch_recorded_fn=launch_recorded_fn,
-        pause_requested_fn=pause_requested_fn,
+        pause_requested_fn=_stop_requested,
+        batch_cancelled_fn=_batch_is_cancelled,
     )
 
     if journal.has_clan:
@@ -142,8 +170,19 @@ def launch_chop_proposals(
             if partial_results and not journal.launches_by_member:
                 for member_index, result in enumerate(partial_results[: len(plans)]):
                     journal.fallback_record(member_index, result)
+            if _batch_is_cancelled():
+                journal.cancelled = True
+                return ChopProposalLaunches(
+                    [
+                        journal.launches_by_member[index]
+                        for index in range(len(plans))
+                        if index in journal.launches_by_member
+                    ],
+                    batch_id=batch_id,
+                )
             raise
-        if journal.paused:
+        if journal.paused or journal.cancelled or _batch_is_cancelled():
+            cancelled = cancelled or _batch_is_cancelled()
             batch_launches = [
                 journal.launches_by_member[index]
                 for index in range(len(plans))
@@ -151,7 +190,7 @@ def launch_chop_proposals(
             ]
             return ChopProposalLaunches(
                 batch_launches,
-                paused=True,
+                paused=journal.paused,
                 batch_id=journal.batch_id,
             )
         if len(results) != len(plans):
@@ -174,6 +213,9 @@ def launch_chop_proposals(
     from sase.agent.launch_validation import AgentNameLaunchCollisionError
 
     for member_index, plan in enumerate(plans):
+        if _batch_is_cancelled():
+            cancelled = True
+            break
         if pause_requested_fn is not None and pause_requested_fn():
             journal.pause_batch()
             break
@@ -225,6 +267,9 @@ def launch_chop_proposals(
                 **journal.progress_kwargs(),
             )
         except AgentNameLaunchCollisionError as exc:
+            if _batch_is_cancelled():
+                cancelled = True
+                break
             if not proposal.explicit_agent_name:
                 raise
             journal.skipped_indices.add(proposal.index)
@@ -238,10 +283,14 @@ def launch_chop_proposals(
                 proposal_skipped_fn(proposal, reason, effective_wait)
             continue
         except Exception:
+            if _batch_is_cancelled():
+                cancelled = True
+                break
             if journal.paused:
                 break
             raise
-        if result is None and journal.paused:
+        if result is None and (journal.paused or cancelled or _batch_is_cancelled()):
+            cancelled = cancelled or _batch_is_cancelled()
             break
         launch = journal.launches_by_member.get(member_index)
         if launch is None:

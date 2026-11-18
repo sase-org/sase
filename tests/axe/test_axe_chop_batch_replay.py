@@ -176,8 +176,7 @@ def test_clan_cancellation_during_launch_settles_current_and_stops_next(
             "cancel_clan_generation",
             reason="user killed clan while member was launching",
         )
-        with pytest.raises(chop_batch_store.ChopBatchError):
-            on_spawn_recorded(result)
+        on_spawn_recorded(result)
         return result
 
     replay = replay_ordinary_chop_batch(
@@ -192,9 +191,11 @@ def test_clan_cancellation_during_launch_settles_current_and_stops_next(
     batch = chop_batch_store.load_chop_batch("docs", "refresh", "ordinary-replay")
     assert replay.paused is False
     assert dispatched == ["docs-refresh-0"]
+    assert len(replay.launched) == 1
+    assert replay.launched[0].agent_name == "docs-refresh-0"
     assert batch["status"] == "cancelled"
     assert [member["status"] for member in batch["members"]] == [
-        "cancelled",
+        "launched",
         "cancelled",
         "cancelled",
     ]

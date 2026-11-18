@@ -16,10 +16,6 @@ from sase.agent.launch_admission_store import (
 
 from ._chop_lifecycle_completion import record_artifacts_dir
 from ._chop_lifecycle_types import TypedAdmissionReconciliation
-from .chop_typed_admission import (
-    UNIT_DISPATCH_METADATA_KEY,
-    launch_descriptor_from_metadata,
-)
 from .state import ChopRunEntry
 
 
@@ -28,6 +24,11 @@ def typed_admission_reconciliation(
     entry: ChopRunEntry,
     records: Sequence[object],
 ) -> TypedAdmissionReconciliation:
+    from .chop_typed_admission import (
+        UNIT_DISPATCH_METADATA_KEY,
+        launch_descriptor_from_metadata,
+    )
+
     typed = entry.typed_admission
     if not isinstance(typed, dict):
         return TypedAdmissionReconciliation()
@@ -183,6 +184,8 @@ def _coordinator_live(bundle_dir: Path) -> bool:
 def _dispatch_metadata(
     payload: dict[str, object],
 ) -> dict[str, dict[str, object]]:
+    from .chop_typed_admission import UNIT_DISPATCH_METADATA_KEY
+
     raw = payload.get(UNIT_DISPATCH_METADATA_KEY)
     if not isinstance(raw, dict):
         return {}

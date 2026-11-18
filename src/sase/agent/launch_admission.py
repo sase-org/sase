@@ -118,6 +118,7 @@ def dispatch_typed_launch_request(
                 cancelled=lambda: (
                     (cancelled is not None and cancelled())
                     or _request_cancelled(root, data)
+                    or _outer_chop_batch_cancelled(data)
                 ),
                 pause_requested=pause_requested or (lambda: False),
                 project_file=request_project_file(data),
@@ -184,7 +185,11 @@ def run_coordinator_in_bundle(
                 plan=plan,
                 admission_dir=root,
                 request_id=str(data.get("request_id") or ""),
-                cancelled=lambda: stop() or _request_cancelled(root, data),
+                cancelled=lambda: (
+                    stop()
+                    or _request_cancelled(root, data)
+                    or _outer_chop_batch_cancelled(data)
+                ),
                 agent_dispatcher=agent_dispatcher,
                 project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
@@ -335,6 +340,18 @@ def _request_cancelled(root: Path, data: Mapping[str, Any]) -> bool:
             "cancellation marker belongs to a different launch request",
         )
     return True
+
+
+def _outer_chop_batch_cancelled(data: Mapping[str, Any]) -> bool:
+    """Honor durable AXE cancellation even if its bundle marker write failed."""
+    try:
+        from sase.axe.chop_typed_admission import (
+            chop_batch_cancelled_for_typed_request,
+        )
+
+        return chop_batch_cancelled_for_typed_request(data)
+    except ImportError:
+        return False
 
 
 def _agent_dispatcher_for_request(

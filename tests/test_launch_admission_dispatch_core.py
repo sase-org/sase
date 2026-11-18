@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -124,10 +125,45 @@ def test_cancel_open_units_does_not_erase_launched(tmp_path: Path) -> None:
     )
     assert progress.summary is not None
     assert progress.summary.launched == 1
-    assert progress.summary.launch_errors == 1
+    assert progress.summary.skipped == 1
+    assert progress.summary.launch_errors == 0
     outcomes = {result.logical_id: result.outcome for result in progress.unit_results}
     assert outcomes["unit-1"] == "launched"
-    assert outcomes["unit-2"] == "launch_error"
+    assert outcomes["unit-2"] == "cancelled"
+
+
+def test_dispatcher_can_settle_outer_cancellation_without_launch_error(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    cancellation_requested = False
+
+    def dispatcher(
+        _unit: LaunchUnitWire, _fingerprint: str
+    ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult], dict[str, Any]]:
+        nonlocal cancellation_requested
+        cancellation_requested = True
+        return (
+            False,
+            None,
+            "outer batch was cancelled",
+            [],
+            {"cancelled_before_dispatch": True},
+        )
+
+    progress, _response_dir = _run_plan(
+        tmp_path,
+        _plan(_agent_unit("unit-1")),
+        request_id="req-outer-cancel",
+        agent_dispatcher=dispatcher,
+        cancelled=lambda: cancellation_requested,
+    )
+
+    assert progress.summary is not None
+    assert progress.summary.skipped == 1
+    assert progress.summary.launch_errors == 0
+    assert len(progress.unit_results) == 1
+    assert progress.unit_results[0].outcome == "cancelled"
 
 
 def test_proc_queue_capacity_blocks_then_dispatches_when_idle(

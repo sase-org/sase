@@ -8,13 +8,19 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.agent.launch_admission_store import UNITS_DIRNAME, admission_dir, read_json
-from sase.agent.launch_admission_runtime import UnitDispatcher
+from sase.agent.launch_admission_runtime import (
+    DispatchResultWithExtra,
+    UnitDispatcher,
+)
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import agent_unit_dispatch_prompt, safe_launch_name
 from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
 from sase.core.atomic_json import write_json_marker_atomic
 
-from ._chop_typed_admission_utils import int_or_none, unit_metadata
+from ._chop_typed_admission_utils import (
+    int_or_none,
+    unit_metadata,
+)
 from .chop_agents import build_chop_launch_env
 
 
@@ -28,7 +34,7 @@ def make_axe_chop_agent_dispatcher(
     data: Mapping[str, Any],
     *,
     launch_agents_from_cwd_fn: Callable[..., Any] | None = None,
-    dispatch_started_fn: Callable[[Mapping[str, Any]], None] | None = None,
+    dispatch_started_fn: Callable[[Mapping[str, Any]], bool | None] | None = None,
     launch_recorded_fn: Callable[[dict[str, Any]], None] | None = None,
     bundle_dir: Path | None = None,
 ) -> UnitDispatcher | None:
@@ -36,6 +42,40 @@ def make_axe_chop_agent_dispatcher(
     metadata = unit_metadata(data)
     if not metadata:
         return None
+    first_metadata = next(iter(metadata.values()))
+    routine = str(first_metadata.get("lumberjack_name") or "")
+    job = str(first_metadata.get("chop_name") or "")
+    batch_id = str(first_metadata.get("run_id") or "")
+    if bundle_dir is not None and routine and job and batch_id:
+        from . import chop_batch_store
+
+        try:
+            manifest = chop_batch_store.load_chop_batch(routine, job, batch_id)
+        except chop_batch_store.ChopBatchNotFoundError:
+            manifest = None
+        if manifest is not None and manifest.get("typed_bundle") is not None:
+            if dispatch_started_fn is None:
+
+                def _default_dispatch_started(
+                    unit_meta: Mapping[str, Any],
+                ) -> bool:
+                    from ._chop_typed_admission_mirroring import (
+                        mirror_typed_dispatch_start,
+                    )
+
+                    return mirror_typed_dispatch_start(
+                        routine, job, batch_id, unit_meta
+                    )
+
+                dispatch_started_fn = _default_dispatch_started
+            if launch_recorded_fn is None:
+
+                def _default_launch_recorded(launch: dict[str, Any]) -> None:
+                    from ._chop_typed_admission_mirroring import mirror_typed_launch
+
+                    mirror_typed_launch(routine, job, batch_id, launch)
+
+                launch_recorded_fn = _default_launch_recorded
     request_id = str(data.get("request_id") or "") or None
     admission_root: Path | None = None
     if bundle_dir is not None:
@@ -44,7 +84,10 @@ def make_axe_chop_agent_dispatcher(
     def _dispatch(
         unit: LaunchUnitWire,
         fingerprint: str,
-    ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
+    ) -> (
+        tuple[bool, str | None, str | None, list[AgentLaunchResult]]
+        | DispatchResultWithExtra
+    ):
         if not isinstance(unit.payload, AgentUnitWire):
             return False, None, "not_an_agent_unit", []
         unit_meta = metadata.get(unit.logical_id)
@@ -97,7 +140,14 @@ def make_axe_chop_agent_dispatcher(
 
             launch = launcher_mod.launch_agents_from_cwd
         if dispatch_started_fn is not None:
-            dispatch_started_fn(unit_meta)
+            if dispatch_started_fn(unit_meta) is False:
+                return (
+                    False,
+                    None,
+                    "outer chop batch was cancelled",
+                    [],
+                    {"cancelled_before_dispatch": True},
+                )
         results = list(launch(prompt, extra_env=extra_env, origin="generated"))
         if not results:
             return False, None, "agent_dispatch_produced_no_results", []

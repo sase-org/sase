@@ -90,7 +90,7 @@ def _persist_typed_outer_batch(
     preflight: Any,
     plans: Sequence[PlannedChopProposal],
     batch_created_fn: Callable[[str], None] | None,
-) -> str:
+) -> tuple[str, bool]:
     from . import chop_batch_store
 
     manifest = ordinary_batch_manifest(
@@ -105,8 +105,15 @@ def _persist_typed_outer_batch(
         "bundle_id": bundle_id,
         "bundle_digest": bundle_digest,
     }
+    ownership_acquired = False
     try:
-        chop_batch_store.create_chop_batch(lumberjack_name, chop_name, manifest)
+        chop_batch_store.create_chop_batch(
+            lumberjack_name,
+            chop_name,
+            manifest,
+            owner="typed-admission-first-run",
+        )
+        ownership_acquired = True
     except chop_batch_store.ChopBatchExistsError as exc:
         existing = chop_batch_store.load_chop_batch(lumberjack_name, chop_name, run_id)
         if existing.get("typed_bundle") != manifest["typed_bundle"]:
@@ -118,8 +125,15 @@ def _persist_typed_outer_batch(
                 "an existing chop batch refers to a different typed bundle",
             ) from exc
     if batch_created_fn is not None:
-        batch_created_fn(run_id)
-    return run_id
+        try:
+            batch_created_fn(run_id)
+        except BaseException:
+            if ownership_acquired:
+                chop_batch_store.release_chop_batch_ownership(
+                    lumberjack_name, chop_name, run_id
+                )
+            raise
+    return run_id, ownership_acquired
 
 
 def maybe_dispatch_typed_chop_proposals(
@@ -209,7 +223,7 @@ def maybe_dispatch_typed_chop_proposals(
                     str(bundle_dir),
                     "an interrupted typed bundle has different chop dispatch metadata",
                 )
-            recovered_batch_id = _persist_typed_outer_batch(
+            recovered_batch_id, ownership_acquired = _persist_typed_outer_batch(
                 lumberjack_name=lumberjack_name,
                 chop_name=chop_name,
                 run_id=run_id,
@@ -220,14 +234,21 @@ def maybe_dispatch_typed_chop_proposals(
                 plans=plans,
                 batch_created_fn=batch_created_fn,
             )
-            resumed = resume_typed_chop_batch(
-                lumberjack_name,
-                chop_name,
-                recovered_batch_id,
-                launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
-                launch_recorded_fn=launch_recorded_fn,
-                pause_requested_fn=pause_requested_fn,
-            )
+            try:
+                resumed = resume_typed_chop_batch(
+                    lumberjack_name,
+                    chop_name,
+                    recovered_batch_id,
+                    launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+                    launch_recorded_fn=launch_recorded_fn,
+                    pause_requested_fn=pause_requested_fn,
+                    ownership_acquired=ownership_acquired,
+                )
+            finally:
+                if ownership_acquired:
+                    chop_batch_store.release_chop_batch_ownership(
+                        lumberjack_name, chop_name, recovered_batch_id
+                    )
             return ChopProposalLaunches(
                 resumed.launches,
                 typed_admission=resumed.typed_admission,
@@ -295,7 +316,7 @@ def maybe_dispatch_typed_chop_proposals(
 
     if durable_batch:
         assert run_started_at is not None and preflight is not None
-        batch_id = _persist_typed_outer_batch(
+        batch_id, ownership_acquired = _persist_typed_outer_batch(
             lumberjack_name=lumberjack_name,
             chop_name=chop_name,
             run_id=run_id,
@@ -306,14 +327,21 @@ def maybe_dispatch_typed_chop_proposals(
             plans=plans,
             batch_created_fn=batch_created_fn,
         )
-        resumed = resume_typed_chop_batch(
-            lumberjack_name,
-            chop_name,
-            batch_id,
-            launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
-            launch_recorded_fn=launch_recorded_fn,
-            pause_requested_fn=pause_requested_fn,
-        )
+        try:
+            resumed = resume_typed_chop_batch(
+                lumberjack_name,
+                chop_name,
+                batch_id,
+                launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+                launch_recorded_fn=launch_recorded_fn,
+                pause_requested_fn=pause_requested_fn,
+                ownership_acquired=ownership_acquired,
+            )
+        finally:
+            if ownership_acquired:
+                chop_batch_store.release_chop_batch_ownership(
+                    lumberjack_name, chop_name, batch_id
+                )
         return ChopProposalLaunches(
             resumed.launches,
             typed_admission=resumed.typed_admission,

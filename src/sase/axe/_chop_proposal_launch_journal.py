@@ -69,6 +69,7 @@ class OrdinaryLaunchJournal:
         plans: Sequence[PlannedChopProposal],
         launch_recorded_fn: Callable[[dict[str, Any]], None] | None = None,
         pause_requested_fn: Callable[[], bool] | None = None,
+        batch_cancelled_fn: Callable[[], bool] | None = None,
     ) -> None:
         self.lumberjack_name = lumberjack_name
         self.chop_name = chop_name
@@ -78,6 +79,7 @@ class OrdinaryLaunchJournal:
         self.has_clan = any(plan.clan is not None for plan in plans)
         self.launch_recorded_fn = launch_recorded_fn
         self.pause_requested_fn = pause_requested_fn
+        self.batch_cancelled_fn = batch_cancelled_fn
         self.names_by_index: dict[int, str] = {}
         self.names_by_id: dict[str, str] = {}
         self.proposal_indices_by_id: dict[str, int] = {}
@@ -86,6 +88,7 @@ class OrdinaryLaunchJournal:
         self.launches_by_member: dict[int, dict[str, Any]] = {}
         self.published_launches: set[tuple[int, str, int]] = set()
         self.paused = False
+        self.cancelled = False
         self.active_single_member: int | None = None
 
     def batch_event(
@@ -335,6 +338,9 @@ class OrdinaryLaunchJournal:
         )
 
     def pause_batch(self) -> None:
+        if self.batch_cancelled_fn is not None and self.batch_cancelled_fn():
+            self.cancelled = True
+            return
         if self.paused:
             return
         self.paused = True

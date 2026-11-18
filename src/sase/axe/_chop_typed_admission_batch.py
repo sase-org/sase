@@ -18,6 +18,7 @@ from ._chop_typed_admission_mirroring import (
 )
 from ._chop_typed_admission_utils import (
     AXE_CHOP_SOURCE_SURFACE,
+    chop_batch_cancelled_for_typed_request,
     int_or_none,
     unit_metadata,
 )
@@ -119,6 +120,7 @@ def resume_typed_chop_batch(
     launch_recorded_fn: Callable[[dict[str, Any]], None] | None = None,
     pause_requested_fn: Callable[[], bool] | None = None,
     spawn_coordinator: bool = True,
+    ownership_acquired: bool = False,
 ) -> _TypedChopBatchResume:
     """Resume one typed chop batch from its frozen admission bundle.
 
@@ -172,7 +174,7 @@ def resume_typed_chop_batch(
         payload=payload,
         typed_plan=typed_plan,
     )
-    outer_owner = chop_batch_store.acquire_chop_batch_ownership(
+    outer_owner = ownership_acquired or chop_batch_store.acquire_chop_batch_ownership(
         routine, job, batch_id, owner="typed-admission-resume"
     )
     if not outer_owner:
@@ -236,8 +238,8 @@ def resume_typed_chop_batch(
 
         recorded: list[dict[str, Any]] = []
 
-        def _begin_dispatch(metadata: Mapping[str, Any]) -> None:
-            mirror_typed_dispatch_start(routine, job, batch_id, metadata)
+        def _begin_dispatch(metadata: Mapping[str, Any]) -> bool:
+            return mirror_typed_dispatch_start(routine, job, batch_id, metadata)
 
         def _record(launch: dict[str, Any]) -> None:
             recorded.append(launch)
@@ -258,6 +260,7 @@ def resume_typed_chop_batch(
             agent_dispatcher=dispatcher,
             spawn_coordinator=spawn_coordinator,
             pause_requested=pause_requested_fn,
+            cancelled=lambda: chop_batch_cancelled_for_typed_request(payload),
         )
         mirror_typed_unit_results(routine, job, batch_id, payload, result.unit_results)
         paused = bool(result.paused)

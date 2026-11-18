@@ -36,7 +36,7 @@ def _config(tmp_path: Path) -> AxeConfig:
     return AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
 
 
-def test_launch_failure_releases_only_unlaunched_once_per_keys(
+def test_launch_failure_keeps_once_per_claims_for_pending_batch_members(
     temp_state_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -126,25 +126,15 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
         proposals=reproposed,
         persist=False,
     )
-    assert once_per.accepted_indices == (1,)
+    assert once_per.accepted_indices == ()
     assert once_per.decisions[0]["outcome"] == "duplicate"
-    assert once_per.decisions[1]["outcome"] == "accept"
+    assert once_per.decisions[1]["outcome"] == "duplicate"
 
-    record_agent(outcome.run_id, pid=100, timestamp="260718_120000")
-    failed_artifacts = resolve_agent_artifact_timestamp_path(
-        "sase", "ace-run", "20260718120000"
-    )
-    failed_artifacts.mkdir(parents=True)
-    (failed_artifacts / "done.json").write_text(
-        json.dumps({"outcome": "failed"}), encoding="utf-8"
-    )
-
-    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 0
     finalized = read_chop_run("docs", "docs", outcome.run_id)
     assert finalized is not None
-    assert finalized.status == "action_failed"
-    assert finalized.error is not None
-    assert "proposal launch failed: launcher unavailable" in finalized.error
+    assert finalized.status == "launched"
+    assert finalized.finished_at is None
 
     retried = apply_chop_once_per(
         lumberjack_name="docs",
@@ -152,7 +142,9 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
         proposals=reproposed,
         persist=False,
     )
-    assert retried.accepted_indices == (0, 1)
+    assert retried.accepted_indices == ()
+    assert retried.decisions[0]["outcome"] == "duplicate"
+    assert retried.decisions[1]["outcome"] == "duplicate"
 
 
 def test_lifecycle_releases_only_failed_agents_once_per_key(

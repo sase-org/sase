@@ -10,10 +10,6 @@ from typing import Any, Literal
 from .chop_policy import ChopPreflight
 from .chop_proposals import launch_chop_proposals, proposal_previews
 from .chop_runner_script_lifecycle import finalize_script_chop_run
-from .chop_runner_script_result_keys import (
-    release_typed_nonlaunched_once_per_keys,
-    release_unlaunched_once_per_keys,
-)
 from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
 from .config import ChopConfig
@@ -63,7 +59,7 @@ def _typed_admission_failures(admission_result: Any) -> list[str]:
     failures: list[str] = []
     for unit in getattr(admission_result, "unit_results", ()) or ():
         outcome = str(getattr(unit, "outcome", "") or "")
-        if outcome not in {"condition_error", "launch_error", "cancelled"}:
+        if outcome not in {"condition_error", "launch_error"}:
             continue
         logical_id = str(getattr(unit, "logical_id", "") or "unknown")
         message = str(getattr(unit, "message", "") or outcome)
@@ -92,6 +88,11 @@ def launch_accepted_script_chop_proposals(
     pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     """Launch accepted proposals and finalize the script-chop run."""
+    from .chop_runner_script_result_keys import (
+        release_typed_nonlaunched_once_per_keys,
+        release_unlaunched_once_per_keys,
+    )
+
     successful_launches: list[dict[str, Any]] = []
     batch_created = False
 

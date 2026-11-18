@@ -25,7 +25,6 @@ from .chop_runner_script_lifecycle import (
     append_structured_result_summary,
     finalize_script_chop_run,
 )
-from .chop_runner_script_result_keys import release_unlaunched_once_per_keys
 from .chop_runner_script_result_launch import launch_accepted_script_chop_proposals
 from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
@@ -54,6 +53,8 @@ def process_script_chop_result(
     pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     """Validate a script result, apply dedupe, and launch accepted proposals."""
+    from .chop_runner_script_result_keys import release_unlaunched_once_per_keys
+
     structured_result: dict[str, Any] | None = None
     proposals: list[dict[str, Any]] = []
     prepared_proposals = []

@@ -69,6 +69,10 @@ class ChopBatchExistsError(ChopBatchError):
     """A batch manifest already exists for this batch id."""
 
 
+class _ChopBatchOwnershipError(ChopBatchError):
+    """A live executor already owns the batch being created."""
+
+
 class ChopBatchCorruptError(ChopBatchError):
     """The stored batch manifest cannot be parsed or fails validation."""
 
@@ -99,9 +103,13 @@ def ensure_chop_batches_dir(routine: str, job: str) -> Path:
 
 
 def create_chop_batch(
-    routine: str, job: str, manifest: dict[str, Any]
+    routine: str,
+    job: str,
+    manifest: dict[str, Any],
+    *,
+    owner: str | None = None,
 ) -> dict[str, Any]:
-    """Persist a new validated batch manifest; refuse duplicates."""
+    """Persist a new batch, optionally claiming it before it becomes visible."""
     try:
         validated = validate_chop_batch_manifest(manifest)
     except ValueError as exc:
@@ -113,7 +121,19 @@ def create_chop_batch(
     with _locked(_mutation_lock_path(routine, job)):
         if path.exists():
             raise ChopBatchExistsError(f"batch {batch_id!r} already exists")
-        _atomic_write_manifest(path, validated)
+        claimed = False
+        if owner is not None:
+            claimed = acquire_chop_batch_ownership(routine, job, batch_id, owner=owner)
+            if not claimed:
+                raise _ChopBatchOwnershipError(
+                    f"batch {batch_id!r} already has a live executor"
+                )
+        try:
+            _atomic_write_manifest(path, validated)
+        except BaseException:
+            if claimed:
+                release_chop_batch_ownership(routine, job, batch_id)
+            raise
     return validated
 
 
