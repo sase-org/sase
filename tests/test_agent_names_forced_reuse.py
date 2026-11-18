@@ -21,6 +21,7 @@ from sase.agent.names import (
     ForcedReuseCleanupError,
     claim_registered_name,
     convert_registered_agent_to_agent_session,
+    find_agent_session,
     get_reserved_agent_names,
     lookup_registered_name,
     rebuild_name_registry,
@@ -28,6 +29,7 @@ from sase.agent.names import (
     wipe_agent_name_for_reuse,
     wipe_force_reuse_owner,
 )
+from tests._agent_name_wipe_helpers import make_wipe_artifact, make_wipe_bundle
 
 
 def _artifact(
@@ -262,3 +264,299 @@ def test_wipe_force_reuse_owner_refuses_populated_clan_container(
             wipe_force_reuse_owner(container_name, allow_container_skip=False)
 
         assert {container_name, *member_names} <= get_reserved_agent_names()
+
+
+def _session_meta(session: str, role: str, **extra: object) -> dict[str, object]:
+    return {
+        "workflow_name": session,
+        "agent_session": session,
+        "agent_session_role": role,
+        "agent_session_parallel": False,
+        **extra,
+    }
+
+
+def _seed_observed_closure(tmp_path: Path, session: str) -> dict[str, Path]:
+    """Seed the observed failure shape: root plus gate/code/mon and forks."""
+    root = make_wipe_artifact(
+        tmp_path,
+        "20261101000000",
+        f"{session}--plan",
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(session, "root"), "plan_chain_root": True},
+    )
+    gate = make_wipe_artifact(
+        tmp_path,
+        "20261101000100",
+        f"{session}--gate",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "gate", parent_timestamp=root.name),
+    )
+    code = make_wipe_artifact(
+        tmp_path,
+        "20261101000200",
+        f"{session}--code",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "code", parent_timestamp=root.name),
+    )
+    mon = make_wipe_artifact(
+        tmp_path,
+        "20261101000300",
+        f"{session}--mon",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "monitor", parent_timestamp=code.name),
+    )
+    fork1 = make_wipe_artifact(
+        tmp_path,
+        "20261101000400",
+        f"{session}--1",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "root", parent_timestamp=root.name),
+    )
+    fork2 = make_wipe_artifact(
+        tmp_path,
+        "20261101000500",
+        f"{session}--2",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "root", parent_timestamp=root.name),
+    )
+    mon0 = make_wipe_artifact(
+        tmp_path,
+        "20261101000600",
+        f"{session}--mon-0",
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "monitor", parent_timestamp=fork1.name),
+    )
+    bundle = make_wipe_bundle(
+        tmp_path,
+        "20261101000700",
+        f"{session}--plan",
+        parent_timestamp=root.name,
+        **_session_meta(session, "root"),
+    )
+    child_bundle = make_wipe_bundle(
+        tmp_path,
+        "20261101000700__c0",
+        f"{session}--plan",
+        parent_timestamp="20261101000700",
+        **_session_meta(session, "root"),
+    )
+    return {
+        "root": root,
+        "gate": gate,
+        "code": code,
+        "mon": mon,
+        "fork1": fork1,
+        "fork2": fork2,
+        "mon0": mon0,
+        "bundle": bundle,
+        "child_bundle": child_bundle,
+    }
+
+
+def test_wipe_force_reuse_owner_wipes_full_closure_when_index_omits_root(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    paths = _seed_observed_closure(tmp_path, session)
+    member_names = {f"{session}--plan", f"{session}--gate", f"{session}--code"}
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert {session, *member_names} <= get_reserved_agent_names()
+        real_session = find_agent_session(session)
+        assert real_session is not None
+
+        trimmed_members = tuple(
+            member
+            for member in real_session.members
+            if member.name != f"{session}--plan"
+        )
+        assert trimmed_members, "seed must leave members after trimming the root"
+        from sase.agent.names._lookup_groups import AgentSession as _AgentSession
+
+        trimmed = _AgentSession(
+            base_name=real_session.base_name,
+            root=None,
+            members=trimmed_members,
+        )
+        with patch("sase.agent.names.find_agent_session", return_value=trimmed):
+            wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        for path in paths.values():
+            assert not path.exists(), f"{path} should have been wiped"
+        assert not any(
+            name == session or name.startswith(f"{session}--")
+            for name in get_reserved_agent_names()
+        )
+
+
+def test_wipe_force_reuse_owner_wipes_full_closure_normal_path(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    paths = _seed_observed_closure(tmp_path, session)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        for path in paths.values():
+            assert not path.exists(), f"{path} should have been wiped"
+        assert not any(
+            name == session or name.startswith(f"{session}--")
+            for name in get_reserved_agent_names()
+        )
+
+
+def test_wipe_force_reuse_owner_removes_older_generation(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    old_root = make_wipe_artifact(
+        tmp_path,
+        "20261102000000",
+        f"{session}--plan",
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(session, "root"), "plan_chain_root": True},
+    )
+    new_root = make_wipe_artifact(
+        tmp_path,
+        "20261102000100",
+        f"{session}--plan",
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(session, "root"), "plan_chain_root": True},
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert session in get_reserved_agent_names()
+
+        wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        assert not old_root.exists()
+        assert not new_root.exists()
+        assert session not in get_reserved_agent_names()
+        assert f"{session}--plan" not in get_reserved_agent_names()
+
+
+def test_wipe_force_reuse_owner_wipes_bundle_only_owner(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    bundle = make_wipe_bundle(
+        tmp_path,
+        "20261103000000",
+        f"{session}--plan",
+        **_session_meta(session, "root"),
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert session in get_reserved_agent_names()
+
+        wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        assert not bundle.exists()
+        assert session not in get_reserved_agent_names()
+
+
+def test_wipe_force_reuse_owner_preserves_neighbors(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    session_paths = _seed_observed_closure(tmp_path, session)
+    nested_session = "epic.land--3"
+    nested = make_wipe_artifact(
+        tmp_path,
+        "20261104000000",
+        f"{nested_session}--plan",
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(nested_session, "root"), "plan_chain_root": True},
+    )
+    sibling_session = "epic.land2"
+    sibling = make_wipe_artifact(
+        tmp_path,
+        "20261104000100",
+        f"{sibling_session}--plan",
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(sibling_session, "root"), "plan_chain_root": True},
+    )
+    unrelated = make_wipe_artifact(
+        tmp_path,
+        "20261104000200",
+        "unrelated",
+        done=True,
+        day_sharded=True,
+    )
+    clan_name = "epic"
+    clan_member = make_wipe_artifact(
+        tmp_path,
+        "20261104000300",
+        "epic.other",
+        done=True,
+        day_sharded=True,
+        meta={"agent_clan": clan_name, "agent_clan_generation": "gen-1"},
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        for path in session_paths.values():
+            assert not path.exists()
+        assert nested.exists()
+        assert sibling.exists()
+        assert unrelated.exists()
+        assert clan_member.exists()
+        assert nested_session in get_reserved_agent_names()
+        assert sibling_session in get_reserved_agent_names()
+        assert "unrelated" in get_reserved_agent_names()
+        assert clan_name in get_reserved_agent_names()
+        assert session not in get_reserved_agent_names()
+
+
+def test_wipe_force_reuse_residual_error_names_blocking_file(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    _seed_observed_closure(tmp_path, session)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        # Deterministic residual: keep one artifact on disk by refusing to
+        # delete it in the wipe execution layer.
+        from sase.agent.names import _wipe_execute as execute_mod
+
+        real_remove = execute_mod._remove_artifact_dirs
+
+        def _keep_one(paths: set[Path], errors: list[str]) -> set[Path]:
+            keep = next(iter(sorted(paths)), None)
+            remaining = set(paths)
+            if keep is not None:
+                remaining.discard(keep)
+            return real_remove(remaining, errors)
+
+        with (
+            patch.object(execute_mod, "_remove_artifact_dirs", side_effect=_keep_one),
+            pytest.raises(
+                ForcedReuseCleanupError, match="forced reuse cleanup left"
+            ) as excinfo,
+        ):
+            wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        message = str(excinfo.value)
+        assert "source=" in message
+        assert "artifacts_dir=" in message
+        assert "collision_owners=" in message

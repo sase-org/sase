@@ -50,6 +50,7 @@ def wipe_agent_name_for_reuse(
     owner_or_name: str | Mapping[str, Any],
     *,
     allow_stale_container: bool = False,
+    catalog: WipeCatalog | None = None,
 ) -> AgentNameWipeResult:
     """Remove the previous owner of an agent name before forced reuse.
 
@@ -65,6 +66,7 @@ def wipe_agent_name_for_reuse(
     return wipe_agent_names_for_reuse(
         (owner_or_name,),
         allow_stale_container=allow_stale_container,
+        catalog=catalog,
     )[0]
 
 
@@ -72,6 +74,7 @@ def wipe_agent_names_for_reuse(
     owners_or_names: Sequence[str | Mapping[str, Any]],
     *,
     allow_stale_container: bool = False,
+    catalog: WipeCatalog | None = None,
 ) -> tuple[AgentNameWipeResult, ...]:
     """Remove previous owners for a forced-reuse cleanup batch.
 
@@ -85,7 +88,7 @@ def wipe_agent_names_for_reuse(
     if not resolved:
         return ()
 
-    catalog: WipeCatalog | None = None
+    active_catalog = catalog
     plans: dict[int, WipePlan] = {}
     results: list[AgentNameWipeResult | None] = [None] * len(resolved)
     for index, target in enumerate(resolved):
@@ -110,9 +113,9 @@ def wipe_agent_names_for_reuse(
             )
             continue
 
-        if catalog is None:
-            catalog = load_wipe_catalog()
-        plan = build_wipe_plan(owner, target.target_name, catalog=catalog)
+        if active_catalog is None:
+            active_catalog = load_wipe_catalog()
+        plan = build_wipe_plan(owner, target.target_name, catalog=active_catalog)
         if not plan.names:
             plan.names.add(target.target_name)
         plans[index] = plan

@@ -521,10 +521,12 @@ def wipe_names_for_forced_reuse(names: list[str]) -> None:
 
     Routes through the shared agent-name forced-reuse primitive so relaunching
     an agent-session root (``%id(!1, clan=..., ...)`` rewritten from an epic phase
-    root) deterministically replaces the newest agent-session generation instead of
-    refusing every populated container outright. A populated clan container
-    remains refused: it is a rootless parallel group, not one replaceable
-    agent, and its members keep their own explicit relaunch path.
+    root) deterministically replaces every owner of the session reservation
+    (the newest generation found through the index plus any other owners found
+    through the registry's own derivation) instead of refusing every populated
+    container outright. A populated clan container remains refused: it is a
+    rootless parallel group, not one replaceable agent, and its members keep
+    their own explicit relaunch path.
     """
     from sase.agent.names import wipe_force_reuse_owners
 

@@ -7,7 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from sase.agent.names._registry_scan_payloads import owner_identity_names
+from sase.agent.names._registry_scan_payloads import (
+    agent_session_from_payload,
+    owner_identity_names,
+)
 from sase.agent.names._wipe_payload import (
     payload_outgoing_suffixes,
     read_json_object,
@@ -24,6 +27,7 @@ class ArtifactRecord:
     names: set[str] = field(default_factory=set)
     relation_refs: set[str] = field(default_factory=set)
     outgoing_suffixes: set[str] = field(default_factory=set)
+    sessions: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -33,6 +37,8 @@ class BundleRecord:
     names: set[str] = field(default_factory=set)
     relation_refs: set[str] = field(default_factory=set)
     outgoing_suffixes: set[str] = field(default_factory=set)
+    sessions: set[str] = field(default_factory=set)
+    artifacts_dir: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,14 +47,23 @@ class WipeCatalog:
     bundles: tuple[BundleRecord, ...]
 
 
-def load_wipe_catalog() -> WipeCatalog:
+def load_wipe_catalog(identity: Any | None = None) -> WipeCatalog:
+    from sase.agent.names._session_owners import (
+        resolve_scan_identity as _resolve_scan_identity,
+    )
+
+    resolved_identity = _resolve_scan_identity(identity)
     return WipeCatalog(
-        artifacts=tuple(_scan_artifacts()),
-        bundles=tuple(_scan_bundles()),
+        artifacts=tuple(_scan_artifacts(resolved_identity)),
+        bundles=tuple(_scan_bundles(resolved_identity)),
     )
 
 
-def _scan_artifacts() -> list[ArtifactRecord]:
+def _scan_artifacts(identity: Any) -> list[ArtifactRecord]:
+    from sase.agent.names._session_owners import (
+        localized_session_for_scan as _localized_session,
+    )
+
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return []
@@ -83,6 +98,11 @@ def _scan_artifacts() -> list[ArtifactRecord]:
                             | _payload_relation_refs(done),
                             outgoing_suffixes=payload_outgoing_suffixes(meta)
                             | payload_outgoing_suffixes(done),
+                            sessions=_localized_session(
+                                agent_session_from_payload(meta),
+                                meta,
+                                identity,
+                            ),
                         )
                     )
             except (OSError, RuntimeError, ValueError):
@@ -92,7 +112,11 @@ def _scan_artifacts() -> list[ArtifactRecord]:
     return records
 
 
-def _scan_bundles() -> list[BundleRecord]:
+def _scan_bundles(identity: Any) -> list[BundleRecord]:
+    from sase.agent.names._session_owners import (
+        localized_session_for_scan as _localized_session,
+    )
+
     bundles_dir = sase_subdir("dismissed_bundles")
     if not bundles_dir.is_dir():
         return []
@@ -105,6 +129,7 @@ def _scan_bundles() -> list[BundleRecord]:
         if payload is None:
             continue
         raw_suffix = payload.get("raw_suffix")
+        artifacts_dir = payload.get("artifacts_dir")
         records.append(
             BundleRecord(
                 path=path.resolve(strict=False),
@@ -112,6 +137,14 @@ def _scan_bundles() -> list[BundleRecord]:
                 names=owner_identity_names(payload, bundle=True),
                 relation_refs=_payload_relation_refs(payload),
                 outgoing_suffixes=payload_outgoing_suffixes(payload),
+                sessions=_localized_session(
+                    agent_session_from_payload(payload),
+                    payload,
+                    identity,
+                ),
+                artifacts_dir=artifacts_dir
+                if isinstance(artifacts_dir, str) and artifacts_dir
+                else None,
             )
         )
     return records

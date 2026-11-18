@@ -2,11 +2,13 @@
 
 Both the ACE/``sase agent restart`` launch boundary and deterministic bead
 relaunch need the same policy: a concrete owner is wiped directly, an agent-session
-container relaunch replaces its newest generation (every concrete member is
-wiped, then the registry is rebuilt and checked for residual reservations),
-and a populated clan container is refused unless the caller opts into the
-container-skip escape hatch. Keeping one implementation here prevents bead
-and ACE forced-reuse behavior from drifting apart again.
+container relaunch replaces every owner of the session reservation (the newest
+generation found through the index plus any other owners found through the
+registry's own derivation, wiped in one batch, then the registry is rebuilt
+and checked for residual reservations), and a populated clan container is
+refused unless the caller opts into the container-skip escape hatch. Keeping
+one implementation here prevents bead and ACE forced-reuse behavior from
+drifting apart again.
 """
 
 from __future__ import annotations
@@ -14,10 +16,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from sase.agent.names._registry_entries import (
-    AGENT_SESSION_CONTAINER_KIND,
-    is_agent_session_container_kind,
-)
+from sase.agent.names._registry_entries import is_agent_session_container_kind
 
 
 class ForcedReuseCleanupError(RuntimeError):
@@ -42,13 +41,15 @@ class ForcedReuseCleanupBatchError(ForcedReuseCleanupError):
 def wipe_force_reuse_owner(name: str, *, allow_container_skip: bool) -> None:
     """Wipe a single deterministic owner, raising on any cleanup failure.
 
-    A concrete owner is wiped and verified gone. An agent-session container always
-    resolves and replaces its newest generation: relaunching an agent-session root
-    means the prior generation's concrete shells must be gone before the
-    bare agent-session name is reused. A populated clan container is a rootless
-    parallel group, not one replaceable agent, and is refused unless
-    *allow_container_skip* allows the caller to skip past it (its members
-    retain their own explicit relaunch path).
+    A concrete owner is wiped and verified gone. An agent-session container
+    always resolves and replaces every owner of the session reservation: the
+    newest generation found through the index plus any other owners found
+    through the registry's own derivation. Relaunching an agent-session root
+    means those concrete shells must be gone before the bare agent-session
+    name is reused. A populated clan container is a rootless parallel group,
+    not one replaceable agent, and is refused unless *allow_container_skip*
+    allows the caller to skip past it (its members retain their own explicit
+    relaunch path).
     """
     wipe_force_reuse_owners((name,), allow_container_skip=allow_container_skip)
 
@@ -120,104 +121,12 @@ def wipe_force_reuse_owners(
 
 
 def _wipe_agent_sessions_for_forced_reuse(names: Sequence[str]) -> None:
-    """Resolve and wipe concrete members for several agent-session containers."""
-    from sase.agent.names import (
-        find_agent_session,
-        load_name_registry,
+    """Resolve and wipe every owner of several agent-session reservations."""
+    from sase.agent.names._session_owners import (
+        wipe_agent_sessions_for_forced_reuse as _session_impl,
     )
 
-    materialized = _dedupe_names(names)
-    members_by_agent_session: dict[str, tuple[str, ...]] = {}
-    all_member_names: set[str] = set()
-    stale_agent_sessions: list[str] = []
-    for name in materialized:
-        try:
-            agent_session = find_agent_session(name)
-        except Exception as exc:  # noqa: BLE001
-            raise ForcedReuseCleanupError(
-                f"forced reuse cleanup could not resolve agent session '{name}': {exc}"
-            ) from exc
-
-        member_names = tuple(
-            sorted(
-                {
-                    member.name
-                    for member in agent_session.members
-                    if isinstance(member.name, str)
-                    and member.name
-                    and member.name != name
-                }
-                if agent_session is not None
-                else set()
-            )
-        )
-        if not member_names:
-            stale_agent_sessions.append(name)
-            continue
-        members_by_agent_session[name] = member_names
-        all_member_names.update(member_names)
-
-    if stale_agent_sessions:
-        release_stale_containers(
-            tuple((name, AGENT_SESSION_CONTAINER_KIND) for name in stale_agent_sessions)
-        )
-    if not all_member_names:
-        return
-
-    try:
-        results = _wipe_names_for_reuse_batch(tuple(sorted(all_member_names)))
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent session members failed: {exc}"
-        ) from exc
-
-    errors: list[str] = []
-    for result in results:
-        member_name = result.target_name
-        if result.errors:
-            agent_session_name = _agent_session_for_member(
-                members_by_agent_session, member_name
-            )
-            errors.append(
-                f"agent session '{agent_session_name}' member '{member_name}' "
-                "reported errors: " + "; ".join(result.errors)
-            )
-            continue
-        if result.skipped_container_kind:
-            agent_session_name = _agent_session_for_member(
-                members_by_agent_session, member_name
-            )
-            errors.append(
-                f"agent session '{agent_session_name}' member '{member_name}' resolved to a "
-                f"{result.skipped_container_kind} container"
-            )
-    if errors:
-        _raise_batch_errors(errors, tuple(sorted(all_member_names)), results)
-
-    try:
-        registry = load_name_registry()
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            "forced reuse cleanup for agent sessions could not read the name "
-            f"registry after rebuild: {exc}"
-        ) from exc
-    entries = registry.get("entries")
-    if not isinstance(entries, dict):
-        raise ForcedReuseCleanupError(
-            "forced reuse cleanup for agent sessions received an "
-            "invalid name registry after rebuild"
-        )
-
-    residual_errors: list[str] = []
-    for agent_session_name, member_names in members_by_agent_session.items():
-        residual_names = sorted({agent_session_name, *member_names} & set(entries))
-        if residual_names:
-            residual_errors.append(
-                f"forced reuse cleanup left agent session '{agent_session_name}' "
-                f"reservations after rebuild: {', '.join(residual_names)}"
-            )
-    if residual_errors:
-        raise ForcedReuseCleanupError("; ".join(residual_errors))
+    return _session_impl(names)
 
 
 def release_stale_container(
@@ -284,36 +193,19 @@ def _clan_has_members(name: str) -> bool:
     return clan is not None and bool(clan.members)
 
 
-def _agent_session_for_member(
-    members_by_agent_session: dict[str, tuple[str, ...]],
-    member_name: str,
-) -> str:
-    for agent_session_name, member_names in members_by_agent_session.items():
-        if member_name in member_names:
-            return agent_session_name
-    return "unknown"
-
-
 def _wipe_names_for_reuse_batch(
-    names: Sequence[str],
+    names: Sequence[Any],
     *,
     allow_stale_container: bool = False,
+    catalog: Any | None = None,
 ) -> tuple[Any, ...]:
-    from sase.agent import names as names_mod
-    from sase.agent.names import _wipe as wipe_module
+    from sase.agent.names._session_owners import (
+        wipe_names_for_reuse_batch as _shared_batch,
+    )
 
-    batch_helper = names_mod.wipe_agent_names_for_reuse
-    single_helper = names_mod.wipe_agent_name_for_reuse
-    if (
-        single_helper is not wipe_module.wipe_agent_name_for_reuse
-        and batch_helper is wipe_module.wipe_agent_names_for_reuse
-    ):
-        if allow_stale_container:
-            return tuple(
-                single_helper(name, allow_stale_container=True) for name in names
-            )
-        return tuple(single_helper(name) for name in names)
-    return tuple(batch_helper(names, allow_stale_container=allow_stale_container))
+    return _shared_batch(
+        names, allow_stale_container=allow_stale_container, catalog=catalog
+    )
 
 
 def _dedupe_names(names: Sequence[str]) -> tuple[str, ...]:
@@ -327,22 +219,8 @@ def _raise_batch_errors(
     names: Sequence[str],
     results: Sequence[Any],
 ) -> None:
-    completed_names = tuple(
-        result.target_name
-        for result in results
-        if not result.errors
-        and not result.skipped_container_kind
-        and (not result.found or result.target_name in result.registry_names_removed)
+    from sase.agent.names._session_owners import (
+        raise_forced_reuse_batch_errors as _shared_raise,
     )
-    completed = set(completed_names)
-    remaining_names = tuple(name for name in names if name not in completed)
-    detail = "; ".join(errors)
-    if completed_names:
-        detail += "; completed cleanup for " + ", ".join(completed_names)
-    if remaining_names:
-        detail += "; remaining cleanup targets: " + ", ".join(remaining_names)
-    raise ForcedReuseCleanupBatchError(
-        "forced reuse cleanup batch failed: " + detail,
-        completed_names=completed_names,
-        remaining_names=remaining_names,
-    )
+
+    _shared_raise(errors, names, results)
