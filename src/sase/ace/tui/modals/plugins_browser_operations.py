@@ -114,13 +114,21 @@ class PluginsBrowserOperationsMixin:
         )
 
     @staticmethod
-    def _execute_dev_update(plan: Any, *, run: Any = None) -> Any:
+    def _execute_dev_update(plan: Any, *, run: Any = None, wait: Any = None) -> Any:
         from . import plugins_browser_pane as pane_module
 
         execute = pane_module._execute_tui_dev_update
-        if run is None or not callable_accepts_keyword(execute, "run"):
+        kwargs: dict[str, Any] = {}
+        if run is not None:
+            if callable_accepts_keyword(execute, "run"):
+                kwargs["run"] = run
+            elif wait is None or not callable_accepts_keyword(execute, "wait"):
+                return execute(plan)
+        if wait is not None and callable_accepts_keyword(execute, "wait"):
+            kwargs["wait"] = wait
+        if not kwargs:
             return execute(plan)
-        return execute(plan, run=run)
+        return execute(plan, **kwargs)
 
     def _make_uninstall_preview(self, query: str, *, offline: bool) -> UninstallPreview:
         from . import plugins_browser_pane as pane_module

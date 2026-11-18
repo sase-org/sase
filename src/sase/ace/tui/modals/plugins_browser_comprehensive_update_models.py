@@ -46,6 +46,7 @@ class ComprehensiveUpdatePreview:
     sase_preview: DevUpdatePreview | None
     sase_current: bool = False
     sase_blocker: str | None = None
+    sase_wait_notice: str | None = None
     provider_plan: AgentCliUpdatePlan | None = None
     provider_dropped: tuple[DroppedProviderCandidate, ...] = ()
     provider_error: str | None = None

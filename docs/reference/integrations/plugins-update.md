@@ -204,11 +204,10 @@ matters:
   deferred: <holder> is running against this checkout; re-run `sase update` when it finishes
   ```
 
-  In the Admin Center's Updates tab the same condition disables the update instead:
-
-  ```text
-  A sase bead work is running against this checkout (<holder>). Re-run the update after it finishes.
-  ```
+  TUI updates (`,U`, `,E`, and the Admin Center Updates tab) show a wait notice instead,
+  then wait up to 30 minutes in their background proc for blocking readers such as an
+  approved epic launch. The proc phase reads `Waiting for <holder> to finish`. After the
+  timeout they defer with nothing changed.
 
   A direct `sase bead work` started while a swap is already in progress exits non-zero
   without starting any work, rather than importing a torn tree. The host-owned launcher
@@ -225,14 +224,13 @@ matters:
   — so you can decide whether to wait. A runner is deliberately not allowed to block an
   update indefinitely.
 
-Ordinary readers and the writer remain non-blocking and fail fast rather than queueing:
-a waiting reader may already hold pre-swap imports, and a waiting writer would stall
-sase's TUI. The approved-epic bootstrap can wait safely because it has not imported the
-editable package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism
-entirely (both the barrier and the warning). Direct readers still have one accepted
-residual race: one that starts while a swap is already underway can import torn modules
-before it reaches the lock. The guarded approved-epic path closes that race for its own
-launch.
+Direct readers and `sase update` stay fail-fast. The TUI writer polls with a bound from
+a background worker, so it never stalls the UI and never holds the lock while waiting.
+The approved-epic bootstrap can wait safely because it has not imported the editable
+package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirely (both
+the barrier and the warning). Direct readers still have one accepted residual race: one
+that starts while a swap is already underway can import torn modules before it reaches
+the lock. The guarded approved-epic path closes that race for its own launch.
 
 ### Install mode switching
 

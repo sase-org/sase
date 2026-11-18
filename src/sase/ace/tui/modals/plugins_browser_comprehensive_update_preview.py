@@ -33,6 +33,7 @@ from .plugins_browser_dev_update import (
     DevUpdatePreview,
     dev_update_blocking_reason,
     dev_update_preview_summary,
+    dev_update_wait_notice,
     make_sase_dev_update_preview,
     short_root,
 )
@@ -125,7 +126,7 @@ def build_comprehensive_update_preview(
     provider_plan, dropped, provider_error = _plan_providers_leg(
         request, inputs, selected
     )
-    sase_preview, sase_current, sase_blocker = _plan_sase_leg(
+    sase_preview, sase_current, sase_blocker, sase_wait_notice = _plan_sase_leg(
         inputs,
         selected,
         already_refreshed_roots=already_refreshed_roots,
@@ -135,6 +136,7 @@ def build_comprehensive_update_preview(
         sase_preview=sase_preview,
         sase_current=sase_current,
         sase_blocker=sase_blocker,
+        sase_wait_notice=sase_wait_notice,
         provider_plan=provider_plan,
         provider_dropped=dropped,
         provider_error=provider_error,
@@ -165,12 +167,12 @@ def _plan_sase_leg(
     selected: frozenset[UpdateLeg],
     *,
     already_refreshed_roots: Collection[str],
-) -> tuple[DevUpdatePreview | None, bool, str | None]:
+) -> tuple[DevUpdatePreview | None, bool, str | None, str | None]:
     if UpdateLeg.SASE not in selected:
-        return None, False, None
+        return None, False, None, None
     install = inputs.uv_tool
     if isinstance(install, NotUvToolInstall):
-        return None, False, str(NotAUvToolInstallError(install))
+        return None, False, str(NotAUvToolInstallError(install)), None
     try:
         receipt = load_receipt_for_summary(install)
         sase_preview = make_sase_dev_update_preview(
@@ -180,20 +182,24 @@ def _plan_sase_leg(
         blocker = sase_preview.error
         if blocker is None and sase_preview.plan is None:
             if _sase_is_cached_current(inputs.cached_status):
-                return None, True, None
-            return sase_preview, False, None
+                return None, True, None, None
+            return sase_preview, False, None, None
         if blocker is None and sase_preview.plan is not None:
             if _plan_is_fresh_current(sase_preview):
-                return None, True, None
+                return None, True, None, None
             plan_blocker = dev_update_blocking_reason(sase_preview.plan)
             managed_can_proceed = bool(
                 sase_preview.managed_argv and not sase_preview.plan.actionable_roots
             )
             if plan_blocker is not None and not managed_can_proceed:
                 blocker = plan_blocker
+            wait_notice: str | None = None
+            if blocker is None:
+                wait_notice = dev_update_wait_notice(sase_preview.plan)
+            return sase_preview, False, blocker, wait_notice
     except Exception as exc:  # noqa: BLE001 - preserve independently valid legs.
-        return None, False, error_text(exc)
-    return sase_preview, False, blocker
+        return None, False, error_text(exc), None
+    return sase_preview, False, blocker, None
 
 
 def _plan_is_fresh_current(preview: DevUpdatePreview) -> bool:
@@ -333,6 +339,9 @@ def _sase_preview_section(
     ]
     if skipped:
         counts.append(_count_label(len(skipped), "skipped", plural="skipped"))
+    details: tuple[str, ...] = (
+        (preview.sase_wait_notice,) if preview.sase_wait_notice else ()
+    )
     return PluginActionPreviewSection(
         title=title,
         summary=dev_update_preview_summary(plan, subject="sase"),
@@ -340,6 +349,7 @@ def _sase_preview_section(
         commands=_dev_update_commands(plan, managed_argv=sase.managed_argv),
         skipped=skipped,
         counts=tuple(counts),
+        details=details,
     )
 
 

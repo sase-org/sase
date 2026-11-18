@@ -162,11 +162,14 @@ def test_dev_update_blocking_reason_reports_active_bead_work() -> None:
         command=("sase", "bead", "work", "plan.md"),
     ) as reader:
         assert reader.acquired is True
-        reason = pbdu.dev_update_blocking_reason(_dev_plan())
+        assert pbdu.dev_update_blocking_reason(_dev_plan()) is None
+        notice = pbdu.dev_update_wait_notice(_dev_plan())
+        assert notice is not None
+        assert "sase bead work" in notice
+        assert "plan.md" in notice
+        assert notice in pbdu.dev_update_preview_details(_dev_plan())
 
-    assert reason is not None
-    assert "sase bead work is running" in reason
-    assert "plan.md" in reason
+    assert pbdu.dev_update_wait_notice(_dev_plan(status="skipped")) is None
 
 
 def test_dev_update_preview_details_names_live_advisory_runners() -> None:

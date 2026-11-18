@@ -3,6 +3,10 @@
 The lock prevents ``sase dev update`` from fast-forwarding and reinstalling the
 editable checkout while ``sase bead work`` is running from that same checkout.
 
+Writers stay non-blocking for direct callers. A caller that passes a
+:class:`CodeSwapWait` (the TUI) polls with a bound and holds nothing while
+waiting.
+
 Direct ``sase bead work`` stays fail-fast: a process that has already imported
 editable SASE modules must not wait across a swap. Host-owned epic launches
 wait in ``code_swap_guarded_exec.py`` (executed by filename, not as a
@@ -20,9 +24,9 @@ for that host-owned case.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import fcntl
 import json
@@ -30,6 +34,7 @@ import logging
 import os
 import shlex
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -50,11 +55,35 @@ _LEGACY_LOCK_FILENAMES = ("code-swap.lock",)
 
 
 @dataclass(frozen=True)
+class CodeSwapWait:
+    """Bounded polling wait for a blocked code-swap writer."""
+
+    timeout_seconds: float
+    poll_seconds: float = 1.0
+    on_wait: Callable[[str], None] | None = None
+    cancel_check: Callable[[], bool] | None = None
+    sleep: Callable[[float], None] = field(default=time.sleep)
+    clock: Callable[[], float] = field(default=time.monotonic)
+
+
+@dataclass(frozen=True)
+class CodeSwapReadersWaitResult:
+    """Outcome of waiting for blocking code-swap readers to clear."""
+
+    cleared: bool
+    timed_out: bool = False
+    cancelled: bool = False
+    blocked_by: str | None = None
+
+
+@dataclass(frozen=True)
 class _CodeSwapLockResult:
     """Result yielded by code-swap reader and writer lock contexts."""
 
     acquired: bool
     blocked_by: str | None = None
+    waited: bool = False
+    wait_stop: str | None = None
 
 
 @contextmanager
@@ -148,8 +177,17 @@ def code_swap_advisory_reader_lock(
 
 
 @contextmanager
-def code_swap_writer_lock() -> Iterator[_CodeSwapLockResult]:
-    """Take a non-blocking exclusive lock for an editable source-tree swap."""
+def code_swap_writer_lock(
+    wait: CodeSwapWait | None = None,
+    *,
+    deadline: float | None = None,
+) -> Iterator[_CodeSwapLockResult]:
+    """Take a non-blocking exclusive lock for an editable source-tree swap.
+
+    With ``wait=None`` this makes one non-blocking attempt, exactly as before.
+    With a wait policy it retries the non-blocking attempt every
+    ``poll_seconds`` until the deadline, holding nothing between attempts.
+    """
     if _lock_disabled():
         yield _CodeSwapLockResult(acquired=True)
         return
@@ -158,34 +196,119 @@ def code_swap_writer_lock() -> Iterator[_CodeSwapLockResult]:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = _open_lock_file(lock_path)
     try:
-        if not _try_lock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB):
-            yield _CodeSwapLockResult(
-                acquired=False,
-                blocked_by=_format_reader_holders(_live_reader_holders()),
-            )
+        if wait is None:
+            if not _try_lock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB):
+                yield _CodeSwapLockResult(
+                    acquired=False,
+                    blocked_by=_format_reader_holders(_live_reader_holders()),
+                )
+                return
+
+            # ``code-swap.lock`` could remain shared-locked forever when a
+            # pre-handoff-fix bootstrap leaked its descriptor into an agent
+            # runner. The v2 inode deliberately leaves anonymous legacy locks
+            # behind, but a live holder record still identifies a real legacy
+            # bead-work reader whose orchestration must finish before the swap.
+            legacy_blocked_by = _legacy_reader_blocked_by()
+            if legacy_blocked_by is not None:
+                yield _CodeSwapLockResult(
+                    acquired=False,
+                    blocked_by=legacy_blocked_by,
+                )
+                return
+
+            _write_writer_holder(fd, _holder(op="dev.update", command=sys.argv))
+            try:
+                yield _CodeSwapLockResult(acquired=True)
+            finally:
+                _clear_writer_holder(fd)
+                _unlock(fd)
             return
 
-        # ``code-swap.lock`` could remain shared-locked forever when a
-        # pre-handoff-fix bootstrap leaked its descriptor into an agent
-        # runner. The v2 inode deliberately leaves anonymous legacy locks
-        # behind, but a live holder record still identifies a real legacy
-        # bead-work reader whose orchestration must finish before the swap.
-        legacy_blocked_by = _legacy_reader_blocked_by()
-        if legacy_blocked_by is not None:
-            yield _CodeSwapLockResult(
-                acquired=False,
-                blocked_by=legacy_blocked_by,
-            )
-            return
+        effective = (
+            deadline if deadline is not None else wait.clock() + wait.timeout_seconds
+        )
+        waited = False
+        last_blocked: str | None = None
+        last_notified: str | None = None
 
-        _write_writer_holder(fd, _holder(op="dev.update", command=sys.argv))
-        try:
-            yield _CodeSwapLockResult(acquired=True)
-        finally:
-            _clear_writer_holder(fd)
-            _unlock(fd)
+        def _note(blocked: str) -> None:
+            nonlocal last_notified
+            if blocked != last_notified and wait.on_wait is not None:
+                wait.on_wait(blocked)
+                last_notified = blocked
+
+        while True:
+            if wait.cancel_check is not None and wait.cancel_check():
+                yield _CodeSwapLockResult(
+                    acquired=False,
+                    blocked_by=last_blocked,
+                    waited=waited,
+                    wait_stop="cancelled",
+                )
+                return
+            if _try_lock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB):
+                legacy_blocked_by = _legacy_reader_blocked_by()
+                if legacy_blocked_by is None:
+                    _write_writer_holder(fd, _holder(op="dev.update", command=sys.argv))
+                    try:
+                        yield _CodeSwapLockResult(acquired=True, waited=waited)
+                    finally:
+                        _clear_writer_holder(fd)
+                        _unlock(fd)
+                    return
+                _unlock(fd)
+                waited = True
+                last_blocked = legacy_blocked_by
+                _note(legacy_blocked_by)
+            else:
+                blocked = _format_reader_holders(_live_reader_holders())
+                waited = True
+                last_blocked = blocked
+                _note(blocked)
+            if wait.clock() >= effective:
+                yield _CodeSwapLockResult(
+                    acquired=False,
+                    blocked_by=last_blocked,
+                    waited=True,
+                    wait_stop="timeout",
+                )
+                return
+            wait.sleep(wait.poll_seconds)
     finally:
         os.close(fd)
+
+
+def wait_for_code_swap_readers(
+    wait: CodeSwapWait,
+    *,
+    deadline: float | None = None,
+) -> CodeSwapReadersWaitResult:
+    """Poll holder files until no blocking reader remains or time runs out."""
+    if _lock_disabled():
+        return CodeSwapReadersWaitResult(cleared=True)
+    effective = (
+        deadline if deadline is not None else wait.clock() + wait.timeout_seconds
+    )
+    last_blocked: str | None = None
+    last_notified: str | None = None
+    while True:
+        active = code_swap_readers_active()
+        if active is None:
+            return CodeSwapReadersWaitResult(cleared=True, blocked_by=last_blocked)
+        last_blocked = active
+        if active != last_notified and wait.on_wait is not None:
+            wait.on_wait(active)
+            last_notified = active
+        if wait.cancel_check is not None and wait.cancel_check():
+            return CodeSwapReadersWaitResult(
+                cleared=False, cancelled=True, blocked_by=active
+            )
+        if wait.clock() >= effective:
+            return CodeSwapReadersWaitResult(
+                cleared=False, timed_out=True, blocked_by=active
+            )
+        wait.sleep(wait.poll_seconds)
 
 
 def code_swap_readers_active() -> str | None:

@@ -205,6 +205,7 @@ def _perform_sase_leg(
             dev_result = pane_module._execute_tui_dev_update(
                 plan,
                 run=reporter.dev_command_runner(),
+                wait=reporter.code_swap_wait(),
             )
         else:
             dev_result = pane_module._execute_tui_dev_update(plan)

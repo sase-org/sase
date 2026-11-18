@@ -341,5 +341,19 @@ class SessionProcReporter:
 
         return _run
 
+    def code_swap_wait(self) -> Any:
+        """Return the bounded code-swap wait policy wired to this proc."""
+        from sase.ace.tui.modals.plugins_browser_dev_update import (
+            tui_code_swap_wait,
+        )
+
+        def _on_wait(holder: str) -> None:
+            self.phase(f"Waiting for {holder} to finish")
+
+        return tui_code_swap_wait(
+            on_wait=_on_wait,
+            cancel_check=self.cancel_event.is_set,
+        )
+
 
 __all__ = ["SESSION_PROC_MAX_OUTPUT_BYTES", "SessionProcReporter"]

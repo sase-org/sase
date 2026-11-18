@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.dev_update.code_swap_lock import (
+    CodeSwapWait,
     code_swap_advisory_holder_count,
     code_swap_advisory_warning,
     code_swap_readers_active,
@@ -29,6 +30,31 @@ from sase.version._models import VersionPackageRecord
 from sase.version._utils import normalize_distribution_name
 from sase.version.inventory import collect_runtime_version_inventory
 from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
+
+TUI_CODE_SWAP_WAIT_TIMEOUT_SECONDS = 30 * 60
+
+
+def tui_code_swap_wait(
+    *,
+    on_wait: Callable[[str], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> CodeSwapWait:
+    """Return the bounded wait policy every TUI dev update uses."""
+    return CodeSwapWait(
+        timeout_seconds=float(TUI_CODE_SWAP_WAIT_TIMEOUT_SECONDS),
+        on_wait=on_wait,
+        cancel_check=cancel_check,
+    )
+
+
+def _format_wait_timeout(seconds: float) -> str:
+    if seconds >= 3600 and seconds % 3600 == 0:
+        return f"{int(seconds // 3600)}h"
+    if seconds >= 60 and seconds % 60 == 0:
+        return f"{int(seconds // 60)}m"
+    if seconds >= 60:
+        return f"{seconds / 60:g}m"
+    return f"{seconds:g}s"
 
 
 @dataclass(frozen=True)
@@ -159,11 +185,14 @@ def make_plugin_dev_update_preview(
 
 
 def execute_tui_dev_update(
-    plan: DevUpdatePlan, *, run: DevCommandRunner | None = None
+    plan: DevUpdatePlan,
+    *,
+    run: DevCommandRunner | None = None,
+    wait: CodeSwapWait | None = None,
 ) -> DevUpdateResult:
     """Execute a dev-update plan with the default subprocess runner."""
     runner = run if run is not None else run_dev_update_command
-    return execute_dev_update(plan, run=runner)
+    return execute_dev_update(plan, run=runner, wait=wait or tui_code_swap_wait())
 
 
 def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:
@@ -174,7 +203,11 @@ def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:
 
 
 def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
-    """Return the reason a plan must not be executed, if any."""
+    """Return the reason a plan must not be executed, if any.
+
+    Blocking code-swap readers are not a blocker: the TUI waits for them
+    with a bounded wait instead of refusing.
+    """
     if not plan.actionable_roots and not plan.reconcile_steps:
         return _dev_update_skipped_message(plan)
     for step in plan.reconcile_steps:
@@ -182,12 +215,18 @@ def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
             continue
         if not step.available:
             return step.reason or f"{step.label} unavailable"
-    if active_reader := code_swap_readers_active():
-        return (
-            "A sase bead work is running against this checkout "
-            f"({active_reader}). Re-run the update after it finishes."
-        )
     return None
+
+
+def dev_update_wait_notice(plan: DevUpdatePlan) -> str | None:
+    """Return the wait notice for a plan that will take the writer lock."""
+    if not plan.actionable_roots and not plan.reconcile_steps:
+        return None
+    active = code_swap_readers_active()
+    if active is None:
+        return None
+    duration = _format_wait_timeout(float(TUI_CODE_SWAP_WAIT_TIMEOUT_SECONDS))
+    return f"Waits up to {duration} for {active} to finish before swapping checkouts."
 
 
 def _dev_update_skipped_message(plan: DevUpdatePlan) -> str:
@@ -236,6 +275,8 @@ def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
         lines.append(f"skip {package.record.name}: {package.reason}")
     if len(plan.skipped) > 4:
         lines.append(f"skip {len(plan.skipped) - 4} more editable checkouts")
+    if notice := dev_update_wait_notice(plan):
+        lines.append(notice)
     if advisory := code_swap_advisory_warning():
         lines.append(advisory)
     if hint := _dev_update_auto_restart_hint():
@@ -399,15 +440,18 @@ def _plural(count: int, singular: str) -> str:
 
 __all__ = [
     "DevUpdatePreview",
+    "TUI_CODE_SWAP_WAIT_TIMEOUT_SECONDS",
     "dev_update_blocking_reason",
     "dev_update_failed",
     "dev_update_failure_message",
     "dev_update_preview_details",
     "dev_update_preview_summary",
     "dev_update_success_message",
+    "dev_update_wait_notice",
     "entry_uses_dev_update",
     "execute_tui_dev_update",
     "make_plugin_dev_update_preview",
     "make_sase_dev_update_preview",
     "short_root",
+    "tui_code_swap_wait",
 ]

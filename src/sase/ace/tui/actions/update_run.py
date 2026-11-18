@@ -260,6 +260,14 @@ class UpdateRunActionsMixin:
             duplicate_message="A SASE or agent CLI update is already running.",
             on_complete=self._on_scoped_update_complete,
         )
+        if submitted is not None and preview.sase_wait_notice is not None:
+            if UpdateLeg.SASE in preview.selected_legs:
+                holder = _holder_from_wait_notice(preview.sase_wait_notice)
+                self._notify(
+                    "SASE update queued — waiting for "
+                    f"{holder} to finish before swapping checkouts.",
+                    severity="information",
+                )
         return submitted is not None
 
     def _on_scoped_update_complete(
@@ -351,6 +359,19 @@ class UpdateRunActionsMixin:
         if timeout is not None:
             extra["timeout"] = timeout
         notify(message, severity=severity, **extra)
+
+
+def _holder_from_wait_notice(notice: str) -> str:
+    """Extract the holder description from a wait notice, if it matches."""
+    import re
+
+    match = re.match(
+        r"^Waits up to \S+ for (.*) to finish before swapping checkouts\.$",
+        notice,
+    )
+    if match is not None:
+        return match.group(1)
+    return notice
 
 
 __all__ = ["UpdateRunActionsMixin"]

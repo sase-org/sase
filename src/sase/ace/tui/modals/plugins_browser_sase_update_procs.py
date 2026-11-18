@@ -78,7 +78,7 @@ class SaseUpdateProcMixin:
         ) -> tuple[UpdateSummary, float]: ...
 
         def _execute_dev_update(
-            self, plan: DevUpdatePlan, *, run: Any = None
+            self, plan: DevUpdatePlan, *, run: Any = None, wait: Any = None
         ) -> DevUpdateResult: ...
 
         def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
@@ -149,6 +149,7 @@ class SaseUpdateProcMixin:
             result = self._execute_dev_update(
                 plan,
                 run=reporter.dev_command_runner(),
+                wait=reporter.code_swap_wait(),
             )
             append_dev_update_journal(plan, result)
             elapsed = max(0.0, time.monotonic() - start)
@@ -197,6 +198,7 @@ class SaseUpdateProcMixin:
             dev_result = self._execute_dev_update(
                 plan,
                 run=reporter.dev_command_runner(),
+                wait=reporter.code_swap_wait(),
             )
             append_dev_update_journal(plan, dev_result)
             if dev_update_failed(dev_result):

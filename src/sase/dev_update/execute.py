@@ -6,7 +6,12 @@ import time
 from collections.abc import Callable
 from dataclasses import replace
 
-from sase.dev_update.code_swap_lock import code_swap_writer_lock
+from sase.dev_update.code_swap_lock import (
+    CodeSwapReadersWaitResult,
+    CodeSwapWait,
+    code_swap_writer_lock,
+    wait_for_code_swap_readers,
+)
 from sase.dev_update.command import (
     DEV_UPDATE_COMMAND_TIMEOUT_SECONDS as DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
     run_dev_update_command as run_dev_update_command,
@@ -50,6 +55,7 @@ def execute_dev_update(
     run: DevCommandRunner,
     clock: Callable[[], float] = time.monotonic,
     progress: UpdateProgress = NULL_PROGRESS,
+    wait: CodeSwapWait | None = None,
 ) -> DevUpdateResult:
     """Execute ``plan`` with a fully injected subprocess runner."""
     start = clock()
@@ -71,6 +77,29 @@ def execute_dev_update(
                 rust_prebuild=rust_prebuild,
             )
         )
+
+    deadline: float | None = None
+    if wait is not None:
+        deadline = clock() + wait.timeout_seconds
+        readers: CodeSwapReadersWaitResult = wait_for_code_swap_readers(
+            wait, deadline=deadline
+        )
+        if not readers.cleared:
+            if readers.cancelled:
+                reason = _code_swap_cancelled_reason(readers.blocked_by)
+            else:
+                reason = _code_swap_timeout_reason(
+                    readers.blocked_by, wait.timeout_seconds
+                )
+            return finish(
+                failed_result(
+                    plan,
+                    reason,
+                    commands,
+                    changed=False,
+                    rust_prebuild=rust_prebuild,
+                )
+            )
 
     _declare_plan_steps(progress, plan)
     progress.start(MERGE_STEP_ID)
@@ -105,9 +134,15 @@ def execute_dev_update(
             )
         )
 
-    with code_swap_writer_lock() as lock:
+    with code_swap_writer_lock(wait=wait, deadline=deadline) as lock:
         if not lock.acquired:
-            reason = _code_swap_deferred_reason(lock.blocked_by)
+            if wait is None or lock.wait_stop not in ("timeout", "cancelled"):
+                reason = _code_swap_deferred_reason(lock.blocked_by)
+            elif lock.wait_stop == "cancelled":
+                reason = _code_swap_cancelled_reason(lock.blocked_by)
+            else:
+                timeout = wait.timeout_seconds if wait is not None else 0.0
+                reason = _code_swap_timeout_reason(lock.blocked_by, timeout)
             # Finishing the parent marks its still-running children skipped,
             # and the deferral itself is a warning, not a failure.
             progress.finish(MERGE_STEP_ID, "warned", detail=reason)
@@ -120,6 +155,21 @@ def execute_dev_update(
                     rust_prebuild=rust_prebuild,
                 )
             )
+        if wait is not None and lock.waited:
+            revalidate = preflight_actionable_roots(
+                plan.actionable_roots, run, commands, clock, progress
+            )
+            if revalidate is not None:
+                progress.finish(MERGE_STEP_ID, "failed", detail=revalidate)
+                return finish(
+                    failed_result(
+                        plan,
+                        revalidate,
+                        commands,
+                        changed=False,
+                        rust_prebuild=rust_prebuild,
+                    )
+                )
 
         (
             merge_failure,
@@ -204,3 +254,27 @@ def _code_swap_deferred_reason(blocked_by: str | None) -> str:
         f"deferred: {detail} is running against this checkout; "
         "re-run `sase update` when it finishes"
     )
+
+
+def _format_wait_duration(seconds: float) -> str:
+    if seconds >= 3600 and seconds % 3600 == 0:
+        return f"{int(seconds // 3600)}h"
+    if seconds >= 60 and seconds % 60 == 0:
+        return f"{int(seconds // 60)}m"
+    if seconds >= 60:
+        return f"{seconds / 60:g}m"
+    return f"{seconds:g}s"
+
+
+def _code_swap_timeout_reason(blocked_by: str | None, timeout_seconds: float) -> str:
+    holder = blocked_by or "a running sase process"
+    return (
+        f"deferred: {holder} was still running against this checkout "
+        f"after waiting {_format_wait_duration(timeout_seconds)}; "
+        "re-run the update when it finishes"
+    )
+
+
+def _code_swap_cancelled_reason(blocked_by: str | None) -> str:
+    holder = blocked_by or "a running sase process"
+    return f"deferred: update cancelled while waiting for {holder}"

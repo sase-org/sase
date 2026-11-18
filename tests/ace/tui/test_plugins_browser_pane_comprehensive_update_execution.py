@@ -309,10 +309,12 @@ def test_sase_leg_uses_streaming_dev_adapter(monkeypatch: pytest.MonkeyPatch) ->
 
     reporter = session_reporter(proc_type="comprehensive-update")
     runners: list[object] = []
+    waits: list[object] = []
     fake_plan = cast(DevUpdatePlan, object())
 
     def execute(_plan: DevUpdatePlan, **kwargs: Any) -> DevUpdateResult:
         runners.append(kwargs.get("run"))
+        waits.append(kwargs.get("wait"))
         return DevUpdateResult(changed=False, outcomes=())
 
     monkeypatch.setattr(
@@ -333,6 +335,7 @@ def test_sase_leg_uses_streaming_dev_adapter(monkeypatch: pytest.MonkeyPatch) ->
 
     assert result.status is SaseUpdateResultStatus.ALREADY_CURRENT
     assert runners and runners[0] is not None
+    assert waits and waits[0] is not None
     assert reporter.proc.phase == "Updating editable SASE checkouts"
     output = reporter.proc.get_live_output()
     assert "==> Updating editable SASE checkouts" in output
