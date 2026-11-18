@@ -176,6 +176,10 @@ before any runtime data is interpolated. The command's output replaces the
 `$(cmd)` expression, and neither the output nor any interpolated value is ever
 scanned again for commands.
 
+In a macro body, command substitutions run at launch, before the agent's workspace
+is claimed. They must not depend on the launch-time working directory; resolve
+workspace-relative paths inside the agent with `sase repo open` instead.
+
 ```
 #bug:$(branch_bug)           # Use output of branch_bug command as the argument
 #review:$(git diff HEAD~1)   # Pass git diff output as argument
