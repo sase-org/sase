@@ -479,29 +479,6 @@ def scan_agent_artifact_dirs_list(
     )
 
 
-def scan_agent_artifact_dir_list(
-    projects_root: Path | str,
-    artifact_dir: Path | str,
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> AgentArtifactListRecordWire | None:
-    _sync_source_patchables()
-    return source_impl.scan_agent_artifact_dir_list(
-        projects_root, artifact_dir, options
-    )
-
-
-def query_agent_artifact_index_list(
-    index_path: Path | str,
-    projects_root: Path | str,
-    query: AgentArtifactIndexQueryWire | None = None,
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> AgentArtifactListSnapshotWire:
-    _sync_queries_patchables()
-    return queries_impl.query_agent_artifact_index_list(
-        index_path, projects_root, query, options
-    )
-
-
 def query_agent_artifact_index_list_bounded(
     index_path: Path | str,
     projects_root: Path | str,
@@ -556,7 +533,6 @@ __all__ = [
     "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
-    "query_agent_artifact_index_list",
     "query_agent_artifact_index_list_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
@@ -565,7 +541,6 @@ __all__ = [
     "rebuild_agent_artifact_index",
     "reconcile_agent_artifact_index_dismissed_agent_session_members",
     "replace_agent_artifact_index_dismissed_agents",
-    "scan_agent_artifact_dir_list",
     "scan_agent_artifact_dirs",
     "scan_agent_artifact_dirs_list",
     "scan_agent_artifacts",

@@ -104,7 +104,6 @@ from sase.core.agent_scan_wire_agent_session_turn import (
 from sase.core.agent_scan_list_conversion import (
     SUPPORTED_AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSIONS,
     agent_artifact_list_index_query_to_dict,
-    agent_artifact_list_records_from_dicts,
     agent_artifact_list_scan_wire_from_dict,
 )
 from sase.core.agent_scan_list_wire import (
@@ -185,7 +184,6 @@ __all__ = [
     "AgentArtifactListWorkflowStepWire",
     "AgentArtifactListWorkflowWire",
     "agent_artifact_list_index_query_to_dict",
-    "agent_artifact_list_records_from_dicts",
     "agent_artifact_list_scan_wire_from_dict",
     "SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS",
     "DONE_WORKFLOW_DIR_NAMES",

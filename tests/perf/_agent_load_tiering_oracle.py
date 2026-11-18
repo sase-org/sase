@@ -14,7 +14,7 @@ from sase.ace.tui.models.agent_live_query_pushdown import (
 )
 from sase.ace.tui.models.agent_loader import load_tiered_agents
 from sase.core.agent_scan_facade import (
-    query_agent_artifact_index_list,
+    query_agent_artifact_index_list_bounded as query_agent_artifact_index_list,
     scan_agent_artifacts_list,
 )
 from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
@@ -250,6 +250,7 @@ class AgentLoadTieringOracle:
         with _temporary_sase_home(self.fixture.sase_home):
             start = time.perf_counter()
             snapshot = load_snapshot()
+            assert snapshot is not None, "fixture index lock unexpectedly busy"
             agents = _tui_visible_agents(_agents_from_snapshot(snapshot))
             filtered, _facade, error = apply_agents_live_query_filter(query, agents)
             visible_rows = _visible_rows(filtered)

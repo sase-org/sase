@@ -553,10 +553,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1t3.10.1(query_agent_artifact_index_list)" \
-        --epic-symbol "sase-1t3.10.1(scan_agent_artifact_dir_list)" \
-        --epic-symbol "sase-1t3.10.1(release_projected_agent_detail)" \
-        --epic-symbol "sase-1t3.10.1(projected_detail_owner_size)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchCorruptError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchExistsError)" \
         --epic-symbol "sase-1tc.3.1(ChopBatchNotFoundError)" \

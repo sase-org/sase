@@ -23,11 +23,11 @@ from sase.ace.tui.models._agent_loader_artifact_index_list import (
 from sase.ace.tui.models._agent_loader_sources import (
     load_agents_from_compact_snapshot_sources,
 )
+from sase.ace.tui.models import _projected_record as projected_record
 from sase.ace.tui.models._projected_record import (
     hydrate_projected_agent,
     projected_agent_needs_hydration,
-    projected_detail_owner_size,
-    release_projected_agent_detail,
+    _release_projected_agent_detail,
 )
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.core.agent_scan_list_wire import (
@@ -312,7 +312,7 @@ def test_selected_detail_owner_bounds_hydrated_agents(
 
     # Twenty selections with large outputs retain at most two hydrated
     # generations; everything older falls back to compact list facts.
-    assert projected_detail_owner_size() == 2
+    assert len(projected_record._detail_owner) == 2
     for i, agent in enumerate(agents):
         if i < 18:
             assert agent.record_shape == "list"
@@ -355,9 +355,9 @@ def test_release_restores_compact_list_facts(
     assert "_raw" in (agent.step_output or {})
     assert agent.linked_repos == (LinkedRepoMetadata("sase-core", "/tmp/sase-core"),)
 
-    size_before = projected_detail_owner_size()
-    assert release_projected_agent_detail(agent) is True
-    assert projected_detail_owner_size() == size_before - 1
+    size_before = len(projected_record._detail_owner)
+    assert _release_projected_agent_detail(agent) is True
+    assert len(projected_record._detail_owner) == size_before - 1
 
     assert agent.record_shape == "list"
     assert projected_agent_needs_hydration(agent) is True
@@ -367,7 +367,7 @@ def test_release_restores_compact_list_facts(
     # Detail re-hydrates on the next selection after a release.
     assert hydrate_projected_agent(agent) is True
     assert agent.record_shape == "full"
-    assert release_projected_agent_detail(agent) is True
+    assert _release_projected_agent_detail(agent) is True
 
 
 def test_orphaned_hydrated_agents_stay_collectible(
@@ -396,4 +396,4 @@ def test_orphaned_hydrated_agents_stay_collectible(
     _patch_hydration(tmp_path, monkeypatch, records)
     agent2 = _list_agent(timestamp2, artifact_dir2, cl_name="retention-orphan")
     assert hydrate_projected_agent(agent2) is True
-    assert projected_detail_owner_size() <= 2
+    assert len(projected_record._detail_owner) <= 2

@@ -311,33 +311,6 @@ def agent_artifact_list_wire_schema_version() -> int:
     return int(rust_version())
 
 
-def query_agent_artifact_index_list(
-    index_path: Path | str,
-    projects_root: Path | str,
-    query: AgentArtifactIndexQueryWire | None = None,
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> AgentArtifactListSnapshotWire:
-    """Return compact list rows from the persistent artifact index.
-
-    Compact twin of :func:`query_agent_artifact_index`: the Rust core
-    reuses the existing selection, revalidation, windowing, clan-context,
-    and completeness pipeline, and the response carries only list facts
-    (no nested full marker records). Takes the artifact index operation
-    lock like the full query.
-    """
-    opts = options or AgentArtifactScanOptionsWire()
-    query_wire = query or AgentArtifactIndexQueryWire()
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_agent_artifact_index_list")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            str(projects_root),
-            agent_artifact_list_index_query_to_dict(query_wire),
-            options_to_dict(opts),
-        )
-    return agent_artifact_list_scan_wire_from_dict(payload)
-
-
 def query_agent_artifact_index_list_bounded(
     index_path: Path | str,
     projects_root: Path | str,
@@ -369,7 +342,6 @@ __all__ = [
     "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
-    "query_agent_artifact_index_list",
     "query_agent_artifact_index_list_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",

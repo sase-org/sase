@@ -16,7 +16,7 @@ import pytest
 from sase.core.agent_scan_list_conversion import (
     SUPPORTED_AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSIONS,
     agent_artifact_list_index_query_to_dict,
-    agent_artifact_list_records_from_dicts,
+    _records_from_dicts as agent_artifact_list_records_from_dicts,
     agent_artifact_list_scan_wire_from_dict,
 )
 from sase.core.agent_scan_list_wire import (

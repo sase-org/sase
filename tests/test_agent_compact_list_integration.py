@@ -81,7 +81,7 @@ def test_compact_list_end_to_end_parity(tmp_path: Path) -> None:
     _require_list_bindings()
     from sase.core.agent_scan_facade import (
         query_agent_artifact_index,
-        query_agent_artifact_index_list,
+        query_agent_artifact_index_list_bounded as query_agent_artifact_index_list,
     )
 
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=24)
@@ -98,6 +98,8 @@ def test_compact_list_end_to_end_parity(tmp_path: Path) -> None:
         _tier_query(),
         AgentArtifactScanOptionsWire(),
     )
+
+    assert compact_snapshot is not None, "fixture index lock unexpectedly busy"
 
     # The compact response reuses the selection pipeline: same order, same
     # clan context and completeness, compact shape throughout.

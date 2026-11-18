@@ -38,7 +38,7 @@ _UNSET = object()
 
 _detail_owner: OrderedDict[tuple[object, ...], weakref.ref[Any]] = OrderedDict()
 # RLock: eviction inside ``_note_projected_detail_retained`` re-enters
-# through :func:`release_projected_agent_detail`.
+# through :func:`_release_projected_agent_detail`.
 _detail_owner_lock = threading.RLock()
 
 
@@ -105,7 +105,7 @@ def _stash_applied_detail(agent: Agent, pre: dict[str, Any]) -> None:
     """Record the pre-hydration values of every field hydration wrote.
 
     The stash maps each written field to ``(before, hydrated)`` so
-    :func:`release_projected_agent_detail` can restore the compact list
+    :func:`_release_projected_agent_detail` can restore the compact list
     facts later. Fields hydration rewrote with an equal value are included;
     restoring an equal value is still a release of the hydrated object
     graph.
@@ -145,10 +145,10 @@ def _note_projected_detail_retained(agent: Agent) -> None:
             _oldest, oldest_ref = _detail_owner.popitem(last=False)
             oldest = oldest_ref()
             if oldest is not None:
-                release_projected_agent_detail(oldest)
+                _release_projected_agent_detail(oldest)
 
 
-def release_projected_agent_detail(agent: Agent) -> bool:
+def _release_projected_agent_detail(agent: Agent) -> bool:
     """Release a hydrated agent's deferred detail back to list facts.
 
     Restores the pre-hydration values stashed by
@@ -199,13 +199,6 @@ def release_projected_agent_detail(agent: Agent) -> bool:
         if known is None or known() is None or known() is agent:
             _detail_owner.pop(tuple(agent.identity), None)
     return changed
-
-
-def projected_detail_owner_size() -> int:
-    """Return how many hydrated generations the detail owner retains."""
-
-    with _detail_owner_lock:
-        return len(_detail_owner)
 
 
 def hydrate_projected_agent(agent: Agent) -> bool:
@@ -611,8 +604,6 @@ __all__ = [
     "mark_projected_agent_hydration_pending",
     "projected_agent_needs_hydration",
     "projected_agent_waiting_for_hydration",
-    "projected_detail_owner_size",
-    "release_projected_agent_detail",
     "resolve_linked_repos",
     "resolve_step_output",
 ]

@@ -20,11 +20,9 @@ from sase.core.agent_output_variable_selector_wire import (
     output_variable_selector_from_dict,
 )
 from sase.core.agent_scan_list_conversion import (
-    agent_artifact_list_records_from_dicts,
     agent_artifact_list_scan_wire_from_dict,
 )
 from sase.core.agent_scan_list_wire import (
-    AgentArtifactListRecordWire,
     AgentArtifactListSnapshotWire,
 )
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
@@ -107,28 +105,8 @@ def scan_agent_artifact_dirs_list(
     return agent_artifact_list_scan_wire_from_dict(payload)
 
 
-def scan_agent_artifact_dir_list(
-    projects_root: Path | str,
-    artifact_dir: Path | str,
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> AgentArtifactListRecordWire | None:
-    """Return one compact list record, or ``None`` when the dir is absent."""
-    opts = options or AgentArtifactScanOptionsWire()
-    rust_scan = require_rust_binding("scan_agent_artifact_dir_list")
-    payload: dict[str, Any] | None = rust_scan(
-        str(projects_root),
-        str(Path(artifact_dir).expanduser()),
-        options_to_dict(opts),
-    )
-    if payload is None:
-        return None
-    records = agent_artifact_list_records_from_dicts([payload])
-    return records[0] if records else None
-
-
 __all__ = [
     "parse_output_variable_selector",
-    "scan_agent_artifact_dir_list",
     "scan_agent_artifact_dirs",
     "scan_agent_artifact_dirs_list",
     "scan_agent_artifacts",

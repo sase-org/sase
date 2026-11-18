@@ -42,7 +42,7 @@ from tests._agent_compact_parity_helpers import _assert_parity
 from tests._agent_compact_parity_helpers import _facts
 from sase.core.agent_scan_facade import scan_agent_artifact_dirs
 from sase.core.agent_scan_list_conversion import (
-    agent_artifact_list_records_from_dicts,
+    _records_from_dicts as agent_artifact_list_records_from_dicts,
     agent_artifact_list_scan_wire_from_dict,
 )
 

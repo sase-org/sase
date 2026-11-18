@@ -289,11 +289,7 @@ def agent_artifact_list_scan_wire_from_dict(
         agent_scan_stats_from_dict,
     )
 
-    records = [
-        _record_from_dict(record)
-        for record in payload.get("records") or []
-        if isinstance(record, dict)
-    ]
+    records = _records_from_dicts(payload.get("records"))
     clan_context = [
         AgentClanContextWire(**known_field_kwargs(AgentClanContextWire, item))
         for item in payload.get("clan_context") or []
@@ -313,7 +309,7 @@ def agent_artifact_list_scan_wire_from_dict(
     )
 
 
-def agent_artifact_list_records_from_dicts(
+def _records_from_dicts(
     records: Any,
 ) -> list[AgentArtifactListRecordWire]:
     """Rehydrate compact list records returned outside the snapshot envelope."""
@@ -338,6 +334,5 @@ def agent_artifact_list_index_query_to_dict(query: Any) -> dict[str, Any]:
 __all__ = [
     "SUPPORTED_AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSIONS",
     "agent_artifact_list_index_query_to_dict",
-    "agent_artifact_list_records_from_dicts",
     "agent_artifact_list_scan_wire_from_dict",
 ]
