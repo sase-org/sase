@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -443,6 +444,74 @@ def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     binding = require_rust_binding("bead_get_epic_children")
     payload: list[dict[str, Any]] = binding(str(beads_dir), epic_id)
     return issues_from_list(payload)
+
+
+def stranded_snapshot(
+    beads_dir: Path | str,
+    bead_ids: Iterable[str] | None = None,
+) -> tuple[list[Issue], list[Issue]]:
+    """Return ``(candidates, context)`` for stranded-work collection.
+
+    The Rust ``bead_stranded_snapshot`` binding answers from one slim
+    candidate/context projection over the read model, so closed history is
+    never decoded and facts and titles share the same snapshot. Cores that
+    predate the binding fall back to the two filtered ``list_issues`` reads
+    the collector previously ran itself.
+    """
+    wanted = None if bead_ids is None else [str(item) for item in bead_ids]
+    binding = optional_rust_binding("bead_stranded_snapshot")
+    if binding is not None:
+        try:
+            payload: dict[str, Any] = binding(str(beads_dir), wanted)
+            candidates = payload.get("candidates")
+            context = payload.get("context")
+            if isinstance(candidates, list) and isinstance(context, list):
+                return issues_from_list(candidates), issues_from_list(context)
+        except Exception:
+            pass
+    return _stranded_snapshot_fallback(beads_dir, bead_ids=wanted)
+
+
+def _stranded_snapshot_fallback(
+    beads_dir: Path | str,
+    bead_ids: list[str] | None = None,
+) -> tuple[list[Issue], list[Issue]]:
+    """Answer :func:`stranded_snapshot` from two filtered list reads."""
+    loaded = list_issues(beads_dir, statuses=[Status.IN_PROGRESS, Status.OPEN])
+    wanted = None if bead_ids is None else {item for item in bead_ids if item}
+    candidates = [
+        issue
+        for issue in loaded
+        if _is_stranded_snapshot_candidate(issue)
+        and (wanted is None or issue.id in wanted)
+    ]
+    phase_ids = {
+        issue.id for issue in candidates if issue.issue_type is IssueType.PHASE
+    }
+    if not phase_ids:
+        return candidates, []
+    plans = list_issues(beads_dir, issue_types=[IssueType.PLAN])
+    candidate_ids = {issue.id for issue in candidates}
+    context = [
+        issue
+        for issue in plans
+        if issue.parent_id in phase_ids and issue.id not in candidate_ids
+    ]
+    return candidates, context
+
+
+def _is_stranded_snapshot_candidate(issue: Issue) -> bool:
+    if issue.issue_type is IssueType.PHASE:
+        pass
+    elif issue.issue_type is IssueType.TASK:
+        pass
+    elif issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC:
+        pass
+    else:
+        return False
+    if issue.status is Status.IN_PROGRESS:
+        return True
+    return issue.status is Status.OPEN and issue.completion_failure is not None
 
 
 @dataclass(frozen=True)

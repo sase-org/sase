@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from time import time
 
-from sase.bead.stranded_facts import collect_issue_titles, collect_stranded_work_input
+from sase.bead.stranded_facts import collect_stranded_work_snapshot
 from sase.core.stranded_work_facade import (
     STRANDED_WORK_WIRE_SCHEMA_VERSION,
     StrandedWorkReport,
@@ -39,8 +39,7 @@ def load_stranded_report(project: str, *, now: float | None = None) -> StrandedR
         generated_at=moment,
     )
     try:
-        facts = collect_stranded_work_input(project, now=moment)
-        titles = collect_issue_titles(project)
+        facts, titles = collect_stranded_work_snapshot(project, now=moment)
         report = reduce_stranded_work(facts)
     except Exception:  # noqa: BLE001 - callers must never see collector errors.
         _LOG.warning(

@@ -30,7 +30,7 @@ from sase.agent.handoff_inflight import HANDOFF_INFLIGHT_MARKER
 from sase.agent.pending_handoff import pending_handoff_kind
 from sase.agent.status_buckets import QUEUED_STATUS
 from sase.bead.completion_failure_codec import completion_failure_to_dict
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -41,7 +41,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.bead_read_facade import list_issues
+from sase.core.bead_read_facade import stranded_snapshot
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import is_real_gate_member_record
 from sase.core.stranded_work_facade import STRANDED_WORK_WIRE_SCHEMA_VERSION
@@ -74,13 +74,60 @@ def collect_stranded_work_input(
     moment = float(now) if now is not None else _now_epoch()
     beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
-        return {
-            "schema_version": STRANDED_WORK_WIRE_SCHEMA_VERSION,
-            "now": moment,
-            "settle_grace_seconds": _SETTLE_GRACE_SECONDS,
-            "beads": [],
-        }
-    candidates, context = _candidate_and_context_issues(beads_dir, bead_ids=bead_ids)
+        return _empty_payload(moment)
+    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+    return _payload_for_snapshot(project, moment, candidates, context)
+
+
+def collect_issue_titles(
+    project: str, *, bead_ids: Iterable[str] | None = None
+) -> dict[str, str]:
+    """Return bead-id to title for every issue the collector loaded."""
+    beads_dir = canonical_beads_dir_for_project(project)
+    if beads_dir is None:
+        return {}
+    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+    return _titles_for_snapshot(candidates, context)
+
+
+def collect_stranded_work_snapshot(
+    project: str,
+    *,
+    now: float | None = None,
+    bead_ids: Iterable[str] | None = None,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Collect reducer facts and titles from one candidate/context snapshot.
+
+    Facts and titles share a single :func:`stranded_snapshot` collection, so
+    a report stays coherent when the store changes between what would have
+    been separate candidate queries.
+    """
+    moment = float(now) if now is not None else _now_epoch()
+    beads_dir = canonical_beads_dir_for_project(project)
+    if beads_dir is None:
+        return _empty_payload(moment), {}
+    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+    return (
+        _payload_for_snapshot(project, moment, candidates, context),
+        _titles_for_snapshot(candidates, context),
+    )
+
+
+def _empty_payload(moment: float) -> dict[str, Any]:
+    return {
+        "schema_version": STRANDED_WORK_WIRE_SCHEMA_VERSION,
+        "now": moment,
+        "settle_grace_seconds": _SETTLE_GRACE_SECONDS,
+        "beads": [],
+    }
+
+
+def _payload_for_snapshot(
+    project: str,
+    moment: float,
+    candidates: list[Issue],
+    context: list[Issue],
+) -> dict[str, Any]:
     sessions = _session_record_cache(
         project,
         {key for issue in candidates for key in _session_keys_for_issue(issue)},
@@ -100,14 +147,9 @@ def collect_stranded_work_input(
     }
 
 
-def collect_issue_titles(
-    project: str, *, bead_ids: Iterable[str] | None = None
+def _titles_for_snapshot(
+    candidates: list[Issue], context: list[Issue]
 ) -> dict[str, str]:
-    """Return bead-id to title for every issue the collector loaded."""
-    beads_dir = canonical_beads_dir_for_project(project)
-    if beads_dir is None:
-        return {}
-    candidates, context = _candidate_and_context_issues(beads_dir, bead_ids=bead_ids)
     titles: dict[str, str] = {}
     for issue in (*candidates, *context):
         if issue.id and issue.id not in titles:
@@ -119,46 +161,6 @@ def _now_epoch() -> float:
     from time import time
 
     return time()
-
-
-def _candidate_and_context_issues(
-    beads_dir: Path, *, bead_ids: Iterable[str] | None = None
-) -> tuple[list[Issue], list[Issue]]:
-    loaded = list_issues(beads_dir, statuses=[Status.IN_PROGRESS, Status.OPEN])
-    wanted = None if bead_ids is None else {item for item in bead_ids if item}
-    candidates = [
-        issue
-        for issue in loaded
-        if _is_stranded_candidate(issue) and (wanted is None or issue.id in wanted)
-    ]
-    phase_ids = {
-        issue.id for issue in candidates if issue.issue_type is IssueType.PHASE
-    }
-    if not phase_ids:
-        return candidates, []
-    plans = list_issues(beads_dir, issue_types=[IssueType.PLAN])
-    context = [
-        issue
-        for issue in plans
-        if issue.parent_id in phase_ids and issue.id not in {c.id for c in candidates}
-    ]
-    return candidates, context
-
-
-def _is_candidate(issue: Issue) -> bool:
-    if issue.issue_type is IssueType.PHASE:
-        return True
-    if issue.issue_type is IssueType.TASK:
-        return True
-    return issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
-
-
-def _is_stranded_candidate(issue: Issue) -> bool:
-    if not _is_candidate(issue):
-        return False
-    if issue.status is Status.IN_PROGRESS:
-        return True
-    return issue.status is Status.OPEN and issue.completion_failure is not None
 
 
 def _session_keys_for_issue(issue: Issue) -> tuple[str, ...]:

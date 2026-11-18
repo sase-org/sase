@@ -187,22 +187,33 @@ def wire_collector(
     monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: beads_dir)
     monkeypatch.setattr(facts, "default_agent_artifact_index_path", lambda: index)
 
-    def list_issues(
-        _beads_dir: Path,
-        statuses: list[Status] | None = None,
-        issue_types: list[IssueType] | None = None,
-        tiers: list[BeadTier] | None = None,
-    ) -> list[Issue]:
-        result = list(issues)
-        if statuses:
-            result = [issue for issue in result if issue.status in statuses]
-        if issue_types:
-            result = [issue for issue in result if issue.issue_type in issue_types]
-        if tiers:
-            result = [issue for issue in result if issue.tier in tiers]
-        return result
+    def stranded_snapshot(
+        _beads_dir: Path, bead_ids: Any = None
+    ) -> tuple[list[Issue], list[Issue]]:
+        wanted = None if bead_ids is None else {item for item in bead_ids if item}
+        candidates = [
+            issue
+            for issue in issues
+            if issue.status in (Status.IN_PROGRESS, Status.OPEN)
+            and _is_stranded_candidate(issue)
+            and (wanted is None or issue.id in wanted)
+        ]
+        phase_ids = {
+            issue.id for issue in candidates if issue.issue_type is IssueType.PHASE
+        }
+        if not phase_ids:
+            return candidates, []
+        candidate_ids = {issue.id for issue in candidates}
+        context = [
+            issue
+            for issue in issues
+            if issue.issue_type is IssueType.PLAN
+            and issue.parent_id in phase_ids
+            and issue.id not in candidate_ids
+        ]
+        return candidates, context
 
-    monkeypatch.setattr(facts, "list_issues", list_issues)
+    monkeypatch.setattr(facts, "stranded_snapshot", stranded_snapshot)
 
     def query(
         _index_path: Path,
@@ -220,6 +231,20 @@ def wire_collector(
 
     monkeypatch.setattr(facts, "query_agent_artifact_index", query)
     return beads_dir
+
+
+def _is_stranded_candidate(issue: Issue) -> bool:
+    if issue.issue_type is IssueType.PHASE:
+        pass
+    elif issue.issue_type is IssueType.TASK:
+        pass
+    elif issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC:
+        pass
+    else:
+        return False
+    if issue.status is Status.IN_PROGRESS:
+        return True
+    return issue.status is Status.OPEN and issue.completion_failure is not None
 
 
 def bead_facts(payload: dict[str, Any], bead_id: str) -> dict[str, Any]:
