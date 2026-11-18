@@ -4,16 +4,16 @@ import subprocess
 from pathlib import Path
 
 from sase.ace.tui.graphics._viewer_loop_terminal import kitten_icat_clear_command
-from sase.ace.tui.graphics._viewer_loop_video import (
+from sase.ace.tui.graphics._viewer_loop_video import run_video_inspect
+from sase.ace.tui.graphics._viewer_loop_video_common import (
     _assemble_inspect_key,
-    _clamp_timestamp,
-    _compute_inspect_layout,
     _decode_inspect_key,
-    _decile_timestamp,
-    _format_inspect_status,
-    _snap_timestamp,
-    _step_timestamp,
-    run_video_inspect,
+    clamp_timestamp,
+    compute_inspect_layout,
+    decile_timestamp,
+    format_inspect_status,
+    snap_timestamp,
+    step_timestamp,
 )
 from sase.ace.tui.graphics.viewer import (
     ArtifactFileImageArea,
@@ -61,7 +61,7 @@ def _write_clip(tmp_path: Path, name: str = "clip.mp4") -> Path:
 
 
 def _inspect_layout(area: ArtifactFileImageArea = _TEST_IMAGE_AREA):
-    return _compute_inspect_layout(
+    return compute_inspect_layout(
         area, storyboard_enabled=True, pane_rows=area.top + area.rows + 2
     )
 
@@ -97,28 +97,28 @@ def test_assemble_inspect_key_lone_escape_does_not_steal_next_key() -> None:
 
 
 def test_step_and_decile_math_clamps_at_both_ends() -> None:
-    assert _clamp_timestamp(-1.0, 7.0) == 0.0
-    assert _clamp_timestamp(9.0, 7.0) == 7.0
-    assert _step_timestamp(0.0, 1.0, 7.0) == 1.0
-    assert _step_timestamp(0.2, -1.0, 7.0) == 0.0
-    assert _step_timestamp(6.5, 1.0, 7.0) == 7.0
-    assert _decile_timestamp(0, 10.0) == 0.0
-    assert _decile_timestamp(9, 10.0) == 9.0
-    assert _decile_timestamp(3, None) == 0.0
+    assert clamp_timestamp(-1.0, 7.0) == 0.0
+    assert clamp_timestamp(9.0, 7.0) == 7.0
+    assert step_timestamp(0.0, 1.0, 7.0) == 1.0
+    assert step_timestamp(0.2, -1.0, 7.0) == 0.0
+    assert step_timestamp(6.5, 1.0, 7.0) == 7.0
+    assert decile_timestamp(0, 10.0) == 0.0
+    assert decile_timestamp(9, 10.0) == 9.0
+    assert decile_timestamp(3, None) == 0.0
 
 
-def test_snap_timestamp_uses_completed_scrub_track(tmp_path: Path) -> None:
+def testsnap_timestamp_uses_completed_scrub_track(tmp_path: Path) -> None:
     frames = tuple(tmp_path / f"frame-{index:04d}.png" for index in range(8))
     for frame in frames:
         frame.write_bytes(b"PNG")
     scrub = _FakeScrub(done=True, fps=1.0, frames=frames)
 
-    assert _snap_timestamp(2.4, scrub) == 2.0
-    assert _step_timestamp(0.0, 2.4, 7.0, scrub=scrub, snap=True) == 2.0
+    assert snap_timestamp(2.4, scrub) == 2.0
+    assert step_timestamp(0.0, 2.4, 7.0, scrub=scrub, snap=True) == 2.0
 
 
-def test_format_inspect_status_includes_bar_and_scrub_progress() -> None:
-    line = _format_inspect_status(2.0, 7.0, scrub_progress=0.4)
+def testformat_inspect_status_includes_bar_and_scrub_progress() -> None:
+    line = format_inspect_status(2.0, 7.0, scrub_progress=0.4)
     assert line.startswith("00:02.0 / 00:07.0")
     assert "scrub 40%" in line
     assert ">" in line
@@ -126,8 +126,8 @@ def test_format_inspect_status_includes_bar_and_scrub_progress() -> None:
 
 def test_storyboard_auto_hides_on_small_panes() -> None:
     small = ArtifactFileImageArea(columns=80, rows=10, top=0)
-    hidden = _compute_inspect_layout(small, storyboard_enabled=True, pane_rows=12)
-    shown = _compute_inspect_layout(
+    hidden = compute_inspect_layout(small, storyboard_enabled=True, pane_rows=12)
+    shown = compute_inspect_layout(
         _TEST_IMAGE_AREA, storyboard_enabled=True, pane_rows=26
     )
 
@@ -197,7 +197,7 @@ def test_storyboard_toggle_hides_strip(tmp_path: Path, monkeypatch, capsys) -> N
     assert result.action == "quit"
     output = _strip_ansi(capsys.readouterr().out)
     assert "h/l: seek" in output
-    layout_after_toggle = _compute_inspect_layout(
+    layout_after_toggle = compute_inspect_layout(
         _TEST_IMAGE_AREA, storyboard_enabled=False, pane_rows=26
     )
     assert layout_after_toggle.show_storyboard is False
@@ -248,7 +248,7 @@ def test_space_dispatch_matrix(tmp_path: Path, monkeypatch, capsys) -> None:
     )
 
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.shutil.which",
+        "sase.ace.tui.graphics._viewer_loop_video_view.shutil.which",
         lambda tool: None if tool == "mpv" else f"/usr/bin/{tool}",
     )
     keys = iter([" ", "q"])
@@ -317,7 +317,8 @@ def test_resize_re_renders_when_terminal_size_changes(
         return sizes.pop(0) if len(sizes) > 1 else sizes[0]
 
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.shutil.get_terminal_size", fake_size
+        "sase.ace.tui.graphics._viewer_loop_video_view.shutil.get_terminal_size",
+        fake_size,
     )
     keys = iter([None, "q"])
     renders = {"count": 0}
@@ -506,7 +507,7 @@ def test_missing_kitten_keeps_inspect_alive(
     video = _write_clip(tmp_path)
     stub_video_inspect_service(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.shutil.which",
+        "sase.ace.tui.graphics._viewer_loop_video_session.shutil.which",
         lambda tool: None if tool == "kitten" else f"/usr/bin/{tool}",
     )
     keys = iter(["q"])

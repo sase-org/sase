@@ -239,7 +239,9 @@ def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
     video = _write_clip(tmp_path)
     monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
     from ._helpers import stub_video_inspect_service
-    from sase.ace.tui.graphics._viewer_loop_video import _compute_inspect_layout
+    from sase.ace.tui.graphics._viewer_loop_video_common import (
+        compute_inspect_layout,
+    )
 
     stub_video_inspect_service(monkeypatch, tmp_path)
     commands: list[list[str]] = []
@@ -260,7 +262,7 @@ def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
     )
 
     assert result.returncode == 0
-    layout = _compute_inspect_layout(
+    layout = compute_inspect_layout(
         _TEST_IMAGE_AREA, storyboard_enabled=True, pane_rows=26
     )
     assert any(cmd[0] == "mpv" and "--profile=sw-fast" in cmd for cmd in commands)

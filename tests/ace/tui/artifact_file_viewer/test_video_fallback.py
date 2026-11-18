@@ -10,10 +10,8 @@ from sase.ace.tui.graphics._viewer_loop_terminal import (
     kitty_graphics_capable,
     reset_kitty_graphics_cache,
 )
-from sase.ace.tui.graphics._viewer_loop_video import (
-    _CELL_FALLBACK_BANNER,
-    run_video_inspect,
-)
+from sase.ace.tui.graphics._viewer_loop_video import run_video_inspect
+from sase.ace.tui.graphics._viewer_loop_video_view import _CELL_FALLBACK_BANNER
 from sase.ace.tui.graphics._viewer_video_frames import FrameExtractResult
 from sase.ace.tui.graphics.cell import CellImageRenderable
 from sase.ace.tui.graphics.viewer import (
@@ -24,7 +22,7 @@ from sase.ace.tui.graphics.viewer import (
 
 from ._helpers import _TEST_IMAGE_AREA, _strip_ansi, stub_video_inspect_service
 
-_VIDEO_TARGET = "sase.ace.tui.graphics._viewer_loop_video"
+_VIDEO_TARGET = "sase.ace.tui.graphics._viewer_loop_video_session"
 _TERMINAL_TARGET = "sase.ace.tui.graphics._viewer_loop_terminal"
 
 

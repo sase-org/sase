@@ -197,7 +197,7 @@ def test_o_key_spawns_configured_player_detached(
             spawned.append({"argv": list(argv), **kwargs})
 
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.subprocess.Popen", _FakePopen
+        "sase.ace.tui.graphics._viewer_loop_video_view.subprocess.Popen", _FakePopen
     )
     keys = iter(["o", "q"])
     result = run_video_inspect(
@@ -222,7 +222,7 @@ def test_o_key_without_player_names_open_command(
     stub_video_inspect_service(monkeypatch, tmp_path)
     config = ArtifactVideoPlaybackConfig()
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.build_native_open_command",
+        "sase.ace.tui.graphics._viewer_loop_video_view.build_native_open_command",
         lambda *args, **kwargs: (
             None,
             "no native player available here — set open_command",
@@ -247,7 +247,7 @@ def test_degraded_notice_names_missing_tool_and_keeps_keys(
     video = _write_clip(tmp_path)
     stub_video_inspect_service(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_loop_video.shutil.which",
+        "sase.ace.tui.graphics._viewer_loop_video_session.shutil.which",
         lambda tool: None if tool == "ffprobe" else f"/usr/bin/{tool}",
     )
     keys = iter(["n"])

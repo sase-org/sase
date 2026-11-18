@@ -92,18 +92,25 @@ def stub_video_inspect_service(
     def fake_which(tool: str) -> str | None:
         return f"/usr/bin/{tool}"
 
-    target = "sase.ace.tui.graphics._viewer_loop_video"
-    monkeypatch.setattr(f"{target}.kitty_graphics_capable", lambda **_k: True)
-    monkeypatch.setattr(f"{target}.extract_frame", fake_extract)
-    monkeypatch.setattr(f"{target}.metadata_for_frame_service", fake_metadata)
-    monkeypatch.setattr(f"{target}.build_storyboard", fake_storyboard)
-    monkeypatch.setattr(f"{target}.start_scrub_track", fake_scrub)
-    monkeypatch.setattr(f"{target}.artifact_video_cache_dir", lambda **_k: cache)
-    monkeypatch.setattr(f"{target}.terminal_pixel_size", lambda **_k: (1600, 900))
-    monkeypatch.setattr(f"{target}.shutil.which", fake_which)
-    monkeypatch.setattr(f"{target}.content_digest_for_path", lambda _p: "digest")
-    monkeypatch.setattr(f"{target}.enforce_cache_budget", lambda *_a, **_k: 0)
-    monkeypatch.setattr(f"{target}.scrub_fps_for_duration", lambda _d: 2.0)
+    session_target = "sase.ace.tui.graphics._viewer_loop_video_session"
+    view_target = "sase.ace.tui.graphics._viewer_loop_video_view"
+    monkeypatch.setattr(f"{session_target}.kitty_graphics_capable", lambda **_k: True)
+    monkeypatch.setattr(f"{session_target}.extract_frame", fake_extract)
+    monkeypatch.setattr(f"{session_target}.metadata_for_frame_service", fake_metadata)
+    monkeypatch.setattr(f"{session_target}.build_storyboard", fake_storyboard)
+    monkeypatch.setattr(f"{session_target}.start_scrub_track", fake_scrub)
+    monkeypatch.setattr(
+        f"{session_target}.artifact_video_cache_dir", lambda **_k: cache
+    )
+    monkeypatch.setattr(
+        f"{session_target}.terminal_pixel_size", lambda **_k: (1600, 900)
+    )
+    monkeypatch.setattr(f"{session_target}.shutil.which", fake_which)
+    monkeypatch.setattr(
+        f"{session_target}.content_digest_for_path", lambda _p: "digest"
+    )
+    monkeypatch.setattr(f"{view_target}.enforce_cache_budget", lambda *_a, **_k: 0)
+    monkeypatch.setattr(f"{session_target}.scrub_fps_for_duration", lambda _d: 2.0)
     return {
         "cache": cache,
         "extracts": extracts,
