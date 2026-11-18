@@ -177,10 +177,10 @@ def test_typed_first_run_wins_manual_recovery_race(
 def test_manual_disposable_acceptance_demo_records_both_outcomes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tests.axe.chop_batch_process_harness import _run_demo
+    from tests.axe.chop_batch_process_harness import run_demo
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    evidence: dict[str, Any] = _run_demo(tmp_path / "demo")
+    evidence: dict[str, Any] = run_demo(tmp_path / "demo")
 
     recovery = evidence["manual_stop_resume"]
     assert recovery["total"] == 4
