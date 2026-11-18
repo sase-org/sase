@@ -89,13 +89,16 @@ def launch_accepted_script_chop_proposals(
     launch_plans: list[Any],
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
     launch_agents_from_cwd_fn: Callable[..., Any] | None,
+    pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     """Launch accepted proposals and finalize the script-chop run."""
-    if launch_agent_from_cwd_fn is None:
-        from sase.agent.launcher import launch_agent_from_cwd
-
-        launch_agent_from_cwd_fn = launch_agent_from_cwd
     successful_launches: list[dict[str, Any]] = []
+    batch_created = False
+
+    def _batch_created(_batch_id: str) -> None:
+        nonlocal batch_created
+        batch_created = True
+
     collision_decisions: dict[int, dict[str, str]] = {}
     collision_effective_waits: dict[int, int | str | None] = {}
 
@@ -149,6 +152,10 @@ def launch_accepted_script_chop_proposals(
             launch_plans=launch_plans,
             launch_recorded_fn=successful_launches.append,
             proposal_skipped_fn=_record_collision_skip,
+            run_started_at=started_at,
+            preflight=preflight,
+            batch_created_fn=_batch_created,
+            pause_requested_fn=pause_requested_fn,
         )
     except Exception as exc:
         tb = capture_traceback()
@@ -161,6 +168,7 @@ def launch_accepted_script_chop_proposals(
             successful_launches=successful_launches,
         )
         partial_launch = bool(successful_launches)
+        active_batch = partial_launch or batch_created
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -176,7 +184,7 @@ def launch_accepted_script_chop_proposals(
             proposals=proposals,
             launches=successful_launches,
             dry_run=False,
-            active=partial_launch,
+            active=active_batch,
             preflight=preflight,
         )
         return ChopRunOutcome(
@@ -192,6 +200,9 @@ def launch_accepted_script_chop_proposals(
             launches=tuple(successful_launches),
             dry_run=False,
             chop_verbose=chop_verbose,
+            reason=(
+                "batch journal retained after launch failure" if batch_created else None
+            ),
         )
 
     proposals = _updated_proposal_previews()
@@ -336,6 +347,61 @@ def launch_accepted_script_chop_proposals(
             launches=tuple(successful_launches),
             dry_run=False,
             chop_verbose=chop_verbose,
+        )
+
+    if bool(getattr(launches, "paused", False)):
+        proposals = _updated_proposal_previews()
+        collision_proposals = [
+            proposal
+            for proposal in accepted_proposals
+            if proposal.index in collision_decisions
+        ]
+        if collision_proposals:
+            release_unlaunched_once_per_keys(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                run_id=run_id,
+                accepted_proposals=collision_proposals,
+                successful_launches=[],
+                after="agent-name collision skip",
+            )
+        append_chop_run_output(
+            lumberjack_name,
+            chop.name,
+            run_id,
+            "Launch batch paused at a spawn boundary; accepted work remains pending.\n",
+        )
+        first_pid = int(successful_launches[0]["pid"]) if successful_launches else None
+        finalize_script_chop_run(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="launched",
+            exit_code=0,
+            agent_pid=first_pid,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            launches=successful_launches,
+            dry_run=False,
+            active=True,
+            preflight=preflight,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="launched",
+            run_id=run_id,
+            exit_code=0,
+            agent_pid=first_pid,
+            result=structured_result,
+            proposals=tuple(proposals),
+            launches=tuple(successful_launches),
+            dry_run=False,
+            chop_verbose=chop_verbose,
+            reason="cooperative launch pause",
+            paused=True,
         )
 
     if collision_decisions:

@@ -16,14 +16,17 @@ from sase.agent.launch_executor_types import (
     SlotLocalMacrosCallback,
     SlotNameReservationCallback,
     SpawnCallback,
+    BeforeSpawnCallback,
+    StopRequestedCallback,
 )
 from sase.agent.launch_executor_workspace import (
+    LaunchPauseRequested,
     spawn_slot_with_workspace_retry,
     workspace_allocation_attempt_limit,
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
-from sase.core.agent_launch_wire import LaunchFanoutPlanWire
+from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
 
 if TYPE_CHECKING:
     from sase.agent.agent_session_attach import AgentSessionAttachSibling
@@ -58,6 +61,8 @@ def execute_launch_plan(
     *,
     spawn: SpawnCallback | None = None,
     on_slot_executed: SlotExecutedCallback | None = None,
+    before_spawn: BeforeSpawnCallback | None = None,
+    stop_requested: StopRequestedCallback | None = None,
     slot_context: SlotContextCallback | None = None,
     slot_extra_env: SlotEnvCallback | None = None,
     slot_local_macros_file: SlotLocalMacrosCallback | None = None,
@@ -111,10 +116,14 @@ def execute_launch_plan(
 
     spawn_fn = spawn or _default_spawn
     records: list[LaunchExecutionRecord] = []
+    paused = False
     pending_siblings: list[AgentSessionAttachSibling] = (
         [] if pending_agent_session_parents is None else pending_agent_session_parents
     )
     for slot in plan.slots:
+        if stop_requested is not None and stop_requested():
+            paused = True
+            break
         timestamp = slot.timestamp or next(allocated_iter)
         workflow_name = slot.workflow_name or f"ace(run)-{timestamp}"
         slot_ctx = slot_context(slot, context) if slot_context else context
@@ -140,16 +149,31 @@ def execute_launch_plan(
         )
         name_reservation = name_reservations.get(slot.slot_index)
 
-        request, result = spawn_slot_with_workspace_retry(
-            slot=slot,
-            context=slot_ctx,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            extra_env=env or None,
-            local_macros_file=local_macros_file,
-            name_reservation=name_reservation,
-            spawn=spawn_fn,
-        )
+        def _before_spawn_request(
+            request: LaunchSpawnRequest,
+            slot_: LaunchFanoutSlotWire = slot,
+        ) -> None:
+            if before_spawn is not None:
+                before_spawn(slot_, request)
+
+        try:
+            request, result = spawn_slot_with_workspace_retry(
+                slot=slot,
+                context=slot_ctx,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                extra_env=env or None,
+                local_macros_file=local_macros_file,
+                name_reservation=name_reservation,
+                before_spawn=_before_spawn_request
+                if before_spawn is not None
+                else None,
+                stop_requested=stop_requested,
+                spawn=spawn_fn,
+            )
+        except LaunchPauseRequested:
+            paused = True
+            break
         record = LaunchExecutionRecord(slot=slot, request=request, result=result)
         records.append(record)
         if agent_session_attach_plan is not None:
@@ -176,7 +200,7 @@ def execute_launch_plan(
         if on_slot_executed is not None:
             on_slot_executed(record)
 
-    return LaunchExecutionResult(records=records)
+    return LaunchExecutionResult(records=records, paused=paused)
 
 
 def _explicit_static_name_for_pending_agent_session_parent(prompt: str) -> str | None:

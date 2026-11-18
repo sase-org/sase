@@ -34,6 +34,13 @@ def launch_multi_prompt_branch(
     segment_swarm_macros: Sequence[tuple[str, ...]],
     submitted_query: str,
     recorder: LaunchHistoryRecorder,
+    before_agent_spawn: Callable[[int, int, object, object | None], None] | None = None,
+    on_agent_launch_recorded: Callable[[int, int, object, object | None], None]
+    | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
+    on_launch_paused: Callable[[], None] | None = None,
+    on_agent_plan_prepared: Callable[[int, int, str, object | None], None]
+    | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch one agent per ``---`` segment."""
     from sase.agent.launch_projects import (
@@ -109,6 +116,11 @@ def launch_multi_prompt_branch(
             ),
             default_bare_segments_to_home=True,
             multi_agent_prompt_text=submitted_query,
+            before_agent_spawn=before_agent_spawn,
+            on_agent_launch_recorded=on_agent_launch_recorded,
+            pause_requested_fn=pause_requested_fn,
+            on_launch_paused=on_launch_paused,
+            on_agent_plan_prepared=on_agent_plan_prepared,
         )
     except Exception:
         recorder.record_failed()

@@ -51,6 +51,7 @@ def process_script_chop_result(
     wait_runners_default: int | None,
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
     launch_agents_from_cwd_fn: Callable[..., Any] | None,
+    pause_requested_fn: Callable[[], bool] | None = None,
 ) -> ChopRunOutcome:
     """Validate a script result, apply dedupe, and launch accepted proposals."""
     structured_result: dict[str, Any] | None = None
@@ -421,6 +422,7 @@ def process_script_chop_result(
         launch_plans=launch_plans,
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+        pause_requested_fn=pause_requested_fn,
     )
 
 

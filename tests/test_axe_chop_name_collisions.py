@@ -149,9 +149,13 @@ def test_explicit_agent_name_collision_relinks_later_wait_and_keeps_launching(
     calls: list[str] = []
 
     def _launch(
-        prompt: str, *, extra_env: dict[str, str], origin: object = None
+        prompt: str,
+        *,
+        extra_env: dict[str, str],
+        origin: object = None,
+        **kwargs: object,
     ) -> SimpleNamespace:
-        del extra_env, origin
+        del extra_env, origin, kwargs
         calls.append(prompt)
         if len(calls) == 2:
             raise AgentNameLaunchCollisionError("audit.taken", "audit.taken1")

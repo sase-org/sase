@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 
 from sase.agent.launch_cwd_common import (
     LaunchHistoryRecorder,
@@ -24,6 +25,11 @@ def launch_single_agent(
     extra_env: dict[str, str] | None,
     timestamp: str | None,
     recorder: LaunchHistoryRecorder,
+    before_agent_spawn: Callable[[int, int, object, object | None], None] | None = None,
+    on_agent_launch_recorded: Callable[[int, int, object, object | None], None]
+    | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
+    on_launch_paused: Callable[[], None] | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve the VCS/workspace context for one prompt and spawn it.
 
@@ -173,10 +179,30 @@ def launch_single_agent(
             allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env
             ),
+            before_spawn=(
+                None
+                if before_agent_spawn is None
+                else lambda slot, request: before_agent_spawn(
+                    0, int(slot.slot_index), request, None
+                )
+            ),
+            on_slot_executed=(
+                None
+                if on_agent_launch_recorded is None
+                else lambda record: on_agent_launch_recorded(
+                    0, int(record.slot.slot_index), record, None
+                )
+            ),
+            stop_requested=pause_requested_fn,
         )
     except Exception:
         if name_allocator is not None:
             name_allocator.release_uncommitted_template_reservations()
         recorder.record_failed()
         raise
+    if getattr(execution, "paused", False):
+        if name_allocator is not None:
+            name_allocator.release_uncommitted_template_reservations()
+        if on_launch_paused is not None:
+            on_launch_paused()
     return execution.results

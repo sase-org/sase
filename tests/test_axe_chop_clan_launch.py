@@ -243,7 +243,9 @@ def test_runner_batches_clan_proposals_with_per_member_env_and_full_waits(
         *,
         segment_extra_env: list[dict[str, str]],
         origin: object = None,
+        **kwargs: object,
     ) -> list[SimpleNamespace]:
+        del kwargs
         calls.append((query, segment_extra_env))
         return [
             SimpleNamespace(
@@ -266,7 +268,7 @@ def test_runner_batches_clan_proposals_with_per_member_env_and_full_waits(
         outcome = _run(tmp_path)
 
     launch_one.assert_not_called()
-    assert outcome.status == "launched"
+    assert outcome.status == "launched", f"{outcome.error!r}\n{outcome.traceback or ''}"
     assert len(calls) == 1
     query, envs = calls[0]
     segments = query.split("\n---\n")

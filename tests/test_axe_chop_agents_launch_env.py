@@ -8,6 +8,8 @@ from sase.axe.chop_agents import (
     ENV_CHOP_LUMBERJACK,
     ENV_CHOP_NAME,
     ENV_CHOP_PROMPT_HASH,
+    ENV_CHOP_PROPOSAL_ID,
+    ENV_CHOP_PROPOSAL_INDEX,
     ENV_CHOP_RUN_ID,
     ENV_JOB_NAME,
     ENV_JOB_PROMPT_HASH,
@@ -63,6 +65,21 @@ def test_agent_meta_from_chop_env() -> None:
         "chop_name": "split",
         "chop_run_id": "run-1",
     }
+
+
+def test_agent_meta_keeps_ordinary_proposal_identity() -> None:
+    meta = agent_meta_from_chop_env(
+        {
+            ENV_CHOP_LUMBERJACK: "hooks",
+            ENV_CHOP_NAME: "split",
+            ENV_CHOP_RUN_ID: "run-2",
+            ENV_CHOP_PROPOSAL_INDEX: "4",
+            ENV_CHOP_PROPOSAL_ID: "finding-4",
+        }
+    )
+
+    assert meta["chop_proposal_index"] == "4"
+    assert meta["chop_proposal_id"] == "finding-4"
 
 
 def test_extract_chop_launch_env_accepts_job_aliases() -> None:

@@ -119,6 +119,96 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         {"BASE": "1", "SLOT": "0"},
         {"BASE": "1", "SLOT": "1"},
     ]
+
+
+def test_stop_before_first_slot_pauses_without_spawning() -> None:
+    spawned: list[LaunchSpawnRequest] = []
+    before: list[LaunchSpawnRequest] = []
+    execution = execute_launch_plan(
+        plan_fake_fanout("single", ["do work"]),
+        LaunchExecutionContext(
+            cl_name="change",
+            project_file="/project.sase",
+            project_name="project",
+        ),
+        spawn=lambda request: spawned.append(request) or _result_for(request),
+        before_spawn=lambda _slot, request: before.append(request),
+        stop_requested=lambda: True,
+    )
+
+    assert execution.paused is True
+    assert execution.records == []
+    assert spawned == []
+    assert before == []
+
+
+def test_stop_between_slots_finishes_current_spawn_and_reports_progress() -> None:
+    plan = plan_fake_fanout("model", ["first", "second"])
+    spawned: list[LaunchSpawnRequest] = []
+    order: list[tuple[str, int]] = []
+    stop_checks = iter([False, False, True])
+
+    with (
+        patch("sase.running_field.claim_next_axe_workspace", return_value=10),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/workspace/10", None),
+        ),
+    ):
+        execution = execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.sase",
+                project_name="project",
+            ),
+            spawn=lambda request: (
+                spawned.append(request),
+                _result_for(request),
+            )[1],
+            before_spawn=lambda slot, _request: order.append(
+                ("before", int(slot.slot_index))
+            ),
+            on_slot_executed=lambda record: order.append(
+                ("recorded", int(record.slot.slot_index))
+            ),
+            stop_requested=lambda: next(stop_checks),
+        )
+
+    assert execution.paused is True
+    assert [record.slot.slot_index for record in execution.records] == [0]
+    assert [request.prompt for request in spawned] == ["first"]
+    assert order == [("before", 0), ("recorded", 0)]
+
+
+def test_stop_after_last_slot_does_not_mark_batch_paused() -> None:
+    plan = plan_fake_fanout("model", ["first", "second"])
+    requests: list[LaunchSpawnRequest] = []
+    executed: list[int] = []
+    with (
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            side_effect=[10, 11],
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            side_effect=[("/workspace/10", None), ("/workspace/11", None)],
+        ),
+    ):
+        execution = execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.sase",
+                project_name="project",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            on_slot_executed=lambda record: executed.append(record.slot.slot_index),
+            stop_requested=lambda: False,
+        )
+
+    assert execution.paused is False
+    assert execution.launched_count == 2
     # Pre-claimed slot is transferred to the spawned child via the
     # transfer_from_pid mechanism; ensure both slots carry it.
     parent_pid = os.getpid()
@@ -126,7 +216,7 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         parent_pid,
         parent_pid,
     ]
-    assert executed == ["260501_120000", "260501_120001"]
+    assert executed == [0, 1]
 
 
 def test_execute_launch_plan_uses_matching_reservation_evidence_for_validation(

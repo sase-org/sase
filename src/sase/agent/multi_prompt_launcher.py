@@ -7,7 +7,10 @@ sibling modules; this module retains the established import and patch surface.
 
 from collections.abc import Callable, Sequence
 
-from sase.agent.launch_executor_types import LaunchNameReservationEvidence
+from sase.agent.launch_executor_types import (
+    LaunchNameReservationEvidence,
+    LaunchSpawnRequest,
+)
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launch_execution import spawn_segments_into
 from sase.agent.multi_prompt_references import (
@@ -87,6 +90,14 @@ def launch_multi_prompt_agents(
     multi_agent_prompt_text: str | None = None,
     name_reservation_evidence: Sequence[LaunchNameReservationEvidence | None]
     | None = None,
+    on_agent_plan_prepared: Callable[[int, int, str, object | None], None]
+    | None = None,
+    before_agent_spawn: Callable[[int, int, LaunchSpawnRequest, object | None], None]
+    | None = None,
+    on_agent_launch_recorded: Callable[[int, int, object, object | None], None]
+    | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
+    on_launch_paused: Callable[[], None] | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent.
 
@@ -126,6 +137,11 @@ def launch_multi_prompt_agents(
             results=results,
             wait_for_agent_naming=_wait_for_agent_naming,
             name_reservation_evidence=name_reservation_evidence,
+            on_agent_plan_prepared=on_agent_plan_prepared,
+            before_agent_spawn=before_agent_spawn,
+            on_agent_launch_recorded=on_agent_launch_recorded,
+            pause_requested_fn=pause_requested_fn,
+            on_launch_paused=on_launch_paused,
         )
     except Exception as exc:
         if results:

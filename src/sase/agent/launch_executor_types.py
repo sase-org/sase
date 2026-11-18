@@ -95,6 +95,7 @@ class LaunchExecutionResult:
     """Summary returned after executing a launch fan-out plan."""
 
     records: list[LaunchExecutionRecord]
+    paused: bool = False
 
     @property
     def results(self) -> list[AgentLaunchResult]:
@@ -115,6 +116,8 @@ SlotNameReservationCallback = Callable[
     [LaunchFanoutSlotWire], LaunchNameReservationEvidence | None
 ]
 SlotExecutedCallback = Callable[[LaunchExecutionRecord], None]
+BeforeSpawnCallback = Callable[[LaunchFanoutSlotWire, LaunchSpawnRequest], None]
+StopRequestedCallback = Callable[[], bool]
 
 
 __all__ = [
@@ -123,6 +126,8 @@ __all__ = [
     "LaunchExecutionResult",
     "LaunchNameReservationEvidence",
     "LaunchSpawnRequest",
+    "BeforeSpawnCallback",
+    "StopRequestedCallback",
     "SlotContextCallback",
     "SlotEnvCallback",
     "SlotExecutedCallback",

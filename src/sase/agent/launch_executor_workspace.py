@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import random
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from sase.agent.launch_executor_types import (
@@ -23,6 +23,10 @@ _DEFAULT_WORKSPACE_ALLOCATION_MAX_RETRIES = 5
 
 SASE_AGENT_PINNED_WORKSPACE_FALLBACK = "SASE_AGENT_PINNED_WORKSPACE_FALLBACK"
 PINNED_WORKSPACE_FALLBACK_POOL = "pool"
+
+
+class LaunchPauseRequested(Exception):
+    """Internal signal to stop before creating the next agent process."""
 
 
 def is_pinned_workspace_fallback_requested(
@@ -50,6 +54,8 @@ def spawn_slot_with_workspace_retry(
     extra_env: dict[str, str] | None,
     local_macros_file: str | None,
     name_reservation: LaunchNameReservationEvidence | None = None,
+    before_spawn: Callable[[LaunchSpawnRequest], None] | None = None,
+    stop_requested: Callable[[], bool] | None = None,
     spawn: SpawnCallback,
 ) -> tuple[LaunchSpawnRequest, AgentLaunchResult | None]:
     from sase.running_field import release_workspace
@@ -111,6 +117,10 @@ def spawn_slot_with_workspace_retry(
                 transfer_from_pid=transfer_from_pid,
                 name_reservation=name_reservation,
             )
+            if stop_requested is not None and stop_requested():
+                raise LaunchPauseRequested
+            if before_spawn is not None:
+                before_spawn(request)
             result = spawn(request)
             # Successful spawn: the callback transferred the pre-claim to
             # the child PID, so the parent no longer owns the slot.

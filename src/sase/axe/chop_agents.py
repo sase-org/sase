@@ -196,6 +196,12 @@ def agent_meta_from_chop_env(
     prompt_hash_value = metadata.get(ENV_CHOP_PROMPT_HASH)
     if prompt_hash_value:
         meta["chop_prompt_hash"] = prompt_hash_value
+    proposal_index = metadata.get(ENV_CHOP_PROPOSAL_INDEX)
+    if proposal_index:
+        meta["chop_proposal_index"] = proposal_index
+    proposal_id = metadata.get(ENV_CHOP_PROPOSAL_ID)
+    if proposal_id:
+        meta["chop_proposal_id"] = proposal_id
     return meta
 
 

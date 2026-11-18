@@ -202,8 +202,9 @@ def test_pre_expand_parallel_no_embedded_workflows() -> None:
 
     # Bash step passes through as-is
     assert modified[0] is nested_steps[0]
-    # Prompt step without embedded refs also passes through as-is
-    assert modified[1] is nested_steps[1]
+    # Prompt steps are copied and marked pre-rendered even when expansion is a no-op.
+    assert modified[1] is not nested_steps[1]
+    assert modified[1].agent == nested_steps[1].agent
     assert collected == []
 
 

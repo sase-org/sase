@@ -9,8 +9,11 @@ from sase.agent.batch_predecessor import (
     batch_predecessor_context,
     encode_batch_predecessor_context,
 )
-from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
-from sase.agent.launch_executor_types import LaunchNameReservationEvidence
+from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV, ClanMembershipPlan
+from sase.agent.launch_executor_types import (
+    LaunchNameReservationEvidence,
+    LaunchSpawnRequest,
+)
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launch_plan import (
     assign_missing_slot_timestamps,
@@ -74,7 +77,17 @@ def spawn_segments_into(
     wait_for_agent_naming: Callable[[str], str | None],
     name_reservation_evidence: Sequence[LaunchNameReservationEvidence | None]
     | None = None,
-) -> None:
+    on_agent_plan_prepared: Callable[[int, int, str, ClanMembershipPlan | None], None]
+    | None = None,
+    before_agent_spawn: Callable[
+        [int, int, LaunchSpawnRequest, ClanMembershipPlan | None], None
+    ]
+    | None = None,
+    on_agent_launch_recorded: Callable[[int, int, Any, ClanMembershipPlan | None], None]
+    | None = None,
+    pause_requested_fn: Callable[[], bool] | None = None,
+    on_launch_paused: Callable[[], None] | None = None,
+) -> bool:
     from sase.agent.launch_executor import (
         LaunchExecutionContext,
         LaunchExecutionRecord,
@@ -159,10 +172,28 @@ def spawn_segments_into(
                     allow_reserved_agent_session_separator_names
                 ),
             )
+        if on_agent_plan_prepared is not None:
+            for segment_index, fanout_plan in clan_prepass.plans_by_segment.items():
+                membership = clan_prepass.membership_by_segment.get(segment_index)
+                for slot in fanout_plan.slots:
+                    slot_key = (segment_index, slot.slot_index)
+                    planned_name = clan_prepass.planned_names_by_slot.get(slot_key)
+                    if planned_name is None:
+                        raise RuntimeError(
+                            "clan preflight did not produce a concrete member name "
+                            f"for segment {segment_index}, slot {slot.slot_index}"
+                        )
+                    on_agent_plan_prepared(
+                        segment_index,
+                        int(slot.slot_index),
+                        planned_name,
+                        membership,
+                    )
     except Exception:
         clan_prepass.release_uncommitted_clan_reservations()
         name_allocator.release_uncommitted_template_reservations()
         raise
+    paused = False
     previous_agent_name: str | None = None
     previous_agent_context: BatchPredecessorContextWire | None = None
     upstreams: list[dict[str, Any]] = []
@@ -432,8 +463,28 @@ def spawn_segments_into(
                             membership.generation,
                             artifact_dirs_by_slot[slot_index],
                         )
+                    if on_agent_launch_recorded is not None:
+                        on_agent_launch_recorded(
+                            segment_index,
+                            slot_index,
+                            record,
+                            membership,
+                        )
                     if on_agent_spawned is not None:
                         on_agent_spawned()
+
+                def _before_spawn(
+                    slot: Any,
+                    request: LaunchSpawnRequest,
+                    segment_index: int = i,
+                ) -> None:
+                    if before_agent_spawn is not None:
+                        before_agent_spawn(
+                            segment_index,
+                            int(slot.slot_index),
+                            request,
+                            clan_prepass.membership_by_segment.get(segment_index),
+                        )
 
                 execution = execute_launch_plan(
                     plan,
@@ -445,6 +496,10 @@ def spawn_segments_into(
                     extra_env=extra_env,
                     timestamp_allocator=timestamp_allocator,
                     on_slot_executed=_on_slot_executed,
+                    before_spawn=(
+                        _before_spawn if before_agent_spawn is not None else None
+                    ),
+                    stop_requested=pause_requested_fn,
                     allow_reserved_agent_session_separator_names=(
                         allow_reserved_agent_session_separator_names
                     ),
@@ -479,6 +534,11 @@ def spawn_segments_into(
                     workflow_timestamp=record.request.timestamp,
                 )
             )
+        if not execution.records:
+            if getattr(execution, "paused", False):
+                paused = True
+                break
+            continue
         last_record = execution.records[-1]
         last_timestamp = last_record.request.timestamp
         last_project_name = last_record.request.project_name
@@ -511,7 +571,13 @@ def spawn_segments_into(
             artifact_dir=str(last_artifacts_dir),
             name=previous_agent_name,
         )
-    timer.finish(outcome="ok", launched=len(results))
+        if getattr(execution, "paused", False):
+            paused = True
+            break
+    if paused and on_launch_paused is not None:
+        on_launch_paused()
+    timer.finish(outcome="paused" if paused else "ok", launched=len(results))
+    return paused
 
 
 def _reservation_evidence_covers_segments(
