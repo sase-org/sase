@@ -28,6 +28,14 @@ def _tmux_which(tool: str) -> str | None:
     return f"/usr/bin/{tool}" if tool == "tmux" else None
 
 
+# Public aliases for the split video-inspect test modules, which must not
+# import ``_``-prefixed names across files. Existing importers of the
+# ``_``-prefixed names keep working unchanged.
+TEST_IMAGE_AREA = _TEST_IMAGE_AREA
+strip_ansi = _strip_ansi
+test_icat_command = _test_icat_command
+
+
 def _patch_tmux_which(monkeypatch, which=_tmux_which) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_tmux_common.shutil.which",
