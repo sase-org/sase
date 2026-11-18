@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from threading import Event
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -141,3 +143,58 @@ def test_dispatch_crash_does_not_duplicate_spawn(tmp_path: Path) -> None:
     assert calls == []
     assert progress.summary is not None
     assert progress.summary.launch_errors == 1
+
+
+def test_cooperative_pause_preserves_open_units_without_cancelling_or_detaching(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    response_dir = tmp_path / "bundle"
+    response_dir.mkdir()
+    data = {
+        "request_id": "req-pause",
+        "typed_plan": agent_launch_wire_to_json_dict(
+            _plan(
+                _agent_unit("unit-1", source_order=0),
+                _agent_unit("unit-2", source_order=1),
+            )
+        ),
+        "dispatch": {"cwd": str(tmp_path), "prompt": "Do work"},
+    }
+    pause = Event()
+    calls: list[str] = []
+
+    def dispatch(
+        unit: LaunchUnitWire, fingerprint: str
+    ) -> tuple[bool, str, None, list]:
+        del fingerprint
+        calls.append(unit.logical_id)
+        if unit.logical_id == "unit-1":
+            pause.set()
+        return True, unit.logical_id, None, [_agent_result(tmp_path, unit.logical_id)]
+
+    with patch(
+        "sase.agent.launch_admission_coordinator.start_detached_coordinator"
+    ) as start_coordinator:
+        paused = dispatch_typed_launch_request(
+            response_dir,
+            data,
+            agent_dispatcher=dispatch,
+            pause_requested=pause.is_set,
+        )
+
+    assert paused.paused is True
+    assert paused.admission_complete is False
+    assert calls == ["unit-1"]
+    assert not (response_dir / "launch_admission" / "cancel.json").exists()
+    start_coordinator.assert_not_called()
+
+    resumed = dispatch_typed_launch_request(
+        response_dir,
+        data,
+        agent_dispatcher=dispatch,
+        spawn_coordinator=False,
+    )
+    assert resumed.admission_complete is True
+    assert resumed.paused is False
+    assert calls == ["unit-1", "unit-2"]

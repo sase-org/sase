@@ -19,6 +19,7 @@ import os
 import signal
 import threading
 import time
+from dataclasses import replace
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,7 @@ def dispatch_typed_launch_request(
     proc_dispatcher: UnitDispatcher | None = None,
     spawn_coordinator: bool = True,
     cancelled: Callable[[], bool] | None = None,
+    pause_requested: Callable[[], bool] | None = None,
 ) -> ApprovedLaunchDispatchResult:
     """Admit an approved typed plan, detaching only when waits remain.
 
@@ -117,6 +119,7 @@ def dispatch_typed_launch_request(
                     (cancelled is not None and cancelled())
                     or _request_cancelled(root, data)
                 ),
+                pause_requested=pause_requested or (lambda: False),
                 project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
                 safe_inputs=request_safe_inputs(data),
@@ -126,8 +129,17 @@ def dispatch_typed_launch_request(
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     if (
+        not progress.complete
+        and not progress.paused
+        and pause_requested is not None
+        and pause_requested()
+    ):
+        progress = replace(progress, paused=True)
+
+    if (
         spawn_coordinator
         and not progress.complete
+        and not progress.paused
         and not _request_cancelled(root, data)
     ):
         from sase.agent.launch_admission_coordinator import start_detached_coordinator
@@ -291,6 +303,7 @@ def _dispatch_result(
         unit_results=progress.unit_results,
         plan_digest=str(progress.receipt.get("plan_digest") or ""),
         admission_complete=progress.complete,
+        paused=progress.paused,
     )
 
 

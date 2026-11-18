@@ -122,6 +122,7 @@ class ApprovedLaunchDispatchResult:
     unit_results: tuple[LaunchUnitResultWire, ...] = ()
     plan_digest: str | None = None
     admission_complete: bool = True
+    paused: bool = False
 
     @property
     def launched_count(self) -> int:

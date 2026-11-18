@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,7 +26,7 @@ from .state import ChopRunEntry
 def typed_admission_reconciliation(
     *,
     entry: ChopRunEntry,
-    records: list[object],
+    records: Sequence[object],
 ) -> TypedAdmissionReconciliation:
     typed = entry.typed_admission
     if not isinstance(typed, dict):

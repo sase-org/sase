@@ -78,6 +78,7 @@ from sase.core.runner_slots import runner_slot_admission_lock
 @dataclass(frozen=True)
 class AdmissionProgress:
     complete: bool
+    paused: bool
     summary: LaunchAdmissionSummaryWire
     unit_results: tuple[LaunchUnitResultWire, ...]
     results: list[AgentLaunchResult]
@@ -94,6 +95,7 @@ class AdmissionEngine(AdmissionConditionMixin):
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     cancelled: Callable[[], bool] = lambda: False
+    pause_requested: Callable[[], bool] = lambda: False
     wait_resolver: WaitResolver | None = None
     condition_evaluator: ConditionEvaluator | None = None
     agent_dispatcher: UnitDispatcher | None = None
@@ -117,6 +119,10 @@ class AdmissionEngine(AdmissionConditionMixin):
             if self.cancelled():
                 return self._progress(complete=self._cancel_open_units())
             states = self._states()
+            if all_terminal(self.plan, states):
+                return self._progress(complete=True)
+            if self.pause_requested():
+                return self._progress(complete=False, paused=True)
             actions = next_admission_actions(
                 self.plan,
                 states,
@@ -132,6 +138,8 @@ class AdmissionEngine(AdmissionConditionMixin):
             for action in actions:
                 if self.cancelled():
                     return self._progress(complete=self._cancel_open_units())
+                if self.pause_requested():
+                    return self._progress(complete=False, paused=True)
                 outcome = self._apply_action(action)
                 if outcome == "blocked":
                     if until_blocked:
@@ -495,7 +503,7 @@ class AdmissionEngine(AdmissionConditionMixin):
                     entry[key] = value
         append_journal(self.admission_dir, entry)
 
-    def _progress(self, *, complete: bool) -> AdmissionProgress:
+    def _progress(self, *, complete: bool, paused: bool = False) -> AdmissionProgress:
         states = self._states()
         summary = summarize_admission(self.plan, states)
         receipt = {
@@ -513,6 +521,7 @@ class AdmissionEngine(AdmissionConditionMixin):
         write_json_marker_atomic(self.admission_dir / RECEIPT_FILENAME, receipt)
         return AdmissionProgress(
             complete=complete,
+            paused=paused,
             summary=summary,
             unit_results=tuple(admission_unit_results(self.plan, states)),
             results=list(self.results),

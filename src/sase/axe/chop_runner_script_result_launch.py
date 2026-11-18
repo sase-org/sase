@@ -218,6 +218,14 @@ def launch_accepted_script_chop_proposals(
         admission_failures = _typed_admission_failures(admission_result)
         admission_complete = bool(getattr(admission_result, "admission_complete", True))
         if not admission_complete:
+            typed_paused = bool(getattr(launches, "paused", False))
+            if typed_paused:
+                append_chop_run_output(
+                    lumberjack_name,
+                    chop.name,
+                    run_id,
+                    "Typed admission paused at a unit boundary; accepted work remains pending.\n",
+                )
             first_pid = int(launches[0]["pid"]) if launches else None
             finalize_script_chop_run(
                 lumberjack_name=lumberjack_name,
@@ -248,6 +256,8 @@ def launch_accepted_script_chop_proposals(
                 launches=tuple(successful_launches),
                 dry_run=False,
                 chop_verbose=chop_verbose,
+                reason="cooperative typed-admission pause" if typed_paused else None,
+                paused=typed_paused,
             )
 
         if not launches:

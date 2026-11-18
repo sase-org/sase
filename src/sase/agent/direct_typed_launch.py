@@ -7,6 +7,7 @@ bundle the admission coordinator can reopen, then dispatches through
 
 from __future__ import annotations
 
+import fcntl
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -33,6 +34,11 @@ from sase.core.paths import sase_subdir
 from sase.notification_gates.paths import REQUEST_FILENAME
 
 _TYPED_LAUNCHES_SUBDIR = "typed_launches"
+
+
+def typed_launch_bundle_dir(request_id: str) -> Path:
+    """Return the durable bundle directory for one stable request identity."""
+    return sase_subdir(_TYPED_LAUNCHES_SUBDIR) / request_id
 
 
 def _write_direct_typed_launch_bundle(
@@ -88,9 +94,42 @@ def _write_direct_typed_launch_bundle(
         "request_id": request_id,
         "payload": payload,
     }
-    bundle_dir = sase_subdir(_TYPED_LAUNCHES_SUBDIR) / request_id
+    bundle_dir = typed_launch_bundle_dir(request_id)
     bundle_dir.mkdir(parents=True, exist_ok=True)
-    write_json_marker_atomic(bundle_dir / REQUEST_FILENAME, envelope)
+    lock_path = bundle_dir / ".request.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        request_path = bundle_dir / REQUEST_FILENAME
+        if request_path.exists():
+            from sase.agent.launch_request_response import read_launch_request
+            from sase.agent.launch_admission_request_data import (
+                typed_plan_from_request,
+            )
+
+            existing = read_launch_request(bundle_dir)
+            existing_digest = str(existing.get("plan_digest") or "")
+            try:
+                existing_plan_digest = typed_plan_from_request(existing).content_digest
+            except Exception as exc:
+                raise LaunchRequestError(
+                    "invalid_request",
+                    str(request_path),
+                    f"existing typed launch bundle is invalid: {exc}",
+                ) from exc
+            if (
+                str(existing.get("request_id") or "") != request_id
+                or str(existing.get("source_surface") or "") != source_surface
+                or existing_digest != digest
+                or existing_plan_digest != digest
+            ):
+                raise LaunchRequestError(
+                    "invalid_request",
+                    str(request_path),
+                    "an existing typed launch bundle has a different identity or plan digest",
+                )
+            return bundle_dir, existing
+        write_json_marker_atomic(request_path, envelope)
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
     return bundle_dir, payload
 
 
