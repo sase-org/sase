@@ -4,6 +4,10 @@ Provides a pluggable interface for LLM backends (Claude, Antigravity, etc.)
 with shared preprocessing, postprocessing, and orchestration.
 """
 
+from typing import TYPE_CHECKING
+
+from sase._lazy_exports import lazy_dir, lazy_getattr
+
 from ._invoke import invoke_agent
 from ._subprocess import stream_process_output
 from .alias_view import (
@@ -46,13 +50,6 @@ from .effort_override import (
 )
 from .messages import AIMessage, BaseMessage, HumanMessage, MessageContent
 from .postprocessing import log_prompt_and_response, save_prompt_to_file
-from .preprocessing import (
-    FileRefMode,
-    PreprocessResult,
-    preprocess_prompt,
-    preprocess_prompt_early,
-    preprocess_prompt_late,
-)
 from .provider_disable import (
     ProviderDisableStateError,
     TemporaryProviderDisable,
@@ -253,3 +250,41 @@ __all__ = [
     "split_models_panel_rows",
     "stream_process_output",
 ]
+
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "FileRefMode": ("sase.llm_provider.preprocessing", "FileRefMode"),
+    "PreprocessResult": ("sase.llm_provider.preprocessing", "PreprocessResult"),
+    "preprocess_prompt": ("sase.llm_provider.preprocessing", "preprocess_prompt"),
+    "preprocess_prompt_early": (
+        "sase.llm_provider.preprocessing",
+        "preprocess_prompt_early",
+    ),
+    "preprocess_prompt_late": (
+        "sase.llm_provider.preprocessing",
+        "preprocess_prompt_late",
+    ),
+}
+
+if TYPE_CHECKING:
+    from .preprocessing import (
+        FileRefMode,
+        PreprocessResult,
+        preprocess_prompt,
+        preprocess_prompt_early,
+        preprocess_prompt_late,
+    )
+
+
+def __getattr__(name: str) -> object:
+    """Resolve preprocessing re-exports without importing command substitution."""
+    return lazy_getattr(__name__, globals(), _LAZY_EXPORTS, name)
+
+
+def __dir__() -> list[str]:
+    return lazy_dir(globals(), _LAZY_EXPORTS)
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__, __dir__)
+_PACKAGE_GETATTR = __getattr__
+_PACKAGE_DIR = __dir__

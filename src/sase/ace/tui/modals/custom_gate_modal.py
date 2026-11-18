@@ -11,6 +11,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Container, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
@@ -214,15 +215,23 @@ class CustomGateModal(
         self.call_after_refresh(self._fit_compact_review_scroll)
 
     def _fit_compact_review_scroll(self) -> None:
-        """Fit compact review content between the header and footer."""
+        """Fit compact review content between the header and footer.
+
+        Tolerates a partially torn-down modal: callbacks scheduled with
+        ``call_after_refresh`` can outlive dismissal.
+        """
         if self._data.preview_text is not None or not self.is_mounted:
             return
 
-        if not self.query("#custom-gate-review-scroll"):
+        try:
+            shell = self.query_one("#custom-gate-container", Container)
+            scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
+            footer = self.query_one("#custom-gate-footer", Static)
+        except NoMatches:
+            # The modal is mid-teardown: a queued fit callback outlived
+            # dismissal and Textual has already detached some of the
+            # shell's children.
             return
-        shell = self.query_one("#custom-gate-container", Container)
-        scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
-        footer = self.query_one("#custom-gate-footer", Static)
         if shell.region.width <= 0:
             return
         max_height = shell.styles.max_height

@@ -34,8 +34,43 @@ _MAX_ELAPSED_SECONDS = 5.0
 # removed gate-turn models/settlement, notification-gate executor/poller/
 # service, and macro workflow-runner/executor closures from
 # ``import sase.ace.tui.app`` (50 first-party modules, -232,064 bytes vs
-# 694cdec86b). The cap is that baseline plus a fixed 4,096-byte allowance
-# with a strict ``<``. The allowance is an absolute number, not a
+# 694cdec86b). 71f0060927 then ratcheted to 11,824,514. Two later commits
+# grew first paint without updating the cap (``sase.memory._read_log_query_facade``
+# from 1c626f39e5; ``sase.macro.cmdsub_source`` / ``sase.macro.source_render``
+# plus processor growth from efc66a420b). Recovery deferred those edges:
+# use-site ``query_memory_audit`` in ``memory_reads``, PEP 562 preprocessing
+# re-exports on ``sase.llm_provider``, use-site ``preprocess_prompt`` in
+# ``_invoke``, and use-site ``process_macro_references`` in ``directives``.
+# That deferred measurement is 11,809,916. Later first-paint raises that
+# cannot be deferred (agents pane and already-imported modules):
+#   be6adc20d0 compact list adapters (+18,947:
+#     ``sase.core.agent_scan_list_conversion`` +7,577,
+#     ``sase.core.agent_scan_list_wire`` +7,072,
+#     ``sase.core.agent_scan_wire_markers_wait_turn`` +2,631,
+#     ``sase.core.agent_scan_facade`` +1,667)
+#   4a6d3c51b3 motion backends in the viewer media loop (+5,419:
+#     ``sase.ace.tui.graphics._viewer_loop_media`` +5,324,
+#     ``sase.ace.tui.graphics._viewer_loop_types`` +95)
+#   8fa9c1ad8b compact workflow/list loaders on the agents-pane path
+#     (+54,655: ``_compact_meta_enrichment`` +14,567,
+#     ``_compact_workflow_loaders`` +9,952,
+#     ``_agent_loader_artifact_index_list`` +7,613,
+#     ``_compact_done_loaders`` +6,304,
+#     ``_projected_record`` +6,233,
+#     ``_agent_loader_artifact_snapshots`` +2,972,
+#     ``_agent_loader_scans`` +2,282,
+#     ``_compact_running_loaders`` +1,954,
+#     ``_agent_loader_sources`` +1,773,
+#     ``_compact_prompt_markers`` +376,
+#     ``_agent_loader_artifact_state`` +345,
+#     ``_agent_loader_artifact_index`` +177,
+#     ``_agent_loader_artifact_cache`` +52,
+#     ``_agent_loader_normalization`` +30,
+#     ``_agent_loader_tiered`` +25)
+#   07aedfc8ca ``sase.llm_provider.retry_config`` +1,167
+# The raise is those 80,188 attributed bytes (baseline 11,890,104). The cap
+# is that baseline plus a fixed 4,096-byte allowance with a strict ``<``.
+# The allowance is an absolute number, not a
 # percentage of the ~23 MB raw source tree: it covers the small source
 # changes that accompany real splits and, like the previous guard's
 # module headroom, admits small code growth. Historical replays under the
@@ -64,7 +99,7 @@ _MAX_ELAPSED_SECONDS = 5.0
 # modules already imported) and defer the new edges with use-site or
 # ``TYPE_CHECKING`` imports.
 _FOOTPRINT_METRIC_VERSION = 1
-_FOOTPRINT_BASELINE_BYTES = 11_920_681
+_FOOTPRINT_BASELINE_BYTES = 11_890_104
 _FOOTPRINT_ALLOWANCE_BYTES = 4_096
 _MAX_SASE_SOURCE_FOOTPRINT_BYTES = (
     _FOOTPRINT_BASELINE_BYTES + _FOOTPRINT_ALLOWANCE_BYTES
@@ -153,6 +188,15 @@ _DEFERRED_MODULES = (
     "sase.ace.tui.graphics._viewer_loop_video",
     "sase.ace.tui.graphics._viewer_video_frames",
     "sase.ace.tui.graphics._viewer_video_media",
+    # Gate-fit teardown recovery: memory-audit query, prompt preprocessing,
+    # and macro processor/source-render stay off first paint.
+    "sase.llm_provider.preprocessing",
+    "sase.macro._processor_engine",
+    "sase.macro._processor_lexical",
+    "sase.macro._processor_render",
+    "sase.macro.processor",
+    "sase.macro.source_render",
+    "sase.memory._read_log_query_facade",
 )
 
 
@@ -219,7 +263,7 @@ def _measure_tui_app_import(
 def test_footprint_cap_is_the_measured_baseline_plus_the_fixed_allowance() -> None:
     assert footprint.FOOTPRINT_METRIC_VERSION == _FOOTPRINT_METRIC_VERSION
     assert _FOOTPRINT_ALLOWANCE_BYTES == 4_096
-    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_924_777
+    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_894_200
 
 
 def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
@@ -240,7 +284,7 @@ def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
 
 def test_footprint_cap_uses_strict_less_than() -> None:
     _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES - 1))
-    with pytest.raises(AssertionError, match="against the 11,924,777 cap"):
+    with pytest.raises(AssertionError, match="against the 11,894,200 cap"):
         _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES))
 
 

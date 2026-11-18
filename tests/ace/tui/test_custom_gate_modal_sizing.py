@@ -172,6 +172,20 @@ async def test_preview_gate_does_not_get_compact_scroll_limit() -> None:
         assert scroll.styles.max_height is None
 
 
+async def test_fit_compact_review_scroll_tolerates_missing_footer() -> None:
+    modal = _modal(notes=_LONG_NOTES)
+    async with StyledGateTestApp().run_test(size=(160, 50)) as pilot:
+        pilot.app.push_screen(modal)
+        await _wait_for_mounted_modal(pilot, modal, 160, 50)
+
+        await modal.query_one("#custom-gate-footer").remove()
+        await pilot.pause()
+
+        assert modal.is_mounted
+        assert modal.query("#custom-gate-review-scroll")
+        modal._fit_compact_review_scroll()
+
+
 @pytest.mark.parametrize("preview", [False, True])
 async def test_jk_navigation_keeps_lower_branches_visible(preview: bool) -> None:
     options = (

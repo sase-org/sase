@@ -28,6 +28,10 @@ The implementation is split across a few private sibling modules:
 This module is the public entry point and compatibility facade.
 """
 
+import sys
+
+from sase._lazy_exports import lazy_getattr
+
 from ._directive_alt import (
     apply_fanout_naming,
     has_alt_directive,
@@ -55,7 +59,6 @@ from .hold_directive import (
     format_hold_directive,
     hold_fields_to_selectors,
 )
-from .processor import process_macro_references
 
 __all__ = [
     "DirectiveError",
@@ -79,6 +82,19 @@ __all__ = [
     "split_prompt_for_models",
     "strip_known_directives",
 ]
+
+_LAZY_EXPORTS = {
+    "process_macro_references": ("sase.macro.processor", "process_macro_references"),
+}
+
+
+def __getattr__(name: str) -> object:
+    """Resolve process_macro_references without importing the macro processor."""
+    return lazy_getattr(__name__, globals(), _LAZY_EXPORTS, name)
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__,)
 
 
 def extract_prompt_directives(
@@ -114,5 +130,5 @@ def extract_prompt_directives(
     return _extract_prompt_directives(
         prompt,
         strip_disabled_markers=strip_disabled_markers,
-        process_references=process_macro_references,
+        process_references=sys.modules[__name__].process_macro_references,
     )

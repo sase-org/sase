@@ -6,19 +6,19 @@ import fcntl
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.main.init_memory.config import project_memory_name
-from sase.memory._read_log_query_facade import (
-    MemoryAuditSourceIdentity,
-    query_memory_audit,
-)
 from sase.memory.locks import locked_file
 from sase.memory.read_log import (
     MemoryReadEvent,
     memory_read_log_path,
 )
+
+if TYPE_CHECKING:
+    from sase.memory._read_log_query_facade import MemoryAuditSourceIdentity
 
 MAX_KEPT_READS = 50
 _MIN_REREAD_INTERVAL_S = 0.5
@@ -114,6 +114,8 @@ def _query_single_agent_rows(
     artifacts_dir: str | None,
     agent_name: str | None,
 ) -> tuple[tuple[MemoryReadEvent, ...], _SourceIdentity] | None:
+    from sase.memory._read_log_query_facade import query_memory_audit
+
     try:
         with locked_file(log_path.with_suffix(".lock"), fcntl.LOCK_SH):
             rows, source = query_memory_audit(
@@ -226,6 +228,8 @@ def load_memory_reads_for_agent_context(
         }
         for member in members
     ]
+    from sase.memory._read_log_query_facade import query_memory_audit
+
     try:
         with locked_file(log_path.with_suffix(".lock"), fcntl.LOCK_SH):
             rows, source = query_memory_audit(

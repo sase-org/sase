@@ -6,9 +6,12 @@ LLM call to a pluggable provider.
 
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from typing import Any, Literal, cast
+
+from sase._lazy_exports import lazy_getattr
 
 from sase.continuation_capture import (
     ContinuationSegmentCapture,
@@ -44,7 +47,6 @@ from .postprocessing import (
     postprocess_error,
     postprocess_success,
 )
-from .preprocessing import preprocess_prompt
 from sase.macro.directives import PromptDirectives
 from .launch_selection import LaunchSelection
 from .registry import (
@@ -60,6 +62,19 @@ from .types import (
     LLMInvocationError,
     ModelTier,
 )
+
+_LAZY_EXPORTS = {
+    "preprocess_prompt": ("sase.llm_provider.preprocessing", "preprocess_prompt"),
+}
+
+
+def __getattr__(name: str) -> object:
+    """Resolve preprocess_prompt without importing command substitution."""
+    return lazy_getattr(__name__, globals(), _LAZY_EXPORTS, name)
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__,)
 
 
 def _record_deferred_evidence(
@@ -205,7 +220,7 @@ def invoke_agent(
         authored_local_request=authored_local_request,
         continuation_segments=continuation_segments,
         model_tier_label=MODEL_TIER_TO_LABEL[model_tier],
-        preprocess_prompt_fn=preprocess_prompt,
+        preprocess_prompt_fn=sys.modules[__name__].preprocess_prompt,
         print_decision_counts_fn=print_decision_counts,
         print_prompt_and_response_fn=print_prompt_and_response,
     )

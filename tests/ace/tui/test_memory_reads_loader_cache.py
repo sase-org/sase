@@ -103,13 +103,14 @@ def test_targeted_queries_replace_snapshot_parse_once(
     ]
     write_jsonl(log_path, events)
 
+    from sase.memory import _read_log_query_facade as audit_query
     from sase.memory._read_log_query_facade import (
         MemoryAuditSourceIdentity,
         _MemoryAuditRow,
     )
 
     query_count = 0
-    real_query = memory_reads_module.query_memory_audit
+    real_query = audit_query.query_memory_audit
 
     def counting_query(
         log_path_arg: Path,
@@ -124,7 +125,7 @@ def test_targeted_queries_replace_snapshot_parse_once(
             log_path_arg, members=members, limit=limit, deduplicate=deduplicate
         )
 
-    monkeypatch.setattr(memory_reads_module, "query_memory_audit", counting_query)
+    monkeypatch.setattr(audit_query, "query_memory_audit", counting_query)
 
     agent_a = make_agent(
         artifacts_dir=artifacts_a,
@@ -248,6 +249,7 @@ def test_project_switch_keeps_same_agent_results_separate(
         "project_memory_name",
         lambda workspace: Path(workspace).name,
     )
+    from sase.memory import _read_log_query_facade as audit_query
     from sase.memory._read_log_query_facade import (
         MemoryAuditSourceIdentity,
         _MemoryAuditRow,
@@ -289,7 +291,7 @@ def test_project_switch_keeps_same_agent_results_separate(
         )
         return [_MemoryAuditRow(event=event, member_index=0)], source
 
-    monkeypatch.setattr(memory_reads_module, "query_memory_audit", fake_query)
+    monkeypatch.setattr(audit_query, "query_memory_audit", fake_query)
     agents = tuple(
         make_agent(
             artifacts_dir=artifacts_dir,

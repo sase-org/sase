@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
@@ -221,3 +222,19 @@ async def test_short_panel_stays_compact() -> None:
 
         await wait_for(pilot, lambda: shell.size.height < 25)
         assert shell.size.height < 25
+
+
+@pytest.mark.parametrize("node_id", ["gate-input-body", "gate-input-footer"])
+async def test_fit_body_scroll_tolerates_partial_teardown(node_id: str) -> None:
+    panel = GateInputPanel(_tall_request())
+    app = StyledGateTestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        app.push_screen(panel)
+        await _wait_for_panel(pilot, 80, 24, panel)
+
+        await panel.query_one(f"#{node_id}").remove()
+        await pilot.pause()
+
+        assert panel.is_mounted
+        assert panel.query("#gate-input-container")
+        panel._fit_body_scroll()

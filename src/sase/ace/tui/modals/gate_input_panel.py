@@ -8,6 +8,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingsMap
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static, TextArea
 
@@ -157,14 +158,22 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         self.call_after_refresh(self._fit_body_scroll)
 
     def _fit_body_scroll(self) -> None:
-        """Fit the input body between the shell top and the footer."""
+        """Fit the input body between the shell top and the footer.
+
+        Tolerates a partially torn-down panel: callbacks scheduled with
+        ``call_after_refresh`` can outlive dismissal.
+        """
         if not self.is_mounted:
             return
-        if not self.query("#gate-input-container"):
+        try:
+            shell = self.query_one("#gate-input-container", Container)
+            body = self.query_one("#gate-input-body", VerticalScroll)
+            footer = self.query_one("#gate-input-footer", Static)
+        except NoMatches:
+            # The panel is mid-teardown: a queued fit callback outlived
+            # dismissal and Textual has already detached some of the
+            # shell's children.
             return
-        shell = self.query_one("#gate-input-container", Container)
-        body = self.query_one("#gate-input-body", VerticalScroll)
-        footer = self.query_one("#gate-input-footer", Static)
         if shell.region.width <= 0:
             return
         max_height = shell.styles.max_height
