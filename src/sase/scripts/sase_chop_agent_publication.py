@@ -21,6 +21,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         runtime.log.info(
             f"[agent_publication] deferred {tick.deferred_projects} project(s) to a later tick"
         )
+    if tick.projects == 0:
+        reason: str | None = "no_enabled_projects"
+    elif tick.standing_report:
+        # One whitespace-free token: the summary grammar splits on spaces.
+        reason = ",".join(tick.standing_report)
+    else:
+        reason = None
     result = runtime.emit_summary(
         {
             "projects": tick.projects,
@@ -32,8 +39,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "lock_busy": tick.lock_busy,
             "deferred_projects": tick.deferred_projects,
             "errors": tick.errors,
+            "standing": tick.standing,
         },
-        reason="no_enabled_projects" if tick.projects == 0 else None,
+        reason=reason,
     )
     if tick.errors:
         result.status = "check_error"

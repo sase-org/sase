@@ -12,8 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from sase.agents_sync import _commit_publication_queue as publication_queue
-from sase.agents_sync import publication_doorbell, publication_job
+from sase.agents_sync import publication_doorbell, publication_job, publication_standing
 from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
+from sase.notifications.store import load_notifications
 from sase.agents_sync.git_sync_ops import bounded_agents_lock
 from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
@@ -87,7 +88,7 @@ def test_publication_job_leaves_young_request_queued_until_done_marker(
     assert outcome.outcome == "awaiting_done_marker"
 
 
-def test_busy_agents_lock_rings_again_without_charging_requests(
+def test_busy_agents_lock_opens_standing_alert_without_ringing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -136,9 +137,27 @@ def test_busy_agents_lock_rings_again_without_charging_requests(
 
     assert summary.lock_busy == 1
     assert summary.active_remaining == 1
-    assert bells == ["proj"]
+    # The lock-busy failure opens a standing alert and backs off: the drain
+    # and the doorbell stay skipped until the alert is due, without charging
+    # the queued request.
+    assert bells == []
+    assert summary.errors == 1
     assert queue[0].attempts == 0
     assert summary.project_stats["proj"]["last_outcome"] == "lock_busy"
+    assert summary.standing == 1
+    assert summary.standing_report == ["proj:opened:lock_busy:attempt1"]
+    assert summary.project_stats["proj"]["standing_open"] == 1
+    standing_alerts = publication_standing.load_standing_alerts()
+    assert len(standing_alerts) == 1
+    [stored] = standing_alerts.values()
+    assert stored.failure_kind == "lock_busy"
+    assert stored.attempts == 1
+    rows = [
+        notification
+        for notification in load_notifications()
+        if (notification.dedup_key or "").startswith("agent-publication-standing:proj:")
+    ]
+    assert len(rows) == 1
 
 
 def test_budget_defers_projects_without_starting_a_drain(

@@ -390,7 +390,18 @@ def test_deferred_or_raised_link_drain_keeps_hint_and_rings_again(
     summary = publication_job.run_publication_job(work_budget_seconds=10)
 
     directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
-    assert bells == ["proj"]
+    if failure == "deferred":
+        # A deferral is not a failure: no alert opens and the doorbell rings.
+        assert bells == ["proj"]
+        assert summary.errors == 0
+        assert summary.standing == 0
+    else:
+        # A raised link drain opens a project-scoped standing alert and backs
+        # off: the doorbell stays silent until the alert is due.
+        assert bells == []
+        assert summary.errors == 1
+        assert summary.standing == 1
+        assert summary.standing_report == ["proj:opened:artifact_link_error:attempt1"]
     assert tuple(directory.glob("hints.claimed.*"))
     assert summary.project_stats["proj"]["last_outcome"] in {
         "deferred_budget",

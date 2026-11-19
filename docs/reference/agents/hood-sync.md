@@ -450,6 +450,22 @@ representative drain read-only with `tools/agents_publication_profile --project 
 see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
 and repair procedures.
 
+### Standing alerts
+
+A repeated publication failure is reported once as a standing alert keyed by
+`(project, signature)` instead of once per tick. The store
+(`~/.sase/agent_publication/standing_alerts.json`) keeps the true attempt count and
+first/last-seen times; the scheduler error count and the chop `reason` name only
+reported transitions (`opened`, `changed`, `escalated` once after 24 h, `cleared`). A
+tick whose only outcomes are unchanged standing alerts returns `ok` with a
+`standing=<n>` summary count. Project-scoped failures back off (1 minute doubling to a
+30 minute cap): while an alert backs off, its project's drain and doorbell stay skipped
+and queued hints stay queued. One notification per alert is filed with sender
+`agent-publication`. Row-scoped failures (charged hood items) take no extra backoff:
+attempts, quarantine, and parking already govern them. The publisher heartbeat's
+per-project stats carry `standing_open`, `standing_signatures`, and
+`standing_next_attempt_at` for live counts.
+
 Retired agent-publication requests stay stopped until an explicit recovery. After a
 publisher fix makes terminal work publishable, revive that project's retired hood
 requests once with:

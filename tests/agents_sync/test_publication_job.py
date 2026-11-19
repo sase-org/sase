@@ -48,7 +48,7 @@ from tests.agents_sync._publication_job_targets import (
 from tests.agents_sync._publication_job_lifecycle import (
     test_new_publication_waits_for_done_marker_or_ten_minute_grace,
     test_publication_job_leaves_young_request_queued_until_done_marker,
-    test_busy_agents_lock_rings_again_without_charging_requests,
+    test_busy_agents_lock_opens_standing_alert_without_ringing,
     test_budget_defers_projects_without_starting_a_drain,
     test_sigkilled_publisher_leaves_request_active_and_releases_locks,
 )
@@ -90,7 +90,7 @@ __all__ = [
     "test_sibling_project_with_valid_target_still_drains",
     "test_new_publication_waits_for_done_marker_or_ten_minute_grace",
     "test_publication_job_leaves_young_request_queued_until_done_marker",
-    "test_busy_agents_lock_rings_again_without_charging_requests",
+    "test_busy_agents_lock_opens_standing_alert_without_ringing",
     "test_budget_defers_projects_without_starting_a_drain",
     "test_sigkilled_publisher_leaves_request_active_and_releases_locks",
 ]
