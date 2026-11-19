@@ -210,6 +210,31 @@ def test_rate_cap_reports_suppressed_count(
     assert emitted[1]["suppressed_count"] == 2
 
 
+def test_auxiliary_rows_are_flushed_off_the_calling_thread(
+    emitted: list[dict[str, Any]], clock: _Clock, tmp_path: Path
+) -> None:
+    tel = GCTelemetry(
+        app_instance_id="test-instance",
+        monotonic=clock,
+        wall=clock,
+        emit=emitted.append,
+        status_path=tmp_path / "missing-status",
+        stat_path=tmp_path / "missing-stat",
+    )
+    tel.queue_row("tui_gc_memory_pressure", {"reason": "swapping"})
+    assert emitted == []
+    tel._flush_queued(clock.now)
+    assert emitted == [
+        {
+            "event": "tui_gc_memory_pressure",
+            "ts": clock.now,
+            "pid": os.getpid(),
+            "app_instance_id": "test-instance",
+            "reason": "swapping",
+        }
+    ]
+
+
 def test_heartbeat_totals_stay_exact_despite_rate_cap(
     emitted: list[dict[str, Any]], clock: _Clock, tmp_path: Path
 ) -> None:
@@ -232,13 +257,15 @@ def test_heartbeat_totals_stay_exact_despite_rate_cap(
     assert heartbeats[0]["gc_generations"]["2"]["total_s"] == pytest.approx(1.2)
 
 
-def _write_proc_files(tmp_path: Path, *, rss_kb: int, swap_kb: int) -> None:
+def _write_proc_files(
+    tmp_path: Path, *, rss_kb: int, swap_kb: int, major_faults: int = 42
+) -> None:
     (tmp_path / "status").write_text(
         f"Name:\tsase\nVmRSS:\t{rss_kb} kB\nVmSwap:\t{swap_kb} kB\n",
         encoding="utf-8",
     )
     (tmp_path / "stat").write_text(
-        "1 (sase) S 0 0 0 0 0 0 0 0 42 0 0 0 0 0 0 0 0 0 12345",
+        f"1 (sase) S 0 0 0 0 0 0 0 0 {major_faults} 0 0 0 0 0 0 0 0 0 12345",
         encoding="utf-8",
     )
 
@@ -274,6 +301,33 @@ def test_heartbeat_parses_proc_and_tracks_fault_delta(
     tel._write_heartbeat(clock.now)
     assert emitted[-1]["major_faults_delta"] == 0
     assert emitted[-1]["uptime_s"] == pytest.approx(300.0)
+
+
+def test_pressure_sampler_caches_swap_and_recent_major_fault_rate(
+    clock: _Clock, tmp_path: Path
+) -> None:
+    _write_proc_files(tmp_path, rss_kb=100, swap_kb=0, major_faults=42)
+    tel = GCTelemetry(
+        app_instance_id="test-instance",
+        monotonic=clock,
+        status_path=tmp_path / "status",
+        stat_path=tmp_path / "stat",
+    )
+    tel._sample_memory_pressure(clock.now)
+    initial = tel.memory_pressure_snapshot()
+    assert initial is not None
+    assert initial["vmswap_bytes"] == 0
+    assert initial["major_faults_per_s"] == 0.0
+
+    _write_proc_files(tmp_path, rss_kb=200, swap_kb=16, major_faults=142)
+    clock.advance(5.0)
+    tel._sample_memory_pressure(clock.now)
+    sample = tel.memory_pressure_snapshot()
+    assert sample is not None
+    assert sample["vmswap_bytes"] == 16 * 1024
+    assert sample["major_faults_per_s"] == pytest.approx(20.0)
+    assert sample["sample_age_s"] == 0.0
+    assert tel.latest_rss == 200 * 1024
 
 
 def test_heartbeat_window_spans_since_previous_heartbeat(

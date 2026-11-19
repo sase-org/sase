@@ -67,7 +67,7 @@ def test_census_off_by_default(
     clock.advance(61.0)
     assert policy.tick(clock.now) == "idle"
     assert emitted == []
-    assert collector.collections == 2
+    assert collector.collections == 1
 
 
 def test_census_rate_limited_on_idle(

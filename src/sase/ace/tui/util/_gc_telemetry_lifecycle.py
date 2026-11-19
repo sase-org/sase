@@ -99,6 +99,21 @@ def latest_rss_bytes() -> int | None:
     return active.latest_rss
 
 
+def latest_memory_pressure() -> dict[str, int | float | None] | None:
+    """Return the latest cached pressure sample without touching ``/proc``."""
+    active = _active
+    if active is None:
+        return None
+    return active.memory_pressure_snapshot()
+
+
+def queue_row(event: str, extra: dict[str, Any]) -> None:
+    """Queue an auxiliary telemetry row without doing UI-thread file I/O."""
+    active = _active
+    if active is not None:
+        active.queue_row(event, extra)
+
+
 def recent_collections(since_mono: float) -> list[dict[str, Any]]:
     """Return recent collections ending at or after ``since_mono``."""
     active = _active

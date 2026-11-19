@@ -8,7 +8,9 @@ full collection, plus young collections of at least
 ``YOUNG_PAUSE_ROW_MIN_S``). A daemon flush thread drains the queue into
 ``tui_gc_pause`` rows and writes a 5-minute ``tui_memory_heartbeat`` row,
 whose ``gc_young_notable`` counters cover every young pause of at least
-``NOTABLE_PAUSE_S``. Both go through
+``NOTABLE_PAUSE_S``. The same worker samples cached RSS, swap, and major-fault
+pressure every few seconds for the GC policy; policy deferral rows use the
+worker queue instead of writing from the UI timer. Telemetry rows go through
 ``sase.logs.log_tui_stall`` into ``tui_stalls.jsonl``; the Rust perf-log
 aggregator only counts ``STALL_EVENTS``/``RECOVERY_EVENTS``, so the new row
 kinds need no ``sase-core`` change.
@@ -44,9 +46,11 @@ from ._gc_telemetry_lifecycle import (
     emit_row as emit_row,
     gc_trigger as gc_trigger,
     install_gc_telemetry as install_gc_telemetry,
+    latest_memory_pressure as latest_memory_pressure,
     latest_rss_bytes as latest_rss_bytes,
     new_app_instance_id as new_app_instance_id,
     note_last_input_mono as note_last_input_mono,
+    queue_row as queue_row,
     recent_collections as recent_collections,
     uninstall_gc_telemetry as uninstall_gc_telemetry,
 )

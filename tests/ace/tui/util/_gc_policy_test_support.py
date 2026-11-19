@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sase.ace.tui.util.gc_policy import GCPolicy
@@ -62,6 +63,7 @@ class Recorder:
 
     def __init__(self) -> None:
         self.last_full: float | None = None
+        self.last_pause: float | None = None
         self.gen1 = 0
 
     def last_full_collection_mono(self) -> float | None:
@@ -69,6 +71,9 @@ class Recorder:
 
     def gen1_since_last_full(self) -> int:
         return self.gen1
+
+    def last_full_pause_s(self) -> float | None:
+        return self.last_pause
 
 
 def idle_policy(
@@ -78,6 +83,8 @@ def idle_policy(
     *,
     last_input_ago: float = 10.0,
     trim_runner: Any = None,
+    allocated_blocks_probe: Callable[[], int | None] | None = None,
+    memory_pressure_probe: Callable[[], dict[str, Any] | None] | None = None,
 ) -> GCPolicy:
     policy = GCPolicy(
         monotonic=clock,
@@ -89,6 +96,18 @@ def idle_policy(
         collector=collector,
         recorder=recorder,
         trim_runner=(lambda: None) if trim_runner is None else trim_runner,
+        allocated_blocks_probe=allocated_blocks_probe or (lambda: 1_000_000),
+        memory_pressure_probe=memory_pressure_probe
+        or (
+            lambda: {
+                "vmswap_bytes": 0,
+                "major_faults_per_s": 0.0,
+                "sample_age_s": 0.0,
+            }
+        ),
     )
     policy.apply_thresholds()
+    policy._last_full_pause_s = 0.25
+    policy._last_full_scan_blocks = 1_000
+    policy._cost_sample_mono = clock.now
     return policy

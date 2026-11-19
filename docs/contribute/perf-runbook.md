@@ -1038,35 +1038,45 @@ The idle-GC policy (`src/sase/ace/tui/util/gc_policy.py`, installed from
 `_start_post_first_paint_services` right after telemetry) keeps automatic gen-2
 collections off the interactive path:
 
-- Once startup loads settle (`_mount_state_loads_done`) and input first goes idle, one
-  `gc.collect()` followed by `gc.freeze()` runs under the `startup_freeze` trigger,
-  exactly once per app instance. It is never re-frozen: cyclic garbage among frozen
-  objects is never reclaimed.
+- Once startup loads settle (`_mount_state_loads_done`) and input first goes idle, the
+  policy calls `gc.freeze()` without first running a full collection. The existing heap
+  is then outside ordinary full sweeps.
+- After each policy full collection, survivors are frozen again. Ordinary sweeps then
+  traverse objects allocated since the last freeze. A rare unfreeze-and-collect pass
+  reclaims cycles in the frozen heap only after 15 minutes without input and no more
+  often than every 30 minutes.
 - On the classic three-generation collector the policy preserves the current `t0`/`t1`
   and raises `threshold2` to 10_000, so automatic full collections become a rare
   backstop (about once an hour at 2.9 gen-1/s). Any other collector shape leaves
   thresholds alone and records `threshold_policy: "unsupported"` (instead of `"raised"`)
   on the `tui_memory_heartbeat` row; the idle collector still runs.
-- A 1 s tick runs `gc.collect()` on the UI thread only when input has been quiet for 3
-  s, no prompt is active, the navigation gate is idle, no modal screen is accepting text
+- A 1 s tick considers a full collection only when input has been quiet for 3 s, no
+  prompt is active, the navigation gate is idle, no modal screen is accepting text
   input, at least 60 s have passed since the last full collection of any trigger, and a
   collection is due (100 gen-1 collections since the last full one). Mouse clicks and
   scrolls count as input for the quiet window without consuming the events.
 - After 5 minutes without a full collection, or when RSS grew more than 500 MB since the
-  last full one (from the heartbeat's cached sample, never a UI-thread `/proc` read),
-  the quiet window relaxes to 1 s. These run tagged `backstop` / `rss_backstop`; the
-  raised `threshold2` remains the hard backstop.
+  last full one (from cached process samples, never a UI-thread `/proc` read), the quiet
+  window remains 3 s and the backstops run tagged `backstop` / `rss_backstop` when their
+  other gates pass. A telemetry worker samples `VmSwap` and major faults every 5 s;
+  `VmSwap` above 16 MiB or a recent major-fault rate above 100/s defers full collections
+  and emits a `tui_gc_memory_pressure` row. Samples older than 20 s are ignored.
+- The pause estimate is the last policy full-sweep duration scaled by the ratio of new
+  allocated blocks to the prior sweep's blocks, with a 2× safety factor. When it exceeds
+  the 2 s budget (or no recent estimate exists), the policy emits
+  `tui_gc_collection_deferred` and waits. The cost gate is bypassed after 15 minutes
+  without input; swap-pressure deferral still applies.
 - After an idle or backstop collection, freed arenas are released with `malloc_trim` on
   a daemon worker thread (`sase-tui-gc-trim`, via the `trim_allocator` half of
   `sase.axe.runner_idle_memory`), at most every 10 minutes.
 
-Confirm it from `tui_gc_pause` rows: intentional collections carry `trigger` values
-`startup_freeze` / `idle` / `backstop` / `rss_backstop`, while anything still tagged
-`"automatic"` started on its own. An idle collection that overlaps a hitch is
-attributable through the same trigger. Disable freeze, threshold, and the idle collector
-with `SASE_TUI_GC_POLICY_DISABLE=1` (telemetry stays on). The policy never auto-installs
-under the `sase.ace.testing` harness, and teardown restores the original thresholds,
-calls `gc.unfreeze()`, and stops the tick timer.
+Confirm full collections from `tui_gc_pause` rows: policy sweeps carry `trigger` values
+`idle` / `backstop` / `rss_backstop`, while anything tagged `"automatic"` started on its
+own. Startup freeze does not run or emit a full collection. An idle collection that
+overlaps a hitch is attributable through the same trigger. Disable freeze, threshold,
+and the idle collector with `SASE_TUI_GC_POLICY_DISABLE=1` (telemetry stays on). The
+policy never auto-installs under the `sase.ace.testing` harness, and teardown restores
+the original thresholds, calls `gc.unfreeze()`, and stops the tick timer.
 
 Set `SASE_TUI_GC_CENSUS=1` to opt into a type census on idle-triggered full collections,
 at most once every 10 minutes. That collection runs with `gc.DEBUG_SAVEALL`, writes a
@@ -1103,19 +1113,19 @@ Each instance reports the loop-only frozen share (preferring the heartbeat's exa
 `loop_hitch_seconds` and `loop_suppressed_seconds`, falling back to the hitch-interval
 union on old logs), hitch duration median / p90 / max, the late versus on-time split, GC
 share by generation and trigger, pause p50 / p95 / max split by `idle` / `backstop` /
-`rss_backstop` / `startup_freeze` / `automatic`, automatic and backstop gen-2
-collections within 2 s of input (preferring the pause row's `input_age_s`; otherwise a
-documented heuristic that needs a `last_keypress_age_s` context row within 2 s of the
-pause), and the RSS / swap trajectory from heartbeats. `--acceptance` marks each
-sase-1f3 target pass or fail per instance (idle-collection p95 ≤ 500 ms, total GC < 3%
-of wall, hitches < 0.5% of wall, no automatic or backstop gen-2 within 2 s of input, RSS
-growth < 500,000,000 bytes over four contiguous hours, zero sampled VmSwap). Navigation
-samples come from the perf log (next section), loaded from its default/environment path
-or `-p/--perf-path`; prompt states come from the stalls log. Missing evidence yields
-INCOMPLETE. Late but fully accounted heartbeats (past the on-time tolerance, within 1.5×
-cadence, with matching `window_s` and uptime) stay valid and are counted as delayed.
-`--acceptance` and `--json` exit 1 for any FAIL or INCOMPLETE target, and exit 2 for
-invalid arguments.
+`rss_backstop` / `automatic` (startup freeze does not run a full collection), automatic
+and backstop gen-2 collections within 2 s of input (preferring the pause row's
+`input_age_s`; otherwise a documented heuristic that needs a `last_keypress_age_s`
+context row within 2 s of the pause), and the RSS / swap trajectory from heartbeats.
+`--acceptance` marks each sase-1f3 target pass or fail per instance (idle-collection p95
+≤ 500 ms, total GC < 3% of wall, hitches < 0.5% of wall, no automatic or backstop gen-2
+within 2 s of input, RSS growth < 500,000,000 bytes over four contiguous hours, zero
+sampled VmSwap). Navigation samples come from the perf log (next section), loaded from
+its default/environment path or `-p/--perf-path`; prompt states come from the stalls
+log. Missing evidence yields INCOMPLETE. Late but fully accounted heartbeats (past the
+on-time tolerance, within 1.5× cadence, with matching `window_s` and uptime) stay valid
+and are counted as delayed. `--acceptance` and `--json` exit 1 for any FAIL or
+INCOMPLETE target, and exit 2 for invalid arguments.
 
 ### Attributable perf and prompt-state evidence
 

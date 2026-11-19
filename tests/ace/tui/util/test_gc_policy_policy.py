@@ -64,16 +64,16 @@ def test_freeze_happens_once(
 
     policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
-    assert collector.collections == 1
+    assert collector.collections == 0
     assert collector.freezes == 1
     assert tags == ["startup_freeze"]
 
-    # A later idle tick collects again but never re-freezes.
+    # A later full sweep freezes its survivors again.
     recorder.gen1 = 150
     clock.advance(61.0)
     assert policy.tick(clock.now) == "idle"
-    assert collector.collections == 2
-    assert collector.freezes == 1
+    assert collector.collections == 1
+    assert collector.freezes == 2
     assert tags == ["startup_freeze", "idle"]
 
 
@@ -119,7 +119,7 @@ def test_no_collection_before_due(
     # One minute later but nothing has piled up: no repeat collection.
     clock.advance(61.0)
     assert policy.tick(clock.now) is None
-    assert collector.collections == 1
+    assert collector.collections == 0
     assert tags == ["startup_freeze"]
 
 
@@ -136,6 +136,9 @@ def test_collector_counter_marks_due_without_recorder(
     )
     policy.apply_thresholds()
     assert policy.tick(clock.now) == "startup_freeze"
+    policy._last_full_pause_s = 0.25
+    policy._last_full_scan_blocks = 1_000
+    policy._cost_sample_mono = clock.now
     clock.advance(61.0)
     collector.counts = [0, 0, 100]
     assert policy.tick(clock.now) == "idle"
@@ -151,6 +154,7 @@ def test_time_backstop_relaxes_quiet_window(
     assert policy.tick(clock.now) == "startup_freeze"
     recorder.gen1 = 150
     clock.advance(301.0)
+    policy._own_last_full_mono = clock.now - 301.0
     # Only 1.5 s of quiet: too recent even for "backstop" (3 s required).
     quiet_policy = idle_policy(clock, collector, recorder, last_input_ago=1.5)
     quiet_policy._froze_startup = True
@@ -204,6 +208,7 @@ def test_backstops_require_three_quiet_seconds(
 
     recorder.gen1 = 150
     clock.advance(301.0)
+    policy._own_last_full_mono = clock.now - 301.0
     for age in (1.0, 2.0, 2.01):
         policy._last_input_mono = lambda age=age: clock.now - age  # noqa: B023
         passes, tag = policy.idle_gate(clock.now)
@@ -240,12 +245,121 @@ def test_sustained_activity_defers_due_backstop(
     assert policy.tick(clock.now) == "startup_freeze"
     recorder.gen1 = 150
     clock.advance(301.0)
+    policy._own_last_full_mono = clock.now - 301.0
     policy._last_input_mono = lambda: clock.now - 0.5
     assert policy.tick(clock.now) is None
-    assert collector.collections == 1
+    assert collector.collections == 0
     policy._last_input_mono = lambda: clock.now - 3.0
     assert policy.tick(clock.now) == "backstop"
     assert tags[-1] == "backstop"
+
+
+def test_swap_pressure_defers_a_due_full_collection(
+    clock: Clock,
+    collector: Collector,
+    recorder: Recorder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pressure = {
+        "vmswap_bytes": gc_policy.SWAP_BYTES_PRESSURE_THRESHOLD + 1,
+        "major_faults_per_s": 0.0,
+        "sample_age_s": 0.0,
+    }
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        policy_module,
+        "queue_row",
+        lambda event, row: emitted.append({"event": event, **row}),
+    )
+    policy = idle_policy(
+        clock,
+        collector,
+        recorder,
+        memory_pressure_probe=lambda: pressure,
+    )
+    assert policy.tick(clock.now) == "startup_freeze"
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) is None
+    assert collector.collections == 0
+    assert emitted[-1]["event"] == "tui_gc_memory_pressure"
+    assert emitted[-1]["reason"] == "swapping"
+
+    pressure["vmswap_bytes"] = 0
+    assert policy.tick(clock.now) == "idle"
+    assert collector.collections == 1
+
+
+def test_major_fault_pressure_defers_a_due_full_collection(
+    clock: Clock,
+    collector: Collector,
+    recorder: Recorder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pressure = {
+        "vmswap_bytes": 0,
+        "major_faults_per_s": gc_policy.MAJOR_FAULTS_PER_S_PRESSURE_THRESHOLD + 1,
+        "sample_age_s": 0.0,
+    }
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        policy_module,
+        "queue_row",
+        lambda event, row: emitted.append({"event": event, **row}),
+    )
+    policy = idle_policy(
+        clock,
+        collector,
+        recorder,
+        memory_pressure_probe=lambda: pressure,
+    )
+    assert policy.tick(clock.now) == "startup_freeze"
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) is None
+    assert collector.collections == 0
+    assert emitted[-1]["event"] == "tui_gc_memory_pressure"
+    assert emitted[-1]["reason"] == "swapping"
+
+
+def test_cost_gate_defers_until_long_idle_allows_a_deep_sweep(
+    clock: Clock,
+    collector: Collector,
+    recorder: Recorder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocks = {"value": 1_000}
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        policy_module,
+        "queue_row",
+        lambda event, row: emitted.append({"event": event, **row}),
+    )
+    policy = idle_policy(
+        clock,
+        collector,
+        recorder,
+        allocated_blocks_probe=lambda: blocks["value"],
+    )
+    assert policy.tick(clock.now) == "startup_freeze"
+    policy._last_full_pause_s = 2.0
+    policy._last_full_scan_blocks = 1_000
+    policy._cost_sample_mono = clock.now
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    blocks["value"] = 2_000
+    assert policy.tick(clock.now) is None
+    assert collector.collections == 0
+    assert emitted[-1]["event"] == "tui_gc_collection_deferred"
+    assert emitted[-1]["reason"] == "cost_gate"
+    assert emitted[-1]["predicted_pause_s"] == pytest.approx(4.0)
+
+    clock.advance(gc_policy.LONG_IDLE_QUIET_S)
+    policy._last_input_mono = lambda: clock.now - gc_policy.LONG_IDLE_QUIET_S - 1.0
+    assert policy.tick(clock.now) == "idle"
+    assert collector.collections == 1
+    assert collector.unfreezes == 1
+    assert collector.freezes == 2
 
 
 def test_census_cleanup_collection_uses_idle_trigger(
@@ -265,7 +379,7 @@ def test_census_cleanup_collection_uses_idle_trigger(
     clock.advance(61.0)
     assert policy.tick(clock.now) == "idle"
     assert tags[idle_tags:] == ["idle", "idle"]
-    assert collector.collections == 3
+    assert collector.collections == 2
 
 
 __all__ = [
@@ -279,5 +393,8 @@ __all__ = [
     "test_rss_backstop_relaxes_quiet_window",
     "test_backstops_require_three_quiet_seconds",
     "test_sustained_activity_defers_due_backstop",
+    "test_swap_pressure_defers_a_due_full_collection",
+    "test_major_fault_pressure_defers_a_due_full_collection",
+    "test_cost_gate_defers_until_long_idle_allows_a_deep_sweep",
     "test_census_cleanup_collection_uses_idle_trigger",
 ]

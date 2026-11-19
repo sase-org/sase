@@ -24,6 +24,7 @@ from ._gc_telemetry_config import (
     RATE_LIMIT_PER_MIN,
     RATE_LIMIT_WINDOW_S,
     RECENT_RING_MAX,
+    PRESSURE_SAMPLE_INTERVAL_S,
     THREAD_NAME,
     YOUNG_PAUSE_ROW_MIN_S,
 )
@@ -133,6 +134,8 @@ class GCTelemetry:
         )
         self._queue: deque[dict[str, Any]] = deque()
         self._queue_dropped = 0
+        self._extra_queue: deque[dict[str, Any]] = deque()
+        self._extra_queue_dropped = 0
         now = self._monotonic()
         self._install_mono = now
         self._last_heartbeat_mono = now
@@ -143,6 +146,12 @@ class GCTelemetry:
         self._suppressed = 0
         self._last_rss: int | None = None
         self._last_major_faults: int | None = None
+        self._last_full_pause_s: float | None = None
+        self._next_pressure_sample_mono = now
+        self._pressure_sample_mono: float | None = None
+        self._pressure_vmswap_bytes: int | None = None
+        self._pressure_major_faults: int | None = None
+        self._pressure_major_faults_per_s: float | None = None
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -177,6 +186,7 @@ class GCTelemetry:
         if generation >= FULL_GENERATION:
             self._gen1_since_full = 0
             self._last_full_end_mono = end_mono
+            self._last_full_pause_s = round(duration, 6)
         elif generation == 1:
             self._gen1_since_full += 1
         self._recent.append((generation, start_mono, end_mono, thread, trigger))
@@ -229,6 +239,36 @@ class GCTelemetry:
         """Gen-1 collections recorded since the latest full collection."""
         return self._gen1_since_full
 
+    def last_full_pause_s(self) -> float | None:
+        """Duration of the latest full collection observed by the callback."""
+        return self._last_full_pause_s
+
+    def memory_pressure_snapshot(self) -> dict[str, int | float | None] | None:
+        """Return the latest off-thread swap and major-fault sample."""
+        sampled = self._pressure_sample_mono
+        if sampled is None:
+            return None
+        return {
+            "vmswap_bytes": self._pressure_vmswap_bytes,
+            "major_faults_per_s": self._pressure_major_faults_per_s,
+            "sample_age_s": max(0.0, self._monotonic() - sampled),
+        }
+
+    def queue_row(self, event: str, extra: dict[str, Any]) -> None:
+        """Queue an auxiliary telemetry row for the existing flush worker."""
+        if len(self._extra_queue) >= QUEUE_MAX:
+            self._extra_queue_dropped += 1
+            return
+        row: dict[str, Any] = {
+            "event": event,
+            "ts": self._wall(),
+            "pid": os.getpid(),
+            "app_instance_id": self.instance_id,
+        }
+        for key, value in extra.items():
+            row.setdefault(key, value)
+        self._extra_queue.append(row)
+
     def start(self) -> None:
         """Start the daemon flush thread (idempotent)."""
         if self._thread is not None and self._thread.is_alive():
@@ -258,6 +298,9 @@ class GCTelemetry:
 
     def _poll(self) -> None:
         now = self._monotonic()
+        if now >= self._next_pressure_sample_mono:
+            self._next_pressure_sample_mono = now + PRESSURE_SAMPLE_INTERVAL_S
+            self._sample_memory_pressure(now)
         if now - self._last_flush_mono >= self.flush_interval_s:
             self._last_flush_mono = now
             self._flush_queued(now)
@@ -265,10 +308,38 @@ class GCTelemetry:
             self._next_heartbeat_mono = now + self.heartbeat_interval_s
             self._write_heartbeat(now)
 
+    def _sample_memory_pressure(self, now: float) -> None:
+        """Refresh cached pressure probes away from the Textual event loop."""
+        rss, swap = _read_status_bytes(self._status_path)
+        major = _read_major_faults(self._stat_path)
+        if rss is not None:
+            self._last_rss = rss
+        self._pressure_vmswap_bytes = swap
+        previous_major = self._pressure_major_faults
+        previous_mono = self._pressure_sample_mono
+        if major is None:
+            self._pressure_major_faults_per_s = None
+        elif previous_major is None or previous_mono is None:
+            self._pressure_major_faults_per_s = 0.0
+        else:
+            elapsed = max(0.0, now - previous_mono)
+            self._pressure_major_faults_per_s = (
+                None if elapsed <= 0.0 else max(0, major - previous_major) / elapsed
+            )
+        if major is not None:
+            self._pressure_major_faults = major
+        self._pressure_sample_mono = now
+
     def _flush_queued(self, now: float) -> None:
         if now - self._window_start_mono >= RATE_LIMIT_WINDOW_S:
             self._window_start_mono = now
             self._window_admitted = 0
+        while self._extra_queue:
+            row = self._extra_queue.popleft()
+            if self._extra_queue_dropped:
+                row.setdefault("suppressed_count", self._extra_queue_dropped)
+                self._extra_queue_dropped = 0
+            self._emit(row)
         while self._queue:
             if self._window_admitted >= self.rate_limit_per_min:
                 self._suppressed += len(self._queue)
@@ -353,6 +424,12 @@ class GCTelemetry:
             "vmswap_bytes": swap,
             "major_faults": major,
             "major_faults_delta": major_delta,
+            "major_faults_per_s": self._pressure_major_faults_per_s,
+            "pressure_sample_age_s": (
+                None
+                if self._pressure_sample_mono is None
+                else round(max(0.0, now - self._pressure_sample_mono), 3)
+            ),
             "gc_count": list(gc.get_count()),
             "gc_threshold": list(gc.get_threshold()),
             "gc_freeze_count": _freeze_count(),
