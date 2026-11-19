@@ -9,6 +9,8 @@ must pass ``--no-optional-locks``. Without it, ``git status`` still takes
 git's optional index lock so it can write back refreshed stat data, which
 contends with writers for shared checkouts (the machine-wide agents prompt
 archive, primary SDD sidecars) that many agents scan concurrently.
+``git_status_records`` uses the same 10s bound as workspace-retention settle
+probes so a loaded sidecar is not captured as an empty fingerprint.
 """
 
 from __future__ import annotations
@@ -26,6 +28,9 @@ from .commit_finalizer_git_paths import (
 )
 
 _GIT_TIMEOUT_SECONDS = 5
+# Match workspace-retention settle probes so a loaded agents sidecar is not
+# captured as an empty fingerprint while settle later lists the same dirt.
+_GIT_STATUS_TIMEOUT_SECONDS = 10
 
 UNKNOWN_HEAD_SENTINEL = "<unknown-head>"
 
@@ -122,7 +127,7 @@ def git_status_records(repo_dir: str) -> list[GitStatusRecord]:
             capture_output=True,
             text=True,
             check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
+            timeout=_GIT_STATUS_TIMEOUT_SECONDS,
         )
     except Exception:
         return []
@@ -171,17 +176,51 @@ def split_pre_existing_changed_files(
     pre_existing: list[str] = []
     for entry in changed_files:
         key = normalize_status_path(entry)
-        baseline_fp = baseline_fingerprints.get(key)
+        baseline_fp = _baseline_fingerprint_for_path(key, baseline_fingerprints)
         if baseline_fp is None:
             still.append(entry)
             continue
         if current_fingerprints is None:
             current_fingerprints = dirty_path_fingerprints(repo_dir)
-        if current_fingerprints.get(key) == tuple(baseline_fp):
+        if key in baseline_fingerprints:
+            if current_fingerprints.get(key) == tuple(baseline_fp):
+                pre_existing.append(entry)
+            else:
+                still.append(entry)
+            continue
+        current = current_fingerprints.get(key)
+        if current is not None and "?" in current[0]:
             pre_existing.append(entry)
         else:
             still.append(entry)
     return still, pre_existing
+
+
+def _baseline_fingerprint_for_path(
+    key: str,
+    baseline_fingerprints: dict[str, tuple[str, str | None]],
+) -> tuple[str, str | None] | None:
+    """Return the baseline fingerprint that covers *key*.
+
+    ``git status --untracked-files=all`` lists files; a shorter listing can
+    record only the untracked parent directory. A descendant of that
+    directory is still the same pre-existing dirt.
+    """
+
+    direct = baseline_fingerprints.get(key)
+    if direct is not None:
+        return direct
+    parts = key.strip("/").split("/")
+    for index in range(len(parts) - 1, 0, -1):
+        ancestor = "/".join(parts[:index])
+        for candidate in (ancestor, f"{ancestor}/"):
+            fingerprint = baseline_fingerprints.get(candidate)
+            if fingerprint is None:
+                continue
+            xy = fingerprint[0]
+            if "?" in xy:
+                return fingerprint
+    return None
 
 
 def git_head_commit_id(repo_dir: str) -> str:

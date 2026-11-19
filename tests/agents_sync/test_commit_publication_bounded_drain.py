@@ -320,6 +320,11 @@ def test_blocked_render_with_young_index_lock_is_bounded(
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings: list = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(
+        publication_cleanup,
+        "default_publication_cleanup_timeout",
+        lambda: 1.0,
+    )
 
     sidecar = target.sidecar_path
     alarm = BlockedStageAlarm(monkeypatch)
@@ -367,8 +372,9 @@ def test_blocked_render_with_young_index_lock_is_bounded(
     assert outcome.error is not None and "did not complete within" in outcome.error
     assert timings and timings[-1].alarm_fired
     assert timings[-1].outcome == "timeout"
-    # Shared 1s cleanup cap: post-alarm cleanup must not approach the old
-    # 14s backoff+age-wait.
+    # Shared cleanup cap: post-alarm cleanup must not approach the old
+    # 14s backoff+age-wait. Patch the Rust cap to 1s so lock retry cannot
+    # spend the measured 15s production budget.
     assert "cleanup" in timings[-1].stage_durations
     assert len(clean_seconds) == 2  # pre-transaction clean, exception cleanup
     cleanup_seconds = clean_seconds[-1]
@@ -420,6 +426,11 @@ def test_stalled_cleanup_does_not_replace_render_timeout(
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings: list = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(
+        publication_cleanup,
+        "default_publication_cleanup_timeout",
+        lambda: 1.0,
+    )
     alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args, **_kwargs):
@@ -481,7 +492,7 @@ def test_cleanup_budget_caps_cumulative_ops(tmp_path: Path) -> None:
         default_publication_cleanup_timeout,
     )
 
-    assert default_publication_cleanup_timeout() == 1.0
+    assert default_publication_cleanup_timeout() == 15.0
 
     # Expired budget refuses git without running it.
     expired = PublicationCleanupBudget(
@@ -513,3 +524,160 @@ def test_cleanup_budget_caps_cumulative_ops(tmp_path: Path) -> None:
     )
     assert error is not None and "budget exhausted" in error
     assert calls == []
+
+
+def test_drain_work_timeout_leaves_cleanup_reserve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        publication_cleanup,
+        "default_publication_cleanup_timeout",
+        lambda: 15.0,
+    )
+    assert publication_drain._drain_work_timeout(120.0) == 105.0
+    assert publication_drain._drain_work_timeout(15.0) == 7.5
+    assert publication_drain._drain_work_timeout(10.0) == 5.0
+
+
+def test_empty_drain_sweeps_stranded_publication_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, _remote = _configure_target(monkeypatch, tmp_path, owner)
+    timings: list = []
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    stage = target.sidecar_path / ".sase-v2-stage-deadbeef"
+    backup = target.sidecar_path / ".sase-v2-backup-deadbeef"
+    stage.mkdir()
+    (stage / "README.md").write_text("staged\n")
+    backup.mkdir()
+    (backup / "README.md").write_text("backup\n")
+
+    outcome = publication_drain.drain_agent_publications("proj")
+
+    assert not outcome.error
+    assert not stage.exists()
+    assert not backup.exists()
+    assert timings
+    assert timings[-1].cleanup_result == "completed"
+    assert timings[-1].deferred_cleanup_completed is True
+
+
+def test_ledger_records_deferred_and_failed_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, _remote = _configure_target(monkeypatch, tmp_path, owner)
+    timings: list = []
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    alarm = BlockedStageAlarm(monkeypatch)
+
+    def blocked_render(*_args, **_kwargs):
+        alarm.expire()
+        time.sleep(30)  # sase-test-wait: exceeds the drain timeout
+
+    calls = {"count": 0}
+
+    def deferred_cleanup(_repo: Path, _runner: object, **_kwargs: object):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return None
+        return "publication cleanup budget exhausted"
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
+    monkeypatch.setattr(
+        git_sync_transaction,
+        "clean_agents_payload_worktree",
+        deferred_cleanup,
+    )
+
+    outcome = publish_committed_agent_hood(
+        "foo--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+
+    assert outcome.queued and not outcome.published
+    assert outcome.error is not None and "did not complete within" in outcome.error
+    assert "publication cleanup also failed" not in outcome.error
+    assert timings[-1].cleanup_result == "deferred"
+
+    calls["count"] = 0
+
+    def failed_cleanup(_repo: Path, _runner: object, **_kwargs: object):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return None
+        return "could not restore tracked agents sidecar payload"
+
+    monkeypatch.setattr(
+        git_sync_transaction,
+        "clean_agents_payload_worktree",
+        failed_cleanup,
+    )
+    failed = publish_committed_agent_hood(
+        "foo--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    assert failed.error is not None and "did not complete within" in failed.error
+    assert "could not restore" not in (failed.error or "")
+    assert timings[-1].cleanup_result == "failed"
+
+
+@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires interval timers")
+def test_timeout_leaves_enough_reserve_for_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    _configure_target(monkeypatch, tmp_path, owner)
+    timings: list = []
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(
+        publication_drain,
+        "_configured_publication_drain_timeout",
+        lambda: 3.0,
+    )
+    monkeypatch.setattr(
+        publication_cleanup,
+        "default_publication_cleanup_timeout",
+        lambda: 2.0,
+    )
+
+    def blocked_render(*_args, **_kwargs):
+        time.sleep(30)  # sase-test-wait: exceeds the 1s work timeout
+
+    calls = {"count": 0}
+
+    def reserved_cleanup(_repo: Path, _runner: object, **_kwargs: object):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return None
+        time.sleep(1.2)  # sase-test-wait: must finish inside the 2s reserve
+        return None
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
+    monkeypatch.setattr(
+        git_sync_transaction,
+        "clean_agents_payload_worktree",
+        reserved_cleanup,
+    )
+
+    outcome = publish_committed_agent_hood(
+        "foo--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+
+    assert outcome.queued and not outcome.published
+    assert outcome.error is not None and "did not complete within" in outcome.error
+    assert timings[-1].cleanup_result == "completed"
+    cleanup_seconds = timings[-1].stage_durations.get("cleanup", 0.0)
+    assert cleanup_seconds >= 1.0
+    assert cleanup_seconds < 2.5

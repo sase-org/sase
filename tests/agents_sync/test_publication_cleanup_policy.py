@@ -25,7 +25,13 @@ from sase.agents_sync import (
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import TargetSelection
-from sase.agents_sync.publication_cleanup import PublicationCleanupBudget
+from sase.agents_sync.publication_cleanup import (
+    CLEANUP_RESULT_COMPLETED,
+    CLEANUP_RESULT_DEFERRED,
+    CLEANUP_RESULT_FAILED,
+    PublicationCleanupBudget,
+    classify_cleanup_result,
+)
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.core import agent_publication_recovery as recovery
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -101,9 +107,9 @@ def _assert_sidecar_lock_released(target) -> None:
         assert acquired, "the drain must release sase-agents-sync.lock"
 
 
-def test_the_real_binding_supplies_the_one_second_cap() -> None:
-    assert recovery.default_publication_cleanup_timeout() == 1.0
-    assert PublicationCleanupBudget().timeout == 1.0
+def test_the_real_binding_supplies_the_measured_cleanup_cap() -> None:
+    assert recovery.default_publication_cleanup_timeout() == 15.0
+    assert PublicationCleanupBudget().timeout == 15.0
 
 
 def test_missing_binding_is_exposed_by_the_adapter_and_the_budget(
@@ -217,9 +223,9 @@ def test_policy_lookup_failure_keeps_the_original_publication_exception(
     notes = "\n".join(caught.value.__notes__)
     assert "publication cleanup also failed" in notes
     assert "does not expose binding" in notes
-    # Only the pre-transaction payload clean ran: no exception cleanup ran with
-    # an invented default budget.
-    assert lookups == [_BINDING]
+    # Drain sizes its cleanup reserve first; exception cleanup then looks up
+    # the same required binding and refuses to invent a Python default.
+    assert lookups == [_BINDING, _BINDING]
     assert cleanup_calls == 1
     assert len(list_agent_publications("proj")) == 1
     _assert_sidecar_lock_released(target)
@@ -251,16 +257,17 @@ def test_policy_lookup_failure_preserves_drain_timeout_attribution(
     elapsed = alarm.seconds_since_block()
 
     assert elapsed < 5.0
-    assert lookups == [_BINDING]
+    assert lookups == [_BINDING, _BINDING]
     assert outcome.queued and not outcome.published
     # The drain timeout stays the primary error; the lookup failure rides along
     # as cleanup diagnostics instead of replacing it.
     assert outcome.error is not None
     assert outcome.error.startswith("agent-hood publication did not complete within")
-    assert "publication cleanup also failed" in outcome.error
-    assert "does not expose binding" in outcome.error
+    assert "publication cleanup also failed" not in outcome.error
+    assert "does not expose binding" not in outcome.error
     assert timings and timings[-1].alarm_fired
     assert timings[-1].outcome == "timeout"
+    assert timings[-1].cleanup_result == "failed"
     queued = list_agent_publications("proj")
     assert len(queued) == 1
     assert queued[0].attempts == 1
@@ -316,3 +323,17 @@ def test_a_smaller_rust_cap_bounds_a_stalled_cleanup_family(
     )
     assert len(list_agent_publications("proj")) == 1
     _assert_sidecar_lock_released(target)
+
+
+def test_classify_cleanup_result_covers_all_ledger_outcomes() -> None:
+    assert classify_cleanup_result(None) == CLEANUP_RESULT_COMPLETED
+    assert classify_cleanup_result("  ") == CLEANUP_RESULT_COMPLETED
+    assert (
+        classify_cleanup_result("publication cleanup budget exhausted")
+        == CLEANUP_RESULT_DEFERRED
+    )
+    assert (
+        classify_cleanup_result("publication cleanup did not complete within 15s")
+        == CLEANUP_RESULT_DEFERRED
+    )
+    assert classify_cleanup_result("could not restore payload") == CLEANUP_RESULT_FAILED

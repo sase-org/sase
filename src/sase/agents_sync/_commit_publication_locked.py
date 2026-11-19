@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import subprocess
 from pathlib import Path
 
@@ -48,6 +49,78 @@ def _counting_git_runner(base: GitRunner, timer: DrainTiming) -> GitRunner:
     return _run
 
 
+def _note_cleanup(
+    timer: DrainTiming | None,
+    cleanup_error: str | None,
+    *,
+    sidecar: Path,
+    had_scratch: bool,
+) -> None:
+    """Record cleanup_result on *timer* without turning cleanup into a drain error."""
+
+    from sase.agents_sync.publication_cleanup import classify_cleanup_result
+    from sase.agents_sync.publication_scratch import list_publication_scratch_dirs
+
+    if timer is None:
+        return
+    timer.cleanup_result = classify_cleanup_result(cleanup_error)
+    if (
+        had_scratch
+        and cleanup_error is None
+        and not list_publication_scratch_dirs(sidecar)
+    ):
+        timer.deferred_cleanup_completed = True
+
+
+def _payload_clean(
+    target: ProjectTarget,
+    runner: GitRunner,
+    timer: DrainTiming | None,
+    *,
+    remaining_timeout: Callable[[], float | None] | None = None,
+    stage: str = "payload_clean",
+) -> str | None:
+    """Restore regenerable families and sweep stranded publisher scratch."""
+
+    from sase.agents_sync import git_sync
+    from sase.agents_sync.publication_scratch import list_publication_scratch_dirs
+
+    sidecar = target.sidecar_path
+    had_scratch = bool(list_publication_scratch_dirs(sidecar))
+
+    def _run() -> str | None:
+        return git_sync.clean_publication_worktree(
+            sidecar, runner, remaining_timeout=remaining_timeout
+        )
+
+    if timer is not None:
+        with timer.record_stage(stage):
+            cleanup_error = _run()
+    else:
+        cleanup_error = _run()
+    _note_cleanup(timer, cleanup_error, sidecar=sidecar, had_scratch=had_scratch)
+    return cleanup_error
+
+
+def _finish_pending_scratch(
+    target: ProjectTarget,
+    runner: GitRunner,
+    timer: DrainTiming | None,
+) -> DrainResult:
+    """Sweep leftover apply scratch on an otherwise empty drain.
+
+    Cleanup trouble stays diagnostic: an empty drain never reports it as
+    ``DrainResult.error``.
+    """
+
+    from sase.agents_sync.publication_scratch import list_publication_scratch_dirs
+
+    if not list_publication_scratch_dirs(target.sidecar_path):
+        return DrainResult()
+    _payload_clean(target, runner, timer)
+    return DrainResult()
+
+
 def publish_queued_locked(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
@@ -65,8 +138,11 @@ def publish_queued_locked(
     if timer is not None:
         timer.active_requests = len(requests)
         timer.distinct_hoods = len({request.local_hood for request in requests})
+    runner = (
+        _counting_git_runner(git_runner, timer) if timer is not None else git_runner
+    )
     if not requests:
-        return DrainResult()
+        return _finish_pending_scratch(target, runner, timer)
     rows = tuple(
         {
             "global_agent": item.global_agent,
@@ -101,29 +177,16 @@ def publish_queued_locked(
                 item.logical_key for item in (*selection.active, *selection.revive)
             )
             if not selected:
-                return DrainResult()
+                return _finish_pending_scratch(target, runner, timer)
             requests = tuple(item for item in requests if item.logical_key in selected)
             if not requests:
-                return DrainResult()
+                return _finish_pending_scratch(target, runner, timer)
     elif not requests:
-        return DrainResult()
+        return _finish_pending_scratch(target, runner, timer)
     logical_keys = tuple(item.logical_key for item in requests)
     if timer is not None:
         timer.active_keys = logical_keys
-    runner = (
-        _counting_git_runner(git_runner, timer) if timer is not None else git_runner
-    )
-    if timer is not None:
-        with timer.record_stage("payload_clean"):
-            cleanup_error = git_sync.clean_publication_worktree(
-                target.sidecar_path,
-                runner,
-            )
-    else:
-        cleanup_error = git_sync.clean_publication_worktree(
-            target.sidecar_path,
-            runner,
-        )
+    cleanup_error = _payload_clean(target, runner, timer)
     if cleanup_error is not None:
         return DrainResult(
             error=cleanup_error,
@@ -155,11 +218,14 @@ def publish_queued_locked(
             bounded_cleanup_alarm,
             bounded_git_runner,
         )
+        from sase.agents_sync.publication_scratch import list_publication_scratch_dirs
 
-        # One shared one-second deadline covers both regenerable families
-        # with no fresh allowance per git command or family. The original
-        # publication exception stays primary; cleanup trouble is diagnostic
-        # evidence that still leaves the request queued.
+        # One shared cleanup budget covers both regenerable families with no
+        # fresh allowance per git command or family. The original publication
+        # exception stays primary; cleanup trouble is diagnostic evidence
+        # that still leaves the request queued.
+        had_scratch = bool(list_publication_scratch_dirs(target.sidecar_path))
+        cleanup_error = None
         try:
             budget = PublicationCleanupBudget()
             cleanup_base = bounded_git_runner(git_runner, budget)
@@ -203,58 +269,49 @@ def publish_queued_locked(
             cleanup_error = (
                 f"cleanup raised {type(cleanup_exc).__name__}: {cleanup_exc}"
             )
+        _note_cleanup(
+            timer,
+            cleanup_error,
+            sidecar=target.sidecar_path,
+            had_scratch=had_scratch,
+        )
         if cleanup_error is not None:
             exc.add_note(f"publication cleanup also failed: {cleanup_error}")
         raise
-    else:
-        drop_error = None
-        if (
-            result.error is not None
-            and timer is not None
-            and timer.pass_commit_parent is not None
-        ):
-            drop_error = git_sync.drop_unacknowledged_agents_commit(
-                target.sidecar_path,
-                timer.pass_commit_parent,
-                runner,
-                op_prefix="agents_sync.failed_pass_drop_retry",
-            )
-            if drop_error is None:
-                timer.pass_commit_parent = None
-        if timer is not None:
-            with timer.record_stage("cleanup"):
-                cleanup_error = git_sync.clean_publication_worktree(
-                    target.sidecar_path, runner
-                )
-        else:
+    drop_error = None
+    if (
+        result.error is not None
+        and timer is not None
+        and timer.pass_commit_parent is not None
+    ):
+        drop_error = git_sync.drop_unacknowledged_agents_commit(
+            target.sidecar_path,
+            timer.pass_commit_parent,
+            runner,
+            op_prefix="agents_sync.failed_pass_drop_retry",
+        )
+        if drop_error is None:
+            timer.pass_commit_parent = None
+    from sase.agents_sync.publication_scratch import list_publication_scratch_dirs
+
+    had_scratch = bool(list_publication_scratch_dirs(target.sidecar_path))
+    if timer is not None:
+        with timer.record_stage("cleanup"):
             cleanup_error = git_sync.clean_publication_worktree(
                 target.sidecar_path, runner
             )
-        if drop_error is not None:
-            cleanup_error = (
-                f"could not drop failed publication commit: {drop_error}"
-                if cleanup_error is None
-                else f"{cleanup_error}; could not drop failed publication commit: {drop_error}"
-            )
-    if cleanup_error is None:
-        return result
-    if result.error is not None:
-        return DrainResult(
-            drained=result.drained,
-            item_errors=result.item_errors,
-            error=(f"{result.error}; publication cleanup also failed: {cleanup_error}"),
-            error_keys=result.error_keys or logical_keys,
-            failure_scope=result.failure_scope or REPOSITORY_FAILURE_SCOPE,
-            failure_stage=result.failure_stage or "cleanup",
+    else:
+        cleanup_error = git_sync.clean_publication_worktree(target.sidecar_path, runner)
+    if drop_error is not None:
+        cleanup_error = (
+            f"could not drop failed publication commit: {drop_error}"
+            if cleanup_error is None
+            else f"{cleanup_error}; could not drop failed publication commit: {drop_error}"
         )
-    # A cleanup failure after a successful acknowledged push must not resurrect
-    # or falsely charge completed rows: completed keys are already gone, so
-    # report the cleanup as repository evidence with no chargeable keys.
-    return DrainResult(
-        drained=result.drained,
-        item_errors=result.item_errors,
-        error=cleanup_error,
-        error_keys=(),
-        failure_scope=REPOSITORY_FAILURE_SCOPE,
-        failure_stage="cleanup",
+    _note_cleanup(
+        timer,
+        cleanup_error,
+        sidecar=target.sidecar_path,
+        had_scratch=had_scratch,
     )
+    return result

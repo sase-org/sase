@@ -450,7 +450,15 @@ def clean_agents_payload_worktree(
         return agents_git_error(
             "could not remove untracked agents sidecar payload", cleaned
         )
-    return None
+    if remaining_timeout is not None:
+        try:
+            if (remaining_timeout() or 0) <= 0:
+                return "publication cleanup budget exhausted"
+        except Exception:  # noqa: BLE001 - a failing clock ends cleanup.
+            return "publication cleanup budget exhausted"
+    from sase.agents_sync.publication_scratch import sweep_publication_scratch
+
+    return sweep_publication_scratch(repo)
 
 
 def _clear_stale_agents_index_lock(

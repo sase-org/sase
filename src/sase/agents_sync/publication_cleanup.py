@@ -1,4 +1,4 @@
-"""Shared one-second bound for best-effort publication cleanup after a drain timeout."""
+"""Shared Rust-owned bound for best-effort publication cleanup after a drain timeout."""
 
 from __future__ import annotations
 
@@ -12,6 +12,10 @@ import subprocess
 
 from sase.agents_sync.git import GitRunner
 
+CLEANUP_RESULT_COMPLETED = "completed"
+CLEANUP_RESULT_DEFERRED = "deferred"
+CLEANUP_RESULT_FAILED = "failed"
+
 
 def default_publication_cleanup_timeout() -> float:
     """Return the required Rust-owned cleanup budget in seconds."""
@@ -23,7 +27,20 @@ def default_publication_cleanup_timeout() -> float:
 
 
 class PublicationCleanupTimedOut(TimeoutError):
-    """Raised when bounded exception cleanup exhausts its one-second budget."""
+    """Raised when bounded exception cleanup exhausts its Rust-owned budget."""
+
+
+def classify_cleanup_result(error: str | None) -> str:
+    """Return ``completed``, ``deferred``, or ``failed`` for a cleanup error."""
+
+    if error is None or not str(error).strip():
+        return CLEANUP_RESULT_COMPLETED
+    text = str(error)
+    if "budget exhausted" in text or (
+        "publication cleanup" in text and "did not complete within" in text
+    ):
+        return CLEANUP_RESULT_DEFERRED
+    return CLEANUP_RESULT_FAILED
 
 
 class PublicationCleanupBudget:
@@ -87,7 +104,7 @@ def bounded_cleanup_alarm(
     signal.setitimer(signal.ITIMER_REAL, 0)
     signal.signal(signal.SIGALRM, _on_alarm)
     # Cap the alarm to the remaining budget so a near-exhausted budget
-    # cannot grant a fresh full second.
+    # cannot grant a fresh full allowance.
     remaining = max(budget.remaining(), 1e-6)
     signal.setitimer(signal.ITIMER_REAL, remaining)
     try:

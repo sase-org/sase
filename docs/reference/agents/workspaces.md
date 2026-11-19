@@ -395,15 +395,20 @@ reserved when uncommitted session work has no confirmed successor in that same
 workspace. This reservation is a **workspace hold**. SASE inspects the main checkout and
 the repositories recorded for the turn, comparing edits with their saved starting state.
 A follow-up that starts in another checkout does not take ownership of the original
-checkout's edits.
+checkout's edits. Publication scratch in the machine-wide agents sidecar
+(`.sase-v2-stage-*`, `.sase-v2-backup-*`, and other regenerable publisher dirt) is not
+session-owned; a run's own Q&A prompt snapshot there still is. A hold whose only
+remaining dirt is that scratch releases on the next re-probe.
 
 | Settlement evidence                                                                                  | Workspace outcome                      |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | The recorded claim now belongs to another turn                                                       | Leave the new owner's claim untouched  |
 | A confirmed successor inherits the same workspace and its obligations                                | Ownership passes to the successor      |
 | Session-owned edits remain                                                                           | Keep the workspace held                |
+| A run's own Q&A prompt snapshot remains in the machine-wide agents sidecar                           | Keep the workspace held                |
 | Repository inspection fails, or a repository owned by the turn has edits but no saved starting state | Keep the workspace held for inspection |
 | All relevant repositories are clean, or only unchanged pre-existing edits remain                     | Release the terminal turn's claim      |
+| The only remaining dirt is agents-sidecar publication scratch                                        | Release the terminal turn's claim      |
 
 The agent detail header shows **Workspace held: stranded work**, the checkout path,
 cause, recorded repositories, and any captured recovery diff paths. The durable record

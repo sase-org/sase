@@ -17,7 +17,12 @@ from sase.core.workspace_retention import (
 from sase.llm_provider.commit_finalizer_baseline import (
     load_finalizer_baseline_records,
 )
-from sase.llm_provider.commit_finalizer_git import normalize_path
+from sase.agents_sync.publication_scratch import is_publication_scratch_path
+from sase.llm_provider.commit_finalizer_git import (
+    has_only_prompt_qa_diff,
+    is_prompt_archive_path,
+    normalize_path,
+)
 from sase.llm_provider.commit_finalizer_git_status import (
     changed_files_from_git_status,
     split_pre_existing_changed_files,
@@ -227,6 +232,8 @@ def _collect_dirt(
             probe_errors.append(f"{repo.repo_id}: {error}")
             all_proven_clean = False
             continue
+        if dirty_paths and _is_agents_prompt_archive_repo(repo):
+            dirty_paths = _agents_sidecar_session_paths(repo.path, dirty_paths)
         dirty_by_repo[repo.repo_id] = tuple(sorted(dirty_paths or ()))
         if not dirty_paths:
             continue
@@ -266,6 +273,29 @@ def _collect_dirt(
         tuple(dict.fromkeys(affected)),
         tuple(sorted(dirty_by_repo.items())),
     )
+
+
+def _is_agents_prompt_archive_repo(repo: WorkspaceRetentionRepo) -> bool:
+    """Return whether *repo* is the machine-wide agents prompt-archive sidecar."""
+
+    if repo.repo_id == "sdd:agents prompt archive":
+        return True
+    if repo.repo_id.endswith(":agents prompt archive"):
+        return True
+    normalized = Path(repo.path).as_posix().rstrip("/")
+    return normalized.endswith("/repos/agents")
+
+
+def _agents_sidecar_session_paths(repo_path: str, dirty_paths: list[str]) -> list[str]:
+    """Keep only this run's Q&A prompt snapshot; drop publication scratch."""
+
+    return [
+        path
+        for path in dirty_paths
+        if is_prompt_archive_path(path)
+        and not is_publication_scratch_path(path)
+        and has_only_prompt_qa_diff(repo_path, path)
+    ]
 
 
 def _relevant_repos(

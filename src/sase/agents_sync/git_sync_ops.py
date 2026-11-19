@@ -24,6 +24,10 @@ from sase.agents_sync._git_sync_ops_payload import (
     commit_agents_payload_if_dirty,
     drop_unacknowledged_agents_commit,
 )
+from sase.agents_sync.publication_scratch import (
+    list_publication_scratch_dirs,
+    sweep_publication_scratch,
+)
 
 __all__ = [
     "AGENTS_SYNC_AUTO_COMMIT_TYPE",
@@ -40,6 +44,8 @@ __all__ = [
     "configured_agents_lock_timeout",
     "ensure_agents_clone",
     "is_agents_non_fast_forward",
+    "list_publication_scratch_dirs",
     "lock_holder_diagnostic",
     "pull_agents_rebase",
+    "sweep_publication_scratch",
 ]

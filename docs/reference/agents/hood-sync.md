@@ -438,11 +438,17 @@ absent from their published run's commits, and per-project hidden-clone state in
 `sidecar_states` (commits ahead of/behind upstream, rebase in progress, untracked
 `files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain also
 appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl` with
-per-stage durations and inventory counters; a failed drain names the sync-lock holder
-(pid, operation, agent, age) recorded beside the lock file. Profile a representative
-drain read-only with `tools/agents_publication_profile --project <key>`; see the
-[publication internals](../../contribute/agents-sidecar-sync.md) for profiling and
-repair procedures.
+per-stage durations, inventory counters, and a `cleanup_result` of `completed`,
+`deferred`, or `failed`. The drain alarm fires early enough to leave a cleanup reserve
+inside the overall timeout so exception cleanup can finish; a deferred cleanup is
+completed by the next pass's payload clean (`deferred_cleanup_completed`). Cleanup
+trouble stays diagnostic and never replaces the original drain error. Payload clean
+restores regenerable families from git, then removes root-level `.sase-v2-stage-*` and
+`.sase-v2-backup-*` directories left by an interrupted apply. A failed drain names the
+sync-lock holder (pid, operation, agent, age) recorded beside the lock file. Profile a
+representative drain read-only with `tools/agents_publication_profile --project <key>`;
+see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
+and repair procedures.
 
 Retired agent-publication requests stay stopped until an explicit recovery. After a
 publisher fix makes terminal work publishable, revive that project's retired hood

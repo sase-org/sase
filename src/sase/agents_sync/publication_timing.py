@@ -61,6 +61,8 @@ class DrainTiming:
     prompt_bytes: int = 0
     chat_bytes: int = 0
     stage_durations: dict[str, float] = field(default_factory=dict)
+    cleanup_result: str | None = None
+    deferred_cleanup_completed: bool = False
 
     @contextmanager
     def record_stage(self, name: str) -> Iterator[None]:
@@ -109,6 +111,8 @@ class DrainTiming:
             "prompt_bytes": self.prompt_bytes,
             "chat_bytes": self.chat_bytes,
             "stage_durations": dict(self.stage_durations),
+            "cleanup_result": self.cleanup_result,
+            "deferred_cleanup_completed": self.deferred_cleanup_completed,
         }
 
 

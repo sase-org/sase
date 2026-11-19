@@ -54,11 +54,32 @@ def _configured_publication_drain_timeout() -> float:
     return value if value > 0 else DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS
 
 
+def _drain_work_timeout(overall_seconds: float) -> float:
+    """Return the drain-alarm delay, leaving a cleanup reserve in *overall_seconds*.
+
+    A missing or invalid cleanup-policy binding leaves the full overall
+    timeout as the work alarm so the drain still runs; exception cleanup
+    then records the lookup failure as diagnostics.
+    """
+
+    from sase.agents_sync.publication_cleanup import default_publication_cleanup_timeout
+
+    try:
+        reserve = default_publication_cleanup_timeout()
+    except Exception:  # noqa: BLE001 - drain still runs; cleanup records the lookup.
+        return overall_seconds
+    remaining = overall_seconds - reserve
+    if remaining > 0:
+        return remaining
+    return max(overall_seconds / 2.0, 1e-6)
+
+
 @contextmanager
 def _bounded_publication_drain(
     timeout_seconds: float,
     *,
     timer: DrainTiming | None = None,
+    alarm_seconds: float | None = None,
 ) -> Iterator[None]:
     """Bound a synchronous drain so a stalled render cannot wedge the caller.
 
@@ -95,7 +116,8 @@ def _bounded_publication_drain(
     signal.setitimer(signal.ITIMER_REAL, 0)
     signal.signal(signal.SIGALRM, _on_alarm)
     started = time.monotonic()
-    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    alarm = timeout_seconds if alarm_seconds is None else alarm_seconds
+    signal.setitimer(signal.ITIMER_REAL, alarm)
     try:
         yield
     finally:
@@ -197,8 +219,11 @@ def drain_agent_publications(
                 timer=timer,
             )
         try:
+            overall_timeout = _configured_publication_drain_timeout()
             with _bounded_publication_drain(
-                _configured_publication_drain_timeout(), timer=timer
+                overall_timeout,
+                timer=timer,
+                alarm_seconds=_drain_work_timeout(overall_timeout),
             ):
                 result = publish_queued_locked(
                     target,
@@ -215,10 +240,15 @@ def drain_agent_publications(
                 if timer.alarm_keys is None:
                     timer.alarm_keys = tuple(timer.active_keys)
             timer.outcome = "timeout"
-            cleanup_notes = "\n".join(getattr(exc, "__notes__", ()))
             timer.error = str(exc)
-            if cleanup_notes:
-                timer.error = f"{timer.error}; {cleanup_notes}"
+            if timer.cleanup_result is None:
+                from sase.agents_sync.publication_cleanup import (
+                    classify_cleanup_result,
+                )
+
+                notes = "\n".join(getattr(exc, "__notes__", ()))
+                if notes:
+                    timer.cleanup_result = classify_cleanup_result(notes)
             alarm_stage = timer.alarm_stage or timer.stage or "drain"
             if hood_timeout_stage(alarm_stage):
                 scope = HOOD_FAILURE_SCOPE
@@ -242,25 +272,6 @@ def drain_agent_publications(
                 timer=timer,
             )
     if result.error is not None:
-        if result.drained > 0 and (
-            result.failure_scope == REPOSITORY_FAILURE_SCOPE
-            or result.failure_scope is None
-        ):
-            timer.outcome = "published_with_cleanup_error"
-            timer.error = result.error
-            timer.failure_scope = result.failure_scope or REPOSITORY_FAILURE_SCOPE
-            timer.failure_stage = result.failure_stage or "cleanup"
-            emit_drain_timing(timer)
-            remaining = list_agent_publications(target.project_key)
-            return CommitPublicationOutcome(
-                published=True,
-                queued=bool(remaining),
-                drained=result.drained,
-                quarantined=quarantined_count(remaining),
-                retired=retired_count(remaining),
-                error=result.error,
-                failure_scope=(result.failure_scope or REPOSITORY_FAILURE_SCOPE),
-            )
         timer.outcome = "failed_with_item_errors" if result.drained else "failed"
         timer.error = result.error
         timer.failure_scope = result.failure_scope or REPOSITORY_FAILURE_SCOPE
