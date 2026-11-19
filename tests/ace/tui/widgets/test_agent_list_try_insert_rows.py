@@ -99,6 +99,7 @@ def _snapshot(widget: AgentList) -> dict[str, Any]:
         "max_left": widget._max_left,
         "max_suffix": widget._max_suffix,
         "requested_width": widget._requested_width,
+        "painted_row_facts": widget._painted_row_facts,
     }
 
 

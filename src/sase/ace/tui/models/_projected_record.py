@@ -355,6 +355,17 @@ def _apply_full_record(agent: Agent, record: AgentArtifactRecordWire) -> bool:
     return changed
 
 
+def _is_list_owned_mirrored_session_root(agent: Agent) -> bool:
+    """Whether *agent* is a session container whose list-owned bucket must stick.
+
+    Selected-detail hydration writes ``status_bucket`` from meta/done wires.
+    A mirrored session root already carries the list-owned aggregate bucket
+    that the Agents tab grouped it under; overwriting it would regroup the
+    painted row without a roster rebuild.
+    """
+    return bool(agent.is_agent_session_container_row)
+
+
 def _restore_deferred_meta_detail(
     agent: Agent, record: AgentArtifactRecordWire
 ) -> bool:
@@ -370,6 +381,7 @@ def _restore_deferred_meta_detail(
 
     if record.agent_meta is None and record.waiting is None:
         return False
+    list_status_bucket = agent.status_bucket
     before = (
         agent.linked_repos,
         agent.output_variables,
@@ -391,6 +403,11 @@ def _restore_deferred_meta_detail(
         workflow_child=bool(agent.prompt_step_file_name),
         has_done_marker=record.has_done_marker,
     )
+    if (
+        _is_list_owned_mirrored_session_root(agent)
+        and agent.status_bucket != list_status_bucket
+    ):
+        agent.status_bucket = list_status_bucket
     after = (
         agent.linked_repos,
         agent.output_variables,
@@ -435,7 +452,11 @@ def _restore_deferred_row_detail(agent: Agent, record: AgentArtifactRecordWire) 
     done = record.done
     if done is None:
         return changed
-    if done.status_bucket and agent.status_bucket != done.status_bucket:
+    if (
+        done.status_bucket
+        and agent.status_bucket != done.status_bucket
+        and not _is_list_owned_mirrored_session_root(agent)
+    ):
         agent.status_bucket = done.status_bucket
         changed = True
     if done.response_path and agent.response_path != done.response_path:

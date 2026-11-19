@@ -131,6 +131,7 @@ class AgentList(AgentListRailMixin, AgentListBase):
             self._panel_collapsed = True
             self._grouping_mode = grouping_mode
             self._panel_paint_key = None
+            self._sync_painted_row_facts()
             self._refresh_requested_width()
         finally:
             self._programmatic_update = False

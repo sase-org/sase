@@ -8,9 +8,12 @@ so existing callers and tests keep working.
 from __future__ import annotations
 
 from ._display_panel_widgets_keys import (
+    PaintedRowFacts,
+    painted_row_facts,
     panel_agents_match,
     panel_fold_inputs,
     panel_paint_key,
+    panel_painted_row_facts,
     panel_row_signature,
 )
 from ._display_panel_widgets_mount import PanelWidgetMountMixin
@@ -35,9 +38,12 @@ __all__ = [
     "PanelWidgetPaintMixin",
     "PanelWidgetRefreshMixin",
     "PanelWidgetRefreshOrchestrationMixin",
+    "PaintedRowFacts",
     "_panel_fold_inputs",
+    "painted_row_facts",
     "panel_agents_match",
     "panel_fold_inputs",
     "panel_paint_key",
+    "panel_painted_row_facts",
     "panel_row_signature",
 ]

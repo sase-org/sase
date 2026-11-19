@@ -106,16 +106,18 @@ def _generation_matches(
     Only evidence recorded for the requested *clan* may satisfy or veto the
     match. Generations recorded for other clans in a mixed-clan batch are
     ignored, while selecting either constituent clan still cancels the whole
-    batch when that clan's own generation matches. The shared Rust policy is
-    authoritative when available; the Python below mirrors it for older pins.
+    batch when that clan's own generation matches. A Rust ``False`` is
+    authoritative. A Rust ``True`` still runs the Python policy, which can
+    veto an older generation killing a batch that never recorded one.
     """
+    rust_matched: bool | None = None
     try:
         from sase.core.axe_chop_facade import (
             CHOP_BATCH_SCHEMA_VERSION,
             chop_batch_generation_matches,
         )
 
-        return bool(
+        rust_matched = bool(
             chop_batch_generation_matches(
                 {
                     "schema_version": CHOP_BATCH_SCHEMA_VERSION,
@@ -126,7 +128,12 @@ def _generation_matches(
             )
         )
     except Exception:
-        pass
+        rust_matched = None
+    if rust_matched is False:
+        return False
+    # A Rust True still runs the Python policy below so an older generation
+    # cannot cancel a batch that never recorded one. The current core pin
+    # misses that veto.
     if not generation:
         return True
     members = (

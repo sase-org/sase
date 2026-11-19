@@ -2,13 +2,62 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from ...models.agent_groups import (
     GroupingMode,
     machine_grouping_signature,
+    status_bucket_for,
     status_grouping_signature,
 )
+
+
+@dataclass(frozen=True)
+class PaintedRowFacts:
+    """Grouping facts captured when a panel row was last painted.
+
+    Held :class:`~sase.ace.tui.models.agent.Agent` objects are shared and
+    mutated in place, so a gate that re-reads them cannot tell what the
+    widget actually painted. These snapshots are immutable and compared
+    against the incoming roster instead.
+    """
+
+    identity: Any
+    grouping: tuple[Any, ...]
+    tribe: Any
+    status_bucket: str
+    clan_wave: tuple[int | None, int] | None
+
+
+def painted_row_facts(agent: Any, grouping_mode: GroupingMode) -> PaintedRowFacts:
+    """Return the immutable grouping snapshot for one *agent* under *grouping_mode*."""
+    if grouping_mode is GroupingMode.BY_STATUS:
+        grouping: tuple[Any, ...] = status_grouping_signature(agent)
+    elif grouping_mode is GroupingMode.BY_MACHINE:
+        grouping = machine_grouping_signature(agent)
+    else:
+        grouping = ()
+    clan_wave: tuple[int | None, int] | None = None
+    if getattr(agent, "tree_depth", 0) > 0:
+        slot = getattr(agent, "clan_wave_slot", None)
+        if slot is not None:
+            clan_wave = (slot.wave_index, slot.rank)
+    return PaintedRowFacts(
+        identity=getattr(agent, "identity", None),
+        grouping=grouping,
+        tribe=getattr(agent, "tribe", None),
+        status_bucket=status_bucket_for(agent),
+        clan_wave=clan_wave,
+    )
+
+
+def panel_painted_row_facts(
+    agents: list[Any],
+    grouping_mode: GroupingMode,
+) -> tuple[PaintedRowFacts, ...]:
+    """Return painted-row snapshots for every agent in *agents*."""
+    return tuple(painted_row_facts(agent, grouping_mode) for agent in agents)
 
 
 def panel_row_signature(
@@ -16,17 +65,10 @@ def panel_row_signature(
     grouping_mode: GroupingMode,
 ) -> tuple[tuple[Any, ...], ...]:
     """Return visible-row identities plus grouping signatures for *agents*."""
-    rows: list[tuple[Any, ...]] = []
-    for agent in agents:
-        identity = getattr(agent, "identity", None)
-        if grouping_mode is GroupingMode.BY_STATUS:
-            extra: tuple[Any, ...] = status_grouping_signature(agent)
-        elif grouping_mode is GroupingMode.BY_MACHINE:
-            extra = machine_grouping_signature(agent)
-        else:
-            extra = ()
-        rows.append((identity, extra, getattr(agent, "tribe", None)))
-    return tuple(rows)
+    return tuple(
+        (facts.identity, facts.grouping, facts.tribe)
+        for facts in panel_painted_row_facts(agents, grouping_mode)
+    )
 
 
 def panel_agents_match(current: list[Any], target: list[Any]) -> bool:

@@ -602,9 +602,21 @@ class AgentPanelDetailMixin:
             return
         from ._loading_helpers import hydrate_agent_attempt_history
 
+        from ...models.agent_groups import GroupingMode
+        from ._display_panel_widgets_keys import painted_row_facts
+
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        before_facts = painted_row_facts(agent, grouping_mode)
         changed = hydrate_agent_attempt_history(agent)
         if changed:
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+            if painted_row_facts(agent, grouping_mode) != before_facts:
+                refresh = getattr(self, "_refresh_panel_widgets", None)
+                if callable(refresh):
+                    refresh(jump_hints=None)
+                debounce = getattr(self, "_refresh_agents_display_debounced", None)
+                if callable(debounce):
+                    debounce()
         if not agent.attempt_history:
             self.notify(  # type: ignore[attr-defined]
                 "No prior attempts for this agent", severity="warning"

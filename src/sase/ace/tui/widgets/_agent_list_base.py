@@ -129,6 +129,10 @@ class AgentListBase(OptionList, inherit_bindings=False):
         # Inputs of the last panel-owner paint; ``None`` once anything else
         # repaints the rows, so a stale snapshot can never match.
         self._panel_paint_key: tuple[Any, ...] | None = None
+        # Immutable grouping facts for the rows last painted into this
+        # widget. ``None`` means never painted (treat as changed);
+        # ``()`` is a collapsed or empty paint.
+        self._painted_row_facts: tuple[Any, ...] | None = None
         # Per-agent tier-guide gutter styles, captured during ``update_list``
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.
@@ -147,6 +151,26 @@ class AgentListBase(OptionList, inherit_bindings=False):
         # unchanged without touching the full render cache.
         self._row_last_left_by_identity: dict[Any, Any] = {}
         self._row_last_suffix_plain_by_identity: dict[Any, str] = {}
+
+    def _sync_painted_row_facts(self, agents: list[Agent] | None = None) -> None:
+        """Record grouping facts for the rows just painted into this widget."""
+        from ..actions.agents._display_panel_widgets_keys import panel_painted_row_facts
+
+        if agents is None:
+            agents = self._agents
+        self._painted_row_facts = panel_painted_row_facts(agents, self._grouping_mode)
+
+    def _replace_painted_row_fact(self, local_idx: int, agent: Agent) -> None:
+        """Replace one painted-fact slot after a successful in-place row patch."""
+        from ..actions.agents._display_panel_widgets_keys import painted_row_facts
+
+        facts = self._painted_row_facts
+        if facts is None or not (0 <= local_idx < len(facts)):
+            self._painted_row_facts = None
+            return
+        updated = list(facts)
+        updated[local_idx] = painted_row_facts(agent, self._grouping_mode)
+        self._painted_row_facts = tuple(updated)
 
     def update_list(
         self,

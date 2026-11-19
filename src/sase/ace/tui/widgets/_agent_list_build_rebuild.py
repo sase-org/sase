@@ -203,6 +203,7 @@ def build_list(
     finally:
         widget._programmatic_update = False
     widget._rail_rows_changed()
+    widget._sync_painted_row_facts(agents)
 
 
 __all__ = ["build_list"]

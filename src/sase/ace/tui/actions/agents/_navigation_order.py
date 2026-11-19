@@ -204,7 +204,98 @@ class AgentNavigationOrderMixin:
             agent_positions,
             banner_positions,
         )
+        heal = getattr(self, "_heal_painted_order_if_drifted", None)
+        if callable(heal):
+            heal(
+                stops,
+                focused_key=focused_key,
+                suppress_panel_rows=suppress_panel_rows,
+                focused_panel_collapsed=focused_panel_collapsed,
+            )
         return stops
+
+    def _heal_painted_order_if_drifted(
+        self,
+        stops: list[tuple[str, int | tuple[str, ...]]],
+        *,
+        focused_key: PanelKey | None,
+        suppress_panel_rows: bool,
+        focused_panel_collapsed: bool,
+    ) -> None:
+        """Rebuild the focused panel when its painted row order drifted.
+
+        j/k reads nav stops from ``build_agent_tree`` while the widget still
+        shows the last painted Options. When those orders diverge, clear the
+        painted snapshot so the next panel paint rebuilds the list. The nav
+        cache is already written before this runs so a rebuild cannot recurse
+        into this method.
+        """
+        if suppress_panel_rows or focused_panel_collapsed:
+            return
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None or not hasattr(self, "query_one"):
+            return
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+        from ...widgets._agent_list_styling import BANNER_ROW
+        from ._display_helpers import panel_widget_id_for_key, panel_widget_is_retiring
+        from ._refresh_trace import record_agents_refresh_trace
+
+        wid = panel_widget_id_for_key(focused_key)
+        try:
+            widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+        except (NoMatches, RuntimeError, LookupError, AttributeError):
+            # Live TUI raises NoMatches. Unmounted finalize/restore harnesses
+            # raise RuntimeError from query_one; heal must not break j/k or
+            # prior_pos restoration.
+            return
+        try:
+            if panel_widget_is_retiring(widget) or getattr(
+                widget, "_panel_collapsed", False
+            ):
+                return
+            row_entries = getattr(widget, "_row_entries", None)
+            if not isinstance(row_entries, list):
+                return
+
+            global_indices, _panel_agents = rendered_panel_slice(self, focused_key)
+            painted_globals: list[int] = []
+            drifted = False
+            for local_idx, _attempt in row_entries:
+                if local_idx == BANNER_ROW:
+                    continue
+                if not (0 <= local_idx < len(global_indices)):
+                    drifted = True
+                    break
+                painted_globals.append(global_indices[local_idx])
+            if not drifted:
+                nav_globals = [
+                    payload
+                    for kind, payload in stops
+                    if kind == "agent" and isinstance(payload, int)
+                ]
+                if painted_globals == nav_globals:
+                    return
+
+            widget._painted_row_facts = None
+            widget._panel_paint_key = None
+            record_agents_refresh_trace(
+                self,
+                stage="display_fallback",
+                source=getattr(self, "_agents_refresh_active_source", "local_mutation"),
+                display_cost="display_panel_rebuild",
+                fallback_reason="painted_order_drift",
+                panel=wid,
+            )
+            refresh = getattr(self, "_refresh_panel_widgets", None)
+            if callable(refresh):
+                refresh(jump_hints=None)
+            debounce = getattr(self, "_refresh_agents_display_debounced", None)
+            if callable(debounce):
+                debounce()
+        except Exception:
+            return
 
     def _panel_navigation_stop_maps(
         self,

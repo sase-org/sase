@@ -169,7 +169,15 @@ def try_remove_rows(
                 new_row_tier_styles[new_li] = tier
         new_row_idx += 1
 
+    old_facts = getattr(widget, "_painted_row_facts", None)
+    old_len = len(widget._agents)
     widget._agents = new_agents
+    if old_facts is None or len(old_facts) != old_len:
+        widget._painted_row_facts = None
+    else:
+        widget._painted_row_facts = tuple(
+            fact for li, fact in enumerate(old_facts) if li not in removed_local_set
+        )
     widget._row_entries = new_row_entries
     widget._banner_at_row = new_banner_at_row
     widget._group_at_row = new_group_at_row

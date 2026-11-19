@@ -10,7 +10,7 @@ from ._display_panel_widgets_keys import (
     panel_agents_match,
     panel_fold_inputs,
     panel_paint_key,
-    panel_row_signature,
+    panel_painted_row_facts,
 )
 from ._fold_scope import panel_fold_registry
 
@@ -59,11 +59,12 @@ class PanelWidgetPaintMixin(PanelRefreshStateMixin):
             return False
         if panel_collapsed:
             return True
-        current = list(getattr(widget, "_agents", None) or [])
-        if panel_row_signature(current, grouping_mode) != panel_row_signature(
-            panel_agents, grouping_mode
-        ):
+        painted = getattr(widget, "_painted_row_facts", None)
+        if painted is None:
             return False
+        if painted != panel_painted_row_facts(panel_agents, grouping_mode):
+            return False
+        current = list(getattr(widget, "_agents", None) or [])
         if not current:
             return True
         return panel_agents_match(current, panel_agents) and (

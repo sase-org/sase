@@ -12,6 +12,7 @@ from typing import Any
 
 from textual.widgets.option_list import DuplicateID, Option
 
+from ..actions.agents._display_panel_widgets_keys import painted_row_facts
 from ..models.agent import Agent, AgentType
 from ..models.agent_groups import (
     GroupingMode,
@@ -163,12 +164,19 @@ def try_insert_rows(
         return _decline_insert(widget, "stale_grouping_mode")
 
     # The old list must be an ordered subsequence of the new one; whatever
-    # else the new list holds is an insert.
+    # else the new list holds is an insert. Painted grouping facts, not the
+    # live Agent objects, decide whether a retained row is still the row
+    # that was painted: shared objects mutate in place.
+    painted = getattr(widget, "_painted_row_facts", None)
+    if painted is None or len(painted) != len(old_agents):
+        return _decline_insert(widget, "panel_membership_change")
     old_to_new: dict[int, int] = {}
     inserted: list[int] = []
     old_pos = 0
     for new_pos, agent in enumerate(agents):
         if old_pos < len(old_agents) and old_agents[old_pos].identity == agent.identity:
+            if painted[old_pos] != painted_row_facts(agent, grouping_mode):
+                return _decline_insert(widget, "panel_membership_change")
             if old_agents[old_pos] is not agent and old_agents[old_pos] != agent:
                 return _decline_insert(widget, "panel_membership_change")
             old_to_new[old_pos] = new_pos
@@ -335,6 +343,7 @@ def try_insert_rows(
         except (AttributeError, IndexError, DuplicateID):
             return _decline_insert(widget, "panel_membership_change")
         widget._agents = agents
+        widget._sync_painted_row_facts(agents)
         widget._row_entries = rows.row_entries
         widget._banner_at_row = rows.banner_at_row
         widget._group_at_row = rows.group_at_row

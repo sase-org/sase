@@ -349,6 +349,15 @@ class AgentDetailRenderMixin:
                 )
                 return
 
+            from ...models.agent_groups import GroupingMode
+            from ._display_panel_widgets_keys import painted_row_facts
+
+            grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            before_facts = (
+                None
+                if current_agent.is_clan_container
+                else painted_row_facts(current_agent, grouping_mode)
+            )
             changed = (
                 False
                 if current_agent.is_clan_container
@@ -356,6 +365,16 @@ class AgentDetailRenderMixin:
             )
             if changed:
                 self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+                if (
+                    before_facts is not None
+                    and painted_row_facts(current_agent, grouping_mode) != before_facts
+                ):
+                    refresh = getattr(self, "_refresh_panel_widgets", None)
+                    if callable(refresh):
+                        refresh(jump_hints=None)
+                    debounce = getattr(self, "_refresh_agents_display_debounced", None)
+                    if callable(debounce):
+                        debounce()
             if self._should_render_agent_detail_with_hints():
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
             else:
@@ -481,6 +500,11 @@ class AgentDetailRenderMixin:
                 mark_projected_agent_hydration_attempted(agent)
                 schedule_owned_inbox_detail_update(self)
             return
+        from ...models.agent_groups import GroupingMode
+        from ._display_panel_widgets_keys import painted_row_facts
+
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        before_facts = painted_row_facts(agent, grouping_mode)
         if not apply_projected_agent_record(
             agent,
             record,
@@ -488,6 +512,13 @@ class AgentDetailRenderMixin:
         ):
             return
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        if painted_row_facts(agent, grouping_mode) != before_facts:
+            refresh = getattr(self, "_refresh_panel_widgets", None)
+            if callable(refresh):
+                refresh(jump_hints=None)
+            debounce = getattr(self, "_refresh_agents_display_debounced", None)
+            if callable(debounce):
+                debounce()
         schedule_owned_inbox_detail_update(self)
 
     def _sync_selected_named_proc_detail_proc(

@@ -8,11 +8,10 @@ from sase.core.time import local_now
 
 from ...models.agent_groups import (
     GroupingMode,
-    machine_grouping_signature,
     rendered_group_keys,
     status_bucket_for,
-    status_grouping_signature,
 )
+from ._display_panel_widgets_keys import PaintedRowFacts, painted_row_facts
 from ._display_helpers import (
     TabName,
     panel_widget_id_for_key,
@@ -36,10 +35,10 @@ if TYPE_CHECKING:
     from ..navigation.jump_hints import PanelJumpTarget
 
 
-def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
+def _status_row_patch_is_safe(painted: PaintedRowFacts, new_agent: Agent) -> bool:
     """Whether a ``BY_STATUS`` row may be patched in place for *new_agent*.
 
-    Compares the currently-rendered row (*old_agent*) against the incoming
+    Compares the facts captured when the row was painted against the incoming
     *new_agent* under the status-grouping keys. The patch is safe only when the
     row identity is unchanged (same logical row) and the status bucket,
     name-root / name-prefix subgroup, and launch anchor are identical — i.e.
@@ -47,12 +46,13 @@ def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
     difference means the row may move, so the caller must fall back to a
     rebuild.
     """
-    if old_agent.identity != new_agent.identity:
-        return False
-    return status_grouping_signature(old_agent) == status_grouping_signature(new_agent)
+    incoming = painted_row_facts(new_agent, GroupingMode.BY_STATUS)
+    return (
+        painted.identity == incoming.identity and painted.grouping == incoming.grouping
+    )
 
 
-def _machine_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
+def _machine_row_patch_is_safe(painted: PaintedRowFacts, new_agent: Agent) -> bool:
     """Whether a ``BY_MACHINE`` row may be patched in place for *new_agent*.
 
     The patch is safe only when the row identity is unchanged and the
@@ -62,37 +62,37 @@ def _machine_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
     position) may have changed, so it forces a rebuild fallback just like a
     ``BY_STATUS`` bucket move.
     """
-    if old_agent.identity != new_agent.identity:
-        return False
-    return machine_grouping_signature(old_agent) == machine_grouping_signature(
-        new_agent
+    incoming = painted_row_facts(new_agent, GroupingMode.BY_MACHINE)
+    return (
+        painted.identity == incoming.identity and painted.grouping == incoming.grouping
     )
 
 
 def _clan_row_patch_preserves_order(
-    old_agent: Agent,
+    painted: PaintedRowFacts,
     new_agent: Agent,
     *,
     layered_clan_keys: frozenset[tuple[str, str | None]] = frozenset(),
 ) -> bool:
     """Whether a clan-projected row keeps its within-clan presentation rank."""
-    if not (old_agent.tree_depth > 0 or new_agent.tree_depth > 0):
-        return True
-    old_slot = old_agent.clan_wave_slot
     new_slot = new_agent.clan_wave_slot
+    new_wave = (
+        (new_slot.wave_index, new_slot.rank)
+        if new_agent.tree_depth > 0 and new_slot is not None
+        else None
+    )
+    if painted.clan_wave is None and new_wave is None and new_agent.tree_depth == 0:
+        return True
     clan_name = new_agent.presented_clan_reference_name() or new_agent.agent_clan
     clan_key = (clan_name, new_agent.agent_clan_generation)
     if (
-        old_slot is not None
-        and new_slot is not None
+        painted.clan_wave is not None
+        and new_wave is not None
         and clan_name is not None
         and clan_key in layered_clan_keys
     ):
-        return (old_slot.wave_index, old_slot.rank) == (
-            new_slot.wave_index,
-            new_slot.rank,
-        )
-    return status_bucket_for(old_agent) == status_bucket_for(new_agent)
+        return painted.clan_wave == new_wave
+    return painted.status_bucket == status_bucket_for(new_agent)
 
 
 def _by_status_remove_preserves_group_tree(
@@ -500,8 +500,25 @@ class PanelPatchMixin:
             )
             return False
 
+        facts = getattr(widget, "_painted_row_facts", None)
+        if facts is None or not (0 <= local_idx < len(facts)):
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
+            return False
+        painted = facts[local_idx]
+        if painted.identity != agent.identity:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
+            return False
+
         if not _clan_row_patch_preserves_order(
-            widget._agents[local_idx],
+            painted,
             agent,
             layered_clan_keys=getattr(widget, "_layered_clan_keys", frozenset()),
         ):
@@ -516,7 +533,7 @@ class PanelPatchMixin:
 
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         if grouping_mode is GroupingMode.BY_STATUS and not _status_row_patch_is_safe(
-            widget._agents[local_idx], agent
+            painted, agent
         ):
             # Under BY_STATUS a row patch is only safe for a non-structural
             # change (e.g. a deferred live-hint pencil): the row must stay in
@@ -530,7 +547,7 @@ class PanelPatchMixin:
             )
             return False
         if grouping_mode is GroupingMode.BY_MACHINE and not _machine_row_patch_is_safe(
-            widget._agents[local_idx], agent
+            painted, agent
         ):
             self._record_display_patch_trace(
                 display_cost="row_patch",
@@ -569,6 +586,10 @@ class PanelPatchMixin:
                 count=1,
             )
             return False
+
+        replace_fact = getattr(widget, "_replace_painted_row_fact", None)
+        if callable(replace_fact):
+            replace_fact(local_idx, agent)
 
         if refresh_title:
             slot = panel_index.slice_for(agent_panel_key)
