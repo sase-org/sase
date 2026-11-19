@@ -87,7 +87,6 @@ def _write_jsonl(path: Path, events: list[SkillUseEvent]) -> None:
 def _clear_cache() -> None:
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
-    skill_uses_module._skill_uses_snapshot_cache.clear()
 
 
 @pytest.fixture
@@ -276,12 +275,8 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
 
     _os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
 
-    for cache in (
-        skill_uses_module._skill_uses_cache,
-        skill_uses_module._skill_uses_snapshot_cache,
-    ):
-        for entry in cache.values():
-            entry.last_read_monotonic = 0.0
+    for entry in skill_uses_module._skill_uses_cache.values():
+        entry.last_read_monotonic = 0.0
 
     second = _load_skill_uses_for_agent(agent)
     assert [event.skill_name for event in second] == [
@@ -290,11 +285,13 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     ]
 
 
-def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
+def test_targeted_scan_runs_once_per_agent_and_revalidates(
     fake_project: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.skills import use_log as use_log_module
+
     artifacts_a = tmp_path / "artifacts" / "agent_a"
     artifacts_b = tmp_path / "artifacts" / "agent_b"
     artifacts_a.mkdir(parents=True)
@@ -318,24 +315,18 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
         ),
     ]
     _write_jsonl(log_path, events)
-    parsed_events = list(events)
-    parse_count = 0
+    scan_count = 0
+    real_query = use_log_module.query_skill_use_events
 
-    def fake_read_skill_use_events(
-        *,
-        project: str | None = None,
-        log_path: Path | None = None,
-    ) -> tuple[SkillUseEvent, ...]:
-        nonlocal parse_count
-        assert project == "skill-uses-test"
-        assert log_path is None
-        parse_count += 1
-        return tuple(parsed_events)
+    def counting_query(log_path: Path, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal scan_count
+        scan_count += 1
+        return real_query(log_path, **kwargs)
 
     monkeypatch.setattr(
         skill_uses_module,
-        "read_skill_use_events",
-        fake_read_skill_use_events,
+        "query_skill_use_events",
+        counting_query,
     )
 
     agent_a = _make_agent(
@@ -356,9 +347,9 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
     assert [
         item.event.skill_name for item in load_skill_uses_for_agent_context(agent_b)
     ] == ["sase_questions"]
-    assert parse_count == 1
+    assert scan_count == 2
 
-    parsed_events.append(
+    events.append(
         _make_event(
             skill_name="sase_memory_read",
             timestamp="2026-06-14T10:10:00+00:00",
@@ -367,14 +358,14 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
             use_id="alpha-new-use",
         )
     )
-    _write_jsonl(log_path, parsed_events)
+    _write_jsonl(log_path, events)
     future_mtime_ns = log_path.stat().st_mtime_ns + 10_000_000_000
     import os as _os
 
     _os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
     for cache in (
         skill_uses_module._skill_uses_cache,
-        skill_uses_module._skill_uses_snapshot_cache,
+        skill_uses_module._skill_uses_context_cache,
     ):
         for entry in cache.values():
             entry.last_read_monotonic = 0.0
@@ -385,7 +376,7 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
     assert [
         item.event.skill_name for item in load_skill_uses_for_agent_context(agent_b)
     ] == ["sase_questions"]
-    assert parse_count == 2
+    assert scan_count == 4
 
 
 def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:
@@ -654,3 +645,101 @@ def test_context_caps_to_limit_newest_first(fake_project: Path, tmp_path: Path) 
 
     assert [item.event.skill_name for item in result] == ["skill_5", "skill_4"]
     assert [item.agent_label for item in result] == ["coder", "plan"]
+
+
+def test_unrelated_events_are_never_materialized(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    """Retention test for sase-1tw: the whole-project log stays on disk."""
+    import gc
+
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name=f"other_{index}",
+            timestamp=f"2026-06-14T10:{index // 60:02d}:{index % 60:02d}+00:00",
+            agent_name="someone-else",
+            artifacts_dir=str(tmp_path / "artifacts" / "other"),
+            use_id=f"other-{index}",
+        )
+        for index in range(300)
+    ]
+    events.extend(
+        _make_event(
+            skill_name=f"mine_{index}",
+            timestamp=f"2026-06-14T11:{index:02d}:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+            use_id=f"mine-{index}",
+        )
+        for index in range(5)
+    )
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+    del events
+    gc.collect()
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = _load_skill_uses_for_agent(agent)
+
+    assert [event.skill_name for event in result] == [
+        f"mine_{i}" for i in (4, 3, 2, 1, 0)
+    ]
+    gc.collect()
+    live = [
+        obj
+        for obj in gc.get_objects()
+        if isinstance(obj, SkillUseEvent) and obj.project == "skill-uses-test"
+    ]
+    # Only the agent's own events survive: the 300 unrelated rows are parsed
+    # transiently at most and never retained.
+    assert len(live) == 5
+
+
+def test_scan_budget_bounds_sparse_agent_parse(
+    fake_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.skills import use_log as use_log_module
+
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name=f"other_{index}",
+            timestamp=f"2026-06-14T10:{index // 60:02d}:{index % 60:02d}+00:00",
+            agent_name="someone-else",
+            artifacts_dir=str(tmp_path / "artifacts" / "other"),
+            use_id=f"other-{index}",
+        )
+        for index in range(100)
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    parse_count = 0
+    real_from_mapping = use_log_module._event_from_mapping
+
+    def counting_from_mapping(data):  # type: ignore[no-untyped-def]
+        nonlocal parse_count
+        parse_count += 1
+        return real_from_mapping(data)
+
+    monkeypatch.setattr(use_log_module, "_event_from_mapping", counting_from_mapping)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    assert _load_skill_uses_for_agent(agent) == ()
+    # The sparse agent's miss scans the whole small log once, not once per
+    # cache entry, and never parses more lines than the log holds.
+    assert parse_count == 100
+
+    # The whole-file snapshot cache is gone: only bounded per-agent tables.
+    assert not hasattr(skill_uses_module, "_skill_uses_snapshot_cache")

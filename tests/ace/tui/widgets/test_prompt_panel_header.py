@@ -57,7 +57,6 @@ def _setup(
     opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
-    skill_uses_module._skill_uses_snapshot_cache.clear()
     sase_home = tmp_path / "sase-home"
     sase_home.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: sase_home))
@@ -90,7 +89,6 @@ def _setup(
     opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
-    skill_uses_module._skill_uses_snapshot_cache.clear()
 
 
 def _assert_dim_divider_before(header: Text, section: str) -> None:

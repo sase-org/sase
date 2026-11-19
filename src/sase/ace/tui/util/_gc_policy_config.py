@@ -48,6 +48,7 @@ CENSUS_WATCHLIST: frozenset[str] = frozenset(
         "sase.bead.stranded.StrandedReport",
         "sase.memory._read_log_models.MemoryReadEvent",
         "sase.ace.tui.memory_reads.MemoryReadDisplayEvent",
+        "sase.skills.use_log.SkillUseEvent",
         "sase.core.stranded_work_facade.StrandedWorkReport",
         "sase.core.stranded_work_facade.StrandedWorkVerdict",
         "sase.notifications.models.Notification",

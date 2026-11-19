@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,13 +15,12 @@ from sase.ace.tui.util.normalized_dirs import (
 from sase.main.init_memory.config import project_memory_name
 from sase.skills.use_log import (
     SkillUseEvent,
-    read_skill_use_events,
+    query_skill_use_events,
     skill_use_log_path,
 )
 
 MAX_KEPT_SKILL_USES = 50
 _MIN_REREAD_INTERVAL_S = 0.5
-_MAX_SNAPSHOT_CACHE_PROJECTS = 8
 _MAX_DERIVED_CACHE_ENTRIES = 128
 _LogStat = tuple[int, int]
 
@@ -54,23 +54,12 @@ class _SkillUsesContextCacheEntry:
     last_read_monotonic: float
 
 
-@dataclass
-class _SkillUsesSnapshotCacheEntry:
-    events: tuple[SkillUseEvent, ...]
-    log_mtime_ns: int
-    log_size: int
-    last_read_monotonic: float
-
-
 _skill_uses_cache: BoundedLRUCache[tuple[str, str], _SkillUsesCacheEntry] = (
     BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
 )
 _skill_uses_context_cache: BoundedLRUCache[
     tuple[str, tuple[str, ...]], _SkillUsesContextCacheEntry
 ] = BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
-_skill_uses_snapshot_cache: BoundedLRUCache[str, _SkillUsesSnapshotCacheEntry] = (
-    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
-)
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -92,28 +81,31 @@ def _cache_key(project: str, agent: Agent) -> tuple[str, str]:
     return (project, get_cache_key(agent))
 
 
-def _filter_events_for_agent(
-    events: tuple[SkillUseEvent, ...], agent: Agent
-) -> tuple[SkillUseEvent, ...]:
-    artifacts_dir_raw = agent.get_artifacts_dir()
-    agent_artifacts_dir = _normalize_dir(artifacts_dir_raw)
-    agent_name = agent.agent_name
+def _agent_matcher(agent: Agent) -> Callable[[SkillUseEvent], bool] | None:
+    """Return the event predicate for ``agent``.
 
-    matches: list[SkillUseEvent] = []
-    for event in events:
+    Returns ``None`` when the agent carries neither an artifacts dir nor a
+    name, in which case no log event can match it. Artifact-dir matching
+    wins when the event has an artifacts dir; matching by agent name is only
+    a fallback for events that lack one.
+    """
+    agent_artifacts_dir = _normalize_dir(agent.get_artifacts_dir())
+    agent_name = agent.agent_name
+    if agent_artifacts_dir is None and not agent_name:
+        return None
+
+    def matches(event: SkillUseEvent) -> bool:
         event_artifacts_dir = _normalize_dir(event.artifacts_dir)
         if event_artifacts_dir is not None and agent_artifacts_dir is not None:
-            if event_artifacts_dir == agent_artifacts_dir:
-                matches.append(event)
-            continue
+            return event_artifacts_dir == agent_artifacts_dir
         # Fallback: match by agent_name when the event has no artifacts_dir.
-        if (
+        return bool(
             event_artifacts_dir is None
             and agent_name
             and event.agent_name == agent_name
-        ):
-            matches.append(event)
-    return tuple(matches)
+        )
+
+    return matches
 
 
 def _stat_mtime_ns(path: Path) -> int:
@@ -140,39 +132,15 @@ def _cache_entry_stat(
     return (entry.log_mtime_ns, entry.log_size)
 
 
-def _load_skill_use_events_snapshot(
-    project: str,
-    *,
-    log_path: Path,
-    now: float,
-    current_stat: _LogStat,
-) -> tuple[tuple[SkillUseEvent, ...], _LogStat]:
-    cached = _skill_uses_snapshot_cache.peek(project)
-    if cached is not None:
-        cached_stat = (cached.log_mtime_ns, cached.log_size)
-        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == cached_stat:
-            _skill_uses_snapshot_cache.touch(project)
-            return cached.events, cached_stat
-
-    events = read_skill_use_events(project=project)
-    entry = _SkillUsesSnapshotCacheEntry(
-        events=events,
-        log_mtime_ns=current_stat[0],
-        log_size=current_stat[1],
-        last_read_monotonic=now,
-    )
-    _skill_uses_snapshot_cache[project] = entry
-    return events, current_stat
-
-
 def _load_skill_uses_for_agent(
     agent: Agent, *, limit: int = MAX_KEPT_SKILL_USES
 ) -> tuple[SkillUseEvent, ...]:
     """Return skill-use events attributed to ``agent``, newest first.
 
-    Uses an mtime-keyed cache + throttle to make repeated calls cheap on the
-    j/k navigation hot path.
+    Issues one targeted newest-first log scan per log change and keeps only
+    the capped per-agent result; the whole-project log is never
+    materialized. Uses an mtime-keyed cache + throttle to make repeated
+    calls cheap on the j/k navigation hot path.
     """
     project = _project_name_for_agent(agent)
     if project is None:
@@ -190,19 +158,20 @@ def _load_skill_uses_for_agent(
             _skill_uses_cache.touch(key)
             return cached.events[:limit]
 
-    all_events, snapshot_stat = _load_skill_use_events_snapshot(
-        project,
-        log_path=log_path,
-        now=now,
-        current_stat=current_stat,
+    matcher = _agent_matcher(agent)
+    capped = (
+        ()
+        if matcher is None
+        else query_skill_use_events(
+            log_path,
+            limit=MAX_KEPT_SKILL_USES,
+            predicate=matcher,
+        )
     )
-    filtered = _filter_events_for_agent(all_events, agent)
-    ordered = tuple(sorted(filtered, key=lambda event: event.timestamp, reverse=True))
-    capped = ordered[:MAX_KEPT_SKILL_USES]
     _skill_uses_cache[key] = _SkillUsesCacheEntry(
         events=capped,
-        log_mtime_ns=snapshot_stat[0],
-        log_size=snapshot_stat[1],
+        log_mtime_ns=current_stat[0],
+        log_size=current_stat[1],
         last_read_monotonic=now,
     )
     return capped[:limit]
@@ -215,10 +184,11 @@ def load_skill_uses_for_agent_context(
 
     For an ordinary row with no follow-up session members this delegates to
     :func:`_load_skill_uses_for_agent` and wraps each event with no label,
-    preserving the single-agent visual shape. For a session row it reads the
-    log once, attributes each event to a member, de-duplicates by event id,
-    sorts newest first, caps to ``MAX_KEPT_SKILL_USES``, and labels each kept
-    event with its producer's compact role.
+    preserving the single-agent visual shape. For a session row it runs one
+    targeted newest-first scan, attributes each event to a member,
+    de-duplicates by event id, sorts newest first, caps to
+    ``MAX_KEPT_SKILL_USES``, and labels each kept event with its producer's
+    compact role.
     """
     from sase.ace.tui.agent_context_members import (
         build_context_members,
@@ -247,15 +217,24 @@ def load_skill_uses_for_agent_context(
             _skill_uses_context_cache.touch(key)
             return cached.events[:limit]
 
-    all_events, snapshot_stat = _load_skill_use_events_snapshot(
-        project,
-        log_path=log_path,
-        now=now,
-        current_stat=current_stat,
+    def matches_any_member(event: SkillUseEvent) -> bool:
+        return (
+            match_event_label(
+                members,
+                artifacts_dir=event.artifacts_dir,
+                agent_name=event.agent_name,
+            )
+            is not None
+        )
+
+    scanned = query_skill_use_events(
+        log_path,
+        limit=MAX_KEPT_SKILL_USES,
+        predicate=matches_any_member,
     )
     matched: list[SkillUseDisplayEvent] = []
     seen_ids: set[str] = set()
-    for event in all_events:
+    for event in scanned:
         if event.id in seen_ids:
             continue
         label = match_event_label(
@@ -274,8 +253,8 @@ def load_skill_uses_for_agent_context(
     capped = ordered[:MAX_KEPT_SKILL_USES]
     _skill_uses_context_cache[key] = _SkillUsesContextCacheEntry(
         events=capped,
-        log_mtime_ns=snapshot_stat[0],
-        log_size=snapshot_stat[1],
+        log_mtime_ns=current_stat[0],
+        log_size=current_stat[1],
         last_read_monotonic=now,
     )
     return capped[:limit]

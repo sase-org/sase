@@ -56,6 +56,11 @@ def _run_idle_census(
     return policy, emitted
 
 
+def test_census_watchlist_tracks_retained_skill_use_events() -> None:
+    """heap_retainers: the census must track the top TUI-owned retainer type."""
+    assert "sase.skills.use_log.SkillUseEvent" in set(gc_policy.CENSUS_WATCHLIST)
+
+
 def test_census_off_by_default(
     clock: Clock, collector: Collector, recorder: Recorder
 ) -> None:
@@ -408,6 +413,9 @@ def test_known_cache_census_reports_current_bounded_owners(
     names = set(rows)
     assert "sase.ace.tui.artifact_reads._artifact_reads_snapshot_cache" not in names
     assert "sase.ace.tui._bead_touches_loader._bead_touches_snapshot_cache" not in names
+    # heap_retainers removed the whole-file skill-use snapshot cache: only
+    # the bounded per-agent tables may retain SkillUseEvent rows.
+    assert "sase.ace.tui.skill_uses._skill_uses_snapshot_cache" not in names
 
 
 def test_missing_expected_cache_is_not_reported_as_a_zero_owner(

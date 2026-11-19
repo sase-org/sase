@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
@@ -317,6 +317,55 @@ def _runtime_bucket(runtime: str | None) -> str:
     return stripped or "unknown"
 
 
+#: Default newest-first scan budget for :func:`query_skill_use_events`.
+#: Bounds per-miss parse work on large logs; small logs still scan fully.
+DEFAULT_SKILL_USE_QUERY_SCAN_LIMIT = 5000
+
+
+def query_skill_use_events(
+    log_path: Path,
+    *,
+    limit: int,
+    predicate: Callable[[SkillUseEvent], bool] | None = None,
+    scan_limit: int = DEFAULT_SKILL_USE_QUERY_SCAN_LIMIT,
+) -> tuple[SkillUseEvent, ...]:
+    """Return up to *limit* newest-first events matching *predicate*.
+
+    Scans the JSONL log newest-first and stops after *limit* matches or
+    *scan_limit* lines, so hot-path loaders never materialize a whole
+    project's log. Malformed lines are skipped like
+    :func:`read_skill_use_events` does. Matches are sorted newest-first by
+    timestamp, which matches full-scan order when the log is append-ordered.
+    """
+    with locked_file(log_path.with_suffix(".lock"), fcntl.LOCK_SH):
+        try:
+            text = log_path.read_text(encoding="utf-8")
+        except OSError:
+            return ()
+    matched: list[SkillUseEvent] = []
+    scanned = 0
+    for line in reversed(text.splitlines()):
+        if len(matched) >= limit or scanned >= scan_limit:
+            break
+        scanned += 1
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        event = _event_from_mapping(data)
+        if event is None:
+            continue
+        if predicate is not None and not predicate(event):
+            continue
+        matched.append(event)
+    matched.sort(key=lambda event: event.timestamp, reverse=True)
+    return tuple(matched)
+
+
 __all__ = [
     "SKILL_USE_LOG_SCHEMA_VERSION",
     "SkillUseAgentSummary",
@@ -329,6 +378,7 @@ __all__ = [
     "filter_skill_use_events",
     "normalize_skill_name",
     "normalize_skill_reason",
+    "query_skill_use_events",
     "read_skill_use_events",
     "skill_use_log_path",
     "summarize_skill_uses_by_agent",

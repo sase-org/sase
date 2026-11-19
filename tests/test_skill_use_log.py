@@ -16,6 +16,7 @@ from sase.skills.use_log import (
     filter_skill_use_events,
     normalize_skill_name,
     normalize_skill_reason,
+    query_skill_use_events,
     read_skill_use_events,
     skill_use_log_path,
     summarize_skill_uses_by_agent,
@@ -94,6 +95,69 @@ def test_append_and_read_skill_use_events_tolerates_malformed_jsonl(
         f.write(json.dumps({"schema_version": 1, "id": "missing-fields"}) + "\n")
 
     assert read_skill_use_events(log_path=log_path) == (event,)
+
+
+def test_query_skill_use_events_scans_newest_first_with_limit(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "skill_uses.jsonl"
+    lines = []
+    for index in range(6):
+        event = build_skill_use_event(
+            f"skill_{index}",
+            reason="Need plan",
+            agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", "/tmp/artifacts"),
+            project="proj",
+            cwd=tmp_path,
+            now=datetime(2026, 6, 14, 12, index, tzinfo=UTC),
+            use_id=f"skill-{index}",
+            runtime="codex",
+        )
+        append_skill_use_event(event, log_path=log_path)
+        lines.append(event)
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("not json\n")
+
+    matched = query_skill_use_events(
+        log_path,
+        limit=3,
+        predicate=lambda event: event.agent_name == "agent-a",
+    )
+    assert [event.skill_name for event in matched] == [
+        "skill_5",
+        "skill_4",
+        "skill_3",
+    ]
+
+
+def test_query_skill_use_events_honors_scan_limit(tmp_path: Path) -> None:
+    log_path = tmp_path / "skill_uses.jsonl"
+    for index in range(10):
+        event = build_skill_use_event(
+            f"skill_{index}",
+            reason="Need plan",
+            agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", "/tmp/artifacts"),
+            project="proj",
+            cwd=tmp_path,
+            now=datetime(2026, 6, 14, 12, index, tzinfo=UTC),
+            use_id=f"skill-{index}",
+            runtime="codex",
+        )
+        append_skill_use_event(event, log_path=log_path)
+
+    matched = query_skill_use_events(
+        log_path,
+        limit=50,
+        predicate=lambda event: True,
+        scan_limit=4,
+    )
+    assert [event.skill_name for event in matched] == [
+        "skill_9",
+        "skill_8",
+        "skill_7",
+        "skill_6",
+    ]
+    assert query_skill_use_events(tmp_path / "missing.jsonl", limit=5) == ()
 
 
 def test_skill_use_log_path_uses_project_state_under_home(

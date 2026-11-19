@@ -318,12 +318,6 @@ def known_cache_census() -> list[dict[str, Any]]:
             "src/sase/ace/tui/glossary_reads.py",
             "lru",
         ),
-        (
-            "sase.ace.tui.skill_uses",
-            "_skill_uses_snapshot_cache",
-            "src/sase/ace/tui/skill_uses.py",
-            "lru",
-        ),
     )
     rows: list[dict[str, Any]] = []
     for module_name, attr, anchor, kind in probes:

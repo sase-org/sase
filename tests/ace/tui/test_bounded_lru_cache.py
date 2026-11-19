@@ -33,10 +33,7 @@ _DERIVED_CACHE_TABLES = (
     _bead_touches_loader._bead_touches_context_cache,
 )
 
-_SNAPSHOT_CACHE_TABLES = (
-    skill_uses._skill_uses_snapshot_cache,
-    glossary_reads._glossary_reads_snapshot_cache,
-)
+_SNAPSHOT_CACHE_TABLES = (glossary_reads._glossary_reads_snapshot_cache,)
 
 
 class _Payload:
