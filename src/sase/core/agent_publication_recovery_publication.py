@@ -40,6 +40,7 @@ PROMPT_STATUS_ALREADY_ARCHIVED = "already_archived"
 PROMPT_STATUS_NOT_APPLICABLE = "not_applicable"
 PROMPT_STATUS_UNAVAILABLE = "unavailable"
 PROMPT_STATUS_FAILED = "failed"
+PROMPT_STATUS_UNRECOVERABLE = "unrecoverable"
 
 _KINDS = frozenset({PUBLICATION_KIND_RUN, PUBLICATION_KIND_SESSION})
 _PROMPT_STATUSES = frozenset(
@@ -49,6 +50,7 @@ _PROMPT_STATUSES = frozenset(
         PROMPT_STATUS_NOT_APPLICABLE,
         PROMPT_STATUS_UNAVAILABLE,
         PROMPT_STATUS_FAILED,
+        PROMPT_STATUS_UNRECOVERABLE,
     }
 )
 
@@ -460,8 +462,15 @@ def classify_deferred_prompt_obligation(
     local_source_present: bool,
     archive_present: bool,
     prompt_file_in_snapshot: bool | None,
+    past_grace_period: bool = False,
+    attempts_exhausted: bool = False,
 ) -> DeferredPromptDecision:
-    """Classify one deferred prompt as restored, archived, n/a, unavailable, or failed."""
+    """Classify one deferred prompt, including the terminal unrecoverable outcome.
+
+    ``past_grace_period`` and ``attempts_exhausted`` are optional so callers
+    pinned to an older ``sase-core-rs`` keep working: an older core ignores
+    the unknown wire fields and never reports ``unrecoverable``.
+    """
 
     binding = require_rust_binding("classify_deferred_prompt_obligation")
     raw = binding(
@@ -472,6 +481,8 @@ def classify_deferred_prompt_obligation(
             "local_source_present": bool(local_source_present),
             "archive_present": bool(archive_present),
             "prompt_file_in_snapshot": prompt_file_in_snapshot,
+            "past_grace_period": bool(past_grace_period),
+            "attempts_exhausted": bool(attempts_exhausted),
         }
     )
     if not isinstance(raw, dict):

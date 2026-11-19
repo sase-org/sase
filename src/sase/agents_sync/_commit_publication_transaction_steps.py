@@ -327,13 +327,40 @@ def acknowledge_completed(
             if not charge:
                 _park_one(item.logical_key, prompt_error)
                 continue
-            hooks.update_publications(
+            # A terminal unrecoverable prompt retires with an audit record
+            # instead of quarantining forever: it stops retries, releases pool
+            # protection, and never counts as success.
+            terminal_failure = prompt_failure.terminal
+            updated_rows = hooks.update_publications(
                 target.project_key,
                 (item.logical_key,),
                 error=prompt_error,
                 increment_attempts=True,
-                quarantine_threshold=hooks.configured_max_attempts(),
+                quarantine_threshold=(
+                    None if terminal_failure else hooks.configured_max_attempts()
+                ),
+                terminal_reason=prompt_error if terminal_failure else None,
             )
+            if terminal_failure:
+                from sase.agents_sync.prompt_archive.terminal import (
+                    record_terminal_prompt_transition,
+                )
+
+                updated_items = updated_rows if isinstance(updated_rows, tuple) else ()
+                retired = next(
+                    (
+                        row
+                        for row in updated_items
+                        if getattr(row, "logical_key", None) == item.logical_key
+                    ),
+                    None,
+                )
+                if retired is not None:
+                    record_terminal_prompt_transition(
+                        project_key=target.project_key,
+                        before=item,
+                        after=retired,
+                    )
             gate_errors.append(prompt_error)
             continue
         try:

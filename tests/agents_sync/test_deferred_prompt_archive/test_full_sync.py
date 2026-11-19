@@ -10,10 +10,16 @@ from pathlib import Path
 import pytest
 
 from sase.agents_sync import git_sync
+from sase.agents_sync._commit_publication_outbox import retired_count
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.agents_sync.prompt_archive import publish as archive_publish
 from sase.agents_sync.prompt_archive.deferred import DEFERRED_PROMPT_GRACE_SECONDS
 from sase.agents_sync.prompt_archive.publish import publish_prompt_archive
+from sase.agents_sync.prompt_archive.terminal import (
+    TERMINAL_PROMPT_ARCHIVE_REASON_PREFIX,
+    is_terminal_prompt_archive_reason,
+    terminal_obligations_path,
+)
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     list_agent_publications,
@@ -258,3 +264,62 @@ def test_full_sync_parks_a_blocked_prompt_without_charging_attempts(
     assert remaining.attempts == 0
     assert not remaining.terminal
     assert remaining.last_error == PROMPT_PROTECTION_BLOCKED
+
+
+def test_full_sync_retires_unrecoverable_prompt_with_audit(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """An unrestorable prompt retires over two passes, audited, never published."""
+
+    target, remote, artifacts_dir = deferred_publication
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+    for leftover in artifacts_dir.glob("raw_*.md"):
+        leftover.unlink()
+
+    def age_and_spend(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        return tuple(
+            replace(
+                item,
+                created_at=item.created_at - (DEFERRED_PROMPT_GRACE_SECONDS + 1),
+                attempts=2,
+            )
+            for item in items
+        )
+
+    mutate_publication_outbox(target.project_key, age_and_spend)
+
+    [first] = git_sync.sync_agents(("proj",))
+    assert first.error is None
+    [charged] = list_agent_publications(target.project_key)
+    assert charged.terminal is False
+    assert charged.quarantined is False
+    assert is_terminal_prompt_archive_reason(charged.last_error)
+    assert not terminal_obligations_path().exists()
+
+    [second] = git_sync.sync_agents(("proj",))
+    assert second.error is None
+    [terminal] = list_agent_publications(target.project_key)
+    assert terminal.terminal is True
+    assert terminal.quarantined is False
+    assert is_terminal_prompt_archive_reason(terminal.terminal_reason)
+
+    records = terminal_obligations_path().read_text(encoding="utf-8").splitlines()
+    assert len(records) == 1
+    audit = json.loads(records[0])
+    assert audit["project_key"] == target.project_key
+    assert audit["global_agent"] == GLOBAL_AGENT
+    assert audit["primary_revision"] == REVISION
+
+    # The prompt never reached the sidecar, and the request was retired, not
+    # acknowledged as published: it stays in the outbox as terminal.
+    verify = tmp_path / "verify-terminal"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    assert retired_count(list_agent_publications(target.project_key)) == 1
+    assert any(
+        TERMINAL_PROMPT_ARCHIVE_REASON_PREFIX in line for line in second.diagnostics
+    )

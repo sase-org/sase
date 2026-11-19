@@ -196,7 +196,10 @@ def sync_agents(
                     # instead of being retired as unpublishable. Withheld and
                     # uncharged prompt-protection rows park instead of retrying
                     # every pass; they are excluded from selection until the
-                    # Rust recheck predicate says they are due.
+                    # Rust recheck predicate says they are due. A terminal
+                    # unrecoverable prompt instead retires with an audit
+                    # record: it stops retries, releases pool protection, and
+                    # never counts as success.
                     withheld_error = settlement_error_for_withheld_request(
                         global_agent=item.global_agent,
                         local_hood=item.local_hood,
@@ -219,19 +222,46 @@ def sync_agents(
                         if not charge:
                             park_reasons[item.logical_key] = error
                             continue
+                        terminal_failure = prompt_failure.terminal
                     else:
                         error = refusals[item.logical_key]
                         charge = True
-                    update_agent_publications(
+                        terminal_failure = False
+                    updated = update_agent_publications(
                         target.project_key,
                         (item.logical_key,),
                         error=error,
                         increment_attempts=charge,
                         quarantine_threshold=(
-                            configured_publication_max_attempts() if charge else None
+                            configured_publication_max_attempts()
+                            if charge and not terminal_failure
+                            else None
                         ),
-                        terminal_reason=None if prompt_failure is not None else error,
+                        terminal_reason=(
+                            error
+                            if terminal_failure or prompt_failure is None
+                            else None
+                        ),
                     )
+                    if terminal_failure:
+                        from sase.agents_sync.prompt_archive.terminal import (
+                            record_terminal_prompt_transition,
+                        )
+
+                        retired = next(
+                            (
+                                row
+                                for row in updated
+                                if row.logical_key == item.logical_key
+                            ),
+                            None,
+                        )
+                        if retired is not None:
+                            record_terminal_prompt_transition(
+                                project_key=target.project_key,
+                                before=item,
+                                after=retired,
+                            )
                 if park_reasons:
                     park_agent_publications(target.project_key, park_reasons)
             referenced_by_diagnostics: tuple[str, ...] = ()

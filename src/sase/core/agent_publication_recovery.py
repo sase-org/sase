@@ -50,6 +50,7 @@ from sase.core.agent_publication_recovery_publication import (
     PROMPT_STATUS_NOT_APPLICABLE,
     PROMPT_STATUS_RESTORED,
     PROMPT_STATUS_UNAVAILABLE,
+    PROMPT_STATUS_UNRECOVERABLE,
     STALE_REPAIR_ACTION_LINKED,
     STALE_REPAIR_ACTION_REPAIRED,
     STALE_REPAIR_ACTION_UNCHANGED,
@@ -236,8 +237,10 @@ def classify_deferred_prompt_obligation(
     local_source_present: bool,
     archive_present: bool,
     prompt_file_in_snapshot: bool | None,
+    past_grace_period: bool = False,
+    attempts_exhausted: bool = False,
 ) -> DeferredPromptDecision:
-    """Classify one deferred prompt as restored, archived, n/a, unavailable, or failed."""
+    """Classify one deferred prompt, including the terminal unrecoverable outcome."""
     _sync_publication_patchables()
     return publication_impl.classify_deferred_prompt_obligation(
         restore_wrote=restore_wrote,
@@ -245,6 +248,8 @@ def classify_deferred_prompt_obligation(
         local_source_present=local_source_present,
         archive_present=archive_present,
         prompt_file_in_snapshot=prompt_file_in_snapshot,
+        past_grace_period=past_grace_period,
+        attempts_exhausted=attempts_exhausted,
     )
 
 
@@ -327,6 +332,7 @@ __all__ = [
     "PROMPT_STATUS_NOT_APPLICABLE",
     "PROMPT_STATUS_RESTORED",
     "PROMPT_STATUS_UNAVAILABLE",
+    "PROMPT_STATUS_UNRECOVERABLE",
     "PUBLICATION_ERROR_INDEX_LOCK",
     "PUBLICATION_ERROR_LOCK_BUSY",
     "PUBLICATION_ERROR_MANIFEST_MISMATCH",

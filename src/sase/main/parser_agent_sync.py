@@ -212,7 +212,7 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "Clear quarantined requests for full sync; with --retry-limit, select "
-            "a bounded hood-request batch"
+            "a bounded hood-request batch; terminal rows stay retired"
         ),
     )
     sync_parser.add_argument(

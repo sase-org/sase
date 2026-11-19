@@ -15,6 +15,7 @@ from sase.core.agent_publication_recovery import (
     PROMPT_STATUS_ALREADY_ARCHIVED,
     PROMPT_STATUS_NOT_APPLICABLE,
     PROMPT_STATUS_UNAVAILABLE,
+    PROMPT_STATUS_UNRECOVERABLE,
     PUBLICATION_KIND_RUN,
     PUBLICATION_KIND_SESSION,
     PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
@@ -220,6 +221,37 @@ def test_deferred_prompt_missing_source_is_unavailable_without_evidence() -> Non
     )
     assert not_applicable.status == PROMPT_STATUS_NOT_APPLICABLE
     assert not not_applicable.blocks_acknowledgment
+
+
+def test_deferred_prompt_exhausted_past_grace_is_unrecoverable() -> None:
+    terminal = classify_deferred_prompt_obligation(
+        restore_wrote=False,
+        restore_error=None,
+        local_source_present=False,
+        archive_present=False,
+        prompt_file_in_snapshot=None,
+        past_grace_period=True,
+        attempts_exhausted=True,
+    )
+    assert terminal.status == PROMPT_STATUS_UNRECOVERABLE
+    # Terminal still blocks acknowledgment as success: the row retires with an
+    # audit record instead of being acknowledged as published.
+    assert terminal.blocks_acknowledgment
+
+
+def test_deferred_prompt_unrecoverable_needs_grace_and_exhaustion() -> None:
+    for past_grace, exhausted in ((True, False), (False, True), (False, False)):
+        decision = classify_deferred_prompt_obligation(
+            restore_wrote=False,
+            restore_error=None,
+            local_source_present=False,
+            archive_present=False,
+            prompt_file_in_snapshot=None,
+            past_grace_period=past_grace,
+            attempts_exhausted=exhausted,
+        )
+        assert decision.status == PROMPT_STATUS_UNAVAILABLE
+        assert decision.blocks_acknowledgment
 
 
 def test_python_completion_helper_reads_snapshot_and_pages(tmp_path: Path) -> None:

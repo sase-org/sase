@@ -24,8 +24,12 @@ from sase.agents_sync.prompt_archive.preparation import PreparedPromptArchive
 from sase.agents_sync.publication_completion import snapshot_prompt_file_present
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.agents_sync.prompt_archive.terminal import (
+    terminal_prompt_archive_reason,
+)
 from sase.core.agent_publication_recovery import (
     PROMPT_STATUS_UNAVAILABLE,
+    PROMPT_STATUS_UNRECOVERABLE,
     DeferredPromptDecision,
     classify_deferred_prompt_obligation,
 )
@@ -48,6 +52,7 @@ class DeferredPromptRestoreFailure:
 
     message: str
     pending: bool = False
+    terminal: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,16 +98,51 @@ def prepare_deferred_prompt_archive(
     """
 
     matching = prompt_runs.get((request.local_agent, request.primary_revision))
-    source_label = request.artifacts_dir or (
-        matching.source_label if matching is not None else None
-    )
-    if source_label is None:
-        return _DeferredPromptPrepareResult(wrote=False)
     from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
-    artifacts_dir = Path(source_label)
-    if resolve_raw_prompt_path(artifacts_dir) is None:
+    source_dirs = [
+        Path(candidate)
+        for candidate in _prompt_source_candidates(matching, request)
+        if resolve_raw_prompt_path(Path(candidate)) is not None
+    ]
+    if not source_dirs:
         return _DeferredPromptPrepareResult(wrote=False)
+
+    # A row can name a stale artifacts dir while the inventory run still
+    # points at the live one, so every candidate with a prompt source is
+    # tried in order: the row's dir first, then the run's source label. A
+    # candidate that raises is skipped in favor of the next one; only the
+    # last candidate's error propagates.
+    last_error: Exception | None = None
+    for artifacts_dir in source_dirs:
+        try:
+            prepared = _prepare_prompt_archive_from_dir(
+                target, request, artifacts_dir, git_runner
+            )
+        except PublicationDrainTimedOut:
+            raise
+        except Exception as exc:  # noqa: BLE001 - try the next source
+            last_error = exc
+            continue
+        if prepared.protection_status is not None:
+            return _DeferredPromptPrepareResult(
+                wrote=False,
+                protection_status=prepared.protection_status,
+                prepared_archive=prepared,
+            )
+        return _DeferredPromptPrepareResult(wrote=True, prepared_archive=prepared)
+    assert last_error is not None
+    raise last_error
+
+
+def _prepare_prompt_archive_from_dir(
+    target: ProjectTarget,
+    request: AgentPublicationOutboxItem,
+    artifacts_dir: Path,
+    git_runner: GitRunner,
+) -> PreparedPromptArchive:
+    """Prepare one prompt archive from one candidate source directory."""
+
     from sase.agents_sync.prompt_archive.inputs import read_prompt_archive_inputs
     from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
     from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
@@ -113,7 +153,7 @@ def prepare_deferred_prompt_archive(
     inputs = read_prompt_archive_inputs(
         artifacts_dir, primary_revision=request.primary_revision
     )
-    prepared = prepare_prompt_archive(
+    return prepare_prompt_archive(
         target=target,
         repo=target.sidecar_path,
         agent_name=request.local_agent,
@@ -132,13 +172,6 @@ def prepare_deferred_prompt_archive(
         git_runner=git_runner,
         protection_scope=protection_scope_for_target(target),
     )
-    if prepared.protection_status is not None:
-        return _DeferredPromptPrepareResult(
-            wrote=False,
-            protection_status=prepared.protection_status,
-            prepared_archive=prepared,
-        )
-    return _DeferredPromptPrepareResult(wrote=True, prepared_archive=prepared)
 
 
 def _deferred_prompt_restore_is_pending(
@@ -232,19 +265,32 @@ def restore_deferred_prompt_archives(
                 message=protection_skip_reason(protection_status),
             )
             continue
+        archive_present = _prompt_archive_present(archived_agents, request, identity)
+        prompt_in_snapshot = (
+            snapshot_prompt_file_present(target, request, owner)
+            if isinstance(owner, AgentOwnerIdentity)
+            else None
+        )
         decision = classify_deferred_prompt_obligation(
             restore_wrote=wrote,
             restore_error=restore_error,
             local_source_present=local_source_present,
-            archive_present=_prompt_archive_present(archived_agents, request, identity),
-            prompt_file_in_snapshot=(
-                snapshot_prompt_file_present(target, request, owner)
-                if isinstance(owner, AgentOwnerIdentity)
-                else None
-            ),
+            archive_present=archive_present,
+            prompt_file_in_snapshot=prompt_in_snapshot,
+            past_grace_period=_past_grace_period(request, observed),
+            attempts_exhausted=_attempts_exhausted(request),
         )
         if decision.blocks_acknowledgment:
-            message = _prompt_restore_failure(request, restore_error, decision)
+            terminal = decision.status == PROMPT_STATUS_UNRECOVERABLE
+            if terminal:
+                message = _terminal_prompt_failure(
+                    request,
+                    matching=matching,
+                    archive_present=archive_present,
+                    prompt_in_snapshot=prompt_in_snapshot,
+                )
+            else:
+                message = _prompt_restore_failure(request, restore_error, decision)
             pending = _deferred_prompt_restore_is_pending(
                 status=decision.status,
                 reason=decision.reason,
@@ -257,9 +303,15 @@ def restore_deferred_prompt_archives(
                     "deferred prompt archive restore still pending: %s",
                     message,
                 )
+            if terminal:
+                log.warning(
+                    "deferred prompt archive is unrecoverable: %s",
+                    message,
+                )
             failures[request.logical_key] = DeferredPromptRestoreFailure(
                 message=message,
                 pending=pending,
+                terminal=terminal,
             )
     return failures
 
@@ -276,18 +328,110 @@ def _prompt_restore_failure(
     )
 
 
+def _prompt_source_candidates(
+    matching: InventoryRun | None,
+    request: AgentPublicationOutboxItem,
+) -> list[str]:
+    """Return every known local directory that could hold the prompt source.
+
+    The row's ``artifacts_dir`` and the inventory run's ``source_label`` can
+    disagree when the row was queued against a stale directory, so both are
+    probed: the row names the wrong artifacts dir is a known way durable
+    obligations lose their bytes.
+    """
+
+    candidates: list[str] = []
+    if request.artifacts_dir:
+        candidates.append(request.artifacts_dir)
+    source_label = getattr(matching, "source_label", None)
+    if (
+        isinstance(source_label, str)
+        and source_label
+        and source_label not in candidates
+    ):
+        candidates.append(source_label)
+    return candidates
+
+
+def _dir_has_prompt_source(directory: str) -> bool:
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+    return resolve_raw_prompt_path(Path(directory)) is not None
+
+
 def _local_prompt_source_present(
     matching: InventoryRun | None,
     request: AgentPublicationOutboxItem,
 ) -> bool:
-    source_label = request.artifacts_dir or (
-        matching.source_label if matching is not None else None
+    return any(
+        _dir_has_prompt_source(candidate)
+        for candidate in _prompt_source_candidates(matching, request)
     )
-    if source_label is None:
-        return False
-    from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
-    return resolve_raw_prompt_path(Path(source_label)) is not None
+
+def _past_grace_period(
+    request: AgentPublicationOutboxItem,
+    now: float,
+) -> bool:
+    """Return whether *request* is past the deferred-prompt grace period."""
+
+    if request.created_at <= 0.0:
+        return True
+    return now - request.created_at >= DEFERRED_PROMPT_GRACE_SECONDS
+
+
+def _attempts_exhausted(request: AgentPublicationOutboxItem) -> bool:
+    """Return whether *request* has no prompt retries left.
+
+    The row is exhausted when it is already quarantined, or when this failure
+    would consume its final attempt (``attempts + 1 >= max``). The terminal
+    transition then retires the row over the next two passes — first recording
+    the deterministic terminal message without quarantining, then retiring
+    once the recorded error matches — instead of quarantining it forever.
+    Anything unreadable fails closed to ``False``: a row never goes terminal
+    on uncertain accounting.
+    """
+
+    if request.quarantined:
+        return True
+    try:
+        from sase.agents_sync.publication_outbox import (
+            configured_publication_max_attempts,
+        )
+    except Exception:
+        return False
+    try:
+        max_attempts = configured_publication_max_attempts()
+    except Exception:
+        return False
+    return request.attempts + 1 >= max_attempts
+
+
+def _terminal_prompt_failure(
+    request: AgentPublicationOutboxItem,
+    *,
+    matching: InventoryRun | None,
+    archive_present: bool,
+    prompt_in_snapshot: bool | None,
+) -> str:
+    """Render the terminal ``prompt_archive_unrecoverable`` failure message."""
+
+    # The evidence is intentionally deterministic: the retiring update only
+    # turns terminal when the recorded error already equals this message, so
+    # per-pass numbers (attempts, age) would delay retirement by a pass each
+    # time. Attempt counts live in the outbox row and the audit record.
+    probed = _prompt_source_candidates(matching, request)
+    evidence = (
+        f"no local source in {probed or ['<no candidate dirs>']}; "
+        f"sidecar archive present={archive_present}; "
+        f"snapshot prompt file={prompt_in_snapshot}; "
+        f"quarantined={request.quarantined}"
+    )
+    return (
+        f"could not restore deferred prompt archive for "
+        f"{request.global_agent}@{request.primary_revision[:12]}: "
+        f"{terminal_prompt_archive_reason(evidence)}"
+    )
 
 
 def _prompt_archive_agents(

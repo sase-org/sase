@@ -413,7 +413,19 @@ sase agent sync --retry-quarantined -p project-alias
 
 Do not delete or hand-edit either publication outbox. `--retry-quarantined` clears the
 quarantine flag for both hood and Referenced By requests and gives them a fresh retry
-budget before running the normal full reconciliation.
+budget before running the normal full reconciliation. It never revives terminal rows.
+
+### Unrecoverable prompt archives
+
+A deferred prompt row whose source bytes are gone everywhere — no local `raw_prompt.md`
+in any known artifacts directory, no archived copy in the sidecar — and whose retry
+budget is spent (or that is already quarantined) retires as
+`prompt_archive_unrecoverable` instead of quarantining forever. The transition appends
+one record to `~/.sase/agent_publication/terminal_obligations.jsonl` with the project,
+agent, revision, run id, artifacts dir, and the probes performed. A terminal prompt row
+stops retries, releases that revision's staging-pool protection, is skipped by
+`--retry-quarantined`, and never counts as published: the request is retired, not
+acknowledged. A source that reappears before the terminal decision restores normally.
 
 ### Withheld publication
 
