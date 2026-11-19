@@ -106,11 +106,11 @@ def _generation_matches(
     Only evidence recorded for the requested *clan* may satisfy or veto the
     match. Generations recorded for other clans in a mixed-clan batch are
     ignored, while selecting either constituent clan still cancels the whole
-    batch when that clan's own generation matches. A Rust ``False`` is
-    authoritative. A Rust ``True`` still runs the Python policy, which can
-    veto an older generation killing a batch that never recorded one.
+    batch when that clan's own generation matches. The shared Rust policy is
+    authoritative when available; the Python below mirrors it for older pins
+    and still refuses an older kill when the selected clan has no recorded
+    generation.
     """
-    rust_matched: bool | None = None
     try:
         from sase.core.axe_chop_facade import (
             CHOP_BATCH_SCHEMA_VERSION,
@@ -131,11 +131,24 @@ def _generation_matches(
         rust_matched = None
     if rust_matched is False:
         return False
-    # A Rust True still runs the Python policy below so an older generation
-    # cannot cancel a batch that never recorded one. The current core pin
-    # misses that veto.
+    if rust_matched is True:
+        # Older pins match unrecorded generations as True. Keep the timestamp
+        # veto so an older kill cannot cancel a newer batch.
+        return not _unrecorded_older_generation(manifest, clan, generation)
     if not generation:
         return True
+    scoped_generations = _scoped_clan_generations(manifest, clan)
+    if scoped_generations:
+        if generation not in scoped_generations:
+            # A reused clan name in another generation must not cancel this batch,
+            # and a wrong generation that happens to belong to another clan must
+            # not cancel the selected clan either.
+            return False
+        return True
+    return not _older_generation_predates_batch(manifest, generation)
+
+
+def _scoped_clan_generations(manifest: Mapping[str, Any], clan: str) -> set[str]:
     members = (
         manifest.get("members") if isinstance(manifest.get("members"), list) else []
     )
@@ -152,37 +165,41 @@ def _generation_matches(
             # count toward the requested clan; members of another clan are
             # skipped above so they can neither satisfy nor veto the match.
             scoped_generations.add(item_generation)
-    if not scoped_generations:
-        top_clan = manifest.get("clan", manifest.get("clan_name"))
-        top_generation = manifest.get("clan_generation")
-        if isinstance(top_generation, str) and top_generation:
-            if isinstance(top_clan, str) and top_clan and top_clan != clan:
-                pass
-            elif not any(
-                isinstance(item, Mapping)
-                and isinstance(item.get("clan"), str)
-                and item.get("clan")
-                for item in members or []
-            ):
-                scoped_generations.add(top_generation)
     if scoped_generations:
-        if generation not in scoped_generations:
-            # A reused clan name in another generation must not cancel this batch,
-            # and a wrong generation that happens to belong to another clan must
-            # not cancel the selected clan either.
-            return False
-        return True
+        return scoped_generations
+    top_clan = manifest.get("clan", manifest.get("clan_name"))
+    top_generation = manifest.get("clan_generation")
+    if isinstance(top_generation, str) and top_generation:
+        if isinstance(top_clan, str) and top_clan and top_clan != clan:
+            return scoped_generations
+        if not any(
+            isinstance(item, Mapping)
+            and isinstance(item.get("clan"), str)
+            and item.get("clan")
+            for item in members or []
+        ):
+            scoped_generations.add(top_generation)
+    return scoped_generations
+
+
+def _unrecorded_older_generation(
+    manifest: Mapping[str, Any], clan: str, generation: str
+) -> bool:
+    if _scoped_clan_generations(manifest, clan):
+        return False
+    return _older_generation_predates_batch(manifest, generation)
+
+
+def _older_generation_predates_batch(
+    manifest: Mapping[str, Any], generation: str
+) -> bool:
     batch_started = _batch_started_at(manifest)
     generation_started = _generation_started_at(generation)
-    if (
+    return (
         batch_started is not None
         and generation_started is not None
         and generation_started < batch_started
-    ):
-        # No recorded generation for the selected clan, but the kill provably
-        # predates the batch: do not cancel.
-        return False
-    return True
+    )
 
 
 def _batch_started_at(manifest: Mapping[str, Any]) -> Any:

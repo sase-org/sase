@@ -110,7 +110,7 @@ def collect_spawn_observations_with_completeness(
     return observations, True, None
 
 
-def _read_blocked_roots_strict() -> Mapping[str, Any] | set[str] | dict[str, Any]:
+def _read_blocked_roots_strict() -> Mapping[str, Any]:
     from sase.agent.names import get_blocked_local_namespace_roots
 
     try:

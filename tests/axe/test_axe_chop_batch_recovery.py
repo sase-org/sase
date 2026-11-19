@@ -1041,6 +1041,56 @@ def test_rust_generation_match_binding_scopes_to_clan(
     )
 
 
+def test_rust_generation_match_binding_rejects_older_unrecorded_generation(
+    isolated_home: Path,
+) -> None:
+    sase_core_rs = pytest.importorskip("sase_core_rs")
+    if not hasattr(sase_core_rs, "chop_batch_generation_matches"):
+        pytest.skip("core binding not yet built; fallback covers old pins")
+    from sase.core.axe_chop_facade import (
+        CHOP_BATCH_SCHEMA_VERSION,
+        chop_batch_generation_matches,
+    )
+
+    manifest = {
+        "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+        "batch_id": "unrecorded-gen-rust",
+        "created_at": "2026-11-18T12:00:00+00:00",
+        "run": {"routine": "docs", "job": "refresh", "run_id": "unrecorded-gen-rust"},
+        "members": [
+            {
+                "source_index": 0,
+                "agent_name": "a.one",
+                "clan": "reused-clan",
+                "prompt": "Do a.one.",
+                "workspace": "git:sase",
+            }
+        ],
+    }
+    assert (
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": manifest,
+                "clan": "reused-clan",
+                "generation": "20261117_120000",
+            }
+        )
+        is False
+    )
+    assert (
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": manifest,
+                "clan": "reused-clan",
+                "generation": "20261118_120000",
+            }
+        )
+        is True
+    )
+
+
 def test_dry_run_is_readonly(
     isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
