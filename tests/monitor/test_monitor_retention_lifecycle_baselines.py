@@ -244,6 +244,63 @@ def test_foreign_starter_evidence_releases_clean_workspace(
     assert retention_record(artifacts_dir) is None
 
 
+def test_live_foreign_starter_linked_repo_does_not_retain(
+    tmp_path: Path,
+) -> None:
+    """A live dirty linked repo under another workspace must not pin this monitor.
+
+    Regression for starter_scope: closed sase-1rg.3 scopes starter-inherited
+    repo lists (baselines, opened-repo markers, carried_repositories) to the
+    monitor's own checkout. The foreign repos stay live and dirty here, unlike
+    the deleted-paths test above, to prove no probe runs against a starter
+    whose opened linked repo lives in another ``sase_<N>`` checkout.
+    """
+    import json
+
+    foreign_checkout = tmp_path / "sase_14" / "checkout"
+    foreign_checkout.mkdir(parents=True)
+    foreign_main = init_retention_repo(foreign_checkout, dirty=True)
+    foreign_linked = init_retention_repo(foreign_checkout / "linked-repo", dirty=True)
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260906115900",
+        "acme",
+        workspace_num=14,
+        workspace_dir=str(foreign_checkout),
+        pid=999999999,
+    )
+    _write_starter_baseline(
+        starter_dir,
+        [
+            ("main:main", "main", "main", foreign_main),
+            ("linked:foreign-linked", "linked", "foreign-linked", foreign_linked),
+        ],
+    )
+    write_opened_linked(starter_dir, "foreign-linked", foreign_linked)
+    starter_meta_path = Path(starter_dir) / "agent_meta.json"
+    starter_meta = json.loads(starter_meta_path.read_text(encoding="utf-8"))
+    starter_meta["carried_repositories"] = [
+        {"repo_id": "linked:foreign-linked", "carried_to": "some-agent"}
+    ]
+    starter_meta_path.write_text(json.dumps(starter_meta), encoding="utf-8")
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=False)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    write_monitor_baselines(artifacts_dir, [("primary", repo)])
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_starter_artifacts_dir"] = starter_dir
+    write_retention_meta(artifacts_dir, meta)
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    assert get_claimed_workspaces(project_file) == []
+    assert retention_record(artifacts_dir) is None
+    assert (foreign_linked / "tracked.txt").read_text() == "session owned\n"
+
+
 def test_same_workspace_starter_baseline_still_contributes(
     tmp_path: Path,
 ) -> None:
