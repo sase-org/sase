@@ -1966,6 +1966,42 @@ build. Host load 11-20 on 64 CPUs with a second pytest suite running elsewhere; 
 TUI stayed untouched. Treat wall-clock stages as loaded-host numbers, not quiet-host
 p95s.
 
+**The soak's timing and heap numbers are not valid stage measurements.** The soak script
+exported `SASE_TUI_HEAP=1`, which starts `tracemalloc` with 25-frame tracebacks when
+`AceApp` initializes. It also takes a full snapshot every 5 minutes while holding the
+GIL. Everything after construction starts is traced: construction, loads, GC, RSS, and
+paint. Phases that ran before tracing match untraced runs (module import 2.08 s against
+a 2.02 s untraced probe). Traced construction took 12.30 s; the untraced live TUI on the
+same build took 0.46 s. Use the untraced table below as the epic's result. When grading
+timing or heap stages, leave `SASE_TUI_HEAP` and `SASE_TUI_GC_CENSUS` unset. Set them
+only for attribution runs.
+
+### Untraced result: live TUI on the same build
+
+Instance `1886c10a` (pid 3820644) ran build `194b1a1ef4`, the commit the soak measured.
+It started 2026-11-18T23:12:45Z at load1 13.9 and ran for 4.1 h (14,771 s, 50
+heartbeats). It had no `SASE_TUI_HEAP`, `SASE_TUI_TRACE`, `SASE_TUI_PERF`, or
+`SASE_TUI_GC_CENSUS`. Sources are `~/.sase/logs/tui_startup.jsonl`, `tui_stalls.jsonl`,
+and `tui_agent_loads.jsonl`, filtered by that `app_instance_id`. `tui_agent_loads.jsonl`
+logs only loads slower than 2 s, so its load percentiles describe slow loads only.
+
+| Stage        | Target                                   | Untraced measurement                                                                                                                                                  | Verdict                    |
+| ------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Storm        | <= 1 hijack thread; no saturation        | `saturated=false`, queue 0 on all 50 heartbeats; the traced soak's py-spy dumps showed 0 hijack threads                                                               | PASS                       |
+| Construction | about 1 s                                | `app_construct_seconds` 0.46 s                                                                                                                                        | PASS                       |
+| Provider     | < 1 s cold                               | 1.80 s cold at startup; slow `auto_refresh` loads p50 0.62 s, p95 2.12 s                                                                                              | MISS                       |
+| Loads        | about 1 s warm / 5-6 s `agents_ready`    | slow `auto_refresh` loads p50 4.70 s, p95 8.11 s (n=269, 208 rows); `agents_ready` 9.02 s                                                                             | MISS                       |
+| Startup      | < 3 s process to `on_mount`              | 1.24 s (one startup)                                                                                                                                                  | PASS                       |
+| Heap         | < 1.5-2 GB; gen-2 p95 <= 1 s; < 8M; 0.5% | RSS 3.73 GB, 9.0M blocks at 30 min; 3.74 GB, 12.0M blocks at 4.1 h (max 4.67 GB, 14.3M); gen-2 n=190 p50 2.01 s, p95 3.07 s; loop hitches 1,581 s of 14,771 s (10.7%) | MISS                       |
+| Interaction  | j/k p95 toward 16 ms; detail < 100 ms    | Not recorded by the live TUI. `sase-1t3.13` bench: ordinary j/k p95 17.98-20.25 ms, detail chrome p95 17.44 ms                                                        | j/k near miss; detail PASS |
+| Overall      | about 6-7 s to a usable list             | `visible_ready` 7.78 s                                                                                                                                                | near miss                  |
+
+Compared with the research baselines below, the storm is gone, and construction and
+mount are back under target. Allocated blocks fell from 18-21M to 9-14M. RSS and gen-2
+pauses stayed near the pre-storm steady state, and the loader still misses its warm
+target. Note: in-process `--restart-service` restarts inflate later rows'
+`app_construct_seconds`, so grade construction on the first startup row of a process.
+
 ### Recovered baselines (research `tui_hijack_storm_trust_root_and_heap`)
 
 - Storm (A): RSS 20-35 GB plus up to 30 GB swap within minutes; 31 of 45 threads stuck
@@ -1978,7 +2014,10 @@ p95s.
   loads took 2-5 s pre-storm; `agents_ready` drifted ~5 s to ~11.6 s; 95% of >= 1.5 s
   hitches overlapped full GC; j/k p95 400-500 ms against the 16 ms target.
 
-### What this soak measured
+### What the traced soak measured
+
+These rows include `tracemalloc` overhead. Only the storm-thread and executor-saturation
+rows are valid stage evidence.
 
 - Storm threads/saturation PASS: 0 hijack threads in both py-spy dumps (29 threads
   total); executor `saturated=false` on all 16 heartbeats. Loop/pump hitches remain
