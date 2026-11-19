@@ -46,7 +46,10 @@ from .types import (
     QuerySigilSpec,
 )
 from .compiler import CompiledQueryProfile, QueryProfileError, compile_query_profile
-from .pane_registry import compiled_profile_for_builtin_pane
+from .pane_registry import (
+    clear_compiled_builtin_pane_cache,
+    compiled_profile_for_builtin_pane,
+)
 
 _LAZY_EXPORTS = {
     "agents_archive_query_schema": (
@@ -87,6 +90,7 @@ __all__ = [
     "agents_live_query_schema",
     "agents_query_schema",
     "beads_query_schema",
+    "clear_compiled_builtin_pane_cache",
     "compile_query_profile",
     "compiled_profile_for_builtin_pane",
     "files_query_schema",
