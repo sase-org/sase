@@ -612,8 +612,15 @@ def _run_cleanup_sweep(fixture: dict) -> int:
 def test_cleanup_repairs_leaked_monitor_claim_with_stray_sheet(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leaked monitor claim releases after its stray sheet is published."""
+    """A leaked monitor claim releases after its stray sheet is published.
+
+    held_settle: the first sweep after the initial settle skips (evidence
+    unchanged), so the interval is expired first to reach the re-probe that
+    publishes the stray sheet and releases the clean workspace.
+    """
+    import json
     import subprocess
+    import time
 
     from sase.running_field import get_claimed_workspaces
     from sase.workspace_provider.retention_record import (
@@ -621,6 +628,15 @@ def test_cleanup_repairs_leaked_monitor_claim_with_stray_sheet(
     )
 
     fixture = _make_leaked_monitor(tmp_path, monkeypatch, dirty_primary=False)
+
+    assert _run_cleanup_sweep(fixture) == 0
+
+    record_path = (
+        Path(fixture["artifacts_dir"]) / "diagnostics" / "workspace_retention.json"
+    )
+    payload = json.loads(record_path.read_text(encoding="utf-8"))
+    payload["probed_at"] = time.time() - 2000
+    record_path.write_text(json.dumps(payload), encoding="utf-8")
 
     assert _run_cleanup_sweep(fixture) == 1
     assert get_claimed_workspaces(fixture["project_file"]) == []
@@ -650,7 +666,11 @@ def test_cleanup_repairs_leaked_monitor_claim_with_stray_sheet(
 def test_cleanup_keeps_leaked_monitor_claim_with_real_dirt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leaked claim with other dirt publishes its sheet but stays held."""
+    """A leaked claim with unchanged dirt stays held with no new +1.
+
+    held_settle: the evidence fingerprint is unchanged since the first
+    settle, so the sweep skips the re-settle (and its +1) entirely.
+    """
     from sase.notifications.store import load_notifications
     from sase.running_field import get_claimed_workspaces
 
@@ -663,4 +683,4 @@ def test_cleanup_keeps_leaked_monitor_claim_with_real_dirt(
 
     rows = load_notifications()
     assert len(rows) == 1
-    assert rows[0].plus_one_count >= 1
+    assert rows[0].plus_one_count == 0

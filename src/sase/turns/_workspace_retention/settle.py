@@ -28,6 +28,7 @@ from sase.workspace_provider.occupant import clear_owned_occupant_record
 
 from .records import persist_record, settle_existing_record
 from .types import (
+    RETENTION_RECORD_LOCATOR,
     WorkspaceRetentionOwner,
     WorkspaceRetentionRepo,
     WorkspaceRetentionSuccessor,
@@ -65,7 +66,7 @@ def settle_stranded_workspace(
         )
     successor = successor or WorkspaceRetentionSuccessor()
     observed = _observed_claim(owner)
-    dirt, probe_errors, affected_repo_ids = _collect_dirt(owner)
+    dirt, probe_errors, affected_repo_ids, dirty_paths = _collect_dirt(owner)
     decision = decide_workspace_retention(
         {
             "schema_version": WORKSPACE_RETENTION_WIRE_SCHEMA_VERSION,
@@ -86,11 +87,31 @@ def settle_stranded_workspace(
     reason = str(decision.get("reason") or "")
 
     if disposition == DISPOSITION_RETAIN:
+        from .evidence import (
+            compute_evidence_fingerprint,
+            compute_stat_signature,
+            evidence_now,
+        )
+
+        repos = _relevant_repos(owner)
+        stat_signature = compute_stat_signature(repos)
+        probed_at = evidence_now()
+        fingerprint = compute_evidence_fingerprint(
+            reason=reason,
+            dirt=dirt,
+            affected_repo_ids=affected_repo_ids,
+            probe_errors=probe_errors,
+            dirty_paths_by_repo=dict(dirty_paths),
+        )
         return _apply_retain(
             owner,
             reason=reason,
             affected_repo_ids=affected_repo_ids,
             probe_errors=probe_errors,
+            evidence_fingerprint=fingerprint,
+            evidence_stat_signature=stat_signature,
+            evidence_repos={repo.repo_id: repo.path for repo in repos},
+            probed_at=probed_at,
         )
     if disposition == DISPOSITION_RELEASE:
         return _apply_release(owner, reason=reason, probe_errors=probe_errors)
@@ -152,7 +173,12 @@ def _owner_identity_complete(owner: WorkspaceRetentionOwner) -> bool:
 
 def _collect_dirt(
     owner: WorkspaceRetentionOwner,
-) -> tuple[dict[str, bool], tuple[str, ...], tuple[str, ...]]:
+) -> tuple[
+    dict[str, bool],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[tuple[str, tuple[str, ...]], ...],
+]:
     repos = _relevant_repos(owner)
     session_owned = False
     only_unchanged_foreign = False
@@ -163,6 +189,7 @@ def _collect_dirt(
     positive_custody = False
     probe_errors: list[str] = list(owner.discovery_errors)
     affected: list[str] = []
+    dirty_by_repo: dict[str, tuple[str, ...]] = {}
     baselines = _baseline_by_path(owner.artifacts_dir, owner.evidence_artifacts_dir)
 
     if not repos:
@@ -177,6 +204,7 @@ def _collect_dirt(
                 },
                 tuple(probe_errors),
                 (),
+                (),
             )
         return (
             {
@@ -186,6 +214,7 @@ def _collect_dirt(
                 "missing_baseline": False,
                 "positive_custody": False,
             },
+            (),
             (),
             (),
         )
@@ -198,6 +227,7 @@ def _collect_dirt(
             probe_errors.append(f"{repo.repo_id}: {error}")
             all_proven_clean = False
             continue
+        dirty_by_repo[repo.repo_id] = tuple(sorted(dirty_paths or ()))
         if not dirty_paths:
             continue
         saw_dirty = True
@@ -234,6 +264,7 @@ def _collect_dirt(
         },
         tuple(probe_errors),
         tuple(dict.fromkeys(affected)),
+        tuple(sorted(dirty_by_repo.items())),
     )
 
 
@@ -311,10 +342,45 @@ def _apply_retain(
     reason: str,
     affected_repo_ids: Sequence[str],
     probe_errors: Sequence[str],
+    evidence_fingerprint: str,
+    evidence_stat_signature: dict[str, Any],
+    evidence_repos: dict[str, str],
+    probed_at: float,
 ) -> _WorkspaceRetentionResult:
     # Crash ordering: best-effort snapshot, then pinning (custody), then
     # durable record publication. Custody must survive a crash between pin
     # and publish; publication must never overwrite a settled record.
+    #
+    # When the stored evidence fingerprint is unchanged and the exact claim
+    # still holds, skip the snapshot, the pin, and the notification: refresh
+    # only ``probed_at`` and the stat signature.
+    from sase.workspace_provider.retention_record import (
+        read_workspace_retention_record,
+    )
+
+    from .records import refresh_retention_evidence
+
+    existing = read_workspace_retention_record(owner.artifacts_dir)
+    if (
+        existing is not None
+        and existing.unresolved
+        and existing.evidence_fingerprint == evidence_fingerprint
+        and _observed_claim(owner) is not None
+    ):
+        refresh_retention_evidence(
+            owner.artifacts_dir,
+            evidence_stat_signature=evidence_stat_signature,
+            probed_at=probed_at,
+        )
+        return _WorkspaceRetentionResult(
+            disposition=DISPOSITION_RETAIN,
+            reason=reason,
+            record_path=str(Path(owner.artifacts_dir) / RETENTION_RECORD_LOCATOR),
+            probe_errors=tuple(probe_errors),
+        )
+    notify_why = (
+        "new_hold" if existing is None or not existing.unresolved else "changed"
+    )
     checkouts = tuple((repo.repo_id, repo.path) for repo in _relevant_repos(owner))
     snapshot_paths: tuple[str, ...]
     try:
@@ -358,11 +424,15 @@ def _apply_retain(
         snapshot_paths=snapshot_paths,
         probe_errors=probe_errors,
         stale_attempt=False,
+        evidence_fingerprint=evidence_fingerprint,
+        evidence_stat_signature=evidence_stat_signature,
+        evidence_repos=evidence_repos,
+        probed_at=probed_at,
     )
     if owner.notify_on_retain and record_path:
         from ..workspace_retention_surface import notify_retained_workspace
 
-        notify_retained_workspace(owner, record_path, snapshot_paths)
+        notify_retained_workspace(owner, record_path, snapshot_paths, why=notify_why)
     return _WorkspaceRetentionResult(
         disposition=DISPOSITION_RETAIN,
         reason=reason,

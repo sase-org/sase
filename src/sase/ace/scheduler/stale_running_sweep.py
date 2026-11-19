@@ -226,6 +226,12 @@ def cleanup_stale_running_entries(
     reconcile_all_latched_records(log_fn=log_fn)
     drain_pending_settlement_repairs()
 
+    unchanged_skips = 0
+
+    def _count_unchanged_skip() -> None:
+        nonlocal unchanged_skips
+        unchanged_skips += 1
+
     for project_file in _get_all_project_files():
         claims = get_claimed_workspaces(project_file)
 
@@ -264,7 +270,12 @@ def cleanup_stale_running_entries(
                 and is_monitor_claim
                 and claim.artifacts_timestamp
                 and not is_process_running(claim.pid)
-                and repair_leaked_monitor_claim(project_file, claim, log_fn=log_fn)
+                and repair_leaked_monitor_claim(
+                    project_file,
+                    claim,
+                    log_fn=log_fn,
+                    on_skip=_count_unchanged_skip,
+                )
             ):
                 released_count += 1
                 continue
@@ -333,6 +344,13 @@ def cleanup_stale_running_entries(
                     f"({claim.workflow}){cl_info} - PID {claim.pid} not running",
                     "cyan",
                 )
+
+    if unchanged_skips and log_fn:
+        log_fn(
+            f"{unchanged_skips} held workspace{'s' if unchanged_skips != 1 else ''} "
+            "unchanged; skipped re-settlement",
+            "dim",
+        )
 
     return released_count
 

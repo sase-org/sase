@@ -343,7 +343,11 @@ def test_same_workspace_starter_baseline_still_contributes(
 def test_retained_monitor_stores_exactly_one_notification(
     tmp_path: Path,
 ) -> None:
-    """A retained monitor stores one recovery notification, plus-oned on retry."""
+    """A retained monitor stores one recovery notification, never re-plus-oned.
+
+    held_settle: a retry with unchanged evidence refreshes the evidence
+    timestamp but skips the snapshot, the pin, and the notification.
+    """
     from sase.notifications.store import load_notifications
 
     repo = init_retention_repo(tmp_path / "ws", dirty=True)
@@ -368,4 +372,4 @@ def test_retained_monitor_stores_exactly_one_notification(
     )
     rows = load_notifications()
     assert len(rows) == 1
-    assert rows[0].plus_one_count >= 1
+    assert rows[0].plus_one_count == 0

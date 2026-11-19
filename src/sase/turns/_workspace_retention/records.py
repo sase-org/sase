@@ -55,6 +55,10 @@ def persist_record(
     snapshot_paths: Sequence[str],
     probe_errors: Sequence[str],
     stale_attempt: bool,
+    evidence_fingerprint: str | None = None,
+    evidence_stat_signature: dict[str, object] | None = None,
+    evidence_repos: dict[str, str] | None = None,
+    probed_at: float | None = None,
 ) -> str | None:
     """Write the terminal retention record, preserving settled or unresolved holds."""
     if not owner.artifacts_dir:
@@ -93,6 +97,14 @@ def persist_record(
         "created_at": time.time(),
     }
     payload.update(_guidance_fields(owner))
+    if evidence_fingerprint is not None:
+        payload["evidence_fingerprint"] = evidence_fingerprint
+    if evidence_stat_signature is not None:
+        payload["evidence_stat_signature"] = dict(evidence_stat_signature)
+    if evidence_repos is not None:
+        payload["evidence_repos"] = dict(evidence_repos)
+    if probed_at is not None:
+        payload["probed_at"] = probed_at
     record_path = Path(owner.artifacts_dir) / RETENTION_RECORD_LOCATOR
     try:
         write_json_marker_atomic(record_path, payload)
@@ -195,4 +207,38 @@ def _record_meta_path(artifacts_dir: str, record_path: str) -> None:
         return
 
 
-__all__ = ["persist_record", "settle_existing_record"]
+def refresh_retention_evidence(
+    artifacts_dir: str,
+    *,
+    evidence_stat_signature: dict[str, object],
+    probed_at: float,
+) -> bool:
+    """Refresh only ``probed_at`` and the stat signature on an unresolved hold.
+
+    Used when a re-probe finds the stored evidence fingerprint unchanged: the
+    snapshot, pin, and notification are skipped, and the record keeps its
+    existing fingerprint, reason, and affected ids. Returns ``False`` when
+    there is no unresolved retain record to refresh.
+    """
+    from sase.workspace_provider.retention_record import (
+        read_workspace_retention_record,
+    )
+
+    record = read_workspace_retention_record(artifacts_dir)
+    if record is None or not record.unresolved:
+        return False
+    payload = dict(record.payload)
+    payload["evidence_stat_signature"] = dict(evidence_stat_signature)
+    payload["probed_at"] = probed_at
+    try:
+        write_json_marker_atomic(Path(record.path), payload)
+    except OSError:
+        return False
+    return True
+
+
+__all__ = [
+    "persist_record",
+    "refresh_retention_evidence",
+    "settle_existing_record",
+]

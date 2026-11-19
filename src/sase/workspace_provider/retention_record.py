@@ -89,6 +89,25 @@ class WorkspaceRetentionRecord:
         return _optional_string(self.payload.get("turn_id"))
 
     @property
+    def evidence_fingerprint(self) -> str | None:
+        """Return the stored evidence fingerprint, if the record has one."""
+        return _optional_string(self.payload.get("evidence_fingerprint"))
+
+    @property
+    def evidence_stat_signature(self) -> dict[str, Any] | None:
+        """Return the stored stat signature, if the record has one."""
+        value = self.payload.get("evidence_stat_signature")
+        return dict(value) if isinstance(value, dict) else None
+
+    @property
+    def probed_at(self) -> float | None:
+        """Return the stored evidence probe time, if the record has one."""
+        value = self.payload.get("probed_at")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return float(value)
+
+    @property
     def unresolved(self) -> bool:
         """Return whether this retain record still needs recovery or release.
 

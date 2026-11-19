@@ -91,58 +91,169 @@ def notify_retained_workspace(
     owner: WorkspaceRetentionOwner,
     record_path: str,
     snapshot_paths: Sequence[str],
+    *,
+    why: str = "new_hold",
 ) -> None:
-    """Publish one retry-safe recovery notification for late monitor/gate holds."""
-    try:
-        import hashlib
+    """Publish one retry-safe recovery notification for late monitor/gate holds.
 
-        from sase.core.time import get_timezone
-        from sase.notifications.models import Notification, normalize_notification_tags
-        from sase.notifications.store import upsert_notification
+    ``why`` is ``"new_hold"`` for the first retain, ``"changed"`` when the
+    evidence fingerprint or reason changed, or ``"heartbeat"`` for the hourly
+    still-held tick. A +1 goes out only when the reason or fingerprint
+    changed, or when the heartbeat is due; the heartbeat fires at most once
+    per hour per hold on undismissed rows. A dismissed-row no-op from the
+    store sets a latch so no further +1s (and no resurrection row) follow.
+    """
+    if why not in {"new_hold", "changed", "heartbeat"}:
+        why = "new_hold"
+    try:
         from sase.workspace_provider.retention_record import (
-            configured_held_claim_ttl_days,
             read_workspace_retention_record,
-            workspace_retention_lines,
         )
 
         record = read_workspace_retention_record(owner.artifacts_dir)
         if record is None or not record.unresolved:
             return
-        timestamp = datetime.now(get_timezone()).isoformat()
-        project_key = hashlib.sha256(owner.project_file.encode()).hexdigest()[:16]
-        notification = Notification(
-            id=str(uuid4()),
-            timestamp=timestamp,
-            sender="user-agent",
-            notes=list(
-                workspace_retention_lines(
-                    record,
-                    held_claim_ttl_days=configured_held_claim_ttl_days(),
-                )
-            ),
-            files=list(dict.fromkeys([record_path, *snapshot_paths])),
-            tags=normalize_notification_tags(["done", "workspace-held"]),
-            action="JumpToAgent",
-            action_data={
-                "patch_name": owner.cl_name,
-                "cl_name": owner.cl_name,
-                "raw_suffix": owner.artifacts_timestamp,
-            },
-            dedup_key=(
-                f"workspace-retention:{project_key}:{owner.artifacts_timestamp}:"
-                f"{owner.workspace_num}"
-            ),
-        )
-        upsert_notification(
-            notification,
-            plus_one_note=(
-                "Workspace still held "
-                f"({record.policy_reason or record.terminal_reason})"
-            ),
-            plus_one_timestamp=timestamp,
+        _notify_for_record(
+            record,
+            record_path=record_path,
+            snapshot_paths=snapshot_paths,
+            artifacts_dir=owner.artifacts_dir,
+            why=why,
         )
     except Exception:
         log.warning("Could not publish workspace-retention notification", exc_info=True)
+
+
+def maybe_heartbeat_retained_workspace(record: Any) -> bool:
+    """Send the hourly still-held heartbeat for an unchanged hold, if due.
+
+    Returns ``True`` when a heartbeat +1 was applied. Never raises: any
+    failure leaves the hold untouched for the next pass.
+    """
+    try:
+        return _notify_for_record(
+            record,
+            record_path=record.path,
+            snapshot_paths=list(record.snapshot_paths),
+            artifacts_dir=str(Path(record.path).parent.parent),
+            why="heartbeat",
+        )
+    except Exception:
+        log.warning("Could not publish workspace-retention heartbeat", exc_info=True)
+        return False
+
+
+def _notify_for_record(
+    record: Any,
+    *,
+    record_path: str,
+    snapshot_paths: Sequence[str],
+    artifacts_dir: str,
+    why: str,
+) -> bool:
+    """Apply one retain notification decision for a record. Returns sent."""
+    import hashlib
+
+    from sase.core.time import get_timezone
+    from sase.notifications.models import Notification, normalize_notification_tags
+    from sase.notifications.store import upsert_notification
+    from sase.turns._workspace_retention.evidence import (
+        HEARTBEAT_INTERVAL_SECONDS,
+        describe_evidence_change,
+        evidence_now,
+        read_notify_state,
+        write_notify_state,
+    )
+    from sase.workspace_provider.retention_record import (
+        configured_held_claim_ttl_days,
+        workspace_retention_lines,
+    )
+
+    reason = record.policy_reason or record.terminal_reason
+    fingerprint = record.evidence_fingerprint
+    affected = list(record.affected_repo_ids or record.origin_repo_ids)
+    marker = read_notify_state(artifacts_dir)
+    if marker.get("dismissed_latch") is True:
+        return False
+    now = evidence_now()
+    if why == "heartbeat":
+        last = marker.get("last_plus_one_at")
+        if isinstance(last, (int, float)) and now - float(last) < (
+            HEARTBEAT_INTERVAL_SECONDS
+        ):
+            return False
+        plus_one_note = f"Workspace still held ({reason})"
+    elif why == "changed":
+        if (
+            fingerprint is not None
+            and marker.get("notified_fingerprint") == fingerprint
+            and marker.get("notified_reason") == reason
+        ):
+            return False
+        summary = describe_evidence_change(
+            old_reason=marker.get("notified_reason")
+            if isinstance(marker.get("notified_reason"), str)
+            else None,
+            old_affected=[
+                item
+                for item in (marker.get("notified_affected") or [])
+                if isinstance(item, str)
+            ],
+            new_reason=reason,
+            new_affected=affected,
+        )
+        plus_one_note = f"Workspace still held ({reason}): {summary}"
+    else:
+        plus_one_note = f"Workspace still held ({reason})"
+    timestamp = datetime.now(get_timezone()).isoformat()
+    project_file = record.payload.get("project_file") or ""
+    project_key = hashlib.sha256(str(project_file).encode()).hexdigest()[:16]
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender="user-agent",
+        notes=list(
+            workspace_retention_lines(
+                record,
+                held_claim_ttl_days=configured_held_claim_ttl_days(),
+            )
+        ),
+        files=list(dict.fromkeys([record_path, *snapshot_paths])),
+        tags=normalize_notification_tags(["done", "workspace-held"]),
+        action="JumpToAgent",
+        action_data={
+            "patch_name": record.cl_name,
+            "cl_name": record.cl_name,
+            "raw_suffix": record.artifacts_timestamp,
+        },
+        dedup_key=(
+            f"workspace-retention:{project_key}:{record.artifacts_timestamp}:"
+            f"{record.workspace_num}"
+        ),
+    )
+    outcome = upsert_notification(
+        notification,
+        plus_one_note=plus_one_note,
+        plus_one_timestamp=timestamp,
+    )
+    action = getattr(outcome, "action", None)
+    if action == "skipped_dismissed":
+        # The row is dismissed: latch so no further heartbeats or change
+        # +1s follow for this hold. The latch lives beside the retention
+        # record, so it survives store compaction that would otherwise let
+        # a later upsert create a fresh visible resurrection row.
+        marker["dismissed_latch"] = True
+        write_notify_state(artifacts_dir, marker)
+        return False
+    if action in {"created", "plus_oned", "coalesced"}:
+        marker["notified_fingerprint"] = fingerprint
+        marker["notified_reason"] = reason
+        marker["notified_affected"] = affected
+        marker["last_plus_one_at"] = now
+        marker["dismissed_latch"] = False
+        write_notify_state(artifacts_dir, marker)
+        return True
+    return False
 
 
 def _record_claim_wire(record: Any) -> dict[str, Any] | None:
@@ -194,4 +305,8 @@ def _observed_record_claim(
     return None
 
 
-__all__ = ["dismiss_terminal_workspace_retention", "notify_retained_workspace"]
+__all__ = [
+    "dismiss_terminal_workspace_retention",
+    "maybe_heartbeat_retained_workspace",
+    "notify_retained_workspace",
+]

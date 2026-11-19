@@ -22,6 +22,7 @@ def repair_leaked_monitor_claim(
     claim: WorkspaceClaim,
     *,
     log_fn: Callable[[str, str | None], None] | None,
+    on_skip: Callable[[], None] | None = None,
 ) -> bool:
     """Publish stray sheets and re-settle one leaked epic-launch monitor claim.
 
@@ -37,7 +38,9 @@ def repair_leaked_monitor_claim(
     keeps the claim.
     """
     try:
-        return _repair_leaked_monitor_claim_inner(project_file, claim, log_fn=log_fn)
+        return _repair_leaked_monitor_claim_inner(
+            project_file, claim, log_fn=log_fn, on_skip=on_skip
+        )
     except Exception as exc:  # noqa: BLE001 - repair must never break the sweep
         if log_fn:
             log_fn(
@@ -53,6 +56,7 @@ def _repair_leaked_monitor_claim_inner(
     claim: WorkspaceClaim,
     *,
     log_fn: Callable[[str, str | None], None] | None,
+    on_skip: Callable[[], None] | None = None,
 ) -> bool:
     import json as _json
 
@@ -125,6 +129,33 @@ def _repair_leaked_monitor_claim_inner(
         return False
     if pending_retention_retains_claim(project_file, claim):
         return False
+    # Skip unchanged holds before any git work: no decision-sheet
+    # publishing, probes, snapshots, pin calls, record writes, or +1s. The
+    # hourly still-held heartbeat is handled through the notify-state
+    # marker, which needs no git work.
+    from sase.turns._workspace_retention.evidence import check_unchanged_hold
+
+    if (
+        check_unchanged_hold(
+            record=retention,
+            project_file=project_file,
+            workspace_num=claim.workspace_num,
+            workflow=claim.workflow,
+            cl_name=claim.cl_name or "",
+            artifacts_timestamp=claim.artifacts_timestamp or "",
+            pid=claim.pid,
+        )
+        == "skip"
+    ):
+        from sase.turns.workspace_retention_surface import (
+            maybe_heartbeat_retained_workspace,
+        )
+
+        maybe_heartbeat_retained_workspace(retention)
+        if on_skip is not None:
+            on_skip()
+        return False
+    before_fingerprint = retention.payload.get("evidence_fingerprint")
     published = _publish_stray_decision_sheets(
         project_file, claim, checkout_dir, log_fn=log_fn
     )
@@ -153,7 +184,16 @@ def _repair_leaked_monitor_claim_inner(
             )
         return False
     if _claim_still_held(project_file, claim):
-        if log_fn:
+        # One line per change: an unchanged re-settle already refreshed its
+        # evidence timestamp silently, so only changed evidence logs here.
+        try:
+            after = read_workspace_retention_record(artifacts_dir)
+            after_fingerprint = (
+                after.payload.get("evidence_fingerprint") if after else None
+            )
+        except Exception:  # noqa: BLE001 - logging must not break repair
+            after_fingerprint = None
+        if log_fn and after_fingerprint != before_fingerprint:
             log_fn(
                 f"Leaked monitor claim for workspace #{claim.workspace_num} "
                 f"retained with other dirt (published {published} "

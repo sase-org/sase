@@ -411,6 +411,15 @@ lives at `diagnostics/workspace_retention.json` in the turn's artifacts. Diff ca
 best-effort; an absent diff does not mean the held checkout is clean. Late holds from
 monitor or gate settlement also send a `workspace-held` notification.
 
+Each hold persists an evidence fingerprint (policy reason, dirt classification, affected
+repositories, probe errors, and each repository's dirty-path set) plus a cheap stat
+signature per repository and a probe time. Later cleanup passes over an unchanged hold
+skip every git probe, snapshot, decision-sheet publication, pin call, record write, and
+notification; a changed hold re-settles with a +1 that names what changed. A workspace
+that becomes clean or changes evidence is released or re-settled within one re-probe
+interval (30 minutes). Undismissed holds also get at most one "Workspace still held" +1
+per hour; dismissed holds never tick again.
+
 An Agent Hijack keeps its numbered workspace claim pinned after the process stops. The
 TUI shows **⏏ HIJACKED**. Keep-work recovery continues in that workspace, including
 Re-run command for a hijacked monitor. Restart in a fresh workspace is an agent-turn
