@@ -113,8 +113,8 @@ def _generation_matches(
     batch are ignored, while selecting either constituent clan still cancels
     the whole batch when that clan's own generation matches.
     """
-    return bool(
-        chop_batch_generation_matches(
+    try:
+        return chop_batch_generation_matches(
             {
                 "schema_version": CHOP_BATCH_SCHEMA_VERSION,
                 "manifest": dict(manifest),
@@ -122,7 +122,12 @@ def _generation_matches(
                 "generation": generation,
             }
         )
-    )
+    except ValueError as exc:
+        batch_id = str(manifest.get("batch_id") or "")
+        raise ChopBatchError(
+            f"cannot match clan generation {generation!r} of {clan!r} "
+            f"against batch {batch_id!r}: {exc}"
+        ) from exc
 
 
 def _cancel_linked_typed_bundle(manifest: Mapping[str, Any], *, reason: str) -> None:

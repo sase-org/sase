@@ -147,8 +147,8 @@ def recover_cancelled_batch(
                         ),
                     )
                 except Exception as exc:
-                    # Older core pins lack the settlement transition; hold
-                    # visibly rather than retiring unsettled evidence.
+                    # Core can refuse this settlement; hold visibly rather
+                    # than retiring unsettled evidence.
                     held.append(
                         {
                             "agent_name": name,

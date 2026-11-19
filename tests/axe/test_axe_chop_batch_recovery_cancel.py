@@ -14,6 +14,7 @@ import pytest
 
 from sase.axe import chop_batch_recovery as recovery
 from sase.axe import chop_batch_store
+from sase.axe import _chop_batch_recovery_cancel as cancel_module
 from sase.axe.chop_stop_signal import ChopStopSignal
 from sase.axe.state import ChopRunEntry, chop_run_log_path, start_chop_run
 from tests.axe._test_axe_chop_batch_recovery_shared import (
@@ -27,6 +28,8 @@ __all__ = [
     "test_cancel_never_fires_for_individual_member_selection",
     "test_cancel_scoped_to_requested_clan_generation",
     "test_cancel_targets_only_matching_clan_generation",
+    "test_generation_gate_core_refusal_fails_closed",
+    "test_generation_gate_trusts_the_core_decision",
     "test_cancelled_dead_executor_no_spawn_settles",
     "test_cancelled_dead_executor_proven_spawn_acknowledges",
     "test_older_generation_does_not_cancel_a_batch_without_recorded_generation",
@@ -136,6 +139,68 @@ def test_older_generation_does_not_cancel_a_batch_without_recorded_generation(
     assert cancelled == []
     assert (
         chop_batch_store.load_chop_batch("docs", "refresh", "run-new-clan")["status"]
+        == "open"
+    )
+
+
+@pytest.mark.parametrize("core_decision", [True, False])
+def test_generation_gate_trusts_the_core_decision(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    core_decision: bool,
+) -> None:
+    batch = manifest("core-generation-decision", None)
+    batch["created_at"] = "2026-11-18T12:00:00+00:00"
+    batch["members"][0]["clan"] = "reused-clan"
+    chop_batch_store.create_chop_batch("docs", "refresh", batch)
+    monkeypatch.setattr(
+        cancel_module, "chop_batch_generation_matches", lambda _request: core_decision
+    )
+
+    cancelled = recovery.cancel_chop_batches_for_clan(
+        "reused-clan",
+        generation="20261117_120000",
+        reason="test core decision authority",
+        routine="docs",
+        job="refresh",
+    )
+
+    assert bool(cancelled) is core_decision
+    status = chop_batch_store.load_chop_batch(
+        "docs", "refresh", "core-generation-decision"
+    )["status"]
+    assert status == ("cancelled" if core_decision else "open")
+
+
+def test_generation_gate_core_refusal_fails_closed(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    batch = manifest("core-generation-refusal", None)
+    batch["members"][0]["clan"] = "reused-clan"
+    chop_batch_store.create_chop_batch("docs", "refresh", batch)
+
+    def refuse(_request: dict[str, Any]) -> bool:
+        raise ValueError("schema_version_mismatch")
+
+    monkeypatch.setattr(cancel_module, "chop_batch_generation_matches", refuse)
+
+    with pytest.raises(
+        chop_batch_store.ChopBatchError,
+        match="cannot match clan generation .* against batch 'core-generation-refusal': schema_version_mismatch",
+    ):
+        recovery.cancel_chop_batches_for_clan(
+            "reused-clan",
+            generation="20261117_120000",
+            reason="test core refusal",
+            routine="docs",
+            job="refresh",
+        )
+
+    assert (
+        chop_batch_store.load_chop_batch("docs", "refresh", "core-generation-refusal")[
+            "status"
+        ]
         == "open"
     )
 
