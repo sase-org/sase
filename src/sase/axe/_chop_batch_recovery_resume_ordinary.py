@@ -31,7 +31,7 @@ def recover_ordinary_batch(
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
     pause_requested_fn: Callable[[], bool] | None,
 ) -> ChopBatchRecoveryResult:
-    from .chop_batch_replay import replay_ordinary_chop_batch
+    from .chop_batch_replay import ChopBatchReplayResult, replay_ordinary_chop_batch
 
     if not chop_batch_store.acquire_chop_batch_ownership(
         routine, job, batch_id, owner="ordinary-recovery"
@@ -158,7 +158,7 @@ def recover_ordinary_batch(
 
         ownership_delegated = True
         try:
-            replay = replay_ordinary_chop_batch(
+            replay: ChopBatchReplayResult = replay_ordinary_chop_batch(
                 routine,
                 job,
                 batch_id,

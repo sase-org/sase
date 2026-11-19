@@ -26,7 +26,7 @@ class ChopBatchReplayResult:
     paused: bool = False
 
 
-class ChopBatchReplayError(chop_batch_store.ChopBatchError):
+class _ChopBatchReplayError(chop_batch_store.ChopBatchError):
     """Raised when a batch cannot be safely replayed through this adapter."""
 
 
@@ -51,19 +51,19 @@ def replay_ordinary_chop_batch(
     adapters must invoke those hooks at the corresponding spawn boundaries.
     """
     if not observations_are_complete:
-        raise ChopBatchReplayError(
+        raise _ChopBatchReplayError(
             "ordinary batch replay requires a complete spawn observation snapshot"
         )
 
     if not ownership_acquired and not chop_batch_store.acquire_chop_batch_ownership(
         routine, job, batch_id, owner="ordinary-replay"
     ):
-        raise ChopBatchReplayError(f"batch {batch_id!r} already has a live owner")
+        raise _ChopBatchReplayError(f"batch {batch_id!r} already has a live owner")
 
     try:
         manifest = chop_batch_store.load_chop_batch(routine, job, batch_id)
         if manifest.get("typed_bundle") is not None:
-            raise ChopBatchReplayError(
+            raise _ChopBatchReplayError(
                 "typed admission batches must be replayed by the typed adapter"
             )
         if manifest.get("status") == "paused":
@@ -192,12 +192,12 @@ def replay_ordinary_chop_batch(
                 boundary_state: dict[str, bool] = boundary,
             ) -> None:
                 if boundary_state["started"]:
-                    raise ChopBatchReplayError(
+                    raise _ChopBatchReplayError(
                         f"member {index} reported more than one spawn boundary"
                     )
                 actual_name = _request_agent_name(request)
                 if actual_name != expected_name:
-                    raise ChopBatchReplayError(
+                    raise _ChopBatchReplayError(
                         "replay request changed the accepted agent name: "
                         f"{actual_name!r} != {expected_name!r}"
                     )
@@ -219,16 +219,16 @@ def replay_ordinary_chop_batch(
                 launched_records: list[Any] = launched,
             ) -> None:
                 if not boundary_state["started"]:
-                    raise ChopBatchReplayError(
+                    raise _ChopBatchReplayError(
                         f"member {index} was recorded before its spawn boundary"
                     )
                 if boundary_state["acknowledged"]:
-                    raise ChopBatchReplayError(
+                    raise _ChopBatchReplayError(
                         f"member {index} reported more than one spawn result"
                     )
                 actual_name = _record_agent_name(record)
                 if actual_name != expected_name:
-                    raise ChopBatchReplayError(
+                    raise _ChopBatchReplayError(
                         "replay result changed the accepted agent name: "
                         f"{actual_name!r} != {expected_name!r}"
                     )
@@ -286,7 +286,7 @@ def replay_ordinary_chop_batch(
                         }
                     )
                     continue
-                raise ChopBatchReplayError(failure_reason) from exc
+                raise _ChopBatchReplayError(failure_reason) from exc
             if _batch_is_cancelled(routine, job, batch_id):
                 break
             if boundary["started"] and not boundary["acknowledged"]:
@@ -300,11 +300,11 @@ def replay_ordinary_chop_batch(
                         "cooperative stop requested during ordinary replay"
                     )
                     break
-                raise ChopBatchReplayError(
+                raise _ChopBatchReplayError(
                     f"replay adapter did not report the spawn boundary for member {member_index}"
                 )
             elif not boundary["started"]:
-                raise ChopBatchReplayError(
+                raise _ChopBatchReplayError(
                     f"replay adapter did not report the spawn boundary for member {member_index}"
                 )
 
@@ -364,7 +364,6 @@ def _batch_is_cancelled(routine: str, job: str, batch_id: str) -> bool:
 
 
 __all__ = [
-    "ChopBatchReplayError",
     "ChopBatchReplayResult",
     "replay_ordinary_chop_batch",
 ]

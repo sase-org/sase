@@ -10,7 +10,7 @@ import pytest
 
 from sase.axe import chop_batch_store
 from sase.axe.chop_batch_replay import (
-    ChopBatchReplayError,
+    _ChopBatchReplayError,
     replay_ordinary_chop_batch,
 )
 from sase.core.axe_chop_facade import CHOP_BATCH_SCHEMA_VERSION
@@ -104,7 +104,7 @@ def test_replay_requires_complete_observations_and_keeps_typed_batches_separate(
     isolated_home: Path,
 ) -> None:
     chop_batch_store.create_chop_batch("docs", "refresh", _manifest())
-    with pytest.raises(ChopBatchReplayError, match="complete spawn observation"):
+    with pytest.raises(_ChopBatchReplayError, match="complete spawn observation"):
         replay_ordinary_chop_batch(
             "docs",
             "refresh",
@@ -118,7 +118,7 @@ def test_replay_requires_complete_observations_and_keeps_typed_batches_separate(
     typed["batch_id"] = "typed-replay"
     typed["typed_bundle"] = {"bundle_id": "bundle-1", "bundle_digest": "digest-1"}
     chop_batch_store.create_chop_batch("docs", "refresh", typed)
-    with pytest.raises(ChopBatchReplayError, match="typed adapter"):
+    with pytest.raises(_ChopBatchReplayError, match="typed adapter"):
         replay_ordinary_chop_batch(
             "docs",
             "refresh",
