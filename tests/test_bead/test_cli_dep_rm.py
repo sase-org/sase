@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
-import sqlite3
 from unittest.mock import patch
 
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.jsonl import import_from_jsonl
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
-from sase.bead.sync import rebuild_from_jsonl
 from sase.main.parser import create_parser
 
 
@@ -149,44 +145,17 @@ def test_dep_rm_parser_accepts_multiple_targets() -> None:
     assert args.depends_on == ["first", "second"]
 
 
-def test_mirror_rebuild_and_fallback_export_do_not_resurrect_removed_edge(
+def test_dep_rm_is_idempotent_and_failed_export_propagates(
     project_dir: Path,
 ) -> None:
     source_id, first_id, _second_id = _dependency_fixture(project_dir)
     beads_dir = project_dir / "sdd/beads"
     with BeadProject(project_dir) as project:
-        import_from_jsonl(beads_dir / "issues.jsonl", project._conn)
-        import_from_jsonl(beads_dir / "issues.jsonl", project._conn)
-        assert (
-            project._conn.execute(
-                "SELECT 1 FROM dependencies WHERE issue_id = ? AND depends_on_id = ?",
-                (source_id, first_id),
-            ).fetchone()
-            is not None
-        )
-        project._close_connection()
         project.remove_dependencies(source_id, [first_id])
-        db_mtime_ns = (beads_dir / "beads.db").stat().st_mtime_ns
-        os.utime(
-            beads_dir / "issues.jsonl",
-            ns=(
-                db_mtime_ns + 1_000_000_000,
-                db_mtime_ns + 1_000_000_000,
-            ),
-        )
-        assert rebuild_from_jsonl(beads_dir)
-
-        row = project._conn.execute(
-            "SELECT 1 FROM dependencies WHERE issue_id = ? AND depends_on_id = ?",
-            (source_id, first_id),
-        ).fetchone()
-        assert row is None
-
-        with patch(
-            "sase.core.bead_mutation_facade.export_jsonl",
-            side_effect=ValueError("force compatibility fallback"),
-        ):
-            project._export()
+        assert [dep.depends_on_id for dep in project.show(source_id).dependencies] == [
+            _second_id
+        ]
+        project._export()
 
     records = [
         json.loads(line)
@@ -196,11 +165,20 @@ def test_mirror_rebuild_and_fallback_export_do_not_resurrect_removed_edge(
     assert all(
         dependency["depends_on_id"] != first_id for dependency in source["dependencies"]
     )
-    with sqlite3.connect(beads_dir / "beads.db") as connection:
-        assert (
-            connection.execute(
-                "SELECT 1 FROM dependencies WHERE issue_id = ? AND depends_on_id = ?",
-                (source_id, first_id),
-            ).fetchone()
-            is None
-        )
+
+    with BeadProject(project_dir) as project:
+        # Removing the same edge again is a rejected non-mutation.
+        with pytest.raises(ValueError, match="Dependency does not exist"):
+            project.remove_dependencies(source_id, [first_id])
+        assert [dep.depends_on_id for dep in project.show(source_id).dependencies] == [
+            _second_id
+        ]
+
+        # A corrupt store or unavailable binding must not produce an
+        # apparently successful export from stale data.
+        with patch(
+            "sase.core.bead_mutation_facade.export_jsonl",
+            side_effect=ValueError("force export failure"),
+        ):
+            with pytest.raises(ValueError, match="force export failure"):
+                project._export()

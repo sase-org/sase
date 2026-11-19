@@ -436,49 +436,6 @@ def bead_state_is_clean(beads_dir: Path) -> bool:
     return not files
 
 
-def rebuild_from_jsonl(beads_dir: Path) -> bool:
-    """Rebuild SQLite from JSONL if JSONL is newer than db.
-
-    Event stores ignore the projection mtime: per-mutation rewrites are off,
-    so the mirror is rebuilt from a fresh canonical export instead of the
-    possibly stale ``issues.jsonl`` file.
-
-    Returns True if rebuild was performed.
-    """
-    from sase.bead import db as db_mod
-    from sase.bead.jsonl import import_from_jsonl
-
-    jsonl_path = beads_dir / "issues.jsonl"
-    db_path = beads_dir / "beads.db"
-
-    if (beads_dir / "events").is_dir():
-        # Projection-off: export canonical state first so the mirror
-        # reflects current events. The export target is git-ignored and
-        # never staged for event stores.
-        from sase.core import bead_mutation_facade as rust_beads
-
-        try:
-            rust_beads.export_jsonl(beads_dir)
-        except (AttributeError, ImportError, ValueError):
-            if not jsonl_path.exists():
-                return False
-    elif not jsonl_path.exists():
-        return False
-    elif db_path.exists():
-        # Legacy stores only: rebuild if JSONL is newer than db.
-        jsonl_mtime = jsonl_path.stat().st_mtime
-        db_mtime = db_path.stat().st_mtime
-        if db_mtime >= jsonl_mtime:
-            return False
-
-    conn = db_mod.init_db(db_path)
-    try:
-        import_from_jsonl(jsonl_path, conn)
-    finally:
-        conn.close()
-    return True
-
-
 def find_git_root(path: Path) -> Path | None:
     """Find the git root directory from a given path."""
     from sase.sdd._git import run_sdd_git

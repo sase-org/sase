@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -35,8 +34,8 @@ class BeadProject(
     """Main API for beads issue tracking.
 
     Preserves the historical Python API while delegating storage, reads, and
-    mutations to Rust-backed facades. The local SQLite connection is kept as a
-    compatibility mirror for legacy helpers/tests that still need one.
+    mutations to Rust-backed facades. Python never opens ``beads.db``;
+    Rust owns that lock file and the separate SQLite read model.
     """
 
     def __init__(
@@ -50,7 +49,6 @@ class BeadProject(
                 "Run 'sase bead init' first."
             )
         self._config: dict[str, object] = load_config(self.beads_dir)
-        self._conn_cache: sqlite3.Connection | None = None
         self._mutation_changed = False
         self._last_mutation_outcome: dict[str, object] = {}
         self._last_prefix_repair: tuple[str, str] | None = None
@@ -63,7 +61,7 @@ class BeadProject(
         return self
 
     def __exit__(self, *_: object) -> None:
-        self._close_connection()
+        return None
 
     @property
     def owner(self) -> str:
@@ -91,7 +89,6 @@ class BeadProject(
         """Create a new beads directory and return a BeadProject."""
         root = Path(root_dir).resolve()
         config = get_default_config(root)
-        from sase.bead import db as db_mod
         from sase.core import bead_mutation_facade as rust_beads
 
         rust_beads.init_store(
@@ -100,8 +97,6 @@ class BeadProject(
             issue_prefix=str(config.get("issue_prefix", "beads")),
             owner=str(config.get("owner", "")),
         )
-        conn = db_mod.init_db(root / beads_dirname / "beads.db")
-        conn.close()
         return BeadProject(root, beads_dirname=beads_dirname)
 
     def _current_time(self) -> str:

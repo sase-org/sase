@@ -8,12 +8,10 @@ helpers are constructed, raised, and consumed in their defining file.
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.bead import db
 from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.model import Dependency, Issue, PhaseSize
 from sase.bead.work_types import EpicPlanError
@@ -56,7 +54,7 @@ class _CrossEpicBlockerError(EpicPlanError):
 
 
 def _build_epic_work_plan(
-    source: sqlite3.Connection | str | Path,
+    source: str | Path,
     epic_id: str,
 ) -> EpicWorkPlan:
     """Compute a wave-partitioned plan to work an epic's authored phases.
@@ -74,9 +72,6 @@ def _build_epic_work_plan(
             that is not closed.
         _CycleError: If the open phases form a dependency cycle.
     """
-    if isinstance(source, sqlite3.Connection):
-        return _build_epic_work_plan_from_issues(db.list_issues(source), epic_id)
-
     from sase.core.bead_read_facade import resolve_id
 
     epic_id = resolve_id(source, epic_id)

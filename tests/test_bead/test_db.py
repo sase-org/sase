@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from sase.bead.db import (
+from tests.test_bead.legacy_sqlite.db import (
     add_dependency,
     create_issue,
     get_epic_children,
@@ -412,7 +412,10 @@ class TestIsReadyToWork:
         assert result.is_ready_to_work is True
 
     def test_jsonl_roundtrip(self, conn: sqlite3.Connection, tmp_path) -> None:
-        from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+        from tests.test_bead.legacy_sqlite.jsonl import (
+            export_to_jsonl,
+            import_from_jsonl,
+        )
 
         create_issue(conn, _epic())
         update_issue(conn, "e-1", is_ready_to_work=1, updated_at=NOW)

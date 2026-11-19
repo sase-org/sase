@@ -8,7 +8,6 @@ import pytest
 
 from sase.bead.model import PhaseSize, Status
 from sase.bead.work import render_multi_prompt
-from sase.bead.work_plan import _build_epic_work_plan
 from sase.llm_provider.config import resolve_model_alias_with_effort
 from sase.llm_provider.model_alias_policy import (
     LARGE_MODEL_ALIAS_NAME,
@@ -18,7 +17,13 @@ from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from sase.macro.workflow_models import Workflow
 
-from .work_test_helpers import assert_tale_auto_directives, epic, phase, seed
+from .work_test_helpers import (
+    assert_tale_auto_directives,
+    epic,
+    phase,
+    seed,
+    plan_from_conn,
+)
 
 
 class TestModelDirective:
@@ -41,7 +46,7 @@ class TestModelDirective:
         expects_plan: bool,
     ) -> None:
         seed(conn, [epic("e1"), phase("p1", size=size)])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -94,7 +99,7 @@ class TestModelDirective:
                 ),
             ],
         )
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -136,7 +141,7 @@ class TestModelDirective:
             conn,
             [epic("e1"), *[phase(f"p{index}") for index in range(phase_count)]],
         )
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -167,7 +172,7 @@ class TestModelDirective:
                 phase("p5"),
             ],
         )
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -192,7 +197,7 @@ class TestModelDirective:
             conn,
             [epic("e1", model="claude/opus"), *[phase(f"p{i}") for i in range(5)]],
         )
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -226,7 +231,7 @@ class TestModelDirective:
             lambda: config,
         )
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -241,7 +246,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1", model="claude/opus")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -266,7 +271,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -290,7 +295,7 @@ class TestModelDirective:
                 phase("p3", model="#pro"),
             ],
         )
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -312,7 +317,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1", model="claude/opus"), phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -338,7 +343,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
         monkeypatch.setattr(
             "sase.llm_provider.config.get_llm_provider_config",
             lambda: {"provider": "claude"},
@@ -400,7 +405,7 @@ class TestModelDirective:
         # forwards them through. This test confirms the renderer doesn't
         # double-handle escaping (a literal value renders as one directive).
         seed(conn, [epic("e1"), phase("p1", model="provider/some-model")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,

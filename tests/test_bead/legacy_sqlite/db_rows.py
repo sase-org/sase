@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from sase.bead._db_codec import (
+from tests.test_bead.legacy_sqlite.db_codec import (
     close_history_from_json,
     notes_from_json,
     plus_one_evidence_from_json,

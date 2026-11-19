@@ -29,7 +29,7 @@ from typing import Any
 
 import pytest
 
-from sase.bead import db as db_mod
+from tests.test_bead.legacy_sqlite import db as db_mod
 from sase.bead.config import save_config
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
@@ -85,7 +85,10 @@ def _write_project(root: Path, *, issue_count: int, dependency_count: int) -> No
         beads_dir,
         {"issue_prefix": "bench", "next_counter": issue_count + 1, "owner": ""},
     )
-    conn = db_mod.init_db(beads_dir / "beads.db")
+    fixture_path = beads_dir / "fixture.sqlite"
+    if (beads_dir / "beads.db").exists():
+        (beads_dir / "beads.db").unlink()
+    conn = db_mod.init_db(fixture_path)
     try:
         plans = max(1, issue_count // 10)
         for idx in range(issue_count):
@@ -119,11 +122,15 @@ def _write_project(root: Path, *, issue_count: int, dependency_count: int) -> No
                 issue_ids[idx],
                 f"2026-01-02T00:{idx % 60:02d}:00Z",
             )
-        from sase.bead.jsonl import export_to_jsonl
+        from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl
 
         export_to_jsonl(conn, beads_dir / "issues.jsonl")
     finally:
         conn.close()
+    fixture_path.unlink(missing_ok=True)
+    # Rust owns beads.db as its mutation lock file; leave an empty lock
+    # file so the on-disk shape matches production (no Python SQLite).
+    (beads_dir / "beads.db").write_bytes(b"")
 
 
 def _write_work_plan_project(root: Path, *, phase_count: int) -> None:
@@ -133,7 +140,10 @@ def _write_work_plan_project(root: Path, *, phase_count: int) -> None:
         beads_dir,
         {"issue_prefix": "work", "next_counter": phase_count + 2, "owner": ""},
     )
-    conn = db_mod.init_db(beads_dir / "beads.db")
+    fixture_path = beads_dir / "fixture.sqlite"
+    if (beads_dir / "beads.db").exists():
+        (beads_dir / "beads.db").unlink()
+    conn = db_mod.init_db(fixture_path)
     try:
         epic = Issue(
             id="work-1",
@@ -163,11 +173,13 @@ def _write_work_plan_project(root: Path, *, phase_count: int) -> None:
                     f"2026-01-02T00:{idx % 60:02d}:00Z",
                 )
 
-        from sase.bead.jsonl import export_to_jsonl
+        from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl
 
         export_to_jsonl(conn, beads_dir / "issues.jsonl")
     finally:
         conn.close()
+    fixture_path.unlink(missing_ok=True)
+    (beads_dir / "beads.db").write_bytes(b"")
 
 
 def _bench_shell(

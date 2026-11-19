@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from sase.bead import db
+from tests.test_bead.legacy_sqlite import db
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead.work_plan import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
 from sase.macro.directives import extract_prompt_directives
@@ -58,6 +58,18 @@ def seed(conn: sqlite3.Connection, issues: list[Issue]) -> None:
 
 def depends(conn: sqlite3.Connection, child: str, blocker: str) -> None:
     db.add_dependency(conn, child, blocker, NOW)
+
+
+def plan_from_conn(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan:
+    """Build a work plan from a legacy SQLite fixture via the Rust adapter.
+
+    Reads fixture issues out of an isolated SQLite file (never ``beads.db``)
+    and calls the Rust-backed ``_build_epic_work_plan_from_issues`` adapter,
+    preserving the existing fixture codec without a production SQLite path.
+    """
+    from sase.bead.work_plan import _build_epic_work_plan_from_issues
+
+    return _build_epic_work_plan_from_issues(db.list_issues(conn), epic_id)
 
 
 def wave_bead_ids(plan: EpicWorkPlan, wave_index: int) -> list[str]:

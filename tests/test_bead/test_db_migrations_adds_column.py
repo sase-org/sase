@@ -8,8 +8,8 @@ import sqlite3
 
 import pytest
 
-from sase.bead._db_schema import SCHEMA_SQL
-from sase.bead.db import get_issue, init_db
+from tests.test_bead.legacy_sqlite.db_schema import SCHEMA_SQL
+from tests.test_bead.legacy_sqlite.db import get_issue, init_db
 from sase.bead.model import Resolution
 
 from .db_test_helpers import NOW

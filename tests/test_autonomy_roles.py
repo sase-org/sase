@@ -110,18 +110,18 @@ def test_role_assignments_fixed_order(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_render_uses_role_directives(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    from sase.bead import db as _db
-    from sase.bead.work_plan import _build_epic_work_plan
+    from tests.test_bead.legacy_sqlite import db as _db
     from sase.bead.work_prompt import render_multi_prompt
     from sase.macro.workflow_models import Workflow
     from tests.test_bead.work_test_helpers import epic as _epic
     from tests.test_bead.work_test_helpers import phase as _phase
+    from tests.test_bead.work_test_helpers import plan_from_conn as _plan_from_conn
     from tests.test_bead.work_test_helpers import seed as _seed
 
     conn = _db.init_db(tmp_path / "roles-test.db")
     try:
         _seed(conn, [_epic("e1"), _phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = _plan_from_conn(conn, "e1")
 
         def _render() -> str:
             return render_multi_prompt(

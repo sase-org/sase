@@ -2,8 +2,8 @@
 
 ``snooze`` crosses the same three storage surfaces ``close_history`` does:
 the Rust outcome dicts read by :mod:`sase.core.bead_wire`, the
-``issues.jsonl`` rows written by :mod:`sase.bead.jsonl`, and the JSON column
-in the compatibility SQLite mirror. They share this codec so a record cannot
+``issues.jsonl`` rows written by the Rust JSONL writer, and the JSON column
+in legacy test SQLite fixtures. They share this codec so a record cannot
 mean one thing in one surface and something else in another.
 
 Key order and omitted-when-absent optional keys mirror ``BeadSnoozeWire`` in
@@ -15,26 +15,6 @@ from __future__ import annotations
 from typing import Any
 
 from sase.bead.model import SnoozeRecord
-
-
-def snooze_to_dict(record: SnoozeRecord) -> dict[str, Any]:
-    """Encode one snooze record in sase-core wire field order."""
-    return {
-        "until": record.until,
-        "snoozed_at": record.snoozed_at,
-        "snoozed_by": record.snoozed_by,
-        **(
-            {"plus_one_target": record.plus_one_target}
-            if record.plus_one_target is not None
-            else {}
-        ),
-        **(
-            {"plus_one_baseline": record.plus_one_baseline}
-            if record.plus_one_baseline is not None
-            else {}
-        ),
-        "reason": record.reason,
-    }
 
 
 def snooze_from_dict(value: object) -> SnoozeRecord | None:
@@ -67,5 +47,4 @@ def _optional_int(value: object) -> int | None:
 
 __all__ = [
     "snooze_from_dict",
-    "snooze_to_dict",
 ]

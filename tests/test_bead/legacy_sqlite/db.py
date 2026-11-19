@@ -8,7 +8,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from sase.bead._db_codec import (
+from tests.test_bead.legacy_sqlite.db_codec import (
     close_history_json,
     notes_json,
     plus_one_evidence_from_json,
@@ -16,9 +16,13 @@ from sase.bead._db_codec import (
     snooze_json,
     task_type_fields_json,
 )
-from sase.bead._db_migrations import run_migrations
-from sase.bead._db_rows import load_dependencies, row_to_issue, rows_to_issues
-from sase.bead._db_schema import SCHEMA_SQL, connect
+from tests.test_bead.legacy_sqlite.db_migrations import run_migrations
+from tests.test_bead.legacy_sqlite.db_rows import (
+    load_dependencies,
+    row_to_issue,
+    rows_to_issues,
+)
+from tests.test_bead.legacy_sqlite.db_schema import SCHEMA_SQL, connect
 from sase.bead.model import (
     BeadTier,
     Dependency,

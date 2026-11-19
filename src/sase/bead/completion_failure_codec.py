@@ -4,8 +4,7 @@ The codec is shared by every Python reader of the bead wire — the Rust
 outcome dicts decoded by :mod:`sase.core.bead_wire` and the stranded-work
 collector facts — so a fact cannot mean one thing in one surface and
 something else in another. The facts stay authoritative in the Rust event
-store (encoding lives in sase-core); the compatibility SQLite mirror does
-not carry these columns (its rebuild migrations are Rust-owned), and reads
+store (encoding lives in sase-core); legacy test SQLite fixtures do not carry these columns, and reads
 go through the Rust facade.
 
 Key order mirrors ``BeadCompletionFailureWire`` in sase-core.

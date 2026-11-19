@@ -56,7 +56,7 @@ def test_bead_project_create_delegates_to_rust_mutation(
             return expected, {"operation": "create"}
 
         monkeypatch.setattr(bead_mutation_facade, "create", fake_create)
-        monkeypatch.setattr(project, "_refresh_db_from_jsonl", lambda: None)
+        monkeypatch.setattr(project, "_refresh_config_after_mutation", lambda: None)
 
         assert project.create("Delegated", IssueType.PLAN) is expected
         assert calls[0]["beads_dir"] == project.beads_dir
@@ -103,7 +103,7 @@ def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
         monkeypatch.setattr(bead_mutation_facade, "claim_for_agent_launch", fake_claim)
         monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 
@@ -135,7 +135,7 @@ def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
 
         monkeypatch.setattr(bead_mutation_facade, "claim_for_agent_launch", fail_claim)
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         _stub_resolve_id(project, monkeypatch)
 
@@ -201,7 +201,7 @@ def test_bead_project_preclaim_epic_work_returns_typed_rollback(
         monkeypatch.setattr(bead_mutation_facade, "preclaim_epic_work", fake_preclaim)
         monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         monkeypatch.setattr(project, "resolve_id", lambda issue_id: issue_id)
 
@@ -271,7 +271,7 @@ def test_bead_project_wait_claim_methods_return_mutation_state(
         monkeypatch.setattr(bead_mutation_facade, facade_name, fake_mutation)
         monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 
@@ -300,7 +300,7 @@ def test_bead_project_remove_many_delegates_and_refreshes_once(
 
         monkeypatch.setattr(bead_mutation_facade, "remove_many", fake_remove_many)
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 
@@ -329,7 +329,7 @@ def test_bead_project_update_many_delegates_and_refreshes_once(
 
         monkeypatch.setattr(bead_mutation_facade, "update_many", fake_update_many)
         monkeypatch.setattr(
-            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+            project, "_refresh_config_after_mutation", lambda: refreshes.append(True)
         )
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 

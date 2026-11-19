@@ -23,14 +23,13 @@ from sase.bead.work import (
 )
 from sase.bead.work_plan import (
     _PhaseAssignment as PhaseAssignment,
-    _build_epic_work_plan,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.macro.directive_edit import PromptWaitDirective
 from sase.macro.directives import DirectiveError, extract_prompt_directives
 from sase.macro.workflow_models import Workflow
 
-from .work_test_helpers import depends, epic, phase, seed
+from .work_test_helpers import depends, epic, phase, seed, plan_from_conn
 
 
 def _bead_wait_lines(rendered: str) -> list[str]:
@@ -42,7 +41,7 @@ class TestRenderEdgeCases:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -63,7 +62,7 @@ class TestRenderEdgeCases:
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
         depends(conn, "p2", "p1")
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         vcs_rendered = render_multi_prompt(
             plan,
@@ -90,7 +89,7 @@ class TestRenderEdgeCases:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -109,7 +108,7 @@ class TestRenderEdgeCases:
                 phase("sase-r.1", parent_id="sase-r"),
             ],
         )
-        plan = _build_epic_work_plan(conn, "sase-r")
+        plan = plan_from_conn(conn, "sase-r")
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r.land"
 
@@ -200,7 +199,7 @@ class TestRenderEdgeCases:
         conn: sqlite3.Connection,
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         plan_ref = "sdd/plans/202607/epic.md"
         assert epic_work_segment_env(plan, plan_ref=plan_ref) == (
@@ -268,7 +267,7 @@ class TestRenderEdgeCases:
         conn: sqlite3.Connection,
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
         snapshot = "/state/projects/project/artifacts/epic-plans/e1.md"
 
         envs = epic_work_segment_env(

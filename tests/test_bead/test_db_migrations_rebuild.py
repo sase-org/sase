@@ -8,9 +8,9 @@ import sqlite3
 
 import pytest
 
-from sase.bead import db as bead_db
-from sase.bead._db_schema import SCHEMA_SQL
-from sase.bead.db import (
+from tests.test_bead.legacy_sqlite import db as bead_db
+from tests.test_bead.legacy_sqlite.db_schema import SCHEMA_SQL
+from tests.test_bead.legacy_sqlite.db import (
     add_dependency,
     create_issue,
     get_issue,

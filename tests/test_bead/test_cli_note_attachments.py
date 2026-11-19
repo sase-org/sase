@@ -16,7 +16,7 @@ import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead.model import BeadNote, IssueType
-from sase.bead.note_codec import notes_from_dicts, notes_to_dicts
+from sase.bead.note_codec import _notes_from_dicts as notes_from_dicts, notes_to_dicts
 from sase.bead.project import BeadProject
 from sase.cli_file_values import CliFileValueError, read_note_text_value
 from sase.main.parser import create_parser

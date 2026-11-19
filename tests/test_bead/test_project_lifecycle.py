@@ -135,19 +135,15 @@ def test_remove_many_missing_id_is_atomic(project):
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
     survivor = project.create("Survivor", IssueType.PLAN)
     project.add_dependency(survivor.id, child.id)
-    # Projection-off: opening the mirror exports fresh state first, so
-    # snapshot the projection after the mirror is open. The atomicity
-    # assertions below (failed remove_many changes nothing) still hold.
-    rows_before = project._conn.execute("SELECT id FROM issues ORDER BY id").fetchall()
+    project._export()
+    ids_before = sorted(issue.id for issue in project.list_issues())
     projection_before = (project.beads_dir / "issues.jsonl").read_bytes()
 
     with pytest.raises(KeyError, match="Issue not found: missing"):
         project.remove_many([epic.id, "missing"])
 
     assert (project.beads_dir / "issues.jsonl").read_bytes() == projection_before
-    assert project._conn.execute("SELECT id FROM issues ORDER BY id").fetchall() == (
-        rows_before
-    )
+    assert sorted(issue.id for issue in project.list_issues()) == ids_before
     assert project.show(epic.id).id == epic.id
     assert project.show(child.id).id == child.id
     assert project.show(survivor.id).dependencies[0].depends_on_id == child.id

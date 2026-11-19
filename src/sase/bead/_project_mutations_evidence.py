@@ -18,7 +18,7 @@ class BeadProjectMutationEvidenceMixin:
     beads_dir: Path
     _current_time: Callable[[], str]
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
 
     if TYPE_CHECKING:
 
@@ -44,7 +44,7 @@ class BeadProjectMutationEvidenceMixin:
             attachments=attachments,
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def edit_note(
@@ -76,7 +76,7 @@ class BeadProjectMutationEvidenceMixin:
             attachments=attachments,
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def remove_note(
@@ -100,7 +100,7 @@ class BeadProjectMutationEvidenceMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def append_note_many(
@@ -142,7 +142,7 @@ class BeadProjectMutationEvidenceMixin:
             resolved_by_raw[issue_id] = issue.id
             outcomes.append(outcome)
         self._record_mutation_outcome(combine_mutation_outcomes("update", outcomes))
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return [issue_by_id[resolved_by_raw[raw_id]] for raw_id in issue_ids]
 
     def plus_one(
@@ -169,7 +169,7 @@ class BeadProjectMutationEvidenceMixin:
             note_attachments=note_attachments,
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue, bool(outcome["changed"])
 
 

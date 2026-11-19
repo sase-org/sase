@@ -47,28 +47,52 @@ def test_constructor_raises_without_beads_dir(tmp_path):
         BeadProject(tmp_path)
 
 
-def test_read_commands_do_not_open_compatibility_mirror(tmp_path: Path) -> None:
+def test_read_commands_do_not_open_sqlite_mirror(tmp_path: Path) -> None:
+    import sqlite3
+
     with BeadProject.init(tmp_path) as project:
         epic = project.create("Epic", IssueType.PLAN)
         child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+        project.add_dependency(child.id, epic.id)
 
     db_path = tmp_path / "sdd/beads/beads.db"
-    for suffix in ("", "-shm", "-wal"):
+    for suffix in ("-shm", "-wal"):
         candidate = db_path.parent / f"{db_path.name}{suffix}"
         if candidate.exists():
             candidate.unlink()
 
+    opened: list[str] = []
+    real_connect = sqlite3.connect
+
+    def _guarded_connect(*args: object, **kwargs: object) -> object:
+        target = str(args[0]) if args else str(kwargs.get("database", ""))
+        if target.endswith("beads.db"):
+            opened.append(target)
+            raise AssertionError(f"Python must not open {target} via stdlib sqlite3")
+        return real_connect(*args, **kwargs)  # type: ignore[arg-type]
+
+    import unittest.mock as _mock
+
+    with _mock.patch("sqlite3.connect", side_effect=_guarded_connect):
+        with BeadProject(tmp_path) as project:
+            assert project.show(epic.id).id == epic.id
+            assert [issue.id for issue in project.list_issues()] == [epic.id, child.id]
+            assert [issue.id for issue in project.get_epic_children(epic.id)] == [
+                child.id
+            ]
+            assert project.show(child.id).dependencies[0].depends_on_id == epic.id
+            project._export()
+            assert opened == []
+
     with BeadProject(tmp_path) as project:
-        assert project.show(epic.id).id == epic.id
-        assert [issue.id for issue in project.list_issues()] == [epic.id, child.id]
-        assert [issue.id for issue in project.get_epic_children(epic.id)] == [child.id]
-        assert not db_path.exists()
-
-        assert project._max_local_child_counter(epic.id) == 1
-        assert db_path.exists()
+        second = project.create("Second", IssueType.PHASE, parent_id=epic.id)
+        assert second.id == f"{epic.id}.2"
 
 
-def test_cold_large_jsonl_store_reads_without_building_mirror(tmp_path: Path) -> None:
+def test_cold_large_jsonl_store_reads_without_sqlite_mirror(tmp_path: Path) -> None:
+    import sqlite3
+    import unittest.mock as _mock
+
     beads_dir = tmp_path / "beads"
     beads_dir.mkdir()
     (beads_dir / "config.json").write_text(
@@ -110,18 +134,26 @@ def test_cold_large_jsonl_store_reads_without_building_mirror(tmp_path: Path) ->
         encoding="utf-8",
     )
     db_path = beads_dir / "beads.db"
+    assert not db_path.exists()
 
-    with BeadProject(tmp_path, beads_dirname="beads") as project:
-        assert project.show("perf-1.1499").title == "Child 1499"
-        assert len(project.get_epic_children("perf-1")) == 1499
-        assert len(project.list_issues()) == 1500
-        assert not db_path.exists()
+    opened: list[str] = []
+    real_connect = sqlite3.connect
 
-        assert project._max_local_child_counter("perf-1") == 1499
-        assert db_path.exists()
-        row = project._conn.execute("SELECT COUNT(*) FROM issues").fetchone()
-        assert row is not None
-        assert row[0] == 1500
+    def _guarded_connect(*args: object, **kwargs: object) -> object:
+        target = str(args[0]) if args else str(kwargs.get("database", ""))
+        if target.endswith("beads.db"):
+            opened.append(target)
+            raise AssertionError(f"Python must not open {target} via stdlib sqlite3")
+        return real_connect(*args, **kwargs)  # type: ignore[arg-type]
+
+    with _mock.patch("sqlite3.connect", side_effect=_guarded_connect):
+        with BeadProject(tmp_path, beads_dirname="beads") as project:
+            assert project.show("perf-1.1499").title == "Child 1499"
+            assert len(project.get_epic_children("perf-1")) == 1499
+            assert len(project.list_issues()) == 1500
+            project._export()
+            assert opened == []
+            assert len(project.list_issues()) == 1500
 
 
 def test_doctor_clean(project):

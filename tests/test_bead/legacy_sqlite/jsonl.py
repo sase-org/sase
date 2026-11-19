@@ -10,8 +10,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-from sase.bead import db as db_mod
-from sase.bead._db_codec import (
+from tests.test_bead.legacy_sqlite import db as db_mod
+from tests.test_bead.legacy_sqlite.db_codec import (
     close_history_json,
     notes_json,
     plus_one_evidence_json,
@@ -22,7 +22,8 @@ from sase.bead.close_history_codec import (
     close_history_to_dicts,
 )
 from sase.bead.note_codec import notes_from_data, notes_to_dicts
-from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
+from sase.bead.snooze_codec import snooze_from_dict
+from tests.test_bead.legacy_sqlite.db_codec import snooze_to_dict
 from sase.bead.model import (
     BeadLink,
     BeadTier,

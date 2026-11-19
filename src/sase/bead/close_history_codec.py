@@ -2,8 +2,8 @@
 
 ``close_history`` crosses three storage surfaces that all speak the same
 record shape: the Rust outcome dicts read by :mod:`sase.core.bead_wire`, the
-``issues.jsonl`` rows written by :mod:`sase.bead.jsonl`, and the JSON column
-in the compatibility SQLite mirror. They share this codec so a record cannot
+``issues.jsonl`` rows written by the Rust JSONL writer, and the JSON column
+in legacy test SQLite fixtures. They share this codec so a record cannot
 mean one thing in one surface and something else in another.
 
 Key order and omitted-when-absent optional keys mirror ``BeadCloseRecordWire``

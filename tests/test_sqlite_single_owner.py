@@ -27,7 +27,6 @@ SRC_ROOT = REPO_ROOT / "src" / "sase"
 # Modules allowed to open a stdlib sqlite3 connection, each mapped to the
 # Python-owned database it serves.
 ALLOWLIST = {
-    "bead._db_schema": "beads.db (bead store compatibility mirror)",
     "history.chat_catalog_provenance.cache": "chats_catalog.sqlite",
     "llm_provider._subprocess_agy": "external agy conversation DBs (read-only)",
     "migration_kit.sqlite_backup": (
@@ -39,6 +38,8 @@ ALLOWLIST = {
 
 # Filenames owned by the Rust core: Python must reach them only through
 # sase_core_rs bindings, never through stdlib sqlite3.
+# ``beads.db`` is the Rust bead-mutation lock file; Python never opens it
+# through stdlib sqlite3 (retired WAL mirror, see sase-1kp / sase-1tc.4).
 RUST_OWNED_FILENAME_MARKERS = (
     "agent_artifact_index.sqlite",
     "index.sqlite",
@@ -46,6 +47,7 @@ RUST_OWNED_FILENAME_MARKERS = (
     "metrics.sqlite",
     "footprint.sqlite",
     "bead-read-model",
+    "beads.db",
 )
 
 _RULE_HELP = (
@@ -137,3 +139,43 @@ def test_allowlisted_modules_do_not_name_rust_owned_files() -> None:
         f"{_RULE_HELP} Allowlisted Python-owned modules must not reference "
         f"Rust-owned database files: {offenders}."
     )
+
+
+def test_beads_db_has_single_rust_owner() -> None:
+    """Bead-store ``beads.db`` is Rust-owned; Python never opens it via SQLite.
+
+    Fails on the retired production mirror, including its indirect path
+    through ``init_db``: the old ``BeadProject._conn`` / ``_conn_cache`` /
+    ``_close_connection`` / ``_max_local_child_counter`` / ``_next_child_id``
+    sites and any ``rebuild_from_jsonl`` / ``init_db(beads.db)`` opener.
+    """
+    assert "beads.db" in RUST_OWNED_FILENAME_MARKERS
+    assert "bead._db_schema" not in ALLOWLIST
+
+    project_text = (SRC_ROOT / "bead" / "project.py").read_text(encoding="utf-8")
+    store_text = (SRC_ROOT / "bead" / "_project_store.py").read_text(encoding="utf-8")
+    sync_git_text = (SRC_ROOT / "bead" / "_sync_git.py").read_text(encoding="utf-8")
+
+    for label, text in (
+        ("project.py", project_text),
+        ("_project_store.py", store_text),
+    ):
+        assert "import sqlite3" not in text, f"{label} must not import sqlite3"
+        assert "_conn_cache" not in text, f"{label} must not keep _conn_cache"
+        assert "_conn" not in text or "_conn_cache" not in text, f"{label} stale"
+        assert "init_db" not in text, f"{label} must not init a SQLite mirror"
+        assert "rebuild_from_jsonl" not in text, f"{label} must not rebuild a mirror"
+
+    assert "_close_connection" not in store_text
+    assert "_max_local_child_counter" not in store_text
+    assert "_next_child_id" not in store_text
+    assert "export_to_jsonl(self._conn" not in store_text
+
+    assert "def rebuild_from_jsonl" not in sync_git_text
+    assert "from sase.bead import db" not in store_text
+    assert "from sase.bead.jsonl import" not in store_text
+
+    # Production work-plan entry point takes a store path, never a connection.
+    work_plan_text = (SRC_ROOT / "bead" / "work_plan.py").read_text(encoding="utf-8")
+    assert "sqlite3.Connection" not in work_plan_text
+    assert "from sase.bead import db" not in work_plan_text

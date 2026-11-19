@@ -18,7 +18,7 @@ class BeadProjectMutationLifecycleMixin:
     beads_dir: Path
     _current_time: Callable[[], str]
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
 
     def close(
         self,
@@ -65,7 +65,7 @@ class BeadProjectMutationLifecycleMixin:
             close_provenance=close_provenance,
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return closed
 
     def open(
@@ -88,7 +88,7 @@ class BeadProjectMutationLifecycleMixin:
         )
         self._record_mutation_outcome(outcome)
         reopened_ancestors = issues_from_list(outcome.get("issues", []))
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue, reopened_ancestors
 
     def remove(self, issue_id: str) -> list[Issue]:
@@ -102,7 +102,7 @@ class BeadProjectMutationLifecycleMixin:
 
         removed, outcome = rust_beads.remove(self.beads_dir, issue_id)
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return removed
 
     def remove_many(self, issue_ids: list[str]) -> list[Issue]:
@@ -115,7 +115,7 @@ class BeadProjectMutationLifecycleMixin:
 
         removed, outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return removed
 
     def mark_ready_to_work(self, epic_id: str) -> Issue:
@@ -130,7 +130,7 @@ class BeadProjectMutationLifecycleMixin:
             self.beads_dir, epic_id, now=self._current_time()
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return updated
 
     def unmark_ready_to_work(self, epic_id: str) -> Issue:
@@ -149,7 +149,7 @@ class BeadProjectMutationLifecycleMixin:
             self.beads_dir, epic_id, now=self._current_time()
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return updated
 
     def reproject_from_events(self) -> dict[str, object]:
@@ -158,5 +158,5 @@ class BeadProjectMutationLifecycleMixin:
 
         outcome = rust_beads.export_jsonl(self.beads_dir)
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return outcome

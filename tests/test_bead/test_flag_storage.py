@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead import db as db_mod
+from tests.test_bead.legacy_sqlite import db as db_mod
 from sase.bead.flag_fields import FlagFields
 from sase.bead.model import Issue, IssueType, Status
 
@@ -53,7 +53,7 @@ class TestFlagFieldsValidation:
 
 
 def test_fresh_mirror_rejects_the_retired_flag_issue_type(tmp_path: Path) -> None:
-    conn = db_mod.init_db(tmp_path / "beads.db")
+    conn = db_mod.init_db(tmp_path / "fixture.sqlite")
     try:
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
@@ -84,7 +84,7 @@ def test_flag_task_bead_round_trips_through_the_mirror(tmp_path: Path) -> None:
             "remove_by_release": "0.19.0",
         },
     )
-    conn = db_mod.init_db(tmp_path / "beads.db")
+    conn = db_mod.init_db(tmp_path / "fixture.sqlite")
     try:
         db_mod.create_issue(conn, issue)
         reloaded = db_mod.get_issue(conn, "sase-f1")

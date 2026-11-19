@@ -11,11 +11,36 @@ from sase.bead.close_history_codec import (
 from sase.bead.model import BeadNote, CloseRecord, SnoozeRecord, TaskPlusOneEvidence
 from sase.bead.note_codec import (
     LEGACY_NOTE_ID_PREFIX,
-    notes_from_dicts,
+    _notes_from_dicts as notes_from_dicts,
     notes_to_dicts,
-    parse_legacy_note_blob,
+    _parse_legacy_note_blob as parse_legacy_note_blob,
 )
-from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
+from sase.bead.snooze_codec import snooze_from_dict
+from typing import Any
+
+
+def snooze_to_dict(record: SnoozeRecord) -> dict[str, Any]:
+    """Encode one snooze record in sase-core wire field order (test-only copy).
+
+    Retired from ``sase.bead.snooze_codec`` with the Python SQLite mirror;
+    kept here so legacy fixture exports stay byte-identical to the Rust writer.
+    """
+    return {
+        "until": record.until,
+        "snoozed_at": record.snoozed_at,
+        "snoozed_by": record.snoozed_by,
+        **(
+            {"plus_one_target": record.plus_one_target}
+            if record.plus_one_target is not None
+            else {}
+        ),
+        **(
+            {"plus_one_baseline": record.plus_one_baseline}
+            if record.plus_one_baseline is not None
+            else {}
+        ),
+        "reason": record.reason,
+    }
 
 
 def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:

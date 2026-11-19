@@ -26,7 +26,6 @@ from sase.bead._sync_git import (
     commit_task_work_launch as commit_task_work_launch,
     find_git_root as _find_git_root,
     git_sync as git_sync,
-    rebuild_from_jsonl as rebuild_from_jsonl,
     relative_pathspec as _relative_pathspec,
 )
 from sase.bead._sync_logs import new_sync_log_path as _new_sync_log_path_impl

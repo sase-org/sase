@@ -668,9 +668,16 @@ the standing rule is:
 | `telemetry/metrics.sqlite`                    | Rust core | `sase_core_rs` bindings only |
 | `footprint/footprint.sqlite`                  | Rust core | `sase_core_rs` bindings only |
 | `<git-dir>/sase/bead-read-model/<key>.sqlite` | Rust core | `sase_core_rs` bindings only |
-| `beads.db`                                    | Python    | stdlib `sqlite3` only        |
+| `beads.db` (bead-store mutation lock file)    | Rust core | `sase_core_rs` bindings only |
 | `chats_catalog.sqlite`                        | Python    | stdlib `sqlite3` only        |
 | External agy conversation DBs                 | Python    | stdlib `sqlite3` only        |
+
+`beads.db` is the Rust bead-mutation lock file, not a Python SQLite mirror. The
+versioned SQLite read model (`<git-dir>/sase/bead-read-model/<key>.sqlite`) is separate
+and Rust-owned. Preexisting `beads.db` mirror bytes are left in place and unused by new
+Python paths, preserving the lock inode across adoption so older processes still holding
+the file and newer processes taking the Rust lock converge during mixed-process rollout.
+Python never opens `beads.db` through stdlib `sqlite3`.
 
 New Python access to a Rust-owned file must go through a `sase_core_rs` binding, never
 through stdlib `sqlite3`. `tests/test_sqlite_single_owner.py` enforces this statically:

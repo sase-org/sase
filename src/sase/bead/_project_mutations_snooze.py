@@ -17,7 +17,7 @@ class BeadProjectMutationSnoozeMixin:
     beads_dir: Path
     _current_time: Callable[[], str]
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
 
     def snooze(
         self,
@@ -41,7 +41,7 @@ class BeadProjectMutationSnoozeMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def cancel_snooze(self, issue_id: str, *, actor: str) -> Issue:
@@ -55,5 +55,5 @@ class BeadProjectMutationSnoozeMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue

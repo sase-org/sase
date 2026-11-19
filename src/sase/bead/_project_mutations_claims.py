@@ -18,7 +18,7 @@ class BeadProjectMutationClaimsMixin:
     beads_dir: Path
     _current_time: Callable[[], str]
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
 
     if TYPE_CHECKING:
 
@@ -62,7 +62,7 @@ class BeadProjectMutationClaimsMixin:
             run_id=run_id,
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue, bool(outcome.get("changed", True))
 
     def claim_for_agent_wait(self, bead_id: str, agent_name: str) -> tuple[Issue, bool]:
@@ -77,7 +77,7 @@ class BeadProjectMutationClaimsMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue, bool(outcome["changed"])
 
     def release_agent_claim(self, bead_id: str, agent_name: str) -> tuple[Issue, bool]:
@@ -92,7 +92,7 @@ class BeadProjectMutationClaimsMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue, bool(outcome["changed"])
 
     def preclaim_epic_work(
@@ -117,7 +117,7 @@ class BeadProjectMutationClaimsMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return tuple(
             EpicPreclaimRollback(
                 bead_id=str(record["bead_id"]),

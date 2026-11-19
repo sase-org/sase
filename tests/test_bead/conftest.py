@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from sase.bead import db
+from tests.test_bead.legacy_sqlite import db
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget

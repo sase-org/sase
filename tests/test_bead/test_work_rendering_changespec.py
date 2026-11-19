@@ -8,7 +8,6 @@ from sase.bead.work import (
     PatchLaunchContext,
     render_multi_prompt,
 )
-from sase.bead.work_plan import _build_epic_work_plan
 from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import (
@@ -16,6 +15,7 @@ from .work_test_helpers import (
     depends,
     epic,
     phase,
+    plan_from_conn,
     seed,
 )
 
@@ -23,7 +23,7 @@ from .work_test_helpers import (
 class TestPatchRendering:
     def test_single_phase_wraps_phase_and_land(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -61,7 +61,7 @@ class TestPatchRendering:
         seed(conn, [epic("e1"), phase("p1"), phase("p2"), phase("p3")])
         depends(conn, "p2", "p1")
         depends(conn, "p3", "p2")
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -115,7 +115,7 @@ class TestPatchRendering:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -139,7 +139,7 @@ class TestPatchRendering:
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = _build_epic_work_plan(conn, "e1")
+        plan = plan_from_conn(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,

@@ -2,15 +2,15 @@
 
 ``notes`` crosses three storage surfaces that all speak the same record
 shape: the Rust outcome dicts read by :mod:`sase.core.bead_wire`, the
-``issues.jsonl`` rows written by :mod:`sase.bead.jsonl`, and the JSON column
-in the compatibility SQLite mirror. They share this codec so a record cannot
+``issues.jsonl`` rows written by the Rust JSONL writer, and the JSON column
+in legacy test SQLite fixtures. They share this codec so a record cannot
 mean one thing in one surface and something else in another.
 
 Key order and omitted-when-absent optional keys mirror ``BeadNoteWire`` in
 sase-core so a row this module writes is byte-identical to the Rust writer's.
 ``parse_legacy_note_blob`` ports sase-core's reducer-side parser of the same
 name so a store with no event directory (a bare ``issues.jsonl``, or the
-SQLite mirror) recovers the same records the Rust reducer would.
+legacy test SQLite fixtures) recovers the same records the Rust reducer would.
 """
 
 from __future__ import annotations
@@ -148,7 +148,7 @@ def _note_from_dict(entry: object) -> BeadNote | None:
     )
 
 
-def notes_from_dicts(value: object) -> list[BeadNote]:
+def _notes_from_dicts(value: object) -> list[BeadNote]:
     """Decode a list of note dicts, tolerating absence and junk entries."""
     if not isinstance(value, list):
         return []
@@ -176,16 +176,16 @@ def notes_from_data(
     """Decode either the new record list or a legacy free-text blob.
 
     Mirrors sase-core's untagged ``IssueNotesInput`` deserializer: a plain
-    string is recovered into records via :func:`parse_legacy_note_blob`
+    string is recovered into records via :func:`_parse_legacy_note_blob`
     rather than treated as a single opaque record.
     """
     if isinstance(value, str):
         if not value.strip():
             return []
-        return parse_legacy_note_blob(
+        return _parse_legacy_note_blob(
             value, LEGACY_NOTE_ID_PREFIX, fallback_timestamp, fallback_author
         )
-    return notes_from_dicts(value)
+    return _notes_from_dicts(value)
 
 
 def _fallback_value(value: str) -> str:
@@ -193,7 +193,7 @@ def _fallback_value(value: str) -> str:
     return value or "unknown"
 
 
-def parse_legacy_note_blob(
+def _parse_legacy_note_blob(
     text: str,
     event_id: str,
     timestamp: str,
@@ -302,8 +302,6 @@ __all__ = [
     "attachment_to_dict",
     "attachments_from_list",
     "notes_from_data",
-    "notes_from_dicts",
     "notes_text",
     "notes_to_dicts",
-    "parse_legacy_note_blob",
 ]

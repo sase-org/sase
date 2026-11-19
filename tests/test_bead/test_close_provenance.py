@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead import db as bead_db
+from tests.test_bead.legacy_sqlite import db as bead_db
 from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
@@ -23,7 +23,7 @@ from sase.bead.completion_failure_codec import (
     completion_failure_from_dict,
     completion_failure_to_dict,
 )
-from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import (
     BeadCloseProvenance,
     BeadCompletionFailure,

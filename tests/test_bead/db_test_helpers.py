@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from sase.bead.db import list_issues, update_issue
+from tests.test_bead.legacy_sqlite.db import list_issues, update_issue
 from sase.bead.model import Issue, IssueType, Status
 
 NOW = "2026-03-17T00:00:00Z"

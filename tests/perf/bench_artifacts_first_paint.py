@@ -64,9 +64,9 @@ from sase.ace.tui.widgets.artifacts.query_rows import (
     build_files_query_index,
 )
 from sase.agents.catalog import _build as agent_catalog_build
-from sase.bead import db as db_mod
+from tests.test_bead.legacy_sqlite import db as db_mod
 from sase.bead.config import save_config
-from sase.bead.jsonl import export_to_jsonl
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl
 from sase.bead.model import Issue, IssueType, Status
 from sase.core.paths import sase_home
 from sase.main.plan_inventory import build_plan_inventory
@@ -204,9 +204,11 @@ def _write_bead_corpus(beads_dir: Path, *, issue_count: int) -> None:
     """Write a real bead store at live scale.
 
     Same on-disk shape ``tests/perf/bench_bead.py``'s ``_write_project``
-    uses (a real ``beads.db`` plus the ``issues.jsonl`` export the Rust
-    ``bead_read_facade`` bindings read) — a bare ``beads.db`` alone is not
-    the on-disk shape ``load_beads_snapshot`` expects in production.
+    uses (a Rust-owned ``beads.db`` lock file plus the ``issues.jsonl``
+    export the Rust ``bead_read_facade`` bindings read) — a bare
+    ``beads.db`` alone is not the on-disk shape ``load_beads_snapshot``
+    expects in production. The JSONL corpus is built via an isolated
+    ``fixture.sqlite`` that is removed before Rust reads.
     """
 
     beads_dir.mkdir(parents=True, exist_ok=True)
@@ -214,7 +216,10 @@ def _write_bead_corpus(beads_dir: Path, *, issue_count: int) -> None:
         beads_dir,
         {"issue_prefix": "bench", "next_counter": issue_count + 1, "owner": ""},
     )
-    conn = db_mod.init_db(beads_dir / "beads.db")
+    fixture_path = beads_dir / "fixture.sqlite"
+    if (beads_dir / "beads.db").exists():
+        (beads_dir / "beads.db").unlink()
+    conn = db_mod.init_db(fixture_path)
     try:
         plan_count = max(1, issue_count // 40)
         statuses = (
@@ -247,6 +252,8 @@ def _write_bead_corpus(beads_dir: Path, *, issue_count: int) -> None:
         export_to_jsonl(conn, beads_dir / "issues.jsonl")
     finally:
         conn.close()
+    fixture_path.unlink(missing_ok=True)
+    (beads_dir / "beads.db").write_bytes(b"")
 
 
 def bench_bead_pane(

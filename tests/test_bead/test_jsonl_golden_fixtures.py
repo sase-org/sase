@@ -6,8 +6,8 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead.config import load_config
-from sase.bead.db import get_issue, init_db
-from sase.bead.jsonl import import_from_jsonl
+from tests.test_bead.legacy_sqlite.db import get_issue, init_db
+from tests.test_bead.legacy_sqlite.jsonl import import_from_jsonl
 
 GOLDEN = Path(__file__).parent / "golden"
 JSONL = GOLDEN / "jsonl"

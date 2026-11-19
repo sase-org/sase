@@ -155,7 +155,11 @@ class TestDependencyChains:
 
 class TestJsonlRoundTrip:
     def test_delete_db_reconstruct_from_jsonl(self, project):
-        """Create issues, delete SQLite, reconstruct from JSONL, verify identical state."""
+        """Create issues, delete lock file, reopen from events, verify identical state.
+
+        Python never rebuilds a SQLite mirror; canonical state lives in the
+        Rust event store, so deleting ``beads.db`` must not lose issues.
+        """
         epic = project.create(
             "Round-trip epic", IssueType.PLAN, description="testing round-trip"
         )
@@ -169,14 +173,14 @@ class TestJsonlRoundTrip:
         issues_before = project.list_issues()
         issues_before.sort(key=lambda i: i.id)
 
-        # Delete SQLite files
+        # Delete the Rust lock file; canonical events must still serve reads.
         db_path = project.beads_dir / "beads.db"
         for suffix in ("", "-shm", "-wal"):
             p = db_path.parent / (db_path.name + suffix)
             if p.exists():
                 p.unlink()
 
-        # Reopen project (triggers JSONL rebuild)
+        # Reopen project (reads come from the event store, not a mirror)
         with BeadProject(project.root_dir) as proj2:
             issues_after = proj2.list_issues()
             issues_after.sort(key=lambda i: i.id)

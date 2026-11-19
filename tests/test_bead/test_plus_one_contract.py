@@ -10,8 +10,8 @@ import pytest
 
 from sase.bead.model import IssueType, PhaseSize, Resolution, Status
 from sase.bead.project import BeadProject
-from sase.bead import db as bead_db
-from sase.bead.jsonl import import_from_jsonl
+from tests.test_bead.legacy_sqlite import db as bead_db
+from tests.test_bead.legacy_sqlite.jsonl import import_from_jsonl
 
 
 def test_project_plus_one_promotes_and_round_trips_all_persistence(

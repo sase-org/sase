@@ -12,7 +12,7 @@ from sase.bead.cross_project import (
     AmbiguousBeadProjectError,
     origin_for_project_ref,
 )
-from sase.bead.jsonl import _issue_to_dict
+from tests.test_bead.legacy_sqlite.jsonl import _issue_to_dict
 from sase.bead.model import Issue, IssueType
 from sase.core.bead_target_routing_facade import BeadTargetRoute
 from sase.core.project_lifecycle_wire import ProjectRecordWire

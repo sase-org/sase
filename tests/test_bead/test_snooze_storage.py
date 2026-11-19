@@ -14,11 +14,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead import db as db_mod
-from sase.bead._db_schema import SCHEMA_SQL
-from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+from tests.test_bead.legacy_sqlite import db as db_mod
+from tests.test_bead.legacy_sqlite.db_schema import SCHEMA_SQL
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import Issue, IssueType, PhaseSize, SnoozeRecord, Status
-from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
+from sase.bead.snooze_codec import snooze_from_dict
+from tests.test_bead.legacy_sqlite.db_codec import snooze_to_dict
 from sase.core.bead_wire import issue_from_dict
 
 UNTIL = "2026-08-09T09:00:00-04:00"
@@ -205,7 +206,7 @@ class TestSnoozeJsonlProjection:
         assert rows["sase-a1"]["snooze"] == snooze_to_dict(snooze_record())
         assert "snooze" not in rows["sase-a2"]
 
-        conn = db_mod.init_db(tmp_path / "beads.db")
+        conn = db_mod.init_db(tmp_path / "fixture.sqlite")
         try:
             import_from_jsonl(path, conn)
             reloaded = db_mod.get_issue(conn, "sase-a1")
@@ -219,7 +220,7 @@ class TestSnoozeJsonlProjection:
 
 class TestSnoozeSqliteMirror:
     def test_a_snoozed_row_survives_a_write_and_read(self, tmp_path: Path) -> None:
-        conn = db_mod.init_db(tmp_path / "beads.db")
+        conn = db_mod.init_db(tmp_path / "fixture.sqlite")
         try:
             db_mod.create_issue(conn, snoozed_task())
             reloaded = db_mod.get_issue(conn, "sase-a1")
@@ -232,7 +233,7 @@ class TestSnoozeSqliteMirror:
     def test_the_mirror_refuses_a_snoozed_row_without_a_record(
         self, tmp_path: Path
     ) -> None:
-        conn = db_mod.init_db(tmp_path / "beads.db")
+        conn = db_mod.init_db(tmp_path / "fixture.sqlite")
         try:
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
@@ -246,7 +247,7 @@ class TestSnoozeSqliteMirror:
     def test_a_pre_snooze_mirror_migrates_without_losing_close_history(
         self, tmp_path: Path
     ) -> None:
-        db_path = tmp_path / "beads.db"
+        db_path = tmp_path / "fixture.sqlite"
         legacy_schema = (
             SCHEMA_SQL.replace(", 'snoozed'", "")
             .replace("    snooze      TEXT,\n", "")

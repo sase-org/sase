@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.db import create_issue, get_issue, init_db
-from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+from tests.test_bead.legacy_sqlite.db import create_issue, get_issue, init_db
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.bead_pages.rendering_identity import render_prose_sections

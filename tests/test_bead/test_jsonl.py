@@ -5,14 +5,14 @@ import sqlite3
 
 import pytest
 
-from sase.bead.db import (
+from tests.test_bead.legacy_sqlite.db import (
     add_dependency,
     create_issue,
     get_issue,
     init_db,
     list_issues,
 )
-from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import Issue, IssueType
 
 NOW = "2026-03-17T00:00:00Z"

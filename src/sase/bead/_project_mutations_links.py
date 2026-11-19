@@ -17,7 +17,7 @@ class BeadProjectMutationLinksMixin:
     beads_dir: Path
     _current_time: Callable[[], str]
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
 
     def add_link(
         self,
@@ -41,7 +41,7 @@ class BeadProjectMutationLinksMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def remove_link(
@@ -62,7 +62,7 @@ class BeadProjectMutationLinksMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def add_dependency(self, issue_id: str, depends_on_id: str) -> Dependency:
@@ -73,7 +73,7 @@ class BeadProjectMutationLinksMixin:
             self.beads_dir, issue_id, depends_on_id, now=self._current_time()
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return dep
 
     def remove_dependencies(
@@ -86,5 +86,5 @@ class BeadProjectMutationLinksMixin:
             self.beads_dir, issue_id, depends_on_ids, now=self._current_time()
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return dependencies

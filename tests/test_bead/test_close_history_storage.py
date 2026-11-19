@@ -12,14 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead import db as bead_db
+from tests.test_bead.legacy_sqlite import db as bead_db
 from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
-from sase.bead._db_schema import SCHEMA_SQL
-from sase.bead.db import create_issue, get_issue, init_db
-from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+from tests.test_bead.legacy_sqlite.db_schema import SCHEMA_SQL
+from tests.test_bead.legacy_sqlite.db import create_issue, get_issue, init_db
+from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import (
     CloseRecord,
     Issue,
@@ -161,7 +161,7 @@ class TestWireCodec:
 
 @pytest.fixture
 def conn(tmp_path: Path):
-    connection = init_db(tmp_path / "beads.db")
+    connection = init_db(tmp_path / "fixture.sqlite")
     yield connection
     connection.close()
 

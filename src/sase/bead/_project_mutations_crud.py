@@ -24,7 +24,7 @@ class BeadProjectMutationCrudMixin:
     _current_time: Callable[[], str]
     _last_prefix_repair: tuple[str, str] | None
     _record_mutation_outcome: Callable[[dict[str, object]], None]
-    _refresh_db_from_jsonl: Callable[[], None]
+    _refresh_config_after_mutation: Callable[[], None]
     _repair_stale_key_prefix: Callable[[], None]
 
     if TYPE_CHECKING:
@@ -94,7 +94,7 @@ class BeadProjectMutationCrudMixin:
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def update(self, issue_id: str, **fields: Any) -> Issue:
@@ -142,7 +142,7 @@ class BeadProjectMutationCrudMixin:
                 )
                 outcomes.append(outcome)
         self._record_mutation_outcome(combine_mutation_outcomes("update", outcomes))
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issue
 
     def update_many(self, issue_ids: list[str], **fields: Any) -> list[Issue]:
@@ -214,7 +214,7 @@ class BeadProjectMutationCrudMixin:
                 issue_by_id[resolved_id] = issue
         issues = [issue_by_id[resolved_id] for resolved_id in requested_ids]
         self._record_mutation_outcome(combine_mutation_outcomes("update", outcomes))
-        self._refresh_db_from_jsonl()
+        self._refresh_config_after_mutation()
         return issues
 
 
