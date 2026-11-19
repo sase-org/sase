@@ -151,7 +151,7 @@ def test_plus_one_does_not_change_activity_cursor_or_state(
     from sase.notifications.models import notification_activity_cursor
 
     del temp_notifications_dir
-    append_notification(make_notification("target", read=True))
+    append_notification(make_notification("target", read=True, dismissed=True))
     before = load_notifications(include_dismissed=True)[0]
     cursor_before = notification_activity_cursor(before)
 
@@ -169,6 +169,6 @@ def test_plus_one_does_not_change_activity_cursor_or_state(
     after = load_notifications(include_dismissed=True)[0]
     assert notification_activity_cursor(after) == cursor_before
     assert after.read is True
-    assert after.dismissed is False
+    assert after.dismissed is True
     assert after.resurfaced_at == before.resurfaced_at
     assert after.timestamp == before.timestamp

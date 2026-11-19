@@ -297,13 +297,13 @@ def test_artifact_run_prune_real_store_user_dismissal_is_respected(
     mark_dismissed(first.notification_id)
     second = publish_run_prune_preview(plan)
 
-    assert second.action == "plus_oned"
+    assert second.action == "none"
     assert second.notification_id == first.notification_id
     assert _live_previews() == []
     archived = {row.id: row for row in load_notifications(include_dismissed=True)}
     dismissed = archived[first.notification_id]
     assert dismissed.dismissed
-    assert len(dismissed.plus_ones) == 1
+    assert dismissed.plus_ones == []
 
 
 def test_artifact_run_prune_real_store_legacy_key_self_heals(

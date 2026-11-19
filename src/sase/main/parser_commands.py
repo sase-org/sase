@@ -305,10 +305,12 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
 
     plus_one_parser = notify_sub.add_parser(
         "+1",
-        help="Append a +1 corroboration note to an existing notification",
+        help="Append a +1 note, including to a dismissed notification",
         description=(
             "Append a +1 corroboration note to an existing notification, by id "
-            "or by (sender, dedup key). A +1 never changes read/dismissed/"
+            "or by (sender, dedup key). This explicit command can append to "
+            "dismissed rows. Identical notes from the same sender coalesce "
+            "for 10 minutes by default. A +1 never changes read/dismissed/"
             "muted/snooze state, order, or delivery."
         ),
     )

@@ -44,9 +44,17 @@ is the current SASE agent identity, falling back to the OS user. An ID miss exit
 non-zero; a dedup-key miss emits `{"action":"no_match"}` and exits zero so producers can
 decide to create a fresh row.
 
+The explicit `sase notify +1` command may append to dismissed rows. Other +1 callers
+skip a dismissed match by default and return `skipped_dismissed`; the match does not
+create a replacement row. Identical notes from the same sender coalesce for 10 minutes
+by default and return `coalesced`. Both outcomes leave the store and its generation
+unchanged. The Rust-backed notification-store API can opt into dismissed rows with
+`plus_one_dismissed=True` or disable coalescing with `coalesce_window_seconds=0`.
+
 Producers can make that decision atomically with `sase notify create -k KEY -p NOTE`.
 When no `(sender, key)` row exists, SASE creates the input notification with that key;
-when one exists, it appends `NOTE` and does not create a duplicate.
+when one exists, it appends `NOTE` and does not create a duplicate. The JSON result
+reports `created`, `plus_oned`, `coalesced`, or `skipped_dismissed` as applicable.
 `-S/--supersedes OLD_KEY` applies only on the create branch: it retires matching old-key
 rows by appending a superseding `+1` and dismissing them. It is ignored when the current
 key already matches a row. The same three values can be supplied as JSON `dedup_key`,

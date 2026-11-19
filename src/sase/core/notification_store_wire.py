@@ -139,12 +139,14 @@ class NotificationPlusOneRequestWire:
     note: str
     id: str | None = None
     dedup_key: str | None = None
+    plus_one_dismissed: bool = False
+    coalesce_window_seconds: int | None = None
 
 
 @dataclass(frozen=True)
 class NotificationPlusOneOutcomeWire:
     schema_version: int
-    action: str  # "applied" | "no_match"
+    action: str  # "applied" | "coalesced" | "skipped_dismissed" | "no_match"
     id: str | None = None
     plus_one_count: int = 0
     plus_ones_dropped: int = 0
@@ -159,12 +161,14 @@ class NotificationUpsertRequestWire:
     plus_one_note: str | None = None
     plus_one_timestamp: str | None = None
     supersedes: str | None = None
+    plus_one_dismissed: bool = False
+    coalesce_window_seconds: int | None = None
 
 
 @dataclass(frozen=True)
 class NotificationUpsertOutcomeWire:
     schema_version: int
-    action: str  # "created" | "plus_oned"
+    action: str  # "created" | "plus_oned" | "coalesced" | "skipped_dismissed"
     id: str | None = None
     plus_one_count: int = 0
     plus_ones_dropped: int = 0

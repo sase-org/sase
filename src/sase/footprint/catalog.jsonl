@@ -1,4 +1,4 @@
-{"count": 3711, "rev": "5594261d6197", "schema": "sase.footprint.catalog/1"}
+{"count": 3711, "rev": "e8db23b6db5a", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -1282,7 +1282,7 @@
 {"area": "cli.notify", "id": "cli:notify", "kind": "command", "label": "Create or inspect notifications", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_notify_parser"}
 {"area": "cli.notify", "id": "cli:notify#sender", "kind": "option", "label": "Option --sender of cli:notify", "ns": "cli", "parent": "cli:notify", "src": "sase/main/parser_commands.py:register_notify_parser"}
 {"area": "cli.notify", "id": "cli:notify#tag", "kind": "option", "label": "Option --tag of cli:notify", "ns": "cli", "parent": "cli:notify", "src": "sase/main/parser_commands.py:register_notify_parser"}
-{"area": "cli.notify", "id": "cli:notify._1", "kind": "command", "label": "Append a +1 corroboration note to an existing notification", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_notify_parser"}
+{"area": "cli.notify", "id": "cli:notify._1", "kind": "command", "label": "Append a +1 note, including to a dismissed notification", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_notify_parser"}
 {"area": "cli.notify", "id": "cli:notify._1#dedup_key", "kind": "option", "label": "Option --dedup_key of cli:notify._1", "ns": "cli", "parent": "cli:notify._1", "src": "sase/main/parser_commands.py:register_notify_parser"}
 {"area": "cli.notify", "id": "cli:notify._1#sender", "kind": "option", "label": "Option --sender of cli:notify._1", "ns": "cli", "parent": "cli:notify._1", "src": "sase/main/parser_commands.py:register_notify_parser"}
 {"area": "cli.notify", "id": "cli:notify.apply-state", "kind": "command", "label": "Apply a durable notification state change", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_notify_parser"}

@@ -111,9 +111,15 @@ def _publish_locked(plan: AceRunRetentionPlan) -> _RunPrunePublishOutcome:
         plus_one_timestamp=timestamp,
         supersedes=previous_key if previous_key != dedup_key else None,
     )
-    action: PublishAction = (
-        "created" if upsert_outcome.action == "created" else "plus_oned"
-    )
+    match upsert_outcome.action:
+        case "created":
+            action: PublishAction = "created"
+        case "plus_oned":
+            action = "plus_oned"
+        case "coalesced" | "skipped_dismissed":
+            action = "none"
+        case other:
+            raise ValueError(f"unexpected notification upsert action: {other!r}")
     if action == "created":
         stale_ids = [
             row.id for row in _live_preview_rows() if (row.dedup_key or "") != dedup_key

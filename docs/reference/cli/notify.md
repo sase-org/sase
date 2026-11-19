@@ -32,7 +32,7 @@ Subcommands:
 
 | Subcommand                     | Summary                                                             |
 | ------------------------------ | ------------------------------------------------------------------- |
-| `sase notify +1`               | Append a +1 corroboration note to an existing notification          |
+| `sase notify +1`               | Append a +1 note, including to a dismissed notification             |
 | `sase notify apply-state`      | Apply a durable notification state change                           |
 | `sase notify apply-state-many` | Apply a durable notification state change to a private id set       |
 | `sase notify create`           | Create a notification (reads JSON from stdin or uses flags)         |
@@ -46,7 +46,7 @@ Subcommands:
 usage: sase notify +1 [-h] [id] note [-k DEDUP_KEY] [-s SENDER]
 ```
 
-Append a +1 corroboration note to an existing notification, by id or by (sender, dedup key). A +1 never changes read/dismissed/muted/snooze state, order, or delivery.
+Append a +1 corroboration note to an existing notification, by id or by (sender, dedup key). This explicit command can append to dismissed rows. Identical notes from the same sender coalesce for 10 minutes by default. A +1 never changes read/dismissed/muted/snooze state, order, or delivery.
 
 Options:
 

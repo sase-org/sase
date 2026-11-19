@@ -49,6 +49,7 @@ def handle_notify_plus_one(args: argparse.Namespace) -> NoReturn:
             sender=sender,
             timestamp=timestamp,
             dedup_key=dedup_key,
+            plus_one_dismissed=True,
         )
         if outcome.action == "no_match":
             print(json.dumps({"action": "no_match"}))
@@ -66,6 +67,7 @@ def handle_notify_plus_one(args: argparse.Namespace) -> NoReturn:
         sender=sender,
         timestamp=timestamp,
         notification_id=resolved_id,
+        plus_one_dismissed=True,
     )
     if outcome.action == "no_match":
         print(f"Error: notification not found: {notification_id}", file=sys.stderr)

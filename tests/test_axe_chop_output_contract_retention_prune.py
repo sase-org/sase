@@ -35,13 +35,15 @@ def _publish_mod():
     return importlib.import_module("sase.core.agent_artifact_run_prune_publish")
 
 
-def _capture_upsert(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+def _capture_upsert(
+    monkeypatch: pytest.MonkeyPatch, *, action: str = "created"
+) -> list[Any]:
     captured: list[Any] = []
     publish = _publish_mod()
 
     def upsert(notification: Any, **kwargs: Any) -> SimpleNamespace:
         captured.append((notification, kwargs))
-        return SimpleNamespace(action="created", id=notification.id)
+        return SimpleNamespace(action=action, id=notification.id)
 
     monkeypatch.setattr(publish, "upsert_notification", upsert)
     return captured
@@ -84,6 +86,7 @@ __all__ = [
     "test_artifact_run_prune_preview_uses_project_unavailable_label",
     "test_artifact_run_prune_purges_before_plan_and_snapshot",
     "test_artifact_run_prune_supersedes_stale_preview_key",
+    "test_artifact_run_prune_treats_store_noop_as_no_notification",
     "test_artifact_run_prune_upserts_actionable_preview_notification",
 ]
 
@@ -188,6 +191,24 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
     assert kwargs["plus_one_note"] == "Still available: 2.0 KiB across 1 runs."
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
+
+
+@pytest.mark.parametrize("store_action", ["coalesced", "skipped_dismissed"])
+def test_artifact_run_prune_treats_store_noop_as_no_notification(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    store_action: str,
+) -> None:
+    publish = _publish_mod()
+    plan = retention_plan(
+        selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
+    )
+    _stub_publish_io(monkeypatch, tmp_path)
+    _capture_upsert(monkeypatch, action=store_action)
+
+    outcome = publish._publish_locked(plan)
+
+    assert outcome.action == "none"
 
 
 def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(

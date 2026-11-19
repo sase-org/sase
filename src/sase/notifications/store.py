@@ -174,6 +174,8 @@ def append_notification_plus_one(
     timestamp: str,
     notification_id: str | None = None,
     dedup_key: str | None = None,
+    plus_one_dismissed: bool = False,
+    coalesce_window_seconds: int | None = None,
 ) -> Any:
     """Append one +1 by id or ``(sender, dedup_key)`` through the Rust store.
 
@@ -188,6 +190,8 @@ def append_notification_plus_one(
         timestamp=timestamp,
         sender=sender,
         note=note,
+        plus_one_dismissed=plus_one_dismissed,
+        coalesce_window_seconds=coalesce_window_seconds,
     )
     outcome = notification_store_facade.append_notification_plus_one(
         _notifications_path(), request
@@ -203,6 +207,8 @@ def upsert_notification(
     plus_one_note: str | None = None,
     plus_one_timestamp: str | None = None,
     supersedes: str | None = None,
+    plus_one_dismissed: bool = False,
+    coalesce_window_seconds: int | None = None,
 ) -> Any:
     """Create ``n``, or +1 the row matching ``(n.sender, n.dedup_key)``.
 
@@ -219,10 +225,14 @@ def upsert_notification(
         plus_one_note=plus_one_note,
         plus_one_timestamp=plus_one_timestamp,
         supersedes=supersedes,
+        plus_one_dismissed=plus_one_dismissed,
+        coalesce_window_seconds=coalesce_window_seconds,
     )
     outcome = notification_store_facade.upsert_notification(
         _notifications_path(), request
     )
+    if outcome.action in {"coalesced", "skipped_dismissed"}:
+        return outcome
     if outcome.action == "created":
         try:
             from sase.notifications.pending_actions import register_notification

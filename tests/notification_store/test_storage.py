@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
@@ -255,6 +258,75 @@ class TestRustBackedCache:
             assert mark_read(n.id) is True
             assert load_notifications()[0].id == n.id
             assert mock_read.call_count == 2
+
+
+class TestNotificationPlusOneOutcomes:
+    def test_coalesced_plus_one_does_not_invalidate_cache(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from types import SimpleNamespace
+
+        from sase.core import notification_store_facade
+        from sase.notifications.store import append_notification_plus_one
+
+        del temp_notifications_dir
+        with (
+            patch.object(
+                notification_store_facade,
+                "append_notification_plus_one",
+                return_value=SimpleNamespace(action="coalesced"),
+            ) as rust_append,
+            patch("sase.notifications.store._invalidate_load_cache") as invalidate,
+        ):
+            outcome = append_notification_plus_one(
+                note="same note",
+                sender="test-sender",
+                timestamp="2026-05-01T03:00:00+00:00",
+                notification_id="existing",
+                plus_one_dismissed=True,
+                coalesce_window_seconds=600,
+            )
+
+        assert outcome.action == "coalesced"
+        request = rust_append.call_args.args[1]
+        assert request.plus_one_dismissed is True
+        assert request.coalesce_window_seconds == 600
+        invalidate.assert_not_called()
+
+    @pytest.mark.parametrize("action", ["coalesced", "skipped_dismissed"])
+    def test_upsert_noop_skips_cache_and_pending_registration(
+        self, temp_notifications_dir: Path, action: str
+    ) -> None:
+        from sase.core import notification_store_facade
+        from sase.notifications.store import upsert_notification
+
+        del temp_notifications_dir
+        notification = make_notification()
+        notification.dedup_key = "dismissed-key"
+        with (
+            patch.object(
+                notification_store_facade,
+                "upsert_notification",
+                return_value=SimpleNamespace(action=action),
+            ) as rust_upsert,
+            patch("sase.notifications.store._invalidate_load_cache") as invalidate,
+            patch(
+                "sase.notifications.pending_actions.register_notification"
+            ) as register,
+        ):
+            outcome = upsert_notification(
+                notification,
+                plus_one_note="same note",
+                plus_one_dismissed=False,
+                coalesce_window_seconds=0,
+            )
+
+        assert outcome.action == action
+        request = rust_upsert.call_args.args[1]
+        assert request.plus_one_dismissed is False
+        assert request.coalesce_window_seconds == 0
+        invalidate.assert_not_called()
+        register.assert_not_called()
 
 
 class TestDismissNotificationsMatchingAgents:
