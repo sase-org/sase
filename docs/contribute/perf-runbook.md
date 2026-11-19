@@ -1954,3 +1954,73 @@ Contention caveat: this shared host regularly sits at load 20+. One formal sweep
 discarded outright (1x `ready` p95 88 ms vs 4 ms minutes later on the same store).
 Ratios are measured within a single run so both scales share the window, every report
 records `/proc/loadavg`, and borderline verdicts should be re-run before acting on them.
+
+## sase-1t3 soak-verify (2026-11-19)
+
+Separate-instance 80-minute soak of the whole `sase-1t3` epic under real load. Soak dir:
+`~/.sase/perf/sase-1t3.14-soak-20261119T012212Z/` (window
+2026-11-19T01:22:12Z..02:42:22Z, instance `7eb96199`). Measured build: installed
+`sase 0.19.0+185.g194b1a1ef`, `sase-core-rs 0.44.2+42.gb1a036399` (pin `b1a0363997e`
+matches linked core). Workspace HEAD was 3 test/refactor splits ahead of the measured
+build. Host load 11-20 on 64 CPUs with a second pytest suite running elsewhere; the live
+TUI stayed untouched. Treat wall-clock stages as loaded-host numbers, not quiet-host
+p95s.
+
+### Recovered baselines (research `tui_hijack_storm_trust_root_and_heap`)
+
+- Storm (A): RSS 20-35 GB plus up to 30 GB swap within minutes; 31 of 45 threads stuck
+  in the archive scan; 26% of wall frozen; 50 s GC pauses; every other
+  `asyncio.to_thread` user queued behind the shared default executor. Pre-storm steady
+  state: ~4 GB RSS after restart; chronic 3-5.6 GB RSS with 18-21M allocated blocks.
+- Trust root (B): `app_construct_seconds` 0.7-1.0 s drifted to 5.2-6.3 s (about 4.5 s
+  slower every startup); the same path cost about 6 s on cold agent-identity discovery.
+- Heap + recompute (C): gen-2 GC pauses of about 3 s (p50 ~3.1 s); warm 131-145-row
+  loads took 2-5 s pre-storm; `agents_ready` drifted ~5 s to ~11.6 s; 95% of >= 1.5 s
+  hitches overlapped full GC; j/k p95 400-500 ms against the 16 ms target.
+
+### What this soak measured
+
+- Storm threads/saturation PASS: 0 hijack threads in both py-spy dumps (29 threads
+  total); executor `saturated=false` on all 16 heartbeats. Loop/pump hitches remain
+  massive (235 loop + 224 pump episodes, 95.8% frozen, 38 hitches and 41 stalls within
+  30 s of a keypress), so the remaining hitches come from loads/GC/host contention, not
+  the storm.
+- Construction 12.30 s; startup mount 59.19 s with 14.11 s to first paint and a 69.19 s
+  fallback release (812 agents, 591 index rows).
+- Cold `provider` substage 134.7 s (decode 208.4 s); warm full loads 101-169 s
+  (`auto_refresh`, 210 rows) and 281-412 s (`tier1_index_revalidate`, 812-816 rows);
+  `agents_ready` 554.8 s, `visible_ready` 495.6 s.
+- Heap at 30.4 min: RSS 7.29 GB with 35.6M allocated blocks; gen-2 n=9, p50 3.84 s, p95
+  8.57 s; VmSwap 41 MB at endpoint.
+- Interaction: soak paint p50 19.7 s, p95 91.3 s (n=23, every sample hitch-inflated, no
+  busy window so the gate stays INCOMPLETE); model p50 3.1 ms, p95 33.7 ms. Bench
+  supplement from `sase-1t3.13`: isolated ordinary j/k p95 20.25/17.98 ms, clan-fold
+  steady-state p95 ~10-12 ms, detail chrome p95 17.44 ms (under the 100 ms target).
+- Freeze-report acceptance overall FAIL (GC 3.68% of wall, hitches 102%, swap nonzero;
+  j/k and 4 h RSS INCOMPLETE).
+
+### Executor-saturation gauge fields
+
+`sase-1t3.2` added four fields to every `tui_memory_heartbeat` row in
+`tui_stalls.jsonl`, sampled from the shared default executor without a UI-thread read:
+
+- `default_executor_workers` — configured max workers (32 on this host).
+- `default_executor_threads` — live worker threads at the heartbeat.
+- `default_executor_queue_depth` — queued-but-unstarted work items.
+- `default_executor_saturated` — true only when work is queued and no worker slot is
+  free.
+
+Query one instance:
+
+```bash
+jq -c 'select(.event == "tui_memory_heartbeat"
+        and .app_instance_id == "<id>")
+  | {ts, rss_bytes, allocated_blocks, default_executor_workers,
+     default_executor_threads, default_executor_queue_depth,
+     default_executor_saturated}' ~/.sase/logs/tui_stalls.jsonl
+```
+
+This soak: 32 workers, threads 5 rising to 13, queue depth 0 on every heartbeat,
+`saturated=false` throughout. Use `saturated=true` or a climbing queue depth alongside
+slow `tui_agent_load_slow` rows as the storm-return signal; RSS growth with
+`saturated=false` points at the heap/loader path instead.
