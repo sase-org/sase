@@ -118,11 +118,44 @@ def test_queue_keeps_gen2_and_slow_collections_only(
     assert telemetry._gen_counts[0] == 1
     assert telemetry._gen_counts[1] == 1
 
+    # A notable young pause below the row threshold rolls into the heartbeat
+    # counters instead of writing a row.
     _record(telemetry, 1, 0.060)
+    assert len(telemetry._queue) == 0
+    assert telemetry._young_notable_count == 1
+
+    _record(telemetry, 1, gc_telemetry.YOUNG_PAUSE_ROW_MIN_S)
     _record(telemetry, 2, 0.001)
     assert [row["generation"] for row in telemetry._queue] == [1, 2]
-    assert telemetry._gen_counts[1] == 2
+    assert telemetry._gen_counts[1] == 3
     assert telemetry._gen_counts[2] == 1
+    assert telemetry._young_notable_count == 2
+
+
+def test_heartbeat_reports_and_resets_young_notable_pauses(
+    telemetry: GCTelemetry,
+    emitted: list[dict[str, Any]],
+    clock: _Clock,
+) -> None:
+    _record(telemetry, 0, 0.010)  # below NOTABLE_PAUSE_S: not counted
+    _record(telemetry, 0, 0.080)
+    _record(telemetry, 1, 0.120)
+    _record(telemetry, 1, 0.700)  # also earns a tui_gc_pause row
+    _record(telemetry, 2, 0.900)  # full collections never count as young
+
+    telemetry._write_heartbeat(clock.now)
+    young = emitted[-1]["gc_young_notable"]
+    assert young["count"] == 3
+    assert young["total_s"] == pytest.approx(0.9)
+    assert young["max_s"] == pytest.approx(0.7)
+
+    clock.advance(300.0)
+    telemetry._write_heartbeat(clock.now)
+    assert emitted[-1]["gc_young_notable"] == {
+        "count": 0,
+        "total_s": 0.0,
+        "max_s": 0.0,
+    }
 
 
 def test_callback_body_performs_no_io_or_locking() -> None:

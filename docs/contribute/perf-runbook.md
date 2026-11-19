@@ -873,13 +873,22 @@ sase's TUI always-on watchdog writes event-loop and Textual message-pump diagnos
 
 - `tui_hitch` / `tui_pump_hitch` fire after 1.5 seconds by default. These are compact
   records containing the current tab and selection, the last action, keypress age, and
-  the main-thread stack. Recovery rows use the corresponding `*_recovered` event and
-  include the episode duration. Hitch records deliberately omit full asyncio-task and
-  worker thread dumps, and are rate-limited; `suppressed_count` reports episodes omitted
-  since the previous admitted record.
+  the innermost 24 frames of the main-thread stack. Recovery rows use the corresponding
+  `*_recovered` event, include the episode duration, and keep only the innermost 8
+  frames, because they sample after the loop already resumed. Hitch records deliberately
+  omit full asyncio-task and worker thread dumps, and are rate-limited;
+  `suppressed_count` reports episodes omitted since the previous admitted record.
 - `tui_stall` / `tui_pump_stall` retain the existing 5-second threshold and richer
   task/thread diagnostics. A long freeze can produce both a hitch and a stall because
   the two state machines are independent.
+- While a loop stall is ongoing, the watchdog re-samples the main-thread stack every 10
+  seconds, at most 6 times, keeping the innermost 32 frames of each sample. The samples
+  ride on the `tui_stall_recovered` row as `stack_samples`, a list of `{at_s, stack}`
+  entries, where `at_s` is the seconds since the stall began. A sample whose stack
+  matches the previous one is stored as `{at_s, same_as_previous: true}`; the first
+  sample compares against the `tui_stall` row's own stack. Stalls that recover before
+  the first re-sample have no `stack_samples` field. The watchdog thread cannot sample
+  while a stop-the-world pause holds the GIL, so a GC-bound stall may carry none.
 
 Lower both tiers for a short verification soak with:
 
@@ -936,28 +945,56 @@ jq -c 'select(.event == "tui_hitch" and .late == true) | {ts, stall_seconds,
   ~/.sase/logs/tui_stalls.jsonl
 ```
 
-The persistent TUI diagnostic JSONL files under `~/.sase/logs/`—stall, git-operation,
-launch-timing, external-tool, agent-load, and startup records—rotate independently
-before appending a record would make a non-empty file exceed 2 MiB. Each keeps one `.1`
-generation. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another per-file byte limit, or `0`
-for no size rotation. This bound is separate from the opt-in trace files under
-`~/.sase/perf/`.
+The persistent TUI diagnostic JSONL files under `~/.sase/logs/` rotate independently
+before appending a record would make a non-empty file exceed its cap. Each keeps one
+`.1` generation. Every append is one `O_APPEND` write under a sibling lock, and no
+writer ever parses or rewrites a log in place.
+
+- `tui_stalls.jsonl` is the freeze acceptance metric, so its cap is 24 MiB per segment.
+  Right after a rotation only the `.1` segment holds history, so one segment alone must
+  cover 48 hours. Measured on 2026-11-19 with the slimmed rows described here, athena
+  writes about 19.8 MiB per 48 hours and apollo about 11.5 MiB, so 24 MiB leaves about
+  20% headroom. Both segments together never exceed 48 MiB. Set
+  `SASE_TUI_STALL_MAX_BYTES` to another byte limit, or `0` for no size rotation.
+- The git-operation, launch-timing, external-tool, agent-load, and startup logs rotate
+  past 2 MiB. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another per-file byte limit for
+  them, or `0` for no size rotation. It does not change the stall-log cap.
+
+A process killed mid-append can still leave one torn line. `tools/tui_freeze_report`,
+the Rust perf-log reader behind the Statistics view (`malformed_skipped`), and the
+stall-log test helpers skip torn or invalid lines and count them. With `jq`, parse each
+line on its own so a torn line is dropped instead of aborting the stream:
+`jq -cR 'fromjson? | select(.event == "tui_stall")' ~/.sase/logs/tui_stalls.jsonl`.
+These bounds are separate from the opt-in trace files under `~/.sase/perf/`.
+
+### Fault log
+
+The TUI enables `faulthandler` (all threads) at startup, but it writes only when a fatal
+signal kills the process. Each TUI process points it at its own headerless spool,
+`~/.sase/logs/tui_faults.d/<pid>-<start_ms>-<version>.log`. A clean exit, including the
+in-place re-exec of a TUI restart, disables `faulthandler` and deletes the spool when it
+is still empty. At the next TUI start, every spool whose process is gone is harvested. A
+non-empty spool is appended to `~/.sase/logs/tui_faults.log` under a
+`[<start time>] pid=<pid> sase=<version>` header, and then every dead spool is deleted.
+`tui_faults.log` therefore gets a header only when a fault actually happened. It rotates
+to one `.1` generation past 2 MiB. A crash dump appears in `tui_faults.log` only after
+the next TUI start; until then it sits in `tui_faults.d/`.
 
 ### GC pause and memory heartbeat rows
 
 The GC telemetry service (`src/sase/ace/tui/util/gc_telemetry.py`, installed from
 `_start_post_first_paint_services`) adds two more row kinds to `tui_stalls.jsonl`:
 
-- `tui_gc_pause` — one row per gen-2 collection and per collection ≥ 50 ms, with
-  `generation`, `duration_s`, `thread`, `trigger` (`"automatic"` unless the collection
-  ran under `gc_trigger(...)`, e.g. an intentional idle collection), `collected` /
-  `uncollectable`, and `app_instance_id`. Additive fields: `start_ts` (wall-clock
-  collection start, derived from `start_mono` through the exec-aware clock),
-  `input_age_s` (seconds since the last input at that start, `null` if none was
-  recorded), and `major_faults_delta` (process major-fault count across the collection,
-  from `resource.getrusage`). Rows are rate-capped at 60/min; `suppressed_count` reports
-  pauses folded into a row since the previous admitted one. Heartbeat totals stay exact
-  either way.
+- `tui_gc_pause` — one row per gen-2 collection and per young (gen-0/1) collection of at
+  least 0.5 s, with `generation`, `duration_s`, `thread`, `trigger` (`"automatic"`
+  unless the collection ran under `gc_trigger(...)`, e.g. an intentional idle
+  collection), `collected` / `uncollectable`, and `app_instance_id`. Additive fields:
+  `start_ts` (wall-clock collection start, derived from `start_mono` through the
+  exec-aware clock), `input_age_s` (seconds since the last input at that start, `null`
+  if none was recorded), and `major_faults_delta` (process major-fault count across the
+  collection, from `resource.getrusage`). Rows are rate-capped at 60/min;
+  `suppressed_count` reports pauses folded into a row since the previous admitted one.
+  Heartbeat totals stay exact either way.
 - `tui_memory_heartbeat` — every 5 minutes (plus once ~15 s after startup), with
   `rss_bytes` / `vmswap_bytes` (from `/proc/self/status`, `null` off Linux),
   `major_faults` and `major_faults_delta` (from `/proc/self/stat`), `gc_count` /
@@ -966,6 +1003,10 @@ The GC telemetry service (`src/sase/ace/tui/util/gc_telemetry.py`, installed fro
   per-generation `count` / `total_s` / `max_s` for the window they cover
   (`gc_generations`), instance `uptime_s` (since install), and `window_s` (wall-clock
   span since the previous heartbeat, so GC share is exact as `total_s / window_s`).
+  `gc_young_notable` holds `count` / `total_s` / `max_s` for young collections that
+  paused at least 50 ms in the window, whether or not they also earned a pause row.
+  Young pauses from 50 ms to 0.5 s used to write a `tui_gc_pause` row each; on athena
+  they were about 80% of all stall-log rows, so they now live only in these counters.
 
 Every row carries `app_instance_id` (also on `tui_startup` and `tui_agent_load` rows),
 so a busy hour spanning restarts splits cleanly per instance. Filter one instance's GC
@@ -1846,8 +1887,10 @@ The view's two data sources age out on entirely different rules:
 
 - Each TUI JSONL diagnostic log is byte-bounded, not time-retained: nothing expires on a
   clock, but the oldest records fall off once the file grows. The default limit is 2 MiB
-  per current file, and rotation preserves exactly one `.1` segment before discarding
-  the previous one. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to override the byte limit.
+  per current file (24 MiB for `tui_stalls.jsonl`, sized to hold at least 48 hours), and
+  rotation preserves exactly one `.1` segment before discarding the previous one. Set
+  `SASE_TUI_TELEMETRY_MAX_BYTES` (or `SASE_TUI_STALL_MAX_BYTES` for the stall log) to
+  override the byte limit.
 - The telemetry store is time-retained and rolled up: raw samples for 48 hours,
   five-minute rollups for 30 days, and hourly rollups for 365 days by default. These
   durations are configurable under `telemetry.retention`.

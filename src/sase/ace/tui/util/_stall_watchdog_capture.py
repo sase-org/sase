@@ -19,11 +19,12 @@ from ._stall_watchdog_config import (
 log = logging.getLogger(f"{__package__}.stall_watchdog")
 
 
-def format_thread_stack(thread_ident: int) -> list[str]:
+def format_thread_stack(thread_ident: int, *, limit: int | None = None) -> list[str]:
+    """Format *thread_ident*'s stack, keeping the innermost *limit* frames."""
     frame = sys._current_frames().get(thread_ident)
     if frame is None:
         return []
-    return traceback.format_stack(frame)
+    return traceback.format_stack(frame, limit=limit)
 
 
 def format_worker_thread_stacks(

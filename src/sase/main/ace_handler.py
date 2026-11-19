@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import atexit
 import faulthandler
 import logging
 import os
@@ -19,6 +20,7 @@ from sase.core.time import local_now
 
 if TYPE_CHECKING:
     from sase.ace.tui.exit_action import AceExitAction
+    from sase.logs.tui_faults import TuiFaultSpool
 
 log = logging.getLogger(__name__)
 
@@ -27,28 +29,58 @@ _RESTART_FILTER_FLAGS = frozenset(
 )
 _TUI_COMMAND = "tui"
 _LEGACY_ACE_COMMAND = "ace"
-_TUI_FAULT_LOG: Any | None = None
+_TUI_FAULT_SPOOL: "TuiFaultSpool | None" = None
 
 
 def _enable_tui_faulthandler() -> None:
-    """Keep fatal-signal Python stacks in a durable per-user TUI log."""
-    global _TUI_FAULT_LOG
-    if _TUI_FAULT_LOG is not None:
+    """Keep fatal-signal Python stacks in a durable per-user TUI log.
+
+    faulthandler writes to this process's headerless spool. Spools left by
+    dead processes are harvested into ``tui_faults.log`` first, so that log
+    gets a header only when a fault actually happened.
+    """
+    global _TUI_FAULT_SPOOL
+    if _TUI_FAULT_SPOOL is not None:
         return
     try:
-        log_path = sase_home() / "logs" / "tui_faults.log"
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        fault_log = log_path.open("a", encoding="utf-8", buffering=1)
+        logs_dir = sase_home() / "logs"
         from sase import __version__
-
-        fault_log.write(
-            f"\n[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] "
-            f"pid={os.getpid()} sase={__version__}\n"
+        from sase.logs.tui_faults import (
+            close_tui_fault_spool,
+            harvest_tui_fault_spools,
+            open_tui_fault_spool,
         )
-        faulthandler.enable(file=fault_log, all_threads=True)
-        _TUI_FAULT_LOG = fault_log
+
+        try:
+            harvest_tui_fault_spools(logs_dir)
+        except OSError:
+            log.warning("could not harvest TUI fault spools", exc_info=True)
+        spool = open_tui_fault_spool(logs_dir, version=__version__)
+        try:
+            faulthandler.enable(file=spool.file, all_threads=True)
+        except BaseException:
+            close_tui_fault_spool(spool)
+            raise
+        _TUI_FAULT_SPOOL = spool
+        atexit.register(_disable_tui_faulthandler)
     except (OSError, RuntimeError, ValueError):
         log.exception("could not enable TUI faulthandler logging")
+
+
+def _disable_tui_faulthandler() -> None:
+    """Stop faulthandler and drop this process's spool when it stayed empty."""
+    global _TUI_FAULT_SPOOL
+    spool = _TUI_FAULT_SPOOL
+    if spool is None:
+        return
+    _TUI_FAULT_SPOOL = None
+    from sase.logs.tui_faults import close_tui_fault_spool
+
+    try:
+        faulthandler.disable()
+    except (OSError, RuntimeError, ValueError):
+        log.debug("could not disable TUI faulthandler", exc_info=True)
+    close_tui_fault_spool(spool)
 
 
 def _profile_output_path(profile_arg: str) -> str:
@@ -145,6 +177,8 @@ def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
         # its interpreter-start anchor instead of deriving a bogus one from
         # /proc (whose starttime predates the exec by the old process age).
         os.environ[EXEC_MONO_NS_ENV] = str(time.monotonic_ns())
+        # A re-exec keeps the pid; drop this image's empty fault spool first.
+        _disable_tui_faulthandler()
         os.execv(sys.executable, exec_args)
     except OSError as exc:
         print(f"sase tui restart failed: {exc}", file=sys.stderr)
@@ -201,7 +235,13 @@ def _hard_exit_ace(exit_code: int) -> NoReturn:
     from sase.telemetry import flush_metrics
 
     _log_live_exit_threads()
-    for flush in (flush_now, flush_metrics, sys.stdout.flush, sys.stderr.flush):
+    for flush in (
+        flush_now,
+        flush_metrics,
+        _disable_tui_faulthandler,
+        sys.stdout.flush,
+        sys.stderr.flush,
+    ):
         try:
             flush()
         except Exception:

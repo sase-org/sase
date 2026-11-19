@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -22,6 +21,7 @@ from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.modals.prompts_modal import PromptsModal, PromptsTab
 from sase.history.prompt_catalog import PromptHistoryPage
 from tests._agent_revive_helpers import make_agent
+from tests._jsonl_rows import read_jsonl_rows
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 _HITCH_THRESHOLD_SECONDS = 0.5
@@ -118,13 +118,9 @@ async def _press_within_deadline(page: AcePage, key: str) -> None:
 
 
 def _read_events(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    """Read watchdog rows; a torn line is skipped, never raised."""
+    rows, _skipped = read_jsonl_rows(path)
+    return rows
 
 
 def _iter_stack_lines(value: object) -> Iterator[str]:

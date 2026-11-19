@@ -400,6 +400,42 @@ def test_load_stall_rows_includes_rotated_generation(
     assert {row["app_instance_id"] for row in opted_out} == {"live"}
 
 
+def test_load_stall_rows_skips_and_counts_torn_lines(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    active = tmp_path / "tui_stalls.jsonl"
+    active.write_bytes(
+        b'{"ts": 1.0, "event": "tui_hitch"}\n'
+        b"[1, 2]\n"
+        b'{"ts": 2.0, "event": "tui_hi\xe2\x80'
+    )
+    rotated = tmp_path / "tui_stalls.jsonl.1"
+    rotated.write_text('{"ts": 0.5, "event": "tui_stall"}\n{"ts": 0.6, "ev\n')
+    skipped: dict[str, int] = {}
+
+    rows = tool.load_stall_rows(active, skipped=skipped)
+
+    assert [row["event"] for row in rows] == ["tui_hitch", "tui_stall"]
+    assert skipped == {str(active): 2, str(rotated): 1}
+
+
+def test_json_mode_reports_skipped_torn_lines(
+    tool: ModuleType,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    stalls = tmp_path / "tui_stalls.jsonl"
+    stalls.write_text('{"ts": 1000.0, "event": "tui_hitch"}\n{"ts": 1001.0, "ev')
+    startup = _write_jsonl(tmp_path / "startup.jsonl", [])
+
+    tool.main(["--path", str(stalls), "--startup-path", str(startup), "--json"])
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["inputs"]["skipped_lines"] == {str(stalls): 1}
+    assert f"skipped 1 torn or invalid line(s) in {stalls}" in captured.err
+
+
 def test_trigger_split_and_backstop_near_input(tool: ModuleType) -> None:
     rows = [
         {

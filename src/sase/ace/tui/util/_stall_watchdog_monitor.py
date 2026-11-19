@@ -27,6 +27,8 @@ from ._stall_watchdog_config import (
     ENV_THRESHOLD,
     ENV_THRESHOLD_SECONDS,
     HITCH_RATE_LIMIT_WINDOW_SECONDS,
+    STALL_RESAMPLE_INTERVAL_SECONDS,
+    STALL_RESAMPLE_MAX,
     ContextProvider,
     float_env,
     HitchRateLimiter,
@@ -80,6 +82,8 @@ class EventLoopStallWatchdog(StallRecordMixin):
         pump_poll_interval_seconds: float | None = None,
         hitch_rate_limit_per_minute: int = DEFAULT_HITCH_RATE_LIMIT_PER_MINUTE,
         hitch_rate_limit_window_seconds: float = HITCH_RATE_LIMIT_WINDOW_SECONDS,
+        stall_resample_interval_seconds: float = STALL_RESAMPLE_INTERVAL_SECONDS,
+        stall_resample_max: int = STALL_RESAMPLE_MAX,
         loop_thread_ident: int | None = None,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -161,6 +165,13 @@ class EventLoopStallWatchdog(StallRecordMixin):
         self._hitch_detected_by = "loop_gap"
         self._in_stall = False
         self._stall_started_mono: float | None = None
+        self._stall_resample_interval_seconds = max(
+            0.001, stall_resample_interval_seconds
+        )
+        self._stall_resample_max = max(0, stall_resample_max)
+        self._stall_next_resample_mono = 0.0
+        self._stall_stack_samples: list[dict[str, Any]] = []
+        self._stall_last_sample_stack: list[str] | None = None
         self._loop_hitch_episodes = 0
         self._loop_hitch_seconds = 0.0
         self._loop_suppressed_episodes = 0
@@ -287,6 +298,8 @@ class EventLoopStallWatchdog(StallRecordMixin):
             self._hitch_was_recorded = False
             self._in_stall = False
             self._stall_started_mono = None
+            self._stall_stack_samples = []
+            self._stall_last_sample_stack = None
             self._reset_pump_state_locked()
 
     def resume(self) -> None:
@@ -314,6 +327,8 @@ class EventLoopStallWatchdog(StallRecordMixin):
             self._hitch_detected_by = "loop_gap"
             self._in_stall = False
             self._stall_started_mono = None
+            self._stall_stack_samples = []
+            self._stall_last_sample_stack = None
             self._reset_pump_state_locked()
 
     def _in_hitch_after_poll(self) -> bool:
@@ -381,6 +396,8 @@ class EventLoopStallWatchdog(StallRecordMixin):
             self._record_stall(now_mono, gap)
         elif gap < self._threshold_seconds and in_stall:
             self._record_recovery(now_mono)
+        elif in_stall:
+            self._maybe_resample_stall_stack(now_mono)
         if self._pump_hitch_enabled:
             if pump_gap >= self._pump_hitch_threshold_seconds and not pump_in_hitch:
                 self._record_pump_hitch(now_mono, pump_gap)

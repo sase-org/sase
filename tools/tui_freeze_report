@@ -33,7 +33,9 @@ Rows that predate instance IDs are bucketed into ``tui_startup`` record
 windows (``startup-<n>``) instead of being dropped; rows outside every
 window land in ``unknown``. Real startup rows carry an ISO ``timestamp``,
 not ``ts``. The rotated ``tui_stalls.jsonl.1`` generation is read by
-default (``--no-rotated`` opts out). Diagnostic mode remains tolerant of
+default (``--no-rotated`` opts out). Torn or invalid JSONL lines are skipped
+and counted: each input with skips is named on stderr, and ``--json`` reports
+the counts under ``inputs.skipped_lines``. Diagnostic mode remains tolerant of
 historical rows; acceptance mode treats missing evidence as INCOMPLETE.
 Percentiles use linear interpolation at rank p*(n-1) over sorted samples.
 """
@@ -138,10 +140,14 @@ def parse_time_tolerance(value: str | None) -> float:
     return 0.0
 
 
-def load_rows(path: Path) -> list[dict]:
-    """Load JSONL rows, skipping blank lines and corrupt records."""
+def load_rows(path: Path, *, skipped: dict[str, int] | None = None) -> list[dict]:
+    """Load JSONL rows, skipping blank lines and corrupt records.
+
+    Torn or otherwise invalid lines (and non-object rows) are skipped; when
+    *skipped* is given, each skip is counted under ``str(path)``.
+    """
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
     rows: list[dict] = []
@@ -152,9 +158,11 @@ def load_rows(path: Path) -> list[dict]:
         try:
             record = json.loads(line)
         except ValueError:
-            continue
+            record = None
         if isinstance(record, dict):
             rows.append(record)
+        elif skipped is not None:
+            skipped[str(path)] = skipped.get(str(path), 0) + 1
     return rows
 
 
@@ -163,11 +171,16 @@ def rotated_path(path: Path) -> Path:
     return Path(f"{path}.1")
 
 
-def load_stall_rows(path: Path, *, include_rotated: bool = True) -> list[dict]:
+def load_stall_rows(
+    path: Path,
+    *,
+    include_rotated: bool = True,
+    skipped: dict[str, int] | None = None,
+) -> list[dict]:
     """Load the active stall log and, by default, its ``.1`` rotation."""
-    rows = load_rows(path)
+    rows = load_rows(path, skipped=skipped)
     if include_rotated:
-        rows.extend(load_rows(rotated_path(path)))
+        rows.extend(load_rows(rotated_path(path), skipped=skipped))
     return rows
 
 
@@ -807,9 +820,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     stalls_path = args.path or _default_stalls_path()
     startup_path = args.startup_path or _default_startup_path()
     loads_path = args.loads_path or _default_loads_path()
-    rows = load_stall_rows(stalls_path, include_rotated=not args.no_rotated)
-    startups = load_rows(startup_path)
-    load_rows_data = load_stall_rows(loads_path, include_rotated=not args.no_rotated)
+    skipped_lines: dict[str, int] = {}
+    rows = load_stall_rows(
+        stalls_path, include_rotated=not args.no_rotated, skipped=skipped_lines
+    )
+    startups = load_rows(startup_path, skipped=skipped_lines)
+    load_rows_data = load_stall_rows(
+        loads_path, include_rotated=not args.no_rotated, skipped=skipped_lines
+    )
+    for skipped_path, count in sorted(skipped_lines.items()):
+        print(
+            f"tui_freeze_report: skipped {count} torn or invalid line(s) in "
+            f"{skipped_path}",
+            file=sys.stderr,
+        )
     try:
         since = parse_time(args.since) if args.since is not None else None
         until = parse_time(args.until) if args.until is not None else None
@@ -937,6 +961,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "instance_filter": args.instance,
                 "requested_since": args.since,
                 "requested_until": args.until,
+                "skipped_lines": dict(sorted(skipped_lines.items())),
             },
             "quantile": "linear interpolation at rank p*(n-1), sorted ascending",
             "overall_status": overall_status,

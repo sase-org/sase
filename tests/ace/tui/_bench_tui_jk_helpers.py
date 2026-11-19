@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import statistics
 import sys
 from collections.abc import Iterator
@@ -26,6 +25,7 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.relations.link_index import LinkChip, LinkIndex
 from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+from tests._jsonl_rows import read_jsonl_rows
 
 _KEYS_PER_SCENARIO = 20
 _AXE_P95_BUDGET_MS = 16.0
@@ -265,17 +265,26 @@ def _perf_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
 
 
 def _assert_no_stall_rows(stall_path: Path) -> None:
-    """Activity capture shares this log; activity rows are not freezes."""
-    rows = _read_samples(stall_path)
-    assert not [row for row in rows if row.get("event") != "prompt_activity"]
+    """Activity capture shares this log; activity rows are not freezes.
+
+    A torn line means a stall row was being written, so it fails too.
+    """
+    rows, skipped = read_jsonl_rows(stall_path)
+    freezes = [row for row in rows if row.get("event") != "prompt_activity"]
+    assert not freezes and not skipped, (
+        f"stall rows: {freezes!r}; torn or invalid lines: {skipped}"
+    )
 
 
 def _read_samples(log_path: Path) -> list[dict[str, object]]:
-    if not log_path.exists():
-        return []
-    return [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
+    """Read perf samples, skipping torn lines and reporting how many."""
+    rows, skipped = read_jsonl_rows(log_path)
+    if skipped:
+        print(
+            f"{log_path.name}: skipped {skipped} torn or invalid line(s)",
+            file=sys.stderr,
+        )
+    return rows
 
 
 def _summarize(samples: list[dict[str, object]]) -> dict[str, dict[str, float]]:

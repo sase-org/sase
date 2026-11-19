@@ -16,6 +16,7 @@ Budgets (plan D10):
 
 from __future__ import annotations
 
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, DeckView
+from tests._jsonl_rows import read_jsonl_rows
 from tests.ace.tui._bench_tui_jk_helpers import (
     _KEYS_PER_SCENARIO,
     _print_table,
@@ -224,19 +226,12 @@ async def _measure_transitions(
 
 
 def _stall_rows(stall_path: Path) -> list[dict[str, Any]]:
-    if not stall_path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    for line in stall_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            import json
-
-            rows.append(json.loads(line))
-        except ValueError:
-            continue
+    rows, skipped = read_jsonl_rows(stall_path)
+    if skipped:
+        print(
+            f"{stall_path.name}: skipped {skipped} torn or invalid line(s)",
+            file=sys.stderr,
+        )
     return rows
 
 

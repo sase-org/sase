@@ -17,7 +17,13 @@ from ._stall_watchdog_capture import (
     format_worker_thread_stacks,
     sase_version,
 )
-from ._stall_watchdog_config import ContextProvider, HitchRateLimiter
+from ._stall_watchdog_config import (
+    HITCH_RECOVERY_STACK_DEPTH,
+    HITCH_STACK_DEPTH,
+    STALL_RESAMPLE_STACK_DEPTH,
+    ContextProvider,
+    HitchRateLimiter,
+)
 
 log = logging.getLogger(f"{__package__}.stall_watchdog")
 
@@ -39,6 +45,11 @@ class StallRecordMixin:
     _hitch_was_recorded: bool
     _in_stall: bool
     _stall_started_mono: float | None
+    _stall_resample_interval_seconds: float
+    _stall_resample_max: int
+    _stall_next_resample_mono: float
+    _stall_stack_samples: list[dict[str, Any]]
+    _stall_last_sample_stack: list[str] | None
     _pump_in_hitch: bool
     _pump_hitch_started_mono: float | None
     _pump_hitch_was_recorded: bool
@@ -237,12 +248,22 @@ class StallRecordMixin:
                 return
             self._in_stall = True
             self._stall_started_mono = now_mono - stall_seconds
+            self._stall_next_resample_mono = (
+                now_mono + self._stall_resample_interval_seconds
+            )
+            self._stall_stack_samples = []
+            self._stall_last_sample_stack = None
         record = self._stall_record(
             stall_seconds,
             late=False,
             poll_lag_s=0.0,
             detected_by="loop_gap",
         )
+        with self._lock:
+            # The first re-sample compares against the stall row's own stack.
+            self._stall_last_sample_stack = list(
+                record["main_thread_stack"][-STALL_RESAMPLE_STACK_DEPTH:]
+            )
         log_tui_stall(record)
         log.warning(
             "TUI event loop stall detected: %.3fs pid=%s",
@@ -250,11 +271,51 @@ class StallRecordMixin:
             record["pid"],
         )
 
+    def _maybe_resample_stall_stack(self, now_mono: float) -> None:
+        """Re-sample the loop thread's stack during an ongoing loop stall.
+
+        Bounded: one sample per ``_stall_resample_interval_seconds``, at most
+        ``_stall_resample_max`` per episode, each keeping the innermost
+        ``STALL_RESAMPLE_STACK_DEPTH`` frames. A stack identical to the
+        previous one is stored as ``same_as_previous`` instead.
+        """
+        with self._lock:
+            started = self._stall_started_mono
+            if (
+                self._pause_depth > 0
+                or not self._in_stall
+                or started is None
+                or len(self._stall_stack_samples) >= self._stall_resample_max
+                or now_mono < self._stall_next_resample_mono
+            ):
+                return
+            self._stall_next_resample_mono = (
+                now_mono + self._stall_resample_interval_seconds
+            )
+        stack = format_thread_stack(
+            self._loop_thread_ident, limit=STALL_RESAMPLE_STACK_DEPTH
+        )
+        sample: dict[str, Any] = {"at_s": round(max(0.0, now_mono - started), 3)}
+        with self._lock:
+            if not self._in_stall or self._stall_started_mono != started:
+                return
+            if len(self._stall_stack_samples) >= self._stall_resample_max:
+                return
+            if stack and stack == self._stall_last_sample_stack:
+                sample["same_as_previous"] = True
+            else:
+                sample["stack"] = stack
+                self._stall_last_sample_stack = stack
+            self._stall_stack_samples.append(sample)
+
     def _record_recovery(self, now_mono: float) -> None:
         with self._lock:
             started = self._stall_started_mono
+            stack_samples = self._stall_stack_samples
             self._in_stall = False
             self._stall_started_mono = None
+            self._stall_stack_samples = []
+            self._stall_last_sample_stack = None
         if started is None:
             return
         duration = now_mono - started
@@ -268,6 +329,7 @@ class StallRecordMixin:
                 gc_overlap_s=overlap_s,
                 gc_generations=generations,
                 gc_triggers=triggers,
+                stack_samples=stack_samples,
             )
         )
         log.warning("TUI event loop recovered after %.3fs", duration)
@@ -414,7 +476,9 @@ class StallRecordMixin:
                 poll_interval_seconds=poll_interval_seconds,
             ),
             "detected_by": detected_by,
-            "main_thread_stack": format_thread_stack(self._loop_thread_ident),
+            "main_thread_stack": format_thread_stack(
+                self._loop_thread_ident, limit=HITCH_STACK_DEPTH
+            ),
             "suppressed_count": suppressed_count,
         }
         instance_id = self._app_instance_id
@@ -458,7 +522,9 @@ class StallRecordMixin:
             "gc_overlap_s": round(max(0.0, gc_overlap_s), 3),
             "gc_generations": list(gc_generations) if gc_generations else [],
             "gc_triggers": list(gc_triggers) if gc_triggers else [],
-            "main_thread_stack": format_thread_stack(self._loop_thread_ident),
+            "main_thread_stack": format_thread_stack(
+                self._loop_thread_ident, limit=HITCH_RECOVERY_STACK_DEPTH
+            ),
         }
         instance_id = self._app_instance_id
         if instance_id is not None:
@@ -530,6 +596,7 @@ class StallRecordMixin:
         gc_overlap_s: float = 0.0,
         gc_generations: list[int] | None = None,
         gc_triggers: list[str] | None = None,
+        stack_samples: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         record: dict[str, Any] = {
             "ts": time.time(),
@@ -547,6 +614,8 @@ class StallRecordMixin:
             "pause_depth": self._current_pause_depth(),
             "sase_version": sase_version(),
         }
+        if stack_samples:
+            record["stack_samples"] = list(stack_samples)
         instance_id = self._app_instance_id
         if instance_id is not None:
             record["app_instance_id"] = instance_id

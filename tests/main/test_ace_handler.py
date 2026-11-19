@@ -25,38 +25,99 @@ class _FakeProfiler:
         return "profile text"
 
 
-def test_enable_tui_faulthandler_writes_header_and_is_idempotent(
+def test_enable_tui_faulthandler_spools_without_header_and_is_idempotent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     enable_calls: list[tuple[object, bool]] = []
+    disable_calls: list[None] = []
 
     def fake_enable(*, file: object, all_threads: bool) -> None:
         enable_calls.append((file, all_threads))
 
     monkeypatch.setattr(ace_handler, "sase_home", lambda: tmp_path)
     monkeypatch.setattr(ace_handler.faulthandler, "enable", fake_enable)
-    monkeypatch.setattr(ace_handler, "_TUI_FAULT_LOG", None)
+    monkeypatch.setattr(
+        ace_handler.faulthandler, "disable", lambda: disable_calls.append(None)
+    )
+    monkeypatch.setattr(ace_handler, "_TUI_FAULT_SPOOL", None)
 
     try:
         ace_handler._enable_tui_faulthandler()
-        log_path = tmp_path / "logs" / "tui_faults.log"
-        assert log_path.is_file()
-        header = log_path.read_text(encoding="utf-8")
-        assert header.count("pid=") == 1
-        assert f"pid={os.getpid()}" in header
-        assert "sase=" in header
+        spool = ace_handler._TUI_FAULT_SPOOL
+        assert spool is not None
+        assert spool.path.parent == tmp_path / "logs" / "tui_faults.d"
+        assert spool.path.name.startswith(f"{os.getpid()}-")
+        assert spool.path.read_text(encoding="utf-8") == ""
+        # A clean start writes nothing to the shared fault log.
+        assert not (tmp_path / "logs" / "tui_faults.log").exists()
         assert len(enable_calls) == 1
-        assert enable_calls[0][1] is True
-        assert enable_calls[0][0] is ace_handler._TUI_FAULT_LOG
+        assert enable_calls[0] == (spool.file, True)
 
         ace_handler._enable_tui_faulthandler()
-
         assert len(enable_calls) == 1
-        assert log_path.read_text(encoding="utf-8") == header
+
+        ace_handler._disable_tui_faulthandler()
+        assert ace_handler._TUI_FAULT_SPOOL is None
+        assert disable_calls == [None]
+        assert spool.file.closed
+        assert not spool.path.exists()
+        assert not (tmp_path / "logs" / "tui_faults.log").exists()
+
+        ace_handler._disable_tui_faulthandler()
+        assert disable_calls == [None]
     finally:
-        if ace_handler._TUI_FAULT_LOG is not None:
-            ace_handler._TUI_FAULT_LOG.close()
+        if ace_handler._TUI_FAULT_SPOOL is not None:
+            ace_handler._TUI_FAULT_SPOOL.file.close()
+
+
+def test_enable_tui_faulthandler_harvests_a_dead_session_fault(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spool_dir = tmp_path / "logs" / "tui_faults.d"
+    spool_dir.mkdir(parents=True)
+    # This process's pid on a spool that is not ours: an earlier exec image.
+    earlier_image = spool_dir / f"{os.getpid()}-1700000000000-0.18.0.log"
+    earlier_image.write_text("Fatal Python error: Segmentation fault\n")
+    monkeypatch.setattr(ace_handler, "sase_home", lambda: tmp_path)
+    monkeypatch.setattr(
+        ace_handler.faulthandler, "enable", lambda *, file, all_threads: None
+    )
+    monkeypatch.setattr(ace_handler.faulthandler, "disable", lambda: None)
+    monkeypatch.setattr(ace_handler, "_TUI_FAULT_SPOOL", None)
+
+    try:
+        ace_handler._enable_tui_faulthandler()
+
+        fault_log = (tmp_path / "logs" / "tui_faults.log").read_text()
+        assert fault_log == (
+            f"\n[2023-11-14T22:13:20Z] pid={os.getpid()} sase=0.18.0\n"
+            "Fatal Python error: Segmentation fault\n"
+        )
+        assert not earlier_image.exists()
+    finally:
+        ace_handler._disable_tui_faulthandler()
+
+
+def test_hard_exit_disables_tui_faulthandler_before_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase import telemetry
+
+    calls: list[str] = []
+    monkeypatch.setattr(ace_handler, "_log_live_exit_threads", lambda: None)
+    monkeypatch.setattr(telemetry, "flush_metrics", lambda: None)
+    monkeypatch.setattr(
+        ace_handler, "_disable_tui_faulthandler", lambda: calls.append("disable")
+    )
+    monkeypatch.setattr(
+        ace_handler.os, "_exit", lambda code: calls.append(f"exit:{code}")
+    )
+
+    ace_handler._hard_exit_ace(0)
+
+    assert calls == ["disable", "exit:0"]
 
 
 def test_run_ace_app_does_not_join_default_executor_worker() -> None:
@@ -340,16 +401,23 @@ def test_exec_ace_restart_if_requested_execs_current_python(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
+    order: list[str] = []
 
     def fake_exec(executable: str, args: list[str]) -> None:
+        order.append("exec")
         calls.append((executable, args))
 
     monkeypatch.setattr(ace_handler.sys, "argv", ["sase", "tui", "-R", "-T"])
     monkeypatch.setattr(ace_handler.sys, "executable", "/venv/bin/python")
     monkeypatch.setattr(ace_handler.os, "execv", fake_exec)
+    # The re-exec keeps the pid, so this image's spool is dropped first.
+    monkeypatch.setattr(
+        ace_handler, "_disable_tui_faulthandler", lambda: order.append("disable")
+    )
 
     ace_handler._exec_ace_restart_if_requested(AceExitAction.RESTART_TUI_AND_AXE)
 
+    assert order == ["disable", "exec"]
     assert calls == [
         (
             "/venv/bin/python",

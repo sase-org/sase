@@ -25,6 +25,7 @@ from ._gc_telemetry_config import (
     RATE_LIMIT_WINDOW_S,
     RECENT_RING_MAX,
     THREAD_NAME,
+    YOUNG_PAUSE_ROW_MIN_S,
 )
 
 _PROC_STATUS_PATH = Path("/proc/self/status")
@@ -123,6 +124,9 @@ class GCTelemetry:
         self._gen_total_s: list[float] = []
         self._gen_max_s: list[float] = []
         self._gen1_since_full = 0
+        self._young_notable_count = 0
+        self._young_notable_total_s = 0.0
+        self._young_notable_max_s = 0.0
         self._last_full_end_mono: float | None = None
         self._recent: deque[tuple[int, float, float, str, str]] = deque(
             maxlen=RECENT_RING_MAX
@@ -176,7 +180,12 @@ class GCTelemetry:
         elif generation == 1:
             self._gen1_since_full += 1
         self._recent.append((generation, start_mono, end_mono, thread, trigger))
-        if generation >= FULL_GENERATION or duration >= NOTABLE_PAUSE_S:
+        if generation < FULL_GENERATION and duration >= NOTABLE_PAUSE_S:
+            self._young_notable_count += 1
+            self._young_notable_total_s += duration
+            if duration > self._young_notable_max_s:
+                self._young_notable_max_s = duration
+        if generation >= FULL_GENERATION or duration >= YOUNG_PAUSE_ROW_MIN_S:
             record = {
                 "generation": generation,
                 "duration_s": round(duration, 6),
@@ -326,6 +335,13 @@ class GCTelemetry:
                 "total_s": round(total, 6),
                 "max_s": round(peak, 6),
             }
+        young_count = self._young_notable_count
+        young_total = self._young_notable_total_s
+        young_peak = self._young_notable_max_s
+        self._young_notable_count -= young_count
+        self._young_notable_total_s -= young_total
+        if self._young_notable_max_s <= young_peak:
+            self._young_notable_max_s = 0.0
         row: dict[str, Any] = {
             "event": "tui_memory_heartbeat",
             "ts": time.time(),
@@ -341,6 +357,13 @@ class GCTelemetry:
             "gc_threshold": list(gc.get_threshold()),
             "gc_freeze_count": _freeze_count(),
             "gc_generations": generations,
+            # Young collections that paused >= NOTABLE_PAUSE_S in this window,
+            # whether or not they also earned a ``tui_gc_pause`` row.
+            "gc_young_notable": {
+                "count": young_count,
+                "total_s": round(young_total, 6),
+                "max_s": round(young_peak, 6),
+            },
             "gc_stats": _gc_stats(),
             "allocated_blocks": _allocated_blocks(),
             "python_version": _python_version(),

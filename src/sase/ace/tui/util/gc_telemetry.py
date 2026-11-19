@@ -3,9 +3,12 @@
 A lock-free ``gc.callbacks`` recorder tags every collection with its trigger
 (``"automatic"`` unless wrapped in :func:`gc_trigger`), keeps exact
 per-generation running totals, a bounded ring of recent collections for
-watchdog overlap attribution, and a bounded queue of notable pauses. A daemon
-flush thread drains the queue into ``tui_gc_pause`` rows and writes a
-5-minute ``tui_memory_heartbeat`` row. Both go through
+watchdog overlap attribution, and a bounded queue of notable pauses (every
+full collection, plus young collections of at least
+``YOUNG_PAUSE_ROW_MIN_S``). A daemon flush thread drains the queue into
+``tui_gc_pause`` rows and writes a 5-minute ``tui_memory_heartbeat`` row,
+whose ``gc_young_notable`` counters cover every young pause of at least
+``NOTABLE_PAUSE_S``. Both go through
 ``sase.logs.log_tui_stall`` into ``tui_stalls.jsonl``; the Rust perf-log
 aggregator only counts ``STALL_EVENTS``/``RECOVERY_EVENTS``, so the new row
 kinds need no ``sase-core`` change.
@@ -33,6 +36,7 @@ from ._gc_telemetry_config import (
     RECENT_RING_MAX as RECENT_RING_MAX,
     THREAD_NAME as THREAD_NAME,
     UNTAGGED_TRIGGER as UNTAGGED_TRIGGER,
+    YOUNG_PAUSE_ROW_MIN_S as YOUNG_PAUSE_ROW_MIN_S,
     is_enabled as is_enabled,
 )
 from ._gc_telemetry_lifecycle import (

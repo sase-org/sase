@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -10,6 +9,7 @@ import pytest
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE, TRIBE_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
+from tests._jsonl_rows import read_jsonl_rows
 from tests.ace.tui._bench_tui_jk_helpers import (
     _assert_no_stall_rows,
     _AGENTS_LARGE_LIST_P95_BUDGET_MS,
@@ -109,11 +109,8 @@ async def test_bench_clan_jk_at_each_panel_fold_level(
 
     assert set(level_summaries) == set(CLAN_FOLD_SCALE)
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    stall_rows = (
-        [json.loads(line) for line in stall_path.read_text().splitlines() if line]
-        if stall_path.exists()
-        else []
-    )
+    stall_rows, torn_lines = read_jsonl_rows(stall_path)
+    assert not torn_lines, f"{torn_lines} torn or invalid stall-log line(s)"
     actual_stalls = [
         row
         for row in stall_rows

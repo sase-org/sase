@@ -29,6 +29,19 @@ MAX_WORKER_THREAD_STACKS = 16
 MAX_WORKER_THREAD_STACK_DEPTH = 64
 MAX_ASYNCIO_TASK_STACKS = 32
 MAX_ASYNCIO_TASK_STACK_DEPTH = 64
+# Hitch rows are the compact tier: their main-thread stack keeps only the
+# innermost frames (the blocking call and its nearest callers). Recovery rows
+# sample after the loop already resumed, so they keep a shorter tail. Full
+# hitch stacks were most of ``tui_stalls.jsonl``'s bytes.
+HITCH_STACK_DEPTH = 24
+HITCH_RECOVERY_STACK_DEPTH = 8
+# While a loop stall is ongoing, re-sample the main-thread stack every
+# interval (at most ``STALL_RESAMPLE_MAX`` samples, each depth-capped) so the
+# ``tui_stall_recovered`` row of a 100-second stall shows more than the one
+# stack captured at the threshold.
+STALL_RESAMPLE_INTERVAL_SECONDS = 10.0
+STALL_RESAMPLE_MAX = 6
+STALL_RESAMPLE_STACK_DEPTH = 32
 _TRUTHY = {"1", "true", "yes", "on"}
 
 ContextProvider = Callable[[], Mapping[str, Any]]

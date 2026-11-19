@@ -16,6 +16,11 @@ RATE_LIMIT_WINDOW_S = 60.0
 RECENT_RING_MAX = 256
 QUEUE_MAX = 2048
 NOTABLE_PAUSE_S = 0.050
+# Young (gen-0/1) collections write a ``tui_gc_pause`` row only from this
+# duration up. Shorter notable young pauses were ~80% of athena's stall-log
+# rows; they roll into the heartbeat's ``gc_young_notable`` counters instead,
+# so ``tui_stalls.jsonl`` keeps 48 hours under its size cap.
+YOUNG_PAUSE_ROW_MIN_S = 0.5
 FULL_GENERATION = 2
 THREAD_NAME = "sase-tui-gc-telemetry"
 
