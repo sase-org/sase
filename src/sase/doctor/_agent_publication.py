@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict
 
+from sase.agents_sync.prompt_archive.terminal import (
+    is_terminal_prompt_archive_reason,
+    terminal_obligations_path,
+)
 from sase.agents_sync.publication_outbox import (
     PUBLICATION_DROP_COMMAND,
     PUBLICATION_RETRY_COMMAND,
@@ -118,6 +122,175 @@ class OwnerManifestProblem:
         }
 
 
+def is_settled_terminal(item: AgentPublicationOutboxItem) -> bool:
+    """Return whether *item* is an audited terminal prompt archive.
+
+    Rows retired as ``prompt_archive_unrecoverable`` are settled: they are
+    counted and point at the terminal-obligations audit record, but they are
+    never doctor issues.
+    """
+
+    return bool(
+        item.terminal and is_terminal_prompt_archive_reason(item.terminal_reason)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SettledTerminal:
+    project_key: str
+    project: str
+    path: Path
+    item: AgentPublicationOutboxItem
+
+    def detail(self) -> str:
+        reason = self.item.terminal_reason or "unrecoverable prompt archive"
+        return (
+            f"{self.project}: {publication_request_subject(self.item)} settled "
+            f"as {reason}; audited in {terminal_obligations_path().name}"
+        )
+
+    def to_data(self) -> dict[str, object]:
+        return {
+            "project_key": self.project_key,
+            "project": self.project,
+            "outbox_path": str(self.path),
+            "global_agent": self.item.global_agent,
+            "local_agent": self.item.local_agent,
+            "primary_revision": self.item.primary_revision,
+            "local_hood": self.item.local_hood,
+            "attempts": self.item.attempts,
+            "terminal_reason": self.item.terminal_reason,
+            "audit_path": str(terminal_obligations_path()),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class OutboxGroup:
+    """One doctor issue: every open row for one (project, signature) cause."""
+
+    project_key: str
+    project: str
+    signature: str
+    problems: tuple[OutboxProblem, ...]
+
+    @property
+    def count(self) -> int:
+        return len(self.problems)
+
+    @property
+    def total_attempts(self) -> int:
+        return sum(problem.item.attempts for problem in self.problems)
+
+    @property
+    def first_time(self) -> float | None:
+        stamps = [
+            problem.item.created_at or problem.item.updated_at
+            for problem in self.problems
+        ]
+        stamps = [stamp for stamp in stamps if stamp > 0]
+        return min(stamps) if stamps else None
+
+    @property
+    def last_time(self) -> float | None:
+        stamps = [problem.item.updated_at for problem in self.problems]
+        stamps = [stamp for stamp in stamps if stamp > 0]
+        return max(stamps) if stamps else None
+
+    @property
+    def kinds(self) -> tuple[str, ...]:
+        kinds: list[str] = []
+        for problem in self.problems:
+            for kind in (
+                ("retired" if problem.retired else None),
+                ("quarantined" if problem.quarantined else None),
+                ("parked" if problem.parked else None),
+                ("stalled" if problem.stalled else None),
+            ):
+                if kind is not None and kind not in kinds:
+                    kinds.append(kind)
+        return tuple(kinds)
+
+    @property
+    def remediation_command(self) -> str:
+        if any(problem.retired for problem in self.problems):
+            return RETIRED_REMEDIATION_COMMAND
+        return REMEDIATION_COMMAND
+
+    def detail(self) -> str:
+        first = (
+            _format_duration(self.last_time - self.first_time)
+            if self.first_time is not None and self.last_time is not None
+            else "unknown"
+        )
+        return (
+            f"{self.project}: {self.count} request(s) "
+            f"({', '.join(self.kinds) or 'attention'}) "
+            f"under signature {self.signature[:16]}…, "
+            f"{self.total_attempts} attempt(s) over {first}"
+        )
+
+    def to_data(self, standing: dict[str, Any] | None = None) -> dict[str, object]:
+        data: dict[str, object] = {
+            "project_key": self.project_key,
+            "project": self.project,
+            "signature": self.signature,
+            "request_count": self.count,
+            "total_attempts": self.total_attempts,
+            "first_time": self.first_time,
+            "last_time": self.last_time,
+            "kinds": list(self.kinds),
+            "remediation_command": self.remediation_command,
+            "problems": tuple(problem.to_data() for problem in self.problems),
+        }
+        if standing is not None:
+            data["standing"] = standing
+        return data
+
+
+def _outbox_signature_for(item: AgentPublicationOutboxItem) -> str:
+    """Return the stable grouping signature for one outbox row.
+
+    The error-groups normalizer masks volatile tokens so one cause keeps one
+    signature across ticks. Classifier trouble fails open to the failure
+    class, which still groups deterministically.
+    """
+
+    text = item.last_error or publication_request_subject(item)
+    try:
+        from sase.core.axe_error_facade import normalize_error_signature
+
+        signature = normalize_error_signature(text)
+    except Exception:  # noqa: BLE001 - doctor fails open to a coarse signature.
+        signature = ""
+    if signature:
+        return signature
+    return f"unclassified:{classify_publication_error(item.last_error)}"
+
+
+def group_outbox_problems(
+    problems: tuple[OutboxProblem, ...] | list[OutboxProblem],
+) -> tuple[OutboxGroup, ...]:
+    """Fold open problems into one group per (project, signature) cause.
+
+    Groups keep first-seen order so unchanged state renders the same issue
+    list on every tick.
+    """
+
+    groups: dict[tuple[str, str], list[OutboxProblem]] = {}
+    for problem in problems:
+        key = (problem.project_key, _outbox_signature_for(problem.item))
+        groups.setdefault(key, []).append(problem)
+    return tuple(
+        OutboxGroup(
+            project_key=key[0],
+            project=members[0].project,
+            signature=key[1],
+            problems=tuple(members),
+        )
+        for key, members in groups.items()
+    )
+
+
 class OutboxProjectData(TypedDict):
     project_key: str
     project: str
@@ -155,6 +328,8 @@ def problem_for_item(
     stalled_age_seconds: float,
 ) -> OutboxProblem | None:
     age_seconds = _item_age_seconds(item, now=now)
+    if is_settled_terminal(item):
+        return None
     if item.terminal:
         return OutboxProblem(
             record.project_name,
@@ -252,6 +427,10 @@ def outbox_data(
     sidecar_states: tuple[dict[str, Any], ...] = (),
     stale_requested_revision_count: int = 0,
     stale_requested_revisions: tuple[str, ...] = (),
+    settled: tuple[SettledTerminal, ...] = (),
+    groups: tuple[OutboxGroup, ...] = (),
+    standing_alerts: tuple[dict[str, Any], ...] = (),
+    standing_by_group: dict[tuple[str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "projects_root": str(projects_root),
@@ -267,6 +446,17 @@ def outbox_data(
         "stalled_request_count": sum(problem.stalled for problem in problems),
         "parked_request_count": sum(problem.parked for problem in problems),
         "problems": tuple(problem.to_data() for problem in problems),
+        "settled_request_count": len(settled),
+        "settled": tuple(entry.to_data() for entry in settled),
+        "settled_audit_path": str(terminal_obligations_path()),
+        "groups": tuple(
+            group.to_data(
+                (standing_by_group or {}).get((group.project_key, group.signature))
+            )
+            for group in groups
+        ),
+        "standing_alert_count": len(standing_alerts),
+        "standing_alerts": standing_alerts,
         "error_count": len(errors),
         "errors": errors,
         "migration_notice_count": len(migration_notices),

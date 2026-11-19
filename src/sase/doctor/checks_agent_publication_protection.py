@@ -179,7 +179,7 @@ def _check_agent_publication_protection(
             data={**base_data, "details_truncated": len(errors) > _MAX_DETAIL_ROWS},
         )
 
-    if blocked_count or stale_count or unverified_count:
+    if blocked_count or unverified_count:
         next_steps: list[str] = []
         if blocked_count:
             next_steps.append(
@@ -205,6 +205,27 @@ def _check_agent_publication_protection(
             ),
             details=tuple(details[:_MAX_DETAIL_ROWS]),
             next_steps=tuple(next_steps),
+            data={**base_data, "details_truncated": len(details) > _MAX_DETAIL_ROWS},
+        )
+
+    if stale_count:
+        # Stale-only state is informational, not a WARN: stale blocks are no
+        # longer enforced, so nothing withholds publication. This is remedy
+        # (a) for the sase-1rb stale-protection finding.
+        return DiagnosticCheck(
+            id="state.agent_publication_protection",
+            group="state",
+            status="OK",
+            title="Agent publication protection",
+            summary=(
+                "no blocked or unverified publication content is recorded; "
+                f"{stale_count} stale scanner block(s) awaiting revalidation "
+                f"(informational); {superseded_count} superseded record(s) retained"
+            ),
+            details=tuple(details[:_MAX_DETAIL_ROWS]),
+            next_steps=(
+                "Retry publication to rescan stale scanner-hit blocks under the current rules.",
+            ),
             data={**base_data, "details_truncated": len(details) > _MAX_DETAIL_ROWS},
         )
 

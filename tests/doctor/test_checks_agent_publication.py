@@ -157,18 +157,19 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
     )
 
     assert check.status == "WARN"
+    assert "2 agent publication issue group(s)" in check.summary
     assert "1 quarantined, 1 stalled" in check.summary
     assert "sase agent sync --retry-quarantined" in check.summary
-    assert "bad--code" in check.details[0]
-    assert "quarantined" in check.details[0]
-    assert "slow--code" in check.details[1]
-    assert "stalled: attempts >= 3" in check.details[1]
+    assert "1 request(s) (quarantined)" in check.details[0]
+    assert "1 request(s) (stalled)" in check.details[1]
     assert check.next_steps == (
         "Run `sase agent sync --retry-quarantined` to release quarantined requests and retry publication.",
     )
     assert check.data["request_count"] == 2
     assert check.data["quarantined_request_count"] == 1
     assert check.data["stalled_request_count"] == 1
+    assert len(check.data["groups"]) == 2
+    assert check.data["settled_request_count"] == 0
 
 
 def test_agent_publication_outbox_doctor_reports_dropped_obsolete_requests(
@@ -269,7 +270,7 @@ def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_com
     assert "1 retired" in check.summary
     assert "sase agent sync --drop-retired" in check.summary
     assert "sase agent sync --retry-quarantined" not in check.summary
-    assert "retired as unpublishable" in check.details[0]
+    assert "1 request(s) (retired)" in check.details[0]
     assert check.next_steps == (
         "Run `sase agent sync --drop-retired` to drop retired requests that can never be published.",
     )
@@ -358,6 +359,294 @@ def test_agent_publication_doctor_accepts_healthy_local_owner_manifest(
     assert check.status == "OK"
     assert check.data["owner_manifest_problem_count"] == 0
     assert check.data["owner_manifest_problems"] == ()
+
+
+def test_agent_publication_outbox_doctor_settles_terminal_prompt_archives(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    reason = "prompt_archive_unrecoverable: no local source in any known location"
+    _write_outbox(
+        tmp_path / ".sase",
+        "alpha",
+        [
+            _item(
+                local_agent="gone--code",
+                revision="d" * 40,
+                attempts=3,
+                last_error=reason,
+                quarantined=True,
+                terminal=True,
+                terminal_reason=reason,
+                created_at=now - 120,
+                updated_at=now - 60,
+            )
+        ],
+    )
+
+    check = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert check.status == "OK"
+    assert "1 settled terminal (audited)" in check.summary
+    assert check.data["settled_request_count"] == 1
+    assert check.data["request_count"] == 1
+    assert check.data["groups"] == ()
+    assert check.data["problems"] == ()
+    assert check.data["settled"][0]["terminal_reason"] == reason
+    assert check.data["settled"][0]["audit_path"].endswith("terminal_obligations.jsonl")
+
+
+def test_agent_publication_outbox_doctor_excludes_settled_from_warn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    reason = "prompt_archive_unrecoverable: no local source in any known location"
+    _write_outbox(
+        tmp_path / ".sase",
+        "alpha",
+        [
+            _item(
+                local_agent="gone--code",
+                revision="d" * 40,
+                attempts=3,
+                last_error=reason,
+                quarantined=True,
+                terminal=True,
+                terminal_reason=reason,
+                created_at=now - 120,
+                updated_at=now - 60,
+            ),
+            _item(
+                local_agent="bad--code",
+                revision="e" * 40,
+                attempts=3,
+                last_error="committing agent absent from project inventory",
+                quarantined=True,
+                created_at=now - 120,
+                updated_at=now - 60,
+            ),
+        ],
+    )
+
+    check = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert check.status == "WARN"
+    assert "1 agent publication issue group(s)" in check.summary
+    assert "1 settled terminal (audited)" in check.summary
+    assert len(check.details) == 1
+    assert check.data["settled_request_count"] == 1
+
+
+def test_agent_publication_outbox_doctor_groups_one_cause_into_one_issue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    rows = [
+        _item(
+            local_agent="one--code",
+            revision="a" * 40,
+            attempts=3,
+            last_error="drain failed for run abcdef1234567890: connection timed out",
+            quarantined=True,
+            created_at=now - 300,
+            updated_at=now - 60,
+        ),
+        _item(
+            local_agent="two--code",
+            revision="b" * 40,
+            attempts=5,
+            last_error="drain failed for run 0987654321fedcba: connection timed out",
+            quarantined=True,
+            created_at=now - 200,
+            updated_at=now - 30,
+        ),
+        _item(
+            local_agent="three--code",
+            revision="c" * 40,
+            attempts=3,
+            last_error="git pull --rebase failed",
+            quarantined=True,
+            created_at=now - 200,
+            updated_at=now - 30,
+        ),
+    ]
+    _write_outbox(tmp_path / ".sase", "alpha", rows)
+
+    first = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert first.status == "WARN"
+    assert "2 agent publication issue group(s)" in first.summary
+    assert len(first.data["groups"]) == 2
+    [timeout_group] = [
+        group for group in first.data["groups"] if group["request_count"] == 2
+    ]
+    assert timeout_group["total_attempts"] == 8
+    assert timeout_group["first_time"] == now - 300
+    assert timeout_group["last_time"] == now - 30
+
+    # A later tick with bumped attempts but unchanged causes keeps the count.
+    later_rows = [
+        {**row, "attempts": row["attempts"] + 4, "updated_at": now + 900}
+        for row in rows
+    ]
+    outbox_path = (
+        tmp_path / ".sase" / "projects" / "alpha" / "agents-publication-outbox.json"
+    )
+    outbox_path.write_text(
+        json.dumps({"schema_version": 2, "items": later_rows}),
+        encoding="utf-8",
+    )
+    second = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now + 900,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert "2 agent publication issue group(s)" in second.summary
+    assert len(second.data["groups"]) == 2
+
+
+def test_agent_publication_outbox_doctor_surfaces_standing_alerts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.doctor._agent_publication import _outbox_signature_for
+
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    row = _item(
+        local_agent="bad--code",
+        revision="b" * 40,
+        attempts=7,
+        last_error="git pull --rebase failed",
+        quarantined=True,
+        created_at=now - 120,
+        updated_at=now - 60,
+    )
+    _write_outbox(tmp_path / ".sase", "alpha", [row])
+    signature = _outbox_signature_for(
+        AgentPublicationOutboxItem(**{k: v for k, v in row.items() if k != "id"})
+    )
+    store = tmp_path / ".sase" / "agent_publication" / "standing_alerts.json"
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "alerts": {
+                    f"alpha\x00{signature}": {
+                        "project": "alpha",
+                        "signature": signature,
+                        "failure_kind": "drain_error",
+                        "error_class": "rebase_conflict",
+                        "detail": "git pull --rebase failed",
+                        "attempts": 7,
+                        "first_seen": now - 120,
+                        "last_seen": now - 60,
+                        "last_reported": now - 60,
+                        "escalated": False,
+                        "next_attempt_at": now + 60,
+                        "project_scoped": True,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    check = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert check.data["standing_alert_count"] == 1
+    assert check.data["standing_alerts"][0]["attempts"] == 7
+    [group] = check.data["groups"]
+    assert group["standing"]["attempts"] == 7
+    assert group["standing"]["failure_kind"] == "drain_error"
+
+
+def test_agent_publication_outbox_doctor_ignores_unreadable_standing_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    _write_outbox(
+        tmp_path / ".sase",
+        "alpha",
+        [
+            _item(
+                local_agent="bad--code",
+                revision="b" * 40,
+                attempts=3,
+                last_error="git pull --rebase failed",
+                quarantined=True,
+                created_at=now - 120,
+                updated_at=now - 60,
+            )
+        ],
+    )
+    store = tmp_path / ".sase" / "agent_publication" / "standing_alerts.json"
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text("{not json", encoding="utf-8")
+
+    check = check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert check.status == "WARN"
+    assert "1 agent publication issue group(s)" in check.summary
+    assert check.data["standing_alert_count"] == 0
+    assert "standing" not in check.data["groups"][0]
+    assert store.read_text(encoding="utf-8") == "{not json"
 
 
 def test_agent_publication_doctor_warns_for_parked_diverged_replay(

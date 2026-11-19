@@ -153,6 +153,57 @@ def test_doctor_reports_counts_and_safe_metadata_only(
     assert any("rescan stale" in step for step in check.next_steps)
 
 
+def test_doctor_reports_stale_only_protection_as_ok(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_protection.list_project_records",
+        lambda *_args, **_kwargs: [_project(tmp_path)],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_protection.read_publication_protection_ledger_from_path",
+        lambda *_args, **_kwargs: {
+            "schema_version": 1,
+            "records": [
+                {
+                    "repository_identity": "sase-org/sase--agents",
+                    "relative_destination": "agents/alice/run/chat.md",
+                    "sha256": "a" * 64,
+                    "status": "blocked",
+                    "reason": "scanner_hit",
+                    "affected_requests": ["request-a"],
+                    "evidence": [
+                        {
+                            "kind": "credential_pattern",
+                            "rule_id": "openai-key",
+                            "line": 5,
+                            "rules_version": 1,
+                        }
+                    ],
+                    "rules_versions": [1],
+                    "created_at": 1.0,
+                    "updated_at": 1.0,
+                },
+            ],
+            "superseded": [],
+        },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_protection.publication_protection_record_enforced",
+        lambda row: False,
+    )
+
+    check = _check_agent_publication_protection(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["blocked_count"] == 0
+    assert check.data["stale_count"] == 1
+    assert check.data["unverified_count"] == 0
+    assert "1 stale scanner block(s)" in check.summary
+    assert "informational" in check.summary
+
+
 def test_doctor_skips_projects_without_a_ledger_and_is_registered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

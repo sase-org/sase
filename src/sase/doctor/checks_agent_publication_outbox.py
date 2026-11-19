@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from sase.agents_sync.publication_completion import stale_requested_revision_rows
 from sase.agents_sync.publication_outbox import (
@@ -14,6 +16,10 @@ from sase.agents_sync.publication_outbox import (
     configured_publication_max_attempts,
     publication_request_subject,
     snapshot_publication_document_from_path,
+)
+from sase.agents_sync.publication_standing import (
+    STANDING_ALERTS_FILENAME,
+    STANDING_ALERTS_SCHEMA_VERSION,
 )
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
@@ -28,6 +34,9 @@ from sase.doctor._agent_publication import (
     OutboxProjectData,
     REMEDIATION_COMMAND,
     RETIRED_REMEDIATION_COMMAND,
+    SettledTerminal,
+    group_outbox_problems,
+    is_settled_terminal,
     last_error_histogram,
     oldest_active_age_seconds,
     outbox_data,
@@ -126,6 +135,7 @@ def check_agent_publication_outbox(
 
     outboxes: list[OutboxProjectData] = []
     problems: list[OutboxProblem] = []
+    settled: list[SettledTerminal] = []
     errors: list[str] = []
     migration_notices: list[str] = []
     record_items: list[
@@ -159,6 +169,16 @@ def check_agent_publication_outbox(
 
         project_problems: list[OutboxProblem] = []
         for item in items:
+            if is_settled_terminal(item):
+                settled.append(
+                    SettledTerminal(
+                        record.project_name,
+                        effective_project_name(record),
+                        path,
+                        item,
+                    )
+                )
+                continue
             problem = problem_for_item(
                 record,
                 path,
@@ -193,6 +213,8 @@ def check_agent_publication_outbox(
             )
         )
     )
+    groups = group_outbox_problems(tuple(problems))
+    standing_alerts, standing_by_group = _read_standing_alerts(context.sase_home)
     data = outbox_data(
         projects_root=projects_root,
         records=records,
@@ -211,6 +233,10 @@ def check_agent_publication_outbox(
         ),
         stale_requested_revision_count=len(stale_lines),
         stale_requested_revisions=stale_lines,
+        settled=tuple(settled),
+        groups=groups,
+        standing_alerts=standing_alerts,
+        standing_by_group=standing_by_group,
     )
     diverged_replays = tuple(
         state
@@ -244,14 +270,14 @@ def check_agent_publication_outbox(
         )
 
     if (
-        problems
+        groups
         or manifest_problems
         or migration_notices
         or stale_lines
         or diverged_replays
     ):
-        visible_problems = problems[:_MAX_DETAIL_ROWS]
-        remaining_detail_rows = _MAX_DETAIL_ROWS - len(visible_problems)
+        visible_groups = groups[:_MAX_DETAIL_ROWS]
+        remaining_detail_rows = _MAX_DETAIL_ROWS - len(visible_groups)
         visible_manifest_problems = manifest_problems[:remaining_detail_rows]
         remaining_detail_rows -= len(visible_manifest_problems)
         visible_notices = tuple(migration_notices[:remaining_detail_rows])
@@ -259,10 +285,10 @@ def check_agent_publication_outbox(
         visible_stale = tuple(stale_lines[:remaining_detail_rows])
         remaining_detail_rows -= len(visible_stale)
         visible_diverged = tuple(diverged_lines[:remaining_detail_rows])
-        quarantined_count = sum(problem.quarantined for problem in problems)
-        retired_count = sum(problem.retired for problem in problems)
-        stalled_count = sum(problem.stalled for problem in problems)
-        parked_count = sum(problem.parked for problem in problems)
+        quarantined_count = sum(1 for group in groups if "quarantined" in group.kinds)
+        retired_count = sum(1 for group in groups if "retired" in group.kinds)
+        stalled_count = sum(1 for group in groups if "stalled" in group.kinds)
+        parked_count = sum(1 for group in groups if "parked" in group.kinds)
         breakdown_parts = [
             *((f"{quarantined_count} quarantined",) if quarantined_count else ()),
             *((f"{retired_count} retired",) if retired_count else ()),
@@ -293,7 +319,7 @@ def check_agent_publication_outbox(
         commands = tuple(
             dict.fromkeys(
                 (
-                    *(problem.remediation_command for problem in problems),
+                    *(group.remediation_command for group in groups),
                     *(problem.remediation_command for problem in manifest_problems),
                 )
             )
@@ -316,7 +342,7 @@ def check_agent_publication_outbox(
             ),
         )
         attention_count = (
-            len(problems)
+            len(groups)
             + len(manifest_problems)
             + len(migration_notices)
             + len(stale_lines)
@@ -327,17 +353,18 @@ def check_agent_publication_outbox(
             if commands
             else ""
         )
+        settled_note = f"; {len(settled)} settled terminal (audited)" if settled else ""
         return DiagnosticCheck(
             id="state.agent_publication_outbox",
             group="state",
             status="WARN",
             title="Agent publication outbox",
             summary=(
-                f"{attention_count} agent publication issue(s) need attention "
-                f"({breakdown}){remediation}"
+                f"{attention_count} agent publication issue group(s) need attention "
+                f"({breakdown}){remediation}{settled_note}"
             ),
             details=(
-                *(problem.detail() for problem in visible_problems),
+                *(group.detail() for group in visible_groups),
                 *(problem.detail() for problem in visible_manifest_problems),
                 *visible_notices,
                 *visible_stale,
@@ -347,7 +374,7 @@ def check_agent_publication_outbox(
             data={
                 **data,
                 "details_truncated": (
-                    len(problems) > len(visible_problems)
+                    len(groups) > len(visible_groups)
                     or len(manifest_problems) > len(visible_manifest_problems)
                     or len(migration_notices) > len(visible_notices)
                     or len(stale_lines) > len(visible_stale)
@@ -357,6 +384,7 @@ def check_agent_publication_outbox(
         )
 
     total_requests = sum(int(row["request_count"]) for row in outboxes)
+    settled_note = f"; {len(settled)} settled terminal (audited)" if settled else ""
     return DiagnosticCheck(
         id="state.agent_publication_outbox",
         group="state",
@@ -365,9 +393,60 @@ def check_agent_publication_outbox(
         summary=(
             f"{total_requests} queued publication request(s); "
             "no quarantined, stalled, or parked requests"
+            f"{settled_note}"
         ),
         data=data,
     )
+
+
+def _read_standing_alerts(
+    sase_home: Path,
+) -> tuple[tuple[dict[str, Any], ...], dict[tuple[str, str], dict[str, Any]]]:
+    """Read live publication standing alerts without touching the store.
+
+    Best-effort and strictly read-only: a missing, corrupt, or
+    wrong-version store degrades to no alerts rather than failing doctor or
+    quarantining another subsystem's state aside.
+    """
+
+    path = sase_home / "agent_publication" / STANDING_ALERTS_FILENAME
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - doctor isolates store trouble.
+        return (), {}
+    if not isinstance(payload, dict):
+        return (), {}
+    if payload.get("schema_version") != STANDING_ALERTS_SCHEMA_VERSION:
+        return (), {}
+    raw_alerts = payload.get("alerts")
+    if not isinstance(raw_alerts, dict):
+        return (), {}
+    alerts: list[dict[str, Any]] = []
+    by_group: dict[tuple[str, str], dict[str, Any]] = {}
+    for raw in raw_alerts.values():
+        if not isinstance(raw, dict):
+            continue
+        project = raw.get("project")
+        signature = raw.get("signature")
+        if not isinstance(project, str) or not isinstance(signature, str):
+            continue
+        row = {
+            "project": project,
+            "signature": signature,
+            "failure_kind": raw.get("failure_kind"),
+            "error_class": raw.get("error_class"),
+            "attempts": raw.get("attempts"),
+            "first_seen": raw.get("first_seen"),
+            "last_seen": raw.get("last_seen"),
+            "last_reported": raw.get("last_reported"),
+            "escalated": raw.get("escalated"),
+            "next_attempt_at": raw.get("next_attempt_at"),
+            "project_scoped": raw.get("project_scoped"),
+        }
+        alerts.append(row)
+        by_group[(project, signature)] = row
+    ordered = tuple(sorted(alerts, key=lambda row: (row["project"], row["signature"])))
+    return ordered, by_group
 
 
 def _stale_requested_revision_entries(

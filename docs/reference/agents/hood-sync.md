@@ -437,30 +437,42 @@ hour after its last check or when the scanner-rules version changes; enqueueing 
 work for that request also clears the park. Explicit `sase agent sync` bypasses this
 delay. Eligibility permits another check, not automatic publication of blocked content.
 Other eligible publication work continues. Publication requires a complete, clean scan
-of the bytes being copied.
+of the bytes being copied. A protection state with only stale blocks (no enforced
+blocks, nothing unverified) is reported by
+`sase doctor -C state.agent_publication_protection` as OK with the stale count as
+information, since stale blocks no longer withhold anything.
 
 ### Outbox diagnostics
 
-`sase doctor -C state.agent_publication_outbox -j` reports a `last_error_histogram` that
-groups requests by stable failure class (`timeout`, `lock_busy`, `index_lock`,
-`unstaged_changes`, `rebase_conflict`, `manifest_mismatch`, `other`, `unknown`), the
-oldest active request's age in `oldest_active_age_seconds`, a
-`stale_requested_revision_count` of revision-scope rows whose requested revision is
-absent from their published run's commits, and per-project hidden-clone state in
-`sidecar_states` (commits ahead of/behind upstream, rebase in progress, untracked
-`files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain also
-appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl` with
-per-stage durations, inventory counters, and a `cleanup_result` of `completed`,
-`deferred`, or `failed`. The drain alarm fires early enough to leave a cleanup reserve
-inside the overall timeout so exception cleanup can finish; a deferred cleanup is
-completed by the next pass's payload clean (`deferred_cleanup_completed`). Cleanup
-trouble stays diagnostic and never replaces the original drain error. Payload clean
-restores regenerable families from git, then removes root-level `.sase-v2-stage-*` and
-`.sase-v2-backup-*` directories left by an interrupted apply. A failed drain names the
-sync-lock holder (pid, operation, agent, age) recorded beside the lock file. Profile a
-representative drain read-only with `tools/agents_publication_profile --project <key>`;
-see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
-and repair procedures.
+`sase doctor -C state.agent_publication_outbox -j` reports one issue per
+`(project, signature)` cause instead of one per row: quarantined, parked, and stalled
+rows that share a normalized error signature fold into a single group carrying its
+request count, total attempts, and first/last times, so the issue count stays flat while
+the state is unchanged. Each group carries its live standing-alert row (`attempts`,
+`first_seen`, `last_seen`, `next_attempt_at`) when the publisher has one, and the
+payload lists every open standing alert in `standing_alerts`. Rows retired as
+`prompt_archive_unrecoverable` are reported as settled and audited — counted in
+`settled_request_count` with a pointer at `terminal_obligations.jsonl`, never as issues.
+The payload also reports a `last_error_histogram` that groups requests by stable failure
+class (`timeout`, `lock_busy`, `index_lock`, `unstaged_changes`, `rebase_conflict`,
+`manifest_mismatch`, `other`, `unknown`), the oldest active request's age in
+`oldest_active_age_seconds`, a `stale_requested_revision_count` of revision-scope rows
+whose requested revision is absent from their published run's commits, and per-project
+hidden-clone state in `sidecar_states` (commits ahead of/behind upstream, rebase in
+progress, untracked `files/objects`, dirty `prompts/`/`artifacts/`). Every
+commit-triggered drain also appends one structured timing line to
+`~/.sase/logs/agent_publication_drains.jsonl` with per-stage durations, inventory
+counters, and a `cleanup_result` of `completed`, `deferred`, or `failed`. The drain
+alarm fires early enough to leave a cleanup reserve inside the overall timeout so
+exception cleanup can finish; a deferred cleanup is completed by the next pass's payload
+clean (`deferred_cleanup_completed`). Cleanup trouble stays diagnostic and never
+replaces the original drain error. Payload clean restores regenerable families from git,
+then removes root-level `.sase-v2-stage-*` and `.sase-v2-backup-*` directories left by
+an interrupted apply. A failed drain names the sync-lock holder (pid, operation, agent,
+age) recorded beside the lock file. Profile a representative drain read-only with
+`tools/agents_publication_profile --project <key>`; see the
+[publication internals](../../contribute/agents-sidecar-sync.md) for profiling and
+repair procedures.
 
 ### Standing alerts
 
