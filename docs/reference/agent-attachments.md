@@ -737,17 +737,19 @@ uncommitted plans prefer the archived path unless only the SDD path is available
 Viewer dependencies are separate from agent completion. Image/PDF/Markdown display uses
 `kitten`; PDF paging also needs `pdftoppm`, and Markdown needs `pandoc` plus a PDF
 engine. Video inspection needs `ffmpeg` for frames and `ffprobe` for metadata; its Kitty
-graphics display uses `kitten`, while its Unicode cell fallback uses Pillow. Opt-in
-motion needs `mpv`. Missing tools show a warning without changing stored artifacts.
+graphics display uses `kitten`, while its Unicode cell fallback and storyboard use
+Pillow. In-pane motion needs `mpv`; native playback uses the configured command or
+system opener. Missing external tools show a warning without changing stored artifacts.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
-sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the image/PDF viewer.
-Video opens on a still frame at t=0 with duration, frame rate, and codec metadata. Kitty
-graphics terminals also show a storyboard sampled at tenths of the duration once ready.
-`space` starts motion; `o` opens native playback. Nothing autoplays.
+Videos (`.mp4`, `.m4v`, `.mov`, `.webm`) open on a still frame at the start with
+available duration, frame-rate, and codec metadata. Kitty graphics panes at least 20
+rows tall also show ten storyboard thumbnails sampled at 0%, 10%, …, 90% of the
+duration, once ready. `space` requests motion under the conditions below; `o` opens an
+external player. Nothing autoplays.
 
 Keys: `h`/`←`/`l`/`→` seek 1 s, `,`/`.` step one frame, `0`–`9` jump deciles, `s`
 storyboard, `o` native player, `r` re-render, `z` zoom, `n`/`p` sequence, `<tab>` focus,

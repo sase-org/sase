@@ -27,14 +27,15 @@ create clan or session membership.
 
 ### Forced Session-Name Reuse
 
-Forced reuse of a bare session name removes every recorded owner of that session
-reservation, including owners from older generations and saved launch bundles. It is not
-limited to the newest visible turn. Cleanup rebuilds the name registry and refuses the
-relaunch if any owner still reserves the name; the error identifies the remaining
-record. Reusing a session inside a clan preserves the enclosing clan.
+The bare session name is the part before `--`: `foo` names the session containing
+`foo--reviewer`. Forced reuse of `foo` stops its running turns and deletes the run
+artifacts and saved launch bundles that reserve the name, including records from earlier
+uses of `foo`. Before launching the replacement, cleanup rebuilds the name registry; if
+any record still reserves the name, launch fails with an error identifying that record.
+Reusing a session inside a clan preserves the enclosing clan.
 
-An individual turn name targets that turn's owner. A populated clan container cannot be
-replaced as though it were one agent. See the
+An individual turn name, such as `foo--reviewer`, targets that turn's records. A clan
+container with members cannot be replaced as though it were one agent. See the
 [directive syntax](../macros/directive-syntax.md#syntax) for forced-reuse syntax, and
 [hijack recovery](#hijack-recovery) for continuing with retained workspace changes.
 

@@ -64,8 +64,9 @@ verifies finalizers after the model returns.
 
 Host finalizer and commit-publication failures do not trigger provider retries, model
 fallback, or provider disabling, even when their error text mentions rate limits or
-server errors. Their repair path belongs to host completion and the commit checkpoint;
-see [commit hook recovery](#commit_hooks) for a blocked publication.
+server errors. Host completion handles these failures. A saved commit checkpoint lets
+publication resume from the unfinished step; see [commit hook recovery](#commit_hooks)
+for the repair and resume sequence.
 
 `sase final prepare <wrapper.json>` is the conditional alternative for a long
 verification handoff. It seals a completed declaration, exact verification argv, current
@@ -79,16 +80,17 @@ The built-in `builtin@commit` provider checks the main workspace, configured lin
 worktrees, and repositories opened through `/sase_repo`. `sase final context` also
 carries an advisory `unscanned_writes` list naming dirty run-written files in checkouts
 outside that scan, with a per-entry fix; it never changes requirements, obligations, or
-digests. The suggested repair identifies the owning project or external repository so an
-identically named checkout in another project is not mistaken for coverage. A checkout's
-presence on disk alone does not mean the selected commit finalizer scans it. Dirty
-enforced repositories become declaration obligations; each repository must receive
-exactly one `commit` decision with a Conventional Commit message, and `commit` is the
-only legal repository action. Typed deferrals can name explicit paths that must not be
-committed, using the adjudicated reasons `protected_paths`, `foreign_work`,
-`unsafe_content`, or `belongs_to_another_turn`. When the run has an assigned bead
-(`SASE_BEAD_ID`), the primary repository's commit decision also carries a `keep` or
-`close` bead action, which is forwarded to `sase stitch create -B`; see
+digests. Repairs use a repository name from the current project or an unambiguous
+`gh:owner/repo` reference when available. Otherwise they ask the agent to open the
+owning repository and relocate or discard the file. A checkout's presence on disk alone
+does not mean the selected commit finalizer scans it. Dirty enforced repositories become
+declaration obligations; each repository must receive exactly one `commit` decision with
+a Conventional Commit message, and `commit` is the only legal repository action. Typed
+deferrals can name explicit paths that must not be committed, using the adjudicated
+reasons `protected_paths`, `foreign_work`, `unsafe_content`, or
+`belongs_to_another_turn`. When the run has an assigned bead (`SASE_BEAD_ID`), the
+primary repository's commit decision also carries a `keep` or `close` bead action, which
+is forwarded to `sase stitch create -B`; see
 [Explicit Bead Action](../../contribute/commit-workflow-orchestrator.md#explicit-bead-action).
 Commit decisions dispatch through `sase stitch create` sequentially, preserve protected
 pre-existing dirt, write stitch evidence, stop on the first conflict for repair/resume,
