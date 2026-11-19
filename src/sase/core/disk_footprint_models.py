@@ -6,6 +6,10 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.disk_footprint_utils import DISK_SIZE_LOWER_BOUND
+from sase.core.disk_footprint_utils import DISK_SIZE_MEASURED
+from sase.core.disk_footprint_utils import DISK_SIZE_UNMEASURED
+
 DISK_COVERAGE_COMPLETE = "complete"
 DISK_COVERAGE_PARTIAL = "partial"
 DISK_COVERAGE_UNRESOLVED = "unresolved"
@@ -29,6 +33,7 @@ class DiskFootprintRow:
     reclaim: str | None = None
     physical_path: str | None = None
     exclusive_size_bytes: int | None = None
+    size_state: str = DISK_SIZE_MEASURED
     coverage: str = DISK_COVERAGE_COMPLETE
     diagnostics: tuple[str, ...] = ()
     overlap_parent_path: str | None = None
@@ -53,6 +58,8 @@ class DiskFootprintReport:
     unowned_total_bytes: int | None = None
     coverage_status: str = DISK_COVERAGE_COMPLETE
     unresolved_owner_coverage: tuple[str, ...] = ()
+    unmeasured_owners: tuple[str, ...] = ()
+    totals_are_lower_bound: bool = False
 
     @property
     def total_bytes(self) -> int:
@@ -90,6 +97,8 @@ class DiskFootprintReport:
             ),
             "coverage_status": self.coverage_status,
             "unresolved_owner_coverage": list(self.unresolved_owner_coverage),
+            "unmeasured_owners": list(self.unmeasured_owners),
+            "totals_are_lower_bound": self.totals_are_lower_bound,
         }
 
 
@@ -232,6 +241,9 @@ __all__ = [
     "DISK_COVERAGE_COMPLETE",
     "DISK_COVERAGE_PARTIAL",
     "DISK_COVERAGE_UNRESOLVED",
+    "DISK_SIZE_LOWER_BOUND",
+    "DISK_SIZE_MEASURED",
+    "DISK_SIZE_UNMEASURED",
     "DiskFootprintReport",
     "DiskFootprintRow",
     "DiskReapResult",

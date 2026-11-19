@@ -182,6 +182,7 @@ def _owner_row_payload(row: Mapping[str, Any]) -> dict[str, Any]:
         "name": str(row.get("name") or ""),
         "path": str(row.get("path") or ""),
         "size_bytes": int(size_bytes),
+        "size_state": str(row.get("size_state") or "measured"),
         "owner": str(row.get("owner") or ""),
         "status": str(row.get("status") or "owned"),
     }

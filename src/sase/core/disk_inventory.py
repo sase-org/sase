@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-DISK_INVENTORY_WIRE_SCHEMA_VERSION = 1
+DISK_INVENTORY_WIRE_SCHEMA_VERSION = 2
 
 
 def classify_disk_inventory(
@@ -58,6 +58,7 @@ def _row_payload(row: Mapping[str, Any]) -> dict[str, Any]:
         "path": str(row.get("path") or ""),
         "physical_path": None if physical_path is None else str(physical_path),
         "size_bytes": int(row.get("size_bytes") or 0),
+        "size_state": str(row.get("size_state") or "measured"),
         "owner": str(row.get("owner") or ""),
         "horizon": str(row.get("horizon") or ""),
         "status": str(row.get("status") or "owned"),

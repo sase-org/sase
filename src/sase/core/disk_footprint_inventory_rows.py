@@ -14,9 +14,11 @@ from sase.core.disk_footprint_models import DISK_COVERAGE_PARTIAL
 from sase.core.disk_footprint_models import DISK_COVERAGE_UNRESOLVED
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import TreeSizeFn
 from sase.core.disk_footprint_utils import format_horizon_seconds
 from sase.core.disk_footprint_utils import iter_children
 from sase.core.disk_footprint_utils import iter_children_bounded
+from sase.core.disk_footprint_utils import measured_row_fields
 from sase.core.disk_footprint_utils import normalize_path_no_follow
 from sase.core.managed_tmp_reaper import current_managed_tmp_horizons
 from sase.core.managed_tmp_roots import effective_managed_tmp_roots
@@ -38,7 +40,7 @@ _WORKSPACE_HEAVY_CHILDREN = (
 
 def managed_tmp_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
     roots: Sequence[Path] | None = None,
@@ -86,7 +88,7 @@ def _all_managed_tmp_roots() -> list[Path]:
 def _managed_tmp_root_rows(
     root: Path,
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None,
     diagnostics: list[str] | None,
     horizons: Mapping[str, float],
@@ -132,12 +134,15 @@ def _managed_tmp_root_rows(
                 name=(f"{root.name}/{entry.name}" if qualify_name else entry.name),
                 path=str(entry),
                 physical_path=str(normalize_path_no_follow(entry)),
-                size_bytes=tree_size_fn(entry),
                 owner="managed_tmp_reaper",
                 horizon=format_horizon_seconds(horizon_seconds),
                 reclaim="sase disk reap --apply",
-                coverage=root_coverage,
-                diagnostics=root_diagnostics,
+                **measured_row_fields(
+                    tree_size_fn,
+                    entry,
+                    coverage=root_coverage,
+                    diagnostics=root_diagnostics,
+                ),
             )
         )
     if root_coverage != DISK_COVERAGE_COMPLETE and not rows:
@@ -147,12 +152,15 @@ def _managed_tmp_root_rows(
                 name="<root>",
                 path=str(root),
                 physical_path=str(normalize_path_no_follow(root)),
-                size_bytes=tree_size_fn(root),
                 owner="managed_tmp_reaper",
                 horizon="partially listed",
                 reclaim="sase disk reap --apply",
-                coverage=root_coverage,
-                diagnostics=root_diagnostics,
+                **measured_row_fields(
+                    tree_size_fn,
+                    root,
+                    coverage=root_coverage,
+                    diagnostics=root_diagnostics,
+                ),
             )
         )
     return rows
@@ -160,7 +168,7 @@ def _managed_tmp_root_rows(
 
 def sase_state_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
@@ -170,20 +178,20 @@ def sase_state_rows(
             name="procs/runtime",
             path=str(procs_dir() / "runtime"),
             physical_path=str(normalize_path_no_follow(procs_dir() / "runtime")),
-            size_bytes=tree_size_fn(procs_dir() / "runtime"),
             owner="proc_runtime_sweep",
             horizon="proc row retention",
             reclaim="sase disk reap --apply",
+            **measured_row_fields(tree_size_fn, procs_dir() / "runtime"),
         ),
         DiskFootprintRow(
             section="sase_home",
             name="tools",
             path=str(sase_home() / "tools"),
             physical_path=str(normalize_path_no_follow(sase_home() / "tools")),
-            size_bytes=tree_size_fn(sase_home() / "tools"),
             owner="tool_run_retention",
             horizon="summary 180d, detail 60d, logs 14d after settlement",
             reclaim="sase disk reap --apply",
+            **measured_row_fields(tree_size_fn, sase_home() / "tools"),
         ),
         DiskFootprintRow(
             section="sase_home",
@@ -192,10 +200,12 @@ def sase_state_rows(
             physical_path=str(
                 normalize_path_no_follow(sase_home() / "cache" / "rust-prebuild")
             ),
-            size_bytes=tree_size_fn(sase_home() / "cache" / "rust-prebuild"),
             owner="rust_prebuild_cache",
             horizon="keeps newest 2 completed sets",
             reclaim=None,
+            **measured_row_fields(
+                tree_size_fn, sase_home() / "cache" / "rust-prebuild"
+            ),
         ),
         DiskFootprintRow(
             section="sase_home",
@@ -204,10 +214,12 @@ def sase_state_rows(
             physical_path=str(
                 normalize_path_no_follow(sase_home() / "cache" / "project_stats")
             ),
-            size_bytes=tree_size_fn(sase_home() / "cache" / "project_stats"),
             owner="project_stats_cache",
             horizon="rebuildable from source repositories",
             reclaim=None,
+            **measured_row_fields(
+                tree_size_fn, sase_home() / "cache" / "project_stats"
+            ),
         ),
     ]
     months = get_artifact_retention_keep_recent_run_months()
@@ -239,12 +251,15 @@ def sase_state_rows(
                 name=f"projects/{project_dir.name}/artifacts/ace-run",
                 path=str(ace_run),
                 physical_path=str(normalize_path_no_follow(ace_run)),
-                size_bytes=tree_size_fn(ace_run),
                 owner="artifact_run_retention",
                 horizon=f"keeps newest {months} month(s) and referenced runs",
                 reclaim="sase artifact prune-runs",
-                coverage=project_coverage,
-                diagnostics=project_diagnostics,
+                **measured_row_fields(
+                    tree_size_fn,
+                    ace_run,
+                    coverage=project_coverage,
+                    diagnostics=project_diagnostics,
+                ),
             )
         )
     return tuple(rows)
@@ -252,7 +267,7 @@ def sase_state_rows(
 
 def workspace_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     workspace_inventory_fn: Callable[..., Any],
     diagnostics: list[str] | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
@@ -321,7 +336,7 @@ def _workspace_checkout_rows(
     *,
     label: str,
     checkout_dir: Path,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     seen: set[str],
     owner: str,
     horizon: str,
@@ -345,10 +360,10 @@ def _workspace_checkout_rows(
             name=label,
             path=str(checkout_dir),
             physical_path=key,
-            size_bytes=tree_size_fn(checkout_dir),
             owner=owner,
             horizon=horizon,
             reclaim=reclaim,
+            **measured_row_fields(tree_size_fn, checkout_dir),
         )
     ]
     for child in _WORKSPACE_HEAVY_CHILDREN:
@@ -369,10 +384,10 @@ def _workspace_checkout_rows(
                 name=f"{label} {child}",
                 path=str(child_dir),
                 physical_path=child_key,
-                size_bytes=tree_size_fn(child_dir),
                 owner=owner,
                 horizon=horizon,
                 reclaim=reclaim,
+                **measured_row_fields(tree_size_fn, child_dir),
             )
         )
     return rows

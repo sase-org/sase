@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import argparse
 
+from sase.core.disk_footprint_models import DISK_SIZE_LOWER_BOUND
+from sase.core.disk_footprint_models import DISK_SIZE_UNMEASURED
+from sase.core.disk_footprint_models import DiskFootprintReport
+from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
 from sase.main.disk_handler import _exit_code
+from sase.main.disk_handler import _print_disk_report
 from sase.main.parser import create_parser, default_list_delegation_notice
 
 
@@ -53,6 +58,50 @@ def test_parser_registers_disk_subcommands_and_short_options() -> None:
     assert args.apply is True
     assert args.json is True
     assert args.project == "sase"
+
+
+def test_print_disk_report_renders_unmeasured_and_lower_bound(
+    capsys,
+) -> None:
+    report = DiskFootprintReport(
+        rows=(
+            DiskFootprintRow(
+                section="workspaces",
+                name="ws",
+                path="/tmp/ws",
+                size_bytes=0,
+                owner="workspace_cleanup_and_compact",
+                horizon="cleanup TTL 14 day(s)",
+                size_state=DISK_SIZE_UNMEASURED,
+                coverage="partial",
+            ),
+            DiskFootprintRow(
+                section="sase_home",
+                name="tools",
+                path="/tmp/tools",
+                size_bytes=2048,
+                owner="tool_run_retention",
+                horizon="summary 180d",
+                size_state=DISK_SIZE_LOWER_BOUND,
+                coverage="partial",
+            ),
+        ),
+        generated_at="now",
+        physical_total_bytes=2048,
+        logical_total_bytes=2048,
+        coverage_status="partial",
+        unmeasured_owners=("workspace_cleanup_and_compact /tmp/ws",),
+        totals_are_lower_bound=True,
+    )
+
+    _print_disk_report(report)
+    output = capsys.readouterr().out
+
+    assert "unmeasured" in output
+    assert "≥2.0 KiB" in output
+    assert "0 B" not in output
+    assert "1 owner unmeasured" in output
+    assert "≥2.0 KiB attributed" in output
 
 
 def test_reap_exit_code_fails_for_nonzero_owner_exit() -> None:

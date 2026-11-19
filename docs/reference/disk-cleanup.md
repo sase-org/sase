@@ -28,12 +28,19 @@ effective one. Workspace checkouts get one row per project plus sub-rows for
 `.git/objects`, `.pytest_cache` (including `sase-visual`), `sase/repos`, `.venv`, and
 in-tree `target/`, sized before the generic stray walk so budget exhaustion can only
 clip that walk. Unowned rows are highlighted; a row whose coverage is `partial` or
-`unresolved` means the owner could not account for every byte. When coverage is partial
-or the filesystem is under pressure, an `unattributed` row reports filesystem used minus
-attributed bytes on the filesystem holding `SASE_HOME`. When rows share physical storage
-(for example workspaces that borrow primary Git objects), the size cell also shows the
-exclusively counted bytes, and the footer reports the physical total, the logical row
-total when it differs, the overall coverage status, and any partial-scan diagnostics.
+`unresolved` means the owner could not account for every byte. A size of `unmeasured`
+means the shared scan budget ran out before that owner was sized; `≥X` is a lower bound
+from a truncated `du` fallback. Neither is an exact `0 B` with complete coverage. When
+coverage is partial or the filesystem is under pressure, an `unattributed` row reports
+filesystem used minus attributed bytes on the filesystem holding `SASE_HOME`. If owners
+are unmeasured, that residual is labeled as space outside measured rows and names those
+owners instead of treating their unknown bytes as unattributed. When rows share physical
+storage (for example workspaces that borrow primary Git objects), the size cell also
+shows the exclusively counted bytes, and the footer reports the physical total (or a
+lower-bound attributed total plus the unmeasured-owner count), the logical row total
+when it differs, the overall coverage status, and any partial-scan diagnostics. `--json`
+carries `size_state` on each row plus `unmeasured_owners` and `totals_are_lower_bound`
+on the report.
 
 The SASE-home inventory includes `cache/project_stats`, owned by `project_stats_cache`,
 under `~/.sase/cache/project_stats/` or `$SASE_HOME/cache/project_stats/`. This

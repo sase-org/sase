@@ -64,6 +64,11 @@ EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 2
 # sase.config.local_trust.LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION.
 EXPECTED_LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION = 1
 
+# Disk-inventory wire version. Keep in lockstep with
+# sase_core::disk_inventory::DISK_INVENTORY_WIRE_SCHEMA_VERSION and
+# sase.core.disk_inventory.DISK_INVENTORY_WIRE_SCHEMA_VERSION.
+EXPECTED_DISK_INVENTORY_WIRE_SCHEMA_VERSION = 2
+
 REQUIRED_BINDINGS = (
     "release_steward_decide",
     "release_steward_wire_schema_version",
@@ -1033,10 +1038,11 @@ def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
     except Exception as exc:
         _error(f"disk_inventory_wire_schema_version() probe failed: {exc}")
         return False
-    if actual_version != 1:
+    if actual_version != EXPECTED_DISK_INVENTORY_WIRE_SCHEMA_VERSION:
         _error(
             "disk_inventory_wire_schema_version() returned stale schema: "
-            f"got {actual_version}, expected 1"
+            f"got {actual_version}, expected "
+            f"{EXPECTED_DISK_INVENTORY_WIRE_SCHEMA_VERSION}"
         )
         return False
     return True

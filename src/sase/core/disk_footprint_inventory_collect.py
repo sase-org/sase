@@ -21,10 +21,12 @@ from sase.core.disk_footprint_inventory_strays import rust_target_rows
 from sase.core.disk_pressure import ABSOLUTE_WARN_FREE_BYTES
 from sase.core.disk_footprint_models import DISK_COVERAGE_COMPLETE
 from sase.core.disk_footprint_models import DISK_COVERAGE_PARTIAL
+from sase.core.disk_footprint_models import DISK_SIZE_UNMEASURED
 from sase.core.disk_footprint_models import DiskFootprintReport
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import BoundedTreeSizer
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import TreeSizeFn
 from sase.core.disk_inventory import classify_disk_inventory
 from sase.core.paths import sase_home
 from sase.core.time import local_now
@@ -37,7 +39,7 @@ def collect_disk_footprint(
     *,
     include_strays: bool = True,
     home: Path | None = None,
-    tree_size_fn: Callable[[Path], int] | None = None,
+    tree_size_fn: TreeSizeFn | None = None,
     workspace_inventory_fn: Callable[..., Any] = collect_workspace_inventory,
     now: datetime | None = None,
     disk_usage_fn: Callable[[str], Any] | None = None,
@@ -57,7 +59,7 @@ def collect_disk_footprint(
         max_nodes=STRAY_MAX_VISITED,
         max_seconds=STRAY_SCAN_SECONDS,
     )
-    size_fn: Callable[[Path], int]
+    size_fn: TreeSizeFn
     if tree_size_fn is None:
         bounded_sizer = BoundedTreeSizer(budget=budget)
         size_fn = bounded_sizer.size
@@ -146,7 +148,9 @@ def largest_unowned_rows(
     rows = [
         row
         for row in current.rows
-        if row.status == "unowned" and row.size_bytes >= min_bytes
+        if row.status == "unowned"
+        and row.size_state != DISK_SIZE_UNMEASURED
+        and row.size_bytes >= min_bytes
     ]
     rows.sort(key=lambda row: (-row.size_bytes, row.path))
     return tuple(rows[: max(0, limit)])
@@ -184,6 +188,10 @@ def _classified_report(
         unresolved_owner_coverage=tuple(
             str(value) for value in classified["unresolved_owner_coverage"]
         ),
+        unmeasured_owners=tuple(
+            str(value) for value in classified.get("unmeasured_owners") or ()
+        ),
+        totals_are_lower_bound=bool(classified.get("totals_are_lower_bound")),
     )
 
 
@@ -198,6 +206,8 @@ def _unattributed_row(
     holding ``SASE_HOME`` is under pressure; otherwise attribution already
     accounts for the disk. It carries an empty path so the classifier
     cannot nest it under (or over) inventoried rows and double-count.
+    Unmeasured owners are named on the residual instead of treating their
+    unknown bytes as unattributed.
     """
 
     try:
@@ -221,22 +231,42 @@ def _unattributed_row(
     partial = report.coverage_status != DISK_COVERAGE_COMPLETE
     if not partial and free_bytes > warn_threshold:
         return None
+    unmeasured = report.unmeasured_owners
+    attributed = used_bytes - unattributed_bytes
+    if unmeasured:
+        named = ", ".join(unmeasured)
+        count = len(unmeasured)
+        owner_word = "owner" if count == 1 else "owners"
+        name = "outside measured rows"
+        horizon = (
+            f"space outside measured rows; includes {count} unmeasured "
+            f"{owner_word}: {named}"
+        )
+        diagnostics = (
+            f"filesystem used {used_bytes} bytes; inventoried measured rows on "
+            f"this filesystem attribute {attributed} bytes; {count} unmeasured "
+            f"{owner_word} are not treated as unattributed",
+        )
+    else:
+        name = _UNATTRIBUTED_OWNER
+        horizon = (
+            f"{'partial inventory coverage' if partial else 'filesystem pressure'}"
+            "; bytes on the SASE_HOME filesystem outside inventoried rows"
+        )
+        diagnostics = (
+            f"filesystem used {used_bytes} bytes; inventoried rows on this "
+            f"filesystem attribute {attributed} bytes",
+        )
     return DiskFootprintRow(
         section="filesystem",
-        name=_UNATTRIBUTED_OWNER,
+        name=name,
         path=UNRESOLVED_PATH,
         size_bytes=unattributed_bytes,
         owner=_UNATTRIBUTED_OWNER,
-        horizon=(
-            f"{'partial inventory coverage' if partial else 'filesystem pressure'}"
-            "; bytes on the SASE_HOME filesystem outside inventoried rows"
-        ),
+        horizon=horizon,
         reclaim="sase disk list",
         coverage=(DISK_COVERAGE_PARTIAL if partial else DISK_COVERAGE_COMPLETE),
-        diagnostics=(
-            f"filesystem used {used_bytes} bytes; inventoried rows on this "
-            f"filesystem attribute {used_bytes - unattributed_bytes} bytes",
-        ),
+        diagnostics=diagnostics,
     )
 
 
@@ -249,6 +279,8 @@ def _attributed_bytes_on(report: DiskFootprintReport, home: Path) -> int:
         home_dev = None
     attributed = 0
     for row in report.rows:
+        if row.size_state == DISK_SIZE_UNMEASURED:
+            continue
         size = (
             row.exclusive_size_bytes
             if row.exclusive_size_bytes is not None
@@ -278,6 +310,7 @@ def _row_from_wire(raw: Mapping[str, Any]) -> DiskFootprintRow:
         reclaim=raw.get("reclaim"),
         physical_path=raw.get("physical_path"),
         exclusive_size_bytes=int(raw["exclusive_size_bytes"]),
+        size_state=str(raw.get("size_state") or "measured"),
         coverage=str(raw.get("coverage") or DISK_COVERAGE_COMPLETE),
         diagnostics=tuple(str(value) for value in raw.get("diagnostics") or ()),
         overlap_parent_path=raw.get("overlap_parent_path"),

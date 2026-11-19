@@ -16,6 +16,8 @@ from sase.core.disk_footprint import (
     format_bytes,
     run_disk_reap,
 )
+from sase.core.disk_footprint_utils import DISK_SIZE_UNMEASURED
+from sase.core.disk_footprint_utils import format_measured_bytes
 
 
 def handle_disk_command(args: argparse.Namespace) -> None:
@@ -71,14 +73,14 @@ def _print_disk_report(report: DiskFootprintReport) -> None:
             style = "yellow"
         elif row.size_bytes >= 10 * 1024**3:
             style = "yellow"
-        size_text = format_bytes(row.size_bytes)
+        size_text = format_measured_bytes(row.size_bytes, row.size_state)
         if (
-            row.exclusive_size_bytes is not None
+            row.size_state != DISK_SIZE_UNMEASURED
+            and row.exclusive_size_bytes is not None
             and row.exclusive_size_bytes != row.size_bytes
         ):
-            size_text = (
-                f"{size_text} ({format_bytes(row.exclusive_size_bytes)} counted)"
-            )
+            counted = format_measured_bytes(row.exclusive_size_bytes, row.size_state)
+            size_text = f"{size_text} ({counted} counted)"
         table.add_row(
             owner,
             row.section,
@@ -90,12 +92,24 @@ def _print_disk_report(report: DiskFootprintReport) -> None:
         )
     if not report.rows:
         table.add_row("[dim]none[/dim]", "-", "-", "-", "-", "-")
-    total = f"total listed: {format_bytes(report.total_bytes)} physical"
+    physical = format_bytes(report.total_bytes)
+    if report.totals_are_lower_bound or report.unmeasured_owners:
+        total = f"total listed: ≥{physical} attributed"
+    else:
+        total = f"total listed: {physical} physical"
     if (
         report.logical_total_bytes is not None
         and report.logical_total_bytes != report.total_bytes
     ):
-        total += f"; {format_bytes(report.logical_total_bytes)} logical rows"
+        logical = format_bytes(report.logical_total_bytes)
+        if report.totals_are_lower_bound:
+            total += f"; ≥{logical} logical rows"
+        else:
+            total += f"; {logical} logical rows"
+    if report.unmeasured_owners:
+        count = len(report.unmeasured_owners)
+        owner_word = "owner" if count == 1 else "owners"
+        total += f"; {count} {owner_word} unmeasured"
     total += f"; coverage {report.coverage_status}"
     console.print(table)
     console.print(
@@ -103,6 +117,12 @@ def _print_disk_report(report: DiskFootprintReport) -> None:
         f"; stray scan visited {report.stray_scan_visited} dirs"
         f"{' (truncated)' if report.stray_scan_truncated else ''}[/dim]"
     )
+    if report.unmeasured_owners:
+        console.print(
+            "[yellow]unmeasured owners: "
+            + "; ".join(report.unmeasured_owners)
+            + "[/yellow]"
+        )
     if report.unresolved_owner_coverage:
         console.print(
             "[yellow]unresolved owner coverage: "

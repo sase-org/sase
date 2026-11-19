@@ -282,7 +282,8 @@ def _disk_next_steps() -> tuple[str, ...]:
         "Run `sase disk reap` to preview owner cleanup passes; add `--apply` only when the plan looks right.",
     ]
     try:
-        from sase.core.disk_footprint import format_bytes, largest_unowned_rows
+        from sase.core.disk_footprint import largest_unowned_rows
+        from sase.core.disk_footprint_utils import format_measured_bytes
 
         rows = largest_unowned_rows(
             min_bytes=get_disk_pressure_top_owner_min_bytes(),
@@ -291,7 +292,10 @@ def _disk_next_steps() -> tuple[str, ...]:
     except Exception:
         rows = ()
     if rows:
-        detail = ", ".join(f"{format_bytes(row.size_bytes)} {row.path}" for row in rows)
+        detail = ", ".join(
+            f"{format_measured_bytes(row.size_bytes, row.size_state)} {row.path}"
+            for row in rows
+        )
         steps.append(f"Largest unowned SASE-shaped paths: {detail}.")
     else:
         steps.append(

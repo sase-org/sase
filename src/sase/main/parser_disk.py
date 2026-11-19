@@ -25,6 +25,11 @@ def register_disk_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser = disk_subparsers.add_parser(
         "list",
         help="List SASE disk usage by owner",
+        description=(
+            "List SASE-owned and SASE-shaped disk usage by owner. Unmeasured "
+            "rows render as unmeasured rather than 0 B complete, and truncated "
+            "du fallbacks render as a lower bound."
+        ),
     )
     list_parser.add_argument(
         "-j",

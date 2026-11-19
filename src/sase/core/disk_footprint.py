@@ -19,6 +19,7 @@ from sase.core.agent_artifact_run_retention import (
     plan_ace_run_retention,
 )
 from sase.core.disk_footprint_models import (
+    DISK_SIZE_UNMEASURED,
     DiskFootprintReport,
     DiskFootprintRow,
     DiskReapResult,
@@ -26,7 +27,9 @@ from sase.core.disk_footprint_models import (
 )
 from sase.core.disk_inventory import classify_disk_inventory
 from sase.core.disk_footprint_utils import (
+    TreeSizeFn,
     format_horizon_seconds,
+    format_measured_bytes,
     is_relative_to,
     iter_children,
     resolve_soft,
@@ -75,7 +78,7 @@ def collect_disk_footprint(
     *,
     include_strays: bool = True,
     home: Path | None = None,
-    tree_size_fn: Callable[[Path], int] | None = None,
+    tree_size_fn: TreeSizeFn | None = None,
     workspace_inventory_fn: Callable[..., Any] | None = None,
     now: datetime | None = None,
     disk_usage_fn: Callable[[str], Any] | None = None,
@@ -105,7 +108,11 @@ def largest_unowned_rows(
     rows = [
         row
         for row in current.rows
-        if row.status == "unowned" and row.size_bytes >= min_bytes
+        if (
+            row.status == "unowned"
+            and row.size_state != DISK_SIZE_UNMEASURED
+            and row.size_bytes >= min_bytes
+        )
     ]
     rows.sort(key=lambda row: (-row.size_bytes, row.path))
     return tuple(rows[: max(0, limit)])
@@ -203,6 +210,7 @@ __all__ = [
     "DiskReapResult",
     "collect_disk_footprint",
     "format_bytes",
+    "format_measured_bytes",
     "largest_unowned_rows",
     "run_disk_reap",
 ]

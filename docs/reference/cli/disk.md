@@ -38,6 +38,8 @@ Subcommands:
 usage: sase disk list [-h] [-j]
 ```
 
+List SASE-owned and SASE-shaped disk usage by owner. Unmeasured rows render as unmeasured rather than 0 B complete, and truncated du fallbacks render as a lower bound.
+
 Options:
 
 | Option         | Description                         | Default |

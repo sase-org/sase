@@ -85,10 +85,10 @@ def test_validate_sase_core_rs_requires_disk_inventory_wire_schema() -> None:
     validator = load_validate_sase_core_rs()
 
     assert validator._validate_disk_inventory_wire_schema(
-        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 1)
+        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 2)
     )
     assert not validator._validate_disk_inventory_wire_schema(
-        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 2)
+        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 1)
     )
 
 

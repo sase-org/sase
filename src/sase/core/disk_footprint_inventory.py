@@ -36,6 +36,7 @@ from sase.core.disk_footprint_inventory_strays import resolve_sase_core_dirs
 from sase.core.disk_footprint_models import DiskFootprintReport
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import TreeSizeFn
 from sase.core.disk_footprint_utils import format_horizon_seconds
 from sase.core.disk_footprint_utils import is_relative_to
 from sase.core.disk_footprint_utils import iter_children
@@ -56,7 +57,7 @@ def collect_disk_footprint(
     *,
     include_strays: bool = True,
     home: Path | None = None,
-    tree_size_fn: Callable[[Path], int] | None = None,
+    tree_size_fn: TreeSizeFn | None = None,
     workspace_inventory_fn: Callable[..., Any] = collect_workspace_inventory,
     now: datetime | None = None,
     disk_usage_fn: Callable[[str], Any] | None = None,
@@ -92,7 +93,7 @@ def largest_unowned_rows(
 
 def managed_tmp_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
     roots: Sequence[Path] | None = None,
@@ -108,7 +109,7 @@ def managed_tmp_rows(
 
 def sase_state_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
@@ -122,7 +123,7 @@ def sase_state_rows(
 
 def workspace_rows(
     *,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     workspace_inventory_fn: Callable[..., Any],
     diagnostics: list[str] | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
@@ -134,9 +135,7 @@ def workspace_rows(
     )
 
 
-def rust_target_rows(
-    *, tree_size_fn: Callable[[Path], int]
-) -> tuple[DiskFootprintRow, ...]:
+def rust_target_rows(*, tree_size_fn: TreeSizeFn) -> tuple[DiskFootprintRow, ...]:
     _sync_strays_patchables()
     return inventory_strays.rust_target_rows(tree_size_fn=tree_size_fn)
 
@@ -145,7 +144,7 @@ def cargo_stray_rows(
     home: Path,
     *,
     excludes: Sequence[Path],
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     max_depth: int = STRAY_MAX_DEPTH,
     max_visited: int = STRAY_MAX_VISITED,

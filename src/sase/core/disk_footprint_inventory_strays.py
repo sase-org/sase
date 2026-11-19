@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from sase.core._disk_footprint_inventory_shared import STRAY_MAX_DEPTH
@@ -14,8 +14,10 @@ from sase.core.disk_footprint_models import DISK_COVERAGE_COMPLETE
 from sase.core.disk_footprint_models import DISK_COVERAGE_PARTIAL
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import TreeSizeFn
 from sase.core.disk_footprint_utils import is_relative_to
 from sase.core.disk_footprint_utils import iter_children_bounded
+from sase.core.disk_footprint_utils import measured_row_fields
 from sase.core.disk_footprint_utils import normalize_path_no_follow
 
 _RUST_DEV_BUILD_PROFILE = "dev-update"
@@ -26,9 +28,7 @@ def _rust_dev_build_profile() -> str:
     return os.environ.get("SASE_RUST_DEV_PROFILE") or _RUST_DEV_BUILD_PROFILE
 
 
-def rust_target_rows(
-    *, tree_size_fn: Callable[[Path], int]
-) -> tuple[DiskFootprintRow, ...]:
+def rust_target_rows(*, tree_size_fn: TreeSizeFn) -> tuple[DiskFootprintRow, ...]:
     core_dirs = list(resolve_sase_core_dirs())
     legacy_core_dir = resolve_sase_core_dir()
     if legacy_core_dir is not None:
@@ -87,7 +87,7 @@ def _rust_target_observation_rows(
     target: Path,
     build: Path,
     profile: str,
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
 ) -> tuple[DiskFootprintRow, ...]:
     incremental = build / profile / "incremental"
     prefix = f"{core_dir.name}/target/{name}"
@@ -97,30 +97,30 @@ def _rust_target_observation_rows(
             name=prefix,
             path=str(target),
             physical_path=str(normalize_path_no_follow(target)),
-            size_bytes=tree_size_fn(target),
             owner="just rust-dev-install",
             horizon="repo-owned persistent target root",
             reclaim=None,
+            **measured_row_fields(tree_size_fn, target),
         ),
         DiskFootprintRow(
             section="rust_targets",
             name=f"{prefix}/build",
             path=str(build),
             physical_path=str(normalize_path_no_follow(build)),
-            size_bytes=tree_size_fn(build),
             owner="just rust-dev-install",
             horizon="cargo build scratch relocated by CARGO_BUILD_BUILD_DIR",
             reclaim=None,
+            **measured_row_fields(tree_size_fn, build),
         ),
         DiskFootprintRow(
             section="rust_targets",
             name=f"{prefix}/build/{profile}/incremental",
             path=str(incremental),
             physical_path=str(normalize_path_no_follow(incremental)),
-            size_bytes=tree_size_fn(incremental),
             owner="just rust-dev-install",
             horizon="safe to delete; returns only when managed_tmp.agent_cargo_incremental is true",
             reclaim="rm -rf <incremental>",
+            **measured_row_fields(tree_size_fn, incremental),
         ),
     )
 
@@ -129,7 +129,7 @@ def cargo_stray_rows(
     home: Path,
     *,
     excludes: Sequence[Path],
-    tree_size_fn: Callable[[Path], int],
+    tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     max_depth: int = STRAY_MAX_DEPTH,
     max_visited: int = STRAY_MAX_VISITED,
@@ -171,14 +171,19 @@ def cargo_stray_rows(
                     name=path.name,
                     path=str(path),
                     physical_path=str(normalize_path_no_follow(path)),
-                    size_bytes=tree_size_fn(path),
                     owner="unowned",
                     horizon="unowned",
                     status="unowned",
-                    coverage=(
-                        DISK_COVERAGE_PARTIAL if truncated else DISK_COVERAGE_COMPLETE
-                    ),
                     reclaim=None,
+                    **measured_row_fields(
+                        tree_size_fn,
+                        path,
+                        coverage=(
+                            DISK_COVERAGE_PARTIAL
+                            if truncated
+                            else DISK_COVERAGE_COMPLETE
+                        ),
+                    ),
                 )
             )
             continue

@@ -6,8 +6,65 @@ import os
 import stat
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypedDict
+
+DISK_SIZE_MEASURED = "measured"
+DISK_SIZE_LOWER_BOUND = "lower_bound"
+DISK_SIZE_UNMEASURED = "unmeasured"
+
+
+@dataclass(frozen=True)
+class _TreeSizeMeasurement:
+    """One tree-size observation: exact, a floor, or unknown."""
+
+    size_bytes: int
+    state: str = DISK_SIZE_MEASURED
+    diagnostics: tuple[str, ...] = ()
+
+
+type TreeSizeFn = Callable[[Path], int | _TreeSizeMeasurement]
+
+
+class _MeasuredRowFields(TypedDict):
+    size_bytes: int
+    size_state: str
+    coverage: str
+    diagnostics: tuple[str, ...]
+
+
+def _coerce_tree_size(value: int | _TreeSizeMeasurement) -> _TreeSizeMeasurement:
+    """Treat a plain int from ``tree_size_fn`` as a complete measurement."""
+
+    if isinstance(value, _TreeSizeMeasurement):
+        return value
+    return _TreeSizeMeasurement(size_bytes=int(value), state=DISK_SIZE_MEASURED)
+
+
+def measured_row_fields(
+    tree_size_fn: TreeSizeFn,
+    path: Path,
+    *,
+    coverage: str = "complete",
+    diagnostics: tuple[str, ...] = (),
+) -> _MeasuredRowFields:
+    """Size *path* and force partial coverage on any non-measured result."""
+
+    measurement = _coerce_tree_size(tree_size_fn(path))
+    merged = list(diagnostics)
+    merged.extend(measurement.diagnostics)
+    if measurement.state != DISK_SIZE_MEASURED:
+        coverage = "partial"
+        if not merged:
+            merged.append(f"{path}: size {measurement.state}")
+    return {
+        "size_bytes": measurement.size_bytes,
+        "size_state": measurement.state,
+        "coverage": coverage,
+        "diagnostics": tuple(merged),
+    }
 
 
 @dataclass
@@ -128,15 +185,23 @@ class BoundedTreeSizer:
             self.budget = budget
         return budget
 
-    def size(self, path: Path) -> int:
+    def size(self, path: Path) -> _TreeSizeMeasurement:
         budget = self._budget
         if budget.exhausted:
             budget.truncated = True
-            budget.record_diagnostic(f"{path}: skipped; shared scan budget exhausted")
-            return 0
+            diagnostic = f"{path}: skipped; shared scan budget exhausted"
+            budget.record_diagnostic(diagnostic)
+            return _TreeSizeMeasurement(
+                size_bytes=0,
+                state=DISK_SIZE_UNMEASURED,
+                diagnostics=(diagnostic,),
+            )
         measured = du_size(path, timeout=budget.remaining_seconds(5.0))
         if measured is not None:
-            return measured
+            return _TreeSizeMeasurement(
+                size_bytes=measured,
+                state=DISK_SIZE_MEASURED,
+            )
         size, visited, truncated = _tree_size_walk_bounded(
             path,
             max_nodes=self.max_nodes,
@@ -144,10 +209,19 @@ class BoundedTreeSizer:
             budget=budget,
         )
         reason = "truncated" if truncated else "du unavailable"
-        budget.record_diagnostic(
-            f"{path}: fallback walk {reason}; visited={visited}; bytes={size}"
+        diagnostic = f"{path}: fallback walk {reason}; visited={visited}; bytes={size}"
+        budget.record_diagnostic(diagnostic)
+        if truncated:
+            return _TreeSizeMeasurement(
+                size_bytes=size,
+                state=DISK_SIZE_LOWER_BOUND,
+                diagnostics=(diagnostic,),
+            )
+        return _TreeSizeMeasurement(
+            size_bytes=size,
+            state=DISK_SIZE_MEASURED,
+            diagnostics=(diagnostic,),
         )
-        return size
 
 
 def du_size(path: Path, *, timeout: float = 5.0) -> int | None:
@@ -252,6 +326,17 @@ def format_bytes(value: int) -> str:
     return f"{value} B"
 
 
+def format_measured_bytes(size_bytes: int, size_state: str) -> str:
+    """Render a size with its measurement state, never as a fake exact zero."""
+
+    if size_state == DISK_SIZE_UNMEASURED:
+        return "unmeasured"
+    formatted = format_bytes(size_bytes)
+    if size_state == DISK_SIZE_LOWER_BOUND:
+        return f"≥{formatted}"
+    return formatted
+
+
 def resolve_soft(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
@@ -265,13 +350,19 @@ def is_relative_to(path: Path, base: Path) -> bool:
 
 __all__ = [
     "BoundedTreeSizer",
+    "DISK_SIZE_LOWER_BOUND",
+    "DISK_SIZE_MEASURED",
+    "DISK_SIZE_UNMEASURED",
+    "TreeSizeFn",
     "du_size",
     "format_bytes",
     "format_horizon_seconds",
+    "format_measured_bytes",
     "is_relative_to",
     "iter_children",
     "iter_children_bounded",
     "InventoryScanBudget",
+    "measured_row_fields",
     "normalize_path_no_follow",
     "resolve_soft",
     "tree_size",

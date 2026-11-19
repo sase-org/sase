@@ -6,8 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from sase.core.disk_footprint import collect_disk_footprint
+from sase.core.disk_footprint import largest_unowned_rows
 from sase.core.disk_footprint_inventory import cargo_stray_rows
+from sase.core.disk_footprint_models import DISK_SIZE_UNMEASURED
+from sase.core.disk_footprint_models import DiskFootprintReport
+from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import _TreeSizeMeasurement
 
 from tests.core._disk_footprint_helpers import _Inventory, _ProjectInfo, _write
 
@@ -435,3 +440,134 @@ def test_managed_tmp_rows_counts_cargo_targets_under_effective_root(
     by_name = {row.name: row for row in rows}
     assert by_name["cargo-targets"].owner == "managed_tmp_reaper"
     assert Path(by_name["cargo-targets"].path) == effective / "cargo-targets"
+
+
+def test_exhausted_sizer_budget_marks_existing_rows_unmeasured(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace_root = tmp_path / "workspaces" / "proj"
+    _write(workspace_root / "file", "workspace")
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.managed_tmpdir_root", lambda: tmp_path / "managed"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_home", lambda: tmp_path / ".sase"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.procs_dir", lambda: tmp_path / ".sase" / "procs"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_projects_dir",
+        lambda: tmp_path / ".sase" / "projects",
+    )
+    monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_inventory_collect.STRAY_SCAN_SECONDS", 0.0
+    )
+
+    report = collect_disk_footprint(
+        include_strays=False,
+        workspace_inventory_fn=lambda **_kwargs: _Inventory(
+            projects=(
+                _ProjectInfo(
+                    project="SASE",
+                    project_key="proj",
+                    root_dir=str(workspace_root),
+                    cleanup_ttl_days=14,
+                ),
+            )
+        ),
+        disk_usage_fn=_roomy_usage(),
+    )
+
+    workspace = next(row for row in report.rows if row.path == str(workspace_root))
+    assert workspace.size_state == DISK_SIZE_UNMEASURED
+    assert workspace.coverage == "partial"
+    assert workspace.size_bytes == 0
+    assert report.totals_are_lower_bound is True
+    assert any(str(workspace_root) in label for label in report.unmeasured_owners)
+
+
+def test_unattributed_row_names_unmeasured_owners(tmp_path: Path, monkeypatch) -> None:
+    workspace_root = tmp_path / "workspaces" / "proj"
+    _write(workspace_root / "file", "workspace")
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.managed_tmpdir_root", lambda: tmp_path / "managed"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_home", lambda: tmp_path / ".sase"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.procs_dir", lambda: tmp_path / ".sase" / "procs"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_projects_dir",
+        lambda: tmp_path / ".sase" / "projects",
+    )
+    monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
+
+    def sizes(path: Path) -> int | _TreeSizeMeasurement:
+        if path == workspace_root:
+            return _TreeSizeMeasurement(
+                size_bytes=0,
+                state=DISK_SIZE_UNMEASURED,
+                diagnostics=(f"{path}: skipped; shared scan budget exhausted",),
+            )
+        return 10
+
+    report = collect_disk_footprint(
+        include_strays=False,
+        tree_size_fn=sizes,
+        workspace_inventory_fn=lambda **_kwargs: _Inventory(
+            projects=(
+                _ProjectInfo(
+                    project="SASE",
+                    project_key="proj",
+                    root_dir=str(workspace_root),
+                    cleanup_ttl_days=14,
+                ),
+            )
+        ),
+        disk_usage_fn=lambda _path: SimpleNamespace(total=1000, used=800, free=200),
+    )
+
+    residual = next(row for row in report.rows if row.owner == "unattributed")
+    assert residual.name == "outside measured rows"
+    assert "unmeasured" in residual.horizon
+    assert str(workspace_root) in residual.horizon
+    assert residual.size_bytes > 0
+    payload = report.to_json_dict()
+    assert payload["totals_are_lower_bound"] is True
+    assert any(str(workspace_root) in label for label in payload["unmeasured_owners"])
+
+
+def test_largest_unowned_rows_skip_unmeasured() -> None:
+    report = DiskFootprintReport(
+        rows=(
+            DiskFootprintRow(
+                section="strays",
+                name="gone",
+                path="/tmp/unmeasured-stray",
+                size_bytes=0,
+                owner="unowned",
+                horizon="unowned",
+                status="unowned",
+                size_state=DISK_SIZE_UNMEASURED,
+                coverage="partial",
+            ),
+            DiskFootprintRow(
+                section="strays",
+                name="kept",
+                path="/tmp/measured-stray",
+                size_bytes=4096,
+                owner="unowned",
+                horizon="unowned",
+                status="unowned",
+            ),
+        ),
+        generated_at="now",
+    )
+
+    rows = largest_unowned_rows(min_bytes=0, report=report)
+
+    assert [row.path for row in rows] == ["/tmp/measured-stray"]
