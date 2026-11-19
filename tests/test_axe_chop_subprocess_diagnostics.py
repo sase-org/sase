@@ -219,10 +219,7 @@ def test_scheduled_error_digest_keeps_diagnostic_after_run_log_pruned(
     assert not chop_run_log_path("telegram", "tg_inbound", failed_run_id).exists()
 
     notifications: list[Notification] = []
-    with (
-        patch("sase.notifications.senders.sase_subdir", return_value=temp_state_dir),
-        patch("sase.notifications.senders.append_notification", notifications.append),
-    ):
+    with patch("sase.notifications.senders.append_notification", notifications.append):
         senders.notify_axe_error_digest(errors)
 
     report_path = Path(notifications[0].files[0])
@@ -283,10 +280,7 @@ def test_scheduled_zero_exit_check_error_diagnostic_survives_log_pruning(
     assert not chop_run_log_path("telegram", "tg_inbound", failed_run_id).exists()
 
     notifications: list[Notification] = []
-    with (
-        patch("sase.notifications.senders.sase_subdir", return_value=temp_state_dir),
-        patch("sase.notifications.senders.append_notification", notifications.append),
-    ):
+    with patch("sase.notifications.senders.append_notification", notifications.append):
         senders.notify_axe_error_digest(errors)
 
     report_path = Path(notifications[0].files[0])
@@ -312,10 +306,7 @@ def test_digest_keeps_legacy_host_tracebacks(
         }
     ]
     notifications: list[Notification] = []
-    with (
-        patch("sase.notifications.senders.sase_subdir", return_value=temp_state_dir),
-        patch("sase.notifications.senders.append_notification", notifications.append),
-    ):
+    with patch("sase.notifications.senders.append_notification", notifications.append):
         senders.notify_axe_error_digest(errors)
 
     report = Path(notifications[0].files[0]).read_text(encoding="utf-8")

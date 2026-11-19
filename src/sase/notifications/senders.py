@@ -2,19 +2,20 @@
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
-from sase.notifications.store import append_notification
+from sase.notifications.store import (
+    append_notification,
+    load_notifications,
+    upsert_notification,
+)
 from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from sase.llm_provider.usage_limit_config import UsageLimitDetection
-
-_NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
 
 
 def notify_workflow_complete(
@@ -115,112 +116,64 @@ def notify_mentors_complete(
 
 
 def notify_axe_error_digest(
-    errors: list[dict],
+    errors: list[dict] | None = None,
+    *,
+    record: dict | None = None,
 ) -> None:
-    """Send a digest notification summarising recent axe errors."""
-    digest_dir = sase_subdir("axe") / "error_digests"
-    digest_dir.mkdir(parents=True, exist_ok=True)
-    digest_file = (
-        digest_dir
-        / f"digest_{datetime.now(get_timezone()).strftime('%Y%m%d_%H%M%S')}.txt"
+    """Send a grouped digest notification summarising axe errors."""
+    from sase.axe.error_digest import (
+        digest_dedup_key,
+        digest_notification_note,
+        digest_record_from_errors,
+        error_digest_dir,
+        render_error_digest,
     )
-    lines: list[str] = []
-    for i, err in enumerate(errors, 1):
-        lines.append(f"{'=' * 60}")
-        lines.append(f"Error {i}/{len(errors)}")
-        lines.append(f"  Time:       {err.get('timestamp', 'unknown')}")
-        lines.append(f"  Routine:    {err.get('lumberjack', 'unknown')}")
-        lines.append(f"  Job:        {err.get('job', 'unknown')}")
-        lines.append(f"  Error:      {err.get('error', 'unknown')}")
-        subprocess_diagnostic = _subprocess_diagnostic(err)
-        if subprocess_diagnostic is not None:
-            _append_subprocess_diagnostic(lines, subprocess_diagnostic)
-        tb = err.get("traceback", "")
-        if tb and not (
-            subprocess_diagnostic is not None and tb == _NO_PYTHON_TRACEBACK
-        ):
-            lines.append("  Traceback:")
-            for tb_line in tb.splitlines():
-                lines.append(f"    {tb_line}")
-        lines.append("")
-    digest_file.write_text("\n".join(lines))
+    from sase.core.atomic_json import write_text_atomic
 
+    payload = record if record is not None else digest_record_from_errors(errors or [])
+    groups = payload.get("groups")
+    if int(payload.get("total") or 0) <= 0 and not (
+        isinstance(groups, list) and groups
+    ):
+        return
+    digest_dir = error_digest_dir()
+    digest_dir.mkdir(parents=True, exist_ok=True)
+    digest_name = payload.get("digest_name")
+    if not isinstance(digest_name, str) or not digest_name:
+        digest_name = (
+            f"digest_{datetime.now(get_timezone()).strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+    digest_file = digest_dir / digest_name
+    write_text_atomic(digest_file, render_error_digest(payload))
+    interval_id = payload.get("interval_id")
+    dedup_key = (
+        digest_dedup_key(interval_id)
+        if isinstance(interval_id, str) and interval_id
+        else None
+    )
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender="axe",
-        notes=[f"{len(errors)} error(s) in the last hour"],
+        notes=[digest_notification_note(payload)],
         files=[str(digest_file)],
         action="ViewErrorReport",
         action_data={"error_report_path": str(digest_file)},
+        dedup_key=dedup_key,
     )
+    if dedup_key:
+        try:
+            already = any(
+                row.sender == "axe" and row.dedup_key == dedup_key
+                for row in load_notifications(include_dismissed=True)
+            )
+        except Exception:  # noqa: BLE001 - fail open and upsert
+            already = False
+        if already:
+            return
+        upsert_notification(n)
+        return
     append_notification(n)
-
-
-def _subprocess_diagnostic(error: dict[str, Any]) -> dict[str, Any] | None:
-    value = error.get("subprocess_diagnostic")
-    return value if isinstance(value, dict) else None
-
-
-def _append_subprocess_diagnostic(lines: list[str], diagnostic: dict[str, Any]) -> None:
-    run_id = _string_value(diagnostic.get("run_id"))
-    exit_code = diagnostic.get("exit_code")
-    source_log_path = _string_value(diagnostic.get("source_log_path"))
-    output_status = _string_value(diagnostic.get("output_status")) or "unknown"
-    output_excerpt = _string_value(diagnostic.get("output_excerpt")) or ""
-
-    lines.append("  Run:")
-    if run_id:
-        lines.append(f"    ID:         {run_id}")
-    if isinstance(exit_code, int):
-        lines.append(f"    Exit Code:  {exit_code}")
-    if source_log_path:
-        lines.append(f"    Source Log: {source_log_path}")
-
-    markers = _subprocess_output_markers(diagnostic, output_status, output_excerpt)
-    lines.append("  Subprocess Output:")
-    for marker in markers:
-        lines.append(f"    [{marker}]")
-    if output_excerpt:
-        for output_line in output_excerpt.splitlines():
-            lines.append(f"    {output_line}")
-
-
-def _subprocess_output_markers(
-    diagnostic: dict[str, Any], output_status: str, output_excerpt: str
-) -> list[str]:
-    markers: list[str] = []
-    if output_status == "absent":
-        markers.append("output absent")
-    elif output_status == "unavailable":
-        reason = _string_value(diagnostic.get("unavailable_reason")) or "unknown"
-        markers.append(f"output unavailable: {reason}")
-    elif output_status != "captured":
-        markers.append(f"output status: {output_status}")
-    elif not output_excerpt:
-        markers.append("captured output empty after normalization")
-
-    if diagnostic.get("truncated") is True:
-        details: list[str] = []
-        omitted_lines = _nonnegative_int(diagnostic.get("omitted_lines"))
-        omitted_bytes = _nonnegative_int(diagnostic.get("omitted_bytes"))
-        if omitted_lines:
-            details.append(f"{omitted_lines} line(s)")
-        if omitted_bytes:
-            details.append(f"{omitted_bytes} byte(s)")
-        suffix = f": omitted {' and '.join(details)}" if details else ""
-        markers.append(f"truncated{suffix}")
-    if diagnostic.get("had_decode_errors") is True:
-        markers.append("invalid UTF-8 replaced")
-    return markers
-
-
-def _string_value(value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
-def _nonnegative_int(value: object) -> int:
-    return value if isinstance(value, int) and value >= 0 else 0
 
 
 def _format_duration(seconds: float) -> str:

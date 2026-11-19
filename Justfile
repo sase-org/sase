@@ -545,9 +545,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1t3.10.1.4 (bounded-retention) exports the selected-detail owner
 # seams; the child-epic land agent owns them while it verifies ownership
 # behavior and wires any explicit deselection hooks the soak requires.
-# sase-1tz.2.1.1 (error_groups) exports the axe error-signature grouping
-# surface; sase-1tz.2.1.2 (digest_render) consumes it for grouped rendering.
-# Drop each row once that phase lands its production consumer.
+# sase-1tz.2.1.2 (digest_render) consumes the axe error-signature grouping
+# surface exported by sase-1tz.2.1.1, so those --epic-symbol rows are dropped.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -556,9 +555,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1tz.2.1.2(axe_error_wire_schema_version)" \
-        --epic-symbol "sase-1tz.2.1.2(group_errors)" \
-        --epic-symbol "sase-1tz.2.1.2(normalize_error_signature)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

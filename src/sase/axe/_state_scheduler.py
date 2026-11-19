@@ -13,12 +13,17 @@ import logging
 import os
 import threading
 import time
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from sase.core.atomic_json import write_json_value_atomic
+from sase.core.atomic_json import write_json_value_atomic, write_text_atomic
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
+from sase.core.time import get_timezone, parse_local
 
 _logger = logging.getLogger(__name__)
 
@@ -307,6 +312,11 @@ def _load_counter_locked(counter_file: Path) -> dict:
                     "last_ts": group["last_ts"],
                     "sample": group["sample"],
                 }
+    pending = raw.get("pending_digests")
+    if isinstance(pending, list):
+        counter["pending_digests"] = [
+            dict(item) for item in pending if _valid_pending(item)
+        ]
     if not counter["interval_start"]:
         counter["interval_start"] = _state.get_timestamp()
     return counter
@@ -321,6 +331,7 @@ def _fresh_counter() -> dict:
         "write_failures": 0,
         "corrupt_files": 0,
         "groups": {},
+        "pending_digests": [],
     }
 
 
@@ -333,6 +344,120 @@ def _valid_group(group: object) -> bool:
             return False
     count = group.get("count")
     return isinstance(count, int) and count > 0
+
+
+def _valid_pending(record: object) -> bool:
+    """Return whether a pending digest record has the expected shape."""
+    if not isinstance(record, dict):
+        return False
+    for key in ("interval_id", "interval_start", "interval_end"):
+        value = record.get(key)
+        if not isinstance(value, str) or not value:
+            return False
+    total = record.get("total")
+    groups = record.get("groups")
+    return isinstance(total, int) and total >= 0 and isinstance(groups, list)
+
+
+@contextmanager
+def _hold_error_lock() -> Iterator[None]:
+    """Hold the exclusive lock used by the error ring and interval counter."""
+    errors_file = _state.axe_state_dir() / ERROR_RING_FILENAME
+    lock_file = errors_file.with_name(f"{errors_file.name}.lock")
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _fold_pending_into_counter(counter: dict) -> None:
+    """Fold in-process pending increments and failure counts into *counter*."""
+    with _pending_guard:
+        pending_failures = _pending_write_failures
+        pending_corrupt = _pending_corrupt_files
+        pending_increments = list(_pending_increments)
+        pending_overflow = _pending_overflow
+    for increment in pending_increments:
+        _apply_increment(
+            counter,
+            routine=increment[0],
+            job=increment[1],
+            signature=increment[2],
+            timestamp=increment[3],
+            sample=increment[4],
+        )
+    counter["write_failures"] = int(counter.get("write_failures", 0)) + (
+        pending_failures + pending_overflow
+    )
+    counter["corrupt_files"] = int(counter.get("corrupt_files", 0)) + pending_corrupt
+
+
+def _clear_pending_buffers() -> None:
+    """Clear in-process error-accounting buffers after a successful write."""
+    global _pending_write_failures, _pending_corrupt_files, _pending_overflow
+    with _pending_guard:
+        _pending_write_failures = 0
+        _pending_corrupt_files = 0
+        del _pending_increments[:]
+        _pending_overflow = 0
+
+
+def _bump_write_failures() -> None:
+    """Count one in-process write failure."""
+    global _pending_write_failures
+    with _pending_guard:
+        _pending_write_failures += 1
+
+
+def _digest_filename(interval_id: str, interval_end: str) -> str:
+    """Return a stable digest filename for one interval."""
+    parsed = parse_local(interval_end)
+    if parsed is None:
+        stamp = datetime.now(get_timezone()).strftime("%Y%m%d_%H%M%S")
+    else:
+        stamp = parsed.strftime("%Y%m%d_%H%M%S")
+    return f"digest_{stamp}_{interval_id[:8]}.txt"
+
+
+def _snapshot_interval(counter: dict, ring: list[dict], *, now: str) -> dict:
+    """Copy the current interval into a pending digest record."""
+    interval_id = uuid.uuid4().hex
+    groups = [
+        {
+            "routine": group["routine"],
+            "job": group["job"],
+            "signature": group["signature"],
+            "count": int(group["count"]),
+            "first_ts": group["first_ts"],
+            "last_ts": group["last_ts"],
+            "sample": group["sample"],
+        }
+        for group in sorted(
+            counter["groups"].values(),
+            key=lambda item: (
+                -int(item["count"]),
+                item["first_ts"],
+                item["routine"],
+                item["job"],
+                item["signature"],
+            ),
+        )
+    ]
+    return {
+        "interval_id": interval_id,
+        "interval_start": counter["interval_start"],
+        "interval_end": now,
+        "total": int(counter.get("total") or 0),
+        "write_failures": int(counter.get("write_failures") or 0),
+        "corrupt_files": int(counter.get("corrupt_files") or 0),
+        "samples_kept": len(ring),
+        "digest_name": _digest_filename(interval_id, now),
+        "groups": groups,
+        "ring_samples": [dict(entry) for entry in ring],
+    }
 
 
 def _group_key(routine: str, job: str, signature: str) -> str:
@@ -488,72 +613,41 @@ def append_error(error_info: dict) -> None:
     stored = dict(error_info)
     stored["failure_signature"] = signature
     stored["timestamp"] = timestamp
-    lock_file = errors_file.with_name(f"{errors_file.name}.lock")
     try:
-        lock_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_file, "a+", encoding="utf-8") as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        with _hold_error_lock():
+            counter = _load_counter_locked(counter_file)
+            ring = _load_ring_locked(errors_file)
+            _fold_pending_into_counter(counter)
+            _apply_increment(
+                counter,
+                routine=routine,
+                job=job,
+                signature=signature,
+                timestamp=timestamp,
+                sample=sample,
+            )
             try:
-                counter = _load_counter_locked(counter_file)
-                ring = _load_ring_locked(errors_file)
+                write_json_value_atomic(counter_file, counter)
+            except Exception as exc:  # noqa: BLE001 - every failed write counts
                 with _pending_guard:
-                    pending_failures = _pending_write_failures
-                    pending_corrupt = _pending_corrupt_files
-                    pending_increments = list(_pending_increments)
-                    pending_overflow = _pending_overflow
-                for increment in pending_increments:
-                    _apply_increment(
-                        counter,
-                        routine=increment[0],
-                        job=increment[1],
-                        signature=increment[2],
-                        timestamp=increment[3],
-                        sample=increment[4],
+                    _pending_write_failures += 1
+                    _pending_increments.append(
+                        (routine, job, signature, timestamp, sample)
                     )
-                _apply_increment(
-                    counter,
-                    routine=routine,
-                    job=job,
-                    signature=signature,
-                    timestamp=timestamp,
-                    sample=sample,
-                )
-                counter["write_failures"] = int(counter.get("write_failures", 0)) + (
-                    pending_failures + pending_overflow
-                )
-                counter["corrupt_files"] = int(counter.get("corrupt_files", 0)) + (
-                    pending_corrupt
-                )
-                try:
-                    write_json_value_atomic(counter_file, counter)
-                except Exception as exc:  # noqa: BLE001 - every failed write counts
-                    with _pending_guard:
-                        _pending_write_failures += 1
-                        _pending_increments.append(
-                            (routine, job, signature, timestamp, sample)
-                        )
-                        while len(_pending_increments) > _MAX_PENDING_INCREMENTS:
-                            _pending_increments.pop(0)
-                            _pending_overflow += 1
-                    _log_once(
-                        "counter_write", "Failed to write %s: %s", counter_file, exc
-                    )
-                else:
-                    with _pending_guard:
-                        _pending_write_failures = 0
-                        _pending_corrupt_files = 0
-                        del _pending_increments[:]
-                        _pending_overflow = 0
-                ring.append(stored)
-                _evict_ring_fair(ring)
-                try:
-                    write_json_value_atomic(errors_file, ring)
-                except Exception as exc:  # noqa: BLE001 - every failed write counts
-                    with _pending_guard:
-                        _pending_write_failures += 1
-                    _log_once("ring_write", "Failed to write %s: %s", errors_file, exc)
-            finally:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                    while len(_pending_increments) > _MAX_PENDING_INCREMENTS:
+                        _pending_increments.pop(0)
+                        _pending_overflow += 1
+                _log_once("counter_write", "Failed to write %s: %s", counter_file, exc)
+            else:
+                _clear_pending_buffers()
+            ring.append(stored)
+            _evict_ring_fair(ring)
+            try:
+                write_json_value_atomic(errors_file, ring)
+            except Exception as exc:  # noqa: BLE001 - every failed write counts
+                with _pending_guard:
+                    _pending_write_failures += 1
+                _log_once("ring_write", "Failed to write %s: %s", errors_file, exc)
     except OSError:
         return
 
@@ -591,6 +685,87 @@ def read_error_counts() -> dict | None:
     return counter
 
 
+def rotate_error_interval() -> list[dict]:
+    """Snapshot the current error interval and return unsent digest records.
+
+    Under the error lock, the current counter interval is copied into
+    ``pending_digests`` and replaced with a fresh interval starting at now.
+    The sample ring is snapshotted into the pending record and then reset so
+    the next interval's ``samples_kept`` count is this interval's samples.
+    Already-pending records are returned as well so a crash after snapshot
+    and before notify re-sends exactly once. An empty interval is not
+    snapshotted.
+    """
+    errors_file = _state.axe_state_dir() / ERROR_RING_FILENAME
+    counter_file = _state.axe_state_dir() / ERROR_COUNTER_FILENAME
+    if not best_effort_test_state_write_allowed(counter_file, category="axe-state"):
+        return []
+    reset_ring = best_effort_test_state_write_allowed(errors_file, category="axe-state")
+    try:
+        with _hold_error_lock():
+            counter = _load_counter_locked(counter_file)
+            ring = _load_ring_locked(errors_file)
+            _fold_pending_into_counter(counter)
+            pending = [
+                dict(item)
+                for item in counter.get("pending_digests") or []
+                if _valid_pending(item)
+            ]
+            if int(counter.get("total") or 0) <= 0:
+                return pending
+            now = _state.get_timestamp()
+            record = _snapshot_interval(counter, ring, now=now)
+            new_counter = _fresh_counter()
+            new_counter["interval_start"] = now
+            new_counter["pending_digests"] = pending + [record]
+            try:
+                write_json_value_atomic(counter_file, new_counter)
+            except Exception as exc:  # noqa: BLE001 - keep the unsent snapshot
+                _log_once("counter_write", "Failed to write %s: %s", counter_file, exc)
+                _bump_write_failures()
+                return pending
+            if reset_ring:
+                try:
+                    write_json_value_atomic(errors_file, [])
+                except Exception as exc:  # noqa: BLE001 - snapshot already copied samples
+                    _log_once("ring_write", "Failed to write %s: %s", errors_file, exc)
+                    _bump_write_failures()
+            _clear_pending_buffers()
+            return list(new_counter["pending_digests"])
+    except OSError:
+        return []
+
+
+def mark_error_digest_sent(interval_id: str) -> None:
+    """Drop a pending digest record after it has been notified."""
+    if not interval_id:
+        return
+    counter_file = _state.axe_state_dir() / ERROR_COUNTER_FILENAME
+    if not best_effort_test_state_write_allowed(counter_file, category="axe-state"):
+        return
+    try:
+        with _hold_error_lock():
+            counter = _load_counter_locked(counter_file)
+            original = [
+                item
+                for item in counter.get("pending_digests") or []
+                if _valid_pending(item)
+            ]
+            remaining = [
+                item for item in original if item.get("interval_id") != interval_id
+            ]
+            if remaining == original:
+                return
+            counter["pending_digests"] = remaining
+            try:
+                write_json_value_atomic(counter_file, counter)
+            except Exception as exc:  # noqa: BLE001 - retry keeps the pending record
+                _log_once("counter_write", "Failed to write %s: %s", counter_file, exc)
+                _bump_write_failures()
+    except OSError:
+        return
+
+
 def write_last_error_digest_ts(ts: str) -> None:
     """Write the timestamp of the newest error in the last digest notification.
 
@@ -600,8 +775,10 @@ def write_last_error_digest_ts(ts: str) -> None:
     ts_file = _state.axe_state_dir() / "last_error_digest_ts"
     if not best_effort_test_state_write_allowed(ts_file, category="axe-error-state"):
         return
-    ts_file.parent.mkdir(parents=True, exist_ok=True)
-    ts_file.write_text(ts)
+    try:
+        write_text_atomic(ts_file, ts)
+    except Exception as exc:  # noqa: BLE001 - digest state is best-effort
+        _log_once("digest_ts_write", "Failed to write %s: %s", ts_file, exc)
 
 
 def read_last_error_digest_ts() -> str | None:

@@ -57,16 +57,19 @@ and the job never rings the doorbell for it. The job writes per-project queue co
 oldest request age, and its last outcome—including the retained link-row count—to
 `~/.sase/agent_publication/heartbeat.json`.
 
-The `error_digest` job summarizes recent errors into a digest file stored at
-`~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
-`ViewErrorReport` action that opens the digest in `$EDITOR` when selected in sase's TUI
-notification modal. For failed script subprocesses, the digest includes the job run ID,
-exit code, source log path, and a bounded subprocess output excerpt captured at failure
-time. The excerpt is redacted, stripped of terminal control sequences, and retained in
-`recent_errors.json`, so the digest remains useful even after per-run logs are pruned.
-The ring keeps at most 100 entries with at most 5 samples per error signature, so one
-loud cause cannot evict rare ones; exact per-cause totals live in the durable
-`~/.sase/axe/error_counts.json` interval counter next to it. Silent, missing,
+The `error_digest` job snapshots the durable interval counter and writes a grouped
+digest file at `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The header states the
+true total, cause count, samples kept, and coverage interval
+(`312 errors from 7 causes (100 samples kept), 14:02–15:02`). A delayed digest covers
+the whole interval since the previous snapshot, including downtime. Failed writes or a
+corrupt file set aside make the total `≥N` and name that count. Each cause gets one line
+(count, routine/job, first/last time, truncated sample) plus a detail block with the
+existing traceback and subprocess-output rendering. The notification note is
+`312 errors from 7 causes since 14:02` and still uses `ViewErrorReport` with
+`error_report_path`. A crash after snapshot and before notify re-sends the pending
+interval exactly once, keyed by interval id. The job prunes digest files older than 30
+days, always keeping the newest 50, at most once per day. Missing digest files already
+degrade gracefully in ViewErrorReport and mobile attachments. Silent, missing,
 unreadable, malformed, and truncated output are called out explicitly instead of being
 reported as a Python traceback.
 

@@ -33,10 +33,10 @@ def test_error_digest_emits_noop_summary(
         "sys.argv",
         ["sase_chop_error_digest", "--context", str(context_path)],
     )
-    monkeypatch.setattr(script, "read_errors", lambda: [])
-    monkeypatch.setattr(script, "read_last_error_digest_ts", lambda: None)
+    monkeypatch.setattr(script, "rotate_error_interval", lambda: [])
     notify = Mock()
     monkeypatch.setattr(script, "notify_axe_error_digest", notify)
+    monkeypatch.setattr(script, "prune_old_error_digests", lambda: 0)
 
     script.main()
 
@@ -44,17 +44,19 @@ def test_error_digest_emits_noop_summary(
     out = capsys.readouterr().out
     assert "error_digest:" in out
     assert "errors_total=0" in out
-    assert "recent=0" in out
+    assert "causes=0" in out
     assert "notified=0" in out
+    assert "pruned=0" in out
     assert "reason=no_recent_errors" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["schema_version"] == 1
     assert result["status"] == "no_op"
     assert result["reason"] == "no_recent_errors"
     assert result["counters"] == {
+        "causes": 0,
         "errors_total": 0,
         "notified": 0,
-        "recent": 0,
+        "pruned": 0,
     }
 
 
@@ -65,44 +67,46 @@ def test_error_digest_emits_action_summary(
 ) -> None:
     script = importlib.import_module("sase.scripts.sase_chop_error_digest")
 
-    errors = [
-        {"timestamp": "2099-05-12T10:00:00-04:00", "message": "older"},
-        {"timestamp": "2099-05-12T10:05:00-04:00", "message": "newer"},
-    ]
+    record = {
+        "interval_id": "interval-1",
+        "interval_end": "2099-05-12T10:05:00-04:00",
+        "total": 2,
+        "groups": [{"job": "a"}, {"job": "b"}],
+    }
     written: list[str] = []
+    marked: list[str] = []
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     monkeypatch.setattr(
         "sys.argv",
         ["sase_chop_error_digest", "--context", str(context_path)],
     )
-    monkeypatch.setattr(script, "read_errors", lambda: errors)
-    monkeypatch.setattr(
-        script,
-        "read_last_error_digest_ts",
-        lambda: "2026-05-12T09:00:00-04:00",
-    )
+    monkeypatch.setattr(script, "rotate_error_interval", lambda: [record])
     notify = Mock()
     monkeypatch.setattr(script, "notify_axe_error_digest", notify)
     monkeypatch.setattr(script, "write_last_error_digest_ts", written.append)
+    monkeypatch.setattr(script, "mark_error_digest_sent", marked.append)
+    monkeypatch.setattr(script, "prune_old_error_digests", lambda: 0)
 
     script.main()
 
-    notify.assert_called_once_with(errors)
+    notify.assert_called_once_with(record=record)
     assert written == ["2099-05-12T10:05:00-04:00"]
+    assert marked == ["interval-1"]
     out = capsys.readouterr().out
     assert "error_digest:" in out
     assert "errors_total=2" in out
-    assert "recent=2" in out
-    assert "notified=2" in out
+    assert "causes=2" in out
+    assert "notified=1" in out
     assert "newest=2099-05-12T10:05:00-04:00" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
     assert result["reason"] is None
     assert result["counters"] == {
+        "causes": 2,
         "errors_total": 2,
-        "notified": 2,
-        "recent": 2,
+        "notified": 1,
+        "pruned": 0,
     }
 
 

@@ -1731,11 +1731,11 @@ axe:
         - name: error_digest
           script: sase_job_error_digest
           description: |-
-            Send a notification digest of errors from the last hour
+            Send a grouped notification digest of scheduler errors
 
-            Reads the AXE error log and the last successful digest timestamp, then notifies only about newer errors
-            within the rolling one-hour window. The checkpoint advances to the newest notified timestamp, preventing
-            duplicate digests while leaving unsent errors eligible after a notification failure.
+            Snapshots the durable interval counter and notifies once per interval with a true total, one line per
+            cause, and the actual coverage window. A crash after snapshot re-sends the pending interval exactly once.
+            Digest files older than 30 days are pruned, keeping the newest 50.
         - name: footprint_fold
           script: sase_job_footprint_fold
           timeout: "2m"
