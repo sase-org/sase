@@ -78,11 +78,11 @@ def test_hydrate_projected_done_agent_loads_output_and_linked_repos(
     artifact_dir = "/tmp/projects/proj/artifacts/ace-run/20260519090000"
 
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        "sase.ace.tui.models._projected_record_load.default_agent_artifact_index_path",
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.load_agent_artifact_records",
+        "sase.ace.tui.models._projected_record_load.load_agent_artifact_records",
         lambda _index, _dirs: [_record(artifact_dir)],
     )
     agent = Agent(
@@ -116,11 +116,11 @@ def test_hydrate_projected_workflow_step_uses_prompt_step_file_name(
     artifact_dir = "/tmp/projects/proj/artifacts/ace-run/20260519090000"
 
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        "sase.ace.tui.models._projected_record_load.default_agent_artifact_index_path",
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.load_agent_artifact_records",
+        "sase.ace.tui.models._projected_record_load.load_agent_artifact_records",
         lambda _index, _dirs: [_record(artifact_dir)],
     )
     agent = Agent(
@@ -159,11 +159,11 @@ def test_busy_index_lock_leaves_projected_agent_retryable(
     artifact_dir = "/tmp/projects/proj/artifacts/ace-run/20260519090000"
 
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        "sase.ace.tui.models._projected_record_load.default_agent_artifact_index_path",
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.load_agent_artifact_records",
+        "sase.ace.tui.models._projected_record_load.load_agent_artifact_records",
         lambda _index, _dirs: None,
     )
     agent = Agent(

@@ -345,7 +345,7 @@ def test_hydration_restores_deferred_workflow_detail(
 
     # Hydration loads the exact full record; serve the scratch-tree record
     # for the selected artifact dir instead of touching the real index.
-    import sase.ace.tui.models._projected_record as projected
+    import sase.ace.tui.models._projected_record_load as projected
 
     full_record = full_snapshot.records[0]
     assert full_record.artifact_dir == step.index_record_dir

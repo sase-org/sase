@@ -155,9 +155,9 @@ def test_large_output_facts_stay_deferred_until_selected_detail(
     from sase.ace.tui.models._loaders._compact_done_loaders import (
         _build_done_agent_from_compact_record,
     )
-    from sase.ace.tui.models._projected_record import (
+    from sase.ace.tui.models._projected_record import hydrate_projected_agent
+    from sase.ace.tui.models._projected_record_detail import (
         _release_projected_agent_detail,
-        hydrate_projected_agent,
     )
 
     projects_root = tmp_path / "projects"
@@ -214,7 +214,7 @@ def test_large_output_facts_stay_deferred_until_selected_detail(
         "meta_patch": "patch-name",
     }
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        "sase.ace.tui.models._projected_record_load.default_agent_artifact_index_path",
         lambda: index_path,
     )
     assert hydrate_projected_agent(agent) is True

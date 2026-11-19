@@ -9,7 +9,9 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.models import _projected_record as projected_record
+from sase.ace.tui.models import (
+    _projected_record_detail as detail_record,
+)
 from sase.ace.tui.models._agent_graph import (
     copy_agent_graph,
     copy_agent_rows_relinked,
@@ -35,11 +37,11 @@ def _patch_hydration(
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        "sase.ace.tui.models._projected_record_load.default_agent_artifact_index_path",
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models._projected_record.load_agent_artifact_records",
+        "sase.ace.tui.models._projected_record_load.load_agent_artifact_records",
         lambda _index, dirs: [records_by_dir[d] for d in dirs],
     )
 
@@ -63,7 +65,7 @@ def test_selected_detail_owner_bounds_hydrated_agents(
 
     # Twenty selections with large outputs retain at most two hydrated
     # generations; everything older falls back to compact list facts.
-    assert len(projected_record._detail_owner) == 2
+    assert len(detail_record._detail_owner) == 2
     for i, agent in enumerate(agents):
         if i < 18:
             assert agent.record_shape == "list"
@@ -94,7 +96,7 @@ def test_same_identity_replacements_release_displaced_payloads(
     for agent in replacements:
         assert hydrate_projected_agent(agent) is True
 
-    assert len(projected_record._detail_owner) == 2
+    assert len(detail_record._detail_owner) == 2
     for agent in replacements[:-2]:
         assert agent.record_shape == "list"
         assert "_raw" not in (agent.step_output or {})
@@ -146,8 +148,8 @@ def test_roster_copies_restore_compact_facts_without_detail(
         assert not hasattr(clone, "_projected_detail_stash")
     assert parent.record_shape == child.record_shape == "full"
 
-    assert projected_record._release_projected_agent_detail(parent) is True
-    assert projected_record._release_projected_agent_detail(child) is True
+    assert detail_record._release_projected_agent_detail(parent) is True
+    assert detail_record._release_projected_agent_detail(child) is True
     for clone in (*graph_copies, *shallow_copies):
         assert "_raw" not in (clone.step_output or {})
 
@@ -183,9 +185,9 @@ def test_release_restores_compact_list_facts(
     assert "_raw" in (agent.step_output or {})
     assert agent.linked_repos == (LinkedRepoMetadata("sase-core", "/tmp/sase-core"),)
 
-    size_before = len(projected_record._detail_owner)
-    assert projected_record._release_projected_agent_detail(agent) is True
-    assert len(projected_record._detail_owner) == size_before - 1
+    size_before = len(detail_record._detail_owner)
+    assert detail_record._release_projected_agent_detail(agent) is True
+    assert len(detail_record._detail_owner) == size_before - 1
 
     assert agent.record_shape == "list"
     assert projected_agent_needs_hydration(agent) is True
@@ -195,7 +197,7 @@ def test_release_restores_compact_list_facts(
     # Detail re-hydrates on the next selection after a release.
     assert hydrate_projected_agent(agent) is True
     assert agent.record_shape == "full"
-    assert projected_record._release_projected_agent_detail(agent) is True
+    assert detail_record._release_projected_agent_detail(agent) is True
 
 
 def test_orphaned_hydrated_agents_stay_collectible(
@@ -224,4 +226,4 @@ def test_orphaned_hydrated_agents_stay_collectible(
     _patch_hydration(tmp_path, monkeypatch, records)
     agent2 = list_agent(timestamp2, artifact_dir2, cl_name="retention-orphan")
     assert hydrate_projected_agent(agent2) is True
-    assert len(projected_record._detail_owner) <= 2
+    assert len(detail_record._detail_owner) <= 2

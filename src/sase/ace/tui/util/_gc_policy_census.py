@@ -259,9 +259,9 @@ def known_cache_census() -> list[dict[str, Any]]:
             "snapshot",
         ),
         (
-            "sase.ace.tui.models._projected_record",
+            "sase.ace.tui.models._projected_record_detail",
             "_detail_owner",
-            "src/sase/ace/tui/models/_projected_record.py",
+            "src/sase/ace/tui/models/_projected_record_detail.py",
             "projected_detail",
         ),
         (

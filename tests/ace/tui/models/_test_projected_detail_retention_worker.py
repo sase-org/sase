@@ -14,6 +14,9 @@ from sase.ace.tui.actions.agents._display_detail_render import (
 )
 from sase.ace.tui.actions.agents import _display_detail_render as detail_render
 from sase.ace.tui.models import _projected_record as projected_record
+from sase.ace.tui.models import (
+    _projected_record_detail as detail_record,
+)
 from sase.ace.tui.models._loaders._compact_meta_enrichment import (
     enrich_agent_from_compact_meta,
 )
@@ -87,7 +90,7 @@ async def test_hydration_worker_drops_result_for_equal_identity_replacement(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    projected_record._detail_owner.clear()
+    detail_record._detail_owner.clear()
     timestamp = stamp(20260519120000, 0)
     artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
     row = list_agent(timestamp, artifact_dir, cl_name="hydration-replace")
@@ -125,14 +128,14 @@ async def test_hydration_worker_drops_result_for_equal_identity_replacement(
     assert "_raw" not in (replacement.step_output or {})
     assert owner.invalidations == 0
     assert owner.detail_updates == 0
-    assert len(projected_record._detail_owner) == 0
+    assert len(detail_record._detail_owner) == 0
 
 
 async def test_hydration_worker_drops_result_after_tab_switch(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    projected_record._detail_owner.clear()
+    detail_record._detail_owner.clear()
     timestamp = stamp(20260519130000, 0)
     artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
     row = list_agent(timestamp, artifact_dir, cl_name="hydration-tab")
@@ -163,14 +166,14 @@ async def test_hydration_worker_drops_result_after_tab_switch(
     assert row.record_shape == "list"
     assert "_raw" not in (row.step_output or {})
     assert owner.invalidations == 0
-    assert len(projected_record._detail_owner) == 0
+    assert len(detail_record._detail_owner) == 0
 
 
 async def test_canceled_hydration_worker_never_applies_detached_payload(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    projected_record._detail_owner.clear()
+    detail_record._detail_owner.clear()
     timestamp = stamp(20260519140000, 0)
     artifact_dir = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp}"
     row = list_agent(timestamp, artifact_dir, cl_name="hydration-cancel")
@@ -205,4 +208,4 @@ async def test_canceled_hydration_worker_never_applies_detached_payload(
     assert row.record_shape == "list"
     assert "_raw" not in (row.step_output or {})
     assert owner.invalidations == 0
-    assert len(projected_record._detail_owner) == 0
+    assert len(detail_record._detail_owner) == 0

@@ -275,7 +275,9 @@ def test_known_cache_census_reports_current_bounded_owners(
     memory_reads = importlib.import_module("sase.ace.tui.memory_reads")
     bead_touches = importlib.import_module("sase.ace.tui._bead_touches_loader")
     agent_stranded = importlib.import_module("sase.ace.tui.models.agent_stranded")
-    projected_record = importlib.import_module("sase.ace.tui.models._projected_record")
+    projected_record = importlib.import_module(
+        "sase.ace.tui.models._projected_record_detail"
+    )
 
     class _Entry:
         def __init__(self, count: int) -> None:
@@ -396,7 +398,7 @@ def test_known_cache_census_reports_current_bounded_owners(
     assert stranded["stranded_id_total"] == 1
     assert stranded["blocked_id_total"] == 1
 
-    detail = rows["sase.ace.tui.models._projected_record._detail_owner"]
+    detail = rows["sase.ace.tui.models._projected_record_detail._detail_owner"]
     assert detail["status"] == "present"
     assert detail["entries"] == 2
     assert detail["live_rows"] == 2
