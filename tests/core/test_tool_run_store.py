@@ -15,6 +15,7 @@ from tests.core._tool_run_store_lifecycle import (
 )
 from tests.core._tool_run_store_triage import (
     test_triage_binding_round_trips,
+    test_triage_settle_enriches_staged_owner_without_rewriting_label,
     test_triage_settle_stores_location_matched_owner_only,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "test_store_adapters_delegate_busy_policy",
     "test_tools_dir_is_under_sase_home",
     "test_triage_binding_round_trips",
+    "test_triage_settle_enriches_staged_owner_without_rewriting_label",
     "test_triage_settle_stores_location_matched_owner_only",
 ]
 
