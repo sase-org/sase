@@ -19,8 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.bead.cli_location import resolve_beads_location
-from sase.bead.model import IssueType, Status
-from sase.core.bead_read_facade import list_issues
+from sase.core.bead_read_facade import triage_owner_candidates
 from sase.core.paths import sase_home
 from sase.core.tool_run import tool_run_triage_extract
 
@@ -323,47 +322,34 @@ def gather_selection_records(
 def gather_owner_candidates(
     project_root: Path, *, now_ts: int | None = None
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Return read-only, recent CI/flake/bug bead candidates for the core."""
+    """Return read-only CI/flake/bug bead owner candidates for the core.
 
-    del now_ts  # Rust owns recency evaluation; this keeps the gatherer deterministic.
+    Eligibility, recency, and field projection live in the Rust bead read
+    domain (``bead_triage_owner_candidates``): only the candidate wire and
+    its diagnostics cross into Python, never full issues.  This gatherer
+    resolves the store and transports that result; *now_ts* anchors the
+    closed-task lookback.  Every failure is fail-open: no candidates plus a
+    diagnostic, never a raised error.  The caller bounds the call with its
+    gatherer slice.
+
+    Locator contract: the core matches a candidate's ``location`` (a task's
+    pytest node or source path) or title against a failure item's file or
+    directory locator paths.  A failure with only a bare stage-label locator,
+    such as ``lint (symvision)``, has no supported locator and gets no owner;
+    the core never infers an owner from generic stage words or bead-ID
+    tokens.  Owners are routing suggestions only, never KNOWN or FLAKY
+    witnesses.
+    """
+
     location = resolve_beads_location(cwd=project_root, require_existing=True)
     if location is None:
         return [], ["bead store unavailable for owner candidates"]
     try:
-        issues = list_issues(
-            location.root / location.beads_dirname,
-            issue_types=[IssueType.TASK],
+        return triage_owner_candidates(
+            location.root / location.beads_dirname, now_ts=now_ts
         )
     except Exception as error:  # noqa: BLE001 - optional read-only evidence.
         return [], [f"owner candidate read failed: {error}"]
-    cutoff = int(time.time()) - LOOKBACK_SECONDS
-    candidates: list[dict[str, Any]] = []
-    for issue in issues:
-        if issue.task_type not in {"ci", "flake", "bug"}:
-            continue
-        closed_ts = _timestamp(issue.closed_at)
-        if issue.status is Status.CLOSED and (closed_ts is None or closed_ts < cutoff):
-            continue
-        if issue.status is not Status.CLOSED and issue.status not in {
-            Status.OPEN,
-            Status.READY,
-            Status.CLAIMED,
-            Status.IN_PROGRESS,
-            Status.SNOOZED,
-        }:
-            continue
-        fields = issue.task_type_fields
-        location_text = fields.get("node_id") or fields.get("location")
-        candidates.append(
-            {
-                "node_id": issue.id,
-                "location": location_text or None,
-                "title": issue.title or None,
-                "status": "closed" if issue.status is Status.CLOSED else "open",
-                "closed_ts": closed_ts,
-            }
-        )
-    return candidates, []
 
 
 __all__ = [

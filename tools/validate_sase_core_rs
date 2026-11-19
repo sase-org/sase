@@ -494,6 +494,7 @@ REQUIRED_BINDINGS = (
     "tool_run_triage_verdict",
     "tool_run_triage_stage",
     "tool_run_triage_settle",
+    "bead_triage_owner_candidates",
     "tool_run_failures",
     "goal_ledger_wire_schema_version",
     "goal_ledger_store_schema_version",

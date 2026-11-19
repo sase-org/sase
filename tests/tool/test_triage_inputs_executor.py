@@ -21,6 +21,7 @@ from sase.core.tool_run import (
     tool_run_list,
     tool_run_observe,
     tool_run_store_path,
+    tool_run_triage_settle,
     tool_run_triage_show,
 )
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -81,6 +82,103 @@ def test_gatherer_timeout_stores_diagnostic_and_keeps_exit_code(
     facts = shown.get("run_facts") or {}
     diagnostics.extend(facts.get("diagnostics") or [])
     assert any("timed out" in str(note) for note in diagnostics), shown
+
+
+def _shown_diagnostics(run_id: str) -> list[str]:
+    shown = tool_run_triage_show({"run_id": run_id})
+    diagnostics = [str(note) for note in shown.get("diagnostics") or []]
+    facts = shown.get("run_facts") or {}
+    diagnostics.extend(str(note) for note in facts.get("diagnostics") or [])
+    return diagnostics
+
+
+def test_unavailable_bead_store_stores_diagnostic_and_keeps_exit_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home(monkeypatch, tmp_path)
+    root = _project(tmp_path, f"printf '{PYTEST_LINE}'; exit 9")
+    monkeypatch.chdir(root)
+
+    assert _run() == 9
+    run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
+    assert "bead store unavailable for owner candidates" in _shown_diagnostics(run_id)
+
+
+def test_stored_owner_survives_an_empty_owner_gather(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home(monkeypatch, tmp_path)
+    root = _project(tmp_path, f"printf '{PYTEST_LINE}'; exit 9")
+    beads_dir = root / "sdd" / "beads"
+    beads_dir.mkdir(parents=True)
+    created = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    owner = {
+        "id": "fx-owner",
+        "title": "Owner of the fixture failure",
+        "status": "open",
+        "issue_type": "task",
+        "task_type": "ci",
+        "task_type_fields": {"node_id": NODE},
+        "created_at": created,
+        "updated_at": created,
+    }
+    (beads_dir / "issues.jsonl").write_text(json.dumps(owner) + "\n", encoding="utf-8")
+    # A committed tree gives the run the complete fingerprint triage needs.
+    for args in (
+        ["init"],
+        ["add", "."],
+        [
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "user.name=Fixture",
+            "commit",
+            "-m",
+            "fixture",
+        ],
+    ):
+        subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+    monkeypatch.chdir(root)
+
+    # The real gatherer and Rust projection attach the exact-node owner.
+    assert _run() == 9
+    run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
+    expected = [
+        {
+            "id": "fx-owner",
+            "status": "open",
+            "reason": "possible owner",
+            "matched_on": "location",
+        }
+    ]
+    shown = tool_run_triage_show({"run_id": run_id})
+    assert [item["label"]["possible_owners"] for item in shown["items"]] == [
+        expected
+    ], shown
+
+    # A later settle whose owner gather came back empty (timeout or an
+    # unavailable store) keeps the stored annotation.
+    replayed = tool_run_triage_settle(
+        {
+            "run_id": run_id,
+            "stages": [],
+            "project_root": str(root),
+            "workspace_roots": [str(root)],
+            "ancestry": [],
+            "flake_baseline": [],
+            "selection_records": [],
+            "owner_candidates": [],
+            "knobs": {"min_witnesses": 1, "touched_requires_clean_witness": False},
+            "continuation_mode": "never",
+            "recipe_finished_ts": int(time.time()),
+            "now_ts": int(time.time()),
+        }
+    )
+    assert replayed["triaged"] is True, replayed
+    shown = tool_run_triage_show({"run_id": run_id})
+    assert [item["label"]["possible_owners"] for item in shown["items"]] == [
+        expected
+    ], shown
 
 
 def test_settle_exception_stores_diagnostic_and_keeps_exit_code(

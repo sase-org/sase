@@ -576,6 +576,28 @@ def referenced_artifact_ids(beads_dir: Path | str) -> frozenset[str] | None:
         return None
 
 
+def triage_owner_candidates(
+    beads_dir: Path | str, *, now_ts: int | None = None
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Return ``(candidates, diagnostics)`` for failure-triage owner matching.
+
+    The required Rust ``bead_triage_owner_candidates`` binding owns the whole
+    policy: CI, flake, and bug task beads that are open (any non-closed
+    status) or closed within the seven-day lookback ending at *now_ts*
+    (default: now). It projects only the classifier's candidate fields
+    (``node_id``, ``location``, ``title``, ``status``, ``closed_ts``) from
+    the warm read model, so no issue body, note, or relationship is decoded
+    or crosses into Python. Errors propagate; callers decide how to fail.
+    """
+    binding = require_rust_binding("bead_triage_owner_candidates")
+    payload: dict[str, Any] = binding(str(beads_dir), now_ts)
+    candidates = [
+        dict(row) for row in payload.get("candidates") or () if isinstance(row, dict)
+    ]
+    diagnostics = [str(note) for note in payload.get("diagnostics") or () if note]
+    return candidates, diagnostics
+
+
 def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
     if "Issue not found:" in str(exc):
         raise KeyError(f"Issue not found: {issue_id}") from exc
@@ -604,4 +626,5 @@ __all__ = [
     "show_issue_detail",
     "stats",
     "store_fingerprint",
+    "triage_owner_candidates",
 ]
