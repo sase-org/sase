@@ -178,7 +178,7 @@ def _record_monitor_join(
 def _join_refusal_message(run_id: str, refusal: str, run: Any) -> str:
     """Render a join refusal with state and a ``sase tool show`` pointer."""
 
-    from .join import show_pointer
+    from .join import join_recovery_guidance, show_pointer
 
     pointer = show_pointer(run_id)
     state = str(run.get("state") or "") if isinstance(run, dict) else ""
@@ -199,7 +199,11 @@ def _join_refusal_message(run_id: str, refusal: str, run: Any) -> str:
         return (
             f"tool run {run_id} is already joined{other}; nothing to join ({pointer})"
         )
-    return f"tool run {run_id} cannot be joined ({refusal}); no monitor started ({pointer})"
+    recovery = join_recovery_guidance(run_id, run if isinstance(run, dict) else None)
+    return (
+        f"tool run {run_id} cannot be joined ({refusal}); "
+        f"no monitor started ({pointer})\n{recovery}"
+    )
 
 
 def _teardown_refused_join(

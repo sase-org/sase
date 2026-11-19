@@ -272,7 +272,7 @@ def _reserve_staged_join(
     """Reserve an existing ToolRun for this staged monitor, or roll back."""
     from sase.core.tool_run import tool_run_reserve_staged_join
 
-    from .join import show_pointer
+    from .join import join_recovery_guidance, show_pointer
 
     request: dict[str, Any] = {
         "schema_version": 1,
@@ -297,9 +297,11 @@ def _reserve_staged_join(
             if isinstance(result, dict)
             else "refused"
         )
+        run = result.get("run") if isinstance(result, dict) else None
         message = (
             f"tool run {run_id} cannot be reserved for staged join "
-            f"({refusal}); no monitor started ({show_pointer(run_id)})"
+            f"({refusal}); no monitor started ({show_pointer(run_id)})\n"
+            f"{join_recovery_guidance(run_id, run if isinstance(run, dict) else None)}"
         )
         _teardown_prepare_failure(
             artifacts_dir, bound_completion_ref, monitor_id, message

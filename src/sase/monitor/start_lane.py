@@ -10,6 +10,7 @@ from sase.plan_chain import (
     agent_session_base,
     agent_session_value,
 )
+from sase.tool.starter import starter_agent_name
 from sase.workspace_provider import resolve_workspace_owner_for_path
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -26,6 +27,8 @@ class LaneStart:
     ``workspace_num`` is the workspace identity for the directory the monitored
     command runs in. ``transfer_from_pid`` is set only when that identity is the
     starter runner's own live claim row and should move to the supervisor.
+    ``join_starter_agent`` is the ToolRun starter identity
+    (``SASE_AGENT_NAME``), not the concrete-turn meta name.
     """
 
     project_file: str
@@ -89,6 +92,7 @@ def resolve_lane_start(
     original_starter_agent = raw_meta.get("name")
     if not isinstance(original_starter_agent, str) or not original_starter_agent:
         original_starter_agent = None
+    join_starter_agent = starter_agent_name() or original_starter_agent
 
     durable_lane = str(agent_session_value(raw_meta) or "").strip()
     if not durable_lane:
@@ -146,7 +150,7 @@ def resolve_lane_start(
         workspace_num=resolved_workspace_num,
         transfer_from_pid=transfer_from_pid,
         starter_agent=starter_agent,
-        join_starter_agent=original_starter_agent,
+        join_starter_agent=join_starter_agent,
     )
 
 

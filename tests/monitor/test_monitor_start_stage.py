@@ -23,6 +23,8 @@ from .test_monitor_start_stage_adopt import (
     test_staged_monitor_adoption_saves_real_response_and_exact_starter_parent,
     test_staged_monitor_rejects_foreign_persisted_starter_before_launch,
     test_tool_run_id_is_stable_from_stage_to_launch,
+    test_session_member_staged_join_reserves_env_starter_identity,
+    test_staged_join_refusal_prints_recovery_without_join_flag,
 )
 from .test_monitor_start_stage_cleanup import (
     test_ack_failure_rolls_back_staged_launch,
@@ -64,5 +66,7 @@ __all__ = [
     "test_staged_monitor_adoption_saves_real_response_and_exact_starter_parent",
     "test_staged_monitor_rejects_foreign_persisted_starter_before_launch",
     "test_staged_monitor_waits_for_real_finalizer_controller",
+    "test_session_member_staged_join_reserves_env_starter_identity",
+    "test_staged_join_refusal_prints_recovery_without_join_flag",
     "test_tool_run_id_is_stable_from_stage_to_launch",
 ]

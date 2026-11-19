@@ -49,6 +49,21 @@ def _meta_path(artifacts_dir: str) -> Path:
     return Path(artifacts_dir).expanduser() / "agent_meta.json"
 
 
+def starter_agent_name(env: Mapping[str, str] | None = None) -> str | None:
+    """Return the ToolRun starter agent name for *env*, or ``None``.
+
+    A starter is marked by ``SASE_AGENT``; the name is the stripped
+    ``SASE_AGENT_NAME``. Session members keep the session-container name
+    here even when ``agent_meta.json`` carries a concrete turn.
+    """
+
+    environ: Mapping[str, str] = os.environ if env is None else env
+    if not str(environ.get("SASE_AGENT") or "").strip():
+        return None
+    agent = str(environ.get("SASE_AGENT_NAME") or "").strip()
+    return agent or None
+
+
 def resolve_starter(env: Mapping[str, str] | None = None) -> _StarterResolution:
     """Resolve the starter record for the calling agent runner.
 
@@ -61,7 +76,7 @@ def resolve_starter(env: Mapping[str, str] | None = None) -> _StarterResolution:
     environ: Mapping[str, str] = os.environ if env is None else env
     if not str(environ.get("SASE_AGENT") or "").strip():
         return _StarterResolution(starter=None, reason=NOT_AGENT)
-    agent = str(environ.get("SASE_AGENT_NAME") or "").strip()
+    agent = starter_agent_name(environ)
     if not agent:
         return _StarterResolution(starter=None, reason=NO_AGENT_NAME)
     artifacts_dir = str(environ.get("SASE_ARTIFACTS_DIR") or "").strip()
@@ -195,5 +210,6 @@ __all__ = [
     "NO_ARTIFACTS_DIR",
     "PID_MISSING",
     "resolve_starter",
+    "starter_agent_name",
     "starter_alive",
 ]

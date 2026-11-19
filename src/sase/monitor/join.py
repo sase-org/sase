@@ -9,8 +9,8 @@ never disturbs the lane.
 
 from __future__ import annotations
 
-import os
 import shlex
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,10 +37,45 @@ class JoinTarget:
 def join_caller_agent() -> str | None:
     """Return the joining agent's name, or ``None`` outside an agent."""
 
-    if not str(os.environ.get("SASE_AGENT") or "").strip():
-        return None
-    caller = str(os.environ.get("SASE_AGENT_NAME") or "").strip()
-    return caller or None
+    from sase.tool.starter import starter_agent_name
+
+    return starter_agent_name()
+
+
+def join_recovery_guidance(run_id: str, run: Mapping[str, Any] | None = None) -> str:
+    """Return recovery text for a refused join that leaves the run unjoined.
+
+    The guidance never suggests repeating ``-J``. The agent can wait again
+    inline or start a fresh monitored rerun of the canonical command.
+    """
+
+    from sase.tool.routing import rewait_command
+
+    payload = dict(run) if isinstance(run, Mapping) else {}
+    words = _canonical_join_words(payload)
+    rerun_parts = [
+        "sase",
+        "monitor",
+        "start",
+        "-p",
+        "verify",
+        "-n",
+        "<…>",
+        "--",
+        "sase",
+        "tool",
+        "run",
+        *words,
+    ]
+    rerun = " ".join(shlex.quote(part) for part in rerun_parts)
+    return (
+        "Unless a monitor joins it, this run is stopped when this agent's "
+        "turn ends.\n"
+        "Or wait again inline, bounded by the same ceiling:\n"
+        f"  {rewait_command(run_id)}\n"
+        "Or start a fresh monitored rerun:\n"
+        f"  {rerun}"
+    )
 
 
 def _canonical_join_words(run: dict[str, Any]) -> list[str]:
@@ -182,5 +217,6 @@ __all__ = [
     "default_join_reason",
     "inspect_join_target",
     "join_caller_agent",
+    "join_recovery_guidance",
     "show_pointer",
 ]

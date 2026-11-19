@@ -356,7 +356,7 @@ def _join_command(run_id: str, tool_name: str | None = None) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def _rewait_command(run_id: str) -> str:
+def rewait_command(run_id: str) -> str:
     """Build the bounded re-wait form for an escalation block."""
 
     parts = [
@@ -411,7 +411,7 @@ def escalation_block(
         return (
             f"tool run {rid} is still running\n"
             "Or wait again inline, bounded by the same ceiling:\n"
-            f"  {_rewait_command(rid)}"
+            f"  {rewait_command(rid)}"
         )
     tool = _escalation_tool_name(run)
     return (
@@ -421,7 +421,7 @@ def escalation_block(
         "Hand the same run to a monitor and end this turn (nothing reruns):\n"
         f"  {_join_command(rid, tool)}\n"
         "Or wait again inline, bounded by the same ceiling:\n"
-        f"  {_rewait_command(rid)}\n"
+        f"  {rewait_command(rid)}\n"
         "Unless a monitor joins it, this run is stopped when this agent's turn ends."
     )
 
@@ -455,6 +455,7 @@ __all__ = [
     "is_joinable",
     "monitor_start_form",
     "read_ceiling_seconds",
+    "rewait_command",
     "sync_wait_budget",
     "_read_sync_ceiling",
 ]

@@ -43,6 +43,8 @@ __all__ = [
     "test_staged_monitor_rejects_foreign_persisted_starter_before_launch",
     "test_tool_run_id_is_stable_from_stage_to_launch",
     "test_stopped_staged_join_is_replaced_with_owned_run_at_adoption",
+    "test_session_member_staged_join_reserves_env_starter_identity",
+    "test_staged_join_refusal_prints_recovery_without_join_flag",
 ]
 
 
@@ -467,3 +469,53 @@ def test_stopped_staged_join_is_replaced_with_owned_run_at_adoption(
         )
     finally:
         wait_for_done(record.artifacts_dir)
+
+
+def test_session_member_staged_join_reserves_env_starter_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dirs = stage_env(
+        tmp_path,
+        monkeypatch,
+        starter_name="acme--code",
+        agent_session="acme",
+    )
+    meta_path = Path(dirs[0]) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["role_suffix"] = "--code"
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
+    run_id = reserve_detached_run("--", "true", agent="acme")
+    staged = stage_monitor(stage_request(tmp_path, join_run_id=run_id))
+    dirs.append(staged.record.artifacts_dir)
+    shown = tool_run_show(run_id)["run"]
+    assert shown["staged_join_reservation"]["agent"] == "acme"
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    assert payload["workspace"]["claim_context"]["join_starter_agent"] == "acme"
+    record = launch_from_persisted_payload(staged.record.artifacts_dir)
+    try:
+        assert tool_run_show(run_id)["run"]["join"]["id"] == record.monitor_id
+        assert record.tool_run_id == run_id
+        assert record.tool_run_joined is True
+    finally:
+        wait_for_done(record.artifacts_dir)
+
+
+def test_staged_join_refusal_prints_recovery_without_join_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.monitor.join import _canonical_join_words
+    from sase.tool.routing import rewait_command
+
+    dirs = stage_env(tmp_path, monkeypatch)
+    run_id = reserve_detached_run("--", "true", agent="other")
+    with pytest.raises(MonitorError) as caught:
+        stage_monitor(stage_request(tmp_path, join_run_id=run_id))
+    del dirs
+    message = str(caught.value)
+    shown = tool_run_show(run_id)["run"]
+    words = " ".join(_canonical_join_words(shown))
+    assert rewait_command(run_id) in message
+    assert "sase monitor start -p verify" in message
+    assert f"sase tool run {words}" in message
+    assert "-J" not in message

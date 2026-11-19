@@ -23,6 +23,7 @@ from ._join_helpers import (
 __all__ = [
     "test_join_joined_elsewhere_is_refused",
     "test_join_label_reason_and_command_derive_from_the_run",
+    "test_join_refusal_message_includes_recovery_without_join_flag",
     "test_join_non_detached_run_is_refused",
     "test_join_other_agents_run_is_refused",
     "test_join_rejects_a_command_remainder",
@@ -232,6 +233,20 @@ def test_join_label_reason_and_command_derive_from_the_run() -> None:
     assert default_join_label(adhoc) == "tool:ad-hoc (joined)"
     assert default_join_reason(adhoc) == "finish ad-hoc (joined run)"
     assert _join_display_command(adhoc) == "sase tool run -- echo hi"
+
+
+def test_join_refusal_message_includes_recovery_without_join_flag() -> None:
+    from sase.monitor.join import _canonical_join_words, join_recovery_guidance
+    from sase.monitor.start_launch import _join_refusal_message
+    from sase.tool.routing import rewait_command
+
+    run = {"tool_name": "check", "display_argv": ["check"]}
+    message = _join_refusal_message("run-abc", "agent_mismatch", run)
+    assert rewait_command("run-abc") in message
+    assert "sase monitor start -p verify" in message
+    assert f"sase tool run {' '.join(_canonical_join_words(run))}" in message
+    assert "-J" not in message
+    assert join_recovery_guidance("run-abc", run) in message
 
 
 def _fake_record(**overrides: object) -> MonitorRecord:
