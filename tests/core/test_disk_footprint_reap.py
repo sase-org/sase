@@ -16,6 +16,53 @@ from sase.procs import ProcLogRetentionResult
 from tests.core._disk_footprint_helpers import _ProcRuntimeRetentionStub
 
 
+def test_run_disk_reap_does_not_collect_inventory(monkeypatch) -> None:
+    called: list[str] = []
+
+    def boom(**_kwargs: object) -> object:
+        called.append("inventory")
+        raise RuntimeError("inventory must not run")
+
+    monkeypatch.setattr("sase.core.disk_footprint.collect_disk_footprint", boom)
+    monkeypatch.setattr(
+        "sase.core.disk_footprint._managed_tmp_reap_step",
+        lambda *, apply, **_kwargs: DiskReapStep(
+            owner="managed_tmp_reaper",
+            mode="apply" if apply else "dry_run",
+            summary="tmp",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint._proc_runtime_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="proc_runtime_sweep",
+            mode="apply" if apply else "dry_run",
+            summary="proc ok",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint._tool_run_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="tool_run_retention",
+            mode="apply" if apply else "dry_run",
+            summary="tool-run ok",
+        ),
+    )
+
+    result = run_disk_reap(
+        apply=True,
+        include_artifact_runs=False,
+        include_workspace_compact=False,
+    )
+
+    assert called == []
+    assert [step.owner for step in result.steps] == [
+        "managed_tmp_reaper",
+        "proc_runtime_sweep",
+        "tool_run_retention",
+    ]
+
+
 def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:
     monkeypatch.setattr(
         "sase.core.disk_footprint._managed_tmp_reap_step",

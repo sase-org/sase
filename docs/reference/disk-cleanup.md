@@ -51,9 +51,16 @@ rebuildable status without offering a reclaim command; it is not one of the
 `sase disk reap` previews the owner passes; `--apply` runs them. Their order is
 managed-temp reaping, proc runtime cleanup, [tool run](glossary.md#tool-run) retention,
 ACE-run artifact retention (the same owner as `sase artifact prune-runs`), and workspace
-Git object compaction. It exits `1` when any owner step is blocked, fails, or cannot
-report a trustworthy result, and `0` otherwise. The artifact-run step remains blocked
-under `--apply` because unattended run pruning is refused. Reviewed run cleanup uses
+Git object compaction. Reaping never waits on inventory completeness: `sase disk reap`,
+the hourly `managed_tmp_reap` job, and the hourly `disk_pressure` job all invoke owner
+passes without collecting `sase disk list` first. `disk_pressure` reaps before a
+fail-open inventory, names unmeasured owners in its episode-scoped notice, and upserts a
+distinct missed-target escalation when available space stays below the recovery target.
+See
+[Scheduler housekeeping](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
+`sase disk reap` exits `1` when any owner step is blocked, fails, or cannot report a
+trustworthy result, and `0` otherwise. The artifact-run step remains blocked under
+`--apply` because unattended run pruning is refused. Reviewed run cleanup uses
 [`sase artifact prune-runs`](artifact-references.md#run-directory-retention) to move
 runs into restorable trash.
 

@@ -191,30 +191,36 @@ disk-pressure policy: a filesystem is under pressure when its free space falls b
 larger of 3 GiB and
 [`disk.pressure.warn_free_percent`](../config/runtime-and-storage.md#disk) of its size.
 With no pressure, the job exits with reason `space_ok` without scanning the disk
-footprint. Under pressure, it gathers the largest owners from `sase disk list`; when the
-inventory's `unattributed` row (filesystem used minus attributed bytes on the
-`SASE_HOME` filesystem) exceeds the largest attributed owner, the notification leads
-with that row instead of pointing at a small owner. Before notifying, the job runs
-unattended owner-safe cleanup: the managed-temp reaper, using measured free space and
-the warn threshold as its pressure floor and recovery target (with the same dead-launch
-backstop and liveness-aware pressure as the hourly pass), and the proc cleanup owner
-(proc-row and log retention plus the rowless runtime sweep). The single notification
-includes changed, failed, blocked, and incomplete owners, reclaimed bytes, available
-space after the reap, and the recovery target. A notification exception is logged on one
-bounded stderr line and does not undo the reap.
+footprint and ends any active pressure episode. Under pressure it reaps first
+(managed-temp, using measured free space and the warn threshold as its pressure floor
+and recovery target, plus proc-row/log retention and the rowless runtime sweep, plus
+tool-run retention). Inventory collection runs afterward under a 20s fail-open cap: an
+exception or timeout becomes "attribution unavailable" in the notice and never skips or
+delays recovery. The notice leads with free space and the recovery result, names
+unmeasured owners, lists only measured top owners, and labels the residual the way
+[`sase disk list`](../disk-cleanup.md) does. Upserts use an episode-scoped key
+`disk_pressure:<filesystem>:<episode>` so later passes in the same pressure episode +1
+the same row; `space_ok` ends the episode and the next pressure event creates a new row.
+When available space after the reap is still below the recovery target, a distinct
+escalation row (`…:escalation`) states the target, reclaimed bytes, available-after
+bytes, blocked or incomplete owners with reason counts, and the largest measured owners
+this job does not reap (workspaces, artifact runs, the rust-prebuild cache) with their
+reclaim commands. A notification exception is logged on one bounded stderr line and does
+not undo the reap.
 
 Afterward, the job remeasures available bytes on the pressured filesystem with
 `statvfs`. Its status is `no_op` with `space_ok` when no pressure was present;
 `check_error` when an owner failed, the notification failed, or the free-space recheck
 failed; `check_error` with `recovery_blocked` when pressure remains and an owner was
-blocked or incomplete; `ok` when an owner changed state and none failed; and `no_op`
-with `nothing_eligible` when nothing changed and no owner was blocked. Incomplete owners
-are judged by their normalized cleanup status, not by a step's broad failure flag.
-Workspace Git-object compaction is left to an explicit `sase disk reap --apply`, and
-artifact run directories, backups, and unowned Cargo-shaped strays are reported for
-human action; this job never touches them. The summary includes changed and failed owner
-names, reclaimed and post-reap available bytes, the recovery target, and notification
-outcome.
+blocked or incomplete; `check_error` with `recovery_missed` when the target is missed
+without a blocked or incomplete owner; `ok` when an owner changed state and the target
+was met; and `no_op` with `nothing_eligible` when nothing changed and no owner was
+blocked. Incomplete owners are judged by their normalized cleanup status, not by a
+step's broad failure flag. Workspace Git-object compaction is left to an explicit
+`sase disk reap --apply`, and artifact run directories, backups, and unowned
+Cargo-shaped strays are reported for human action; this job never touches them. The
+summary includes changed and failed owner names, reclaimed and post-reap available
+bytes, the recovery target, and notification outcome.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their

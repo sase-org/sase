@@ -467,220 +467,26 @@ def test_managed_tmp_reap_does_not_error_on_incomplete_observation_alone(
     assert result["counters"]["incomplete_observations"] == 1
 
 
-def _prepare_disk_pressure(
+def test_managed_tmp_reap_does_not_depend_on_disk_inventory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    *,
-    managed_free_bytes: int = 2 * 1024**3,
-    home_free_bytes: int = 80 * 1024**3,
-    available_after_bytes: int = 8 * 1024**3,
-    owners: tuple[dict[str, object], ...] = (),
-    reclaimed_bytes: int = 0,
-    notification: object | None = None,
-) -> tuple[Path, Path, dict[str, object], list[str], list[tuple[object, ...]]]:
-    script = importlib.import_module("sase.scripts.sase_chop_disk_pressure")
+) -> None:
+    called: list[str] = []
 
+    def boom(**_kwargs: object) -> object:
+        called.append("inventory")
+        raise RuntimeError("inventory must not run")
+
+    monkeypatch.setattr("sase.core.disk_footprint.collect_disk_footprint", boom)
     managed_root = tmp_path / "managed"
-    sase_home = tmp_path / ".sase"
-    managed_root.mkdir(parents=True)
-    sase_home.mkdir(parents=True)
-    result_path = tmp_path / "result.json"
-    context_path = _write_context(tmp_path, result_path)
-    captured: dict[str, object] = {}
-    events: list[str] = []
-    notifications: list[tuple[object, ...]] = []
-
-    monkeypatch.setattr(script, "managed_tmpdir_root", lambda: managed_root)
-    monkeypatch.setattr(script, "sase_home", lambda: sase_home)
-    monkeypatch.setattr(
-        script, "collect_disk_footprint", lambda: SimpleNamespace(rows=())
-    )
-    monkeypatch.setattr(
-        script,
-        "collect_filesystem_observations",
-        lambda targets, **_kwargs: (
-            {
-                "label": "managed_tmp",
-                "role": "owner",
-                "path": str(managed_root),
-                "measurement_path": str(managed_root),
-                "total_bytes": 100 * 1024**3,
-                "used_bytes": 100 * 1024**3 - managed_free_bytes,
-                "free_bytes": managed_free_bytes,
-            },
-            {
-                "label": "sase_home",
-                "role": "owner",
-                "path": str(sase_home),
-                "measurement_path": str(sase_home),
-                "total_bytes": 100 * 1024**3,
-                "used_bytes": 100 * 1024**3 - home_free_bytes,
-                "free_bytes": home_free_bytes,
-            },
-        ),
+    reap_result = _fake_managed_reap_result(managed_root)
+    result_path, context_path = _prepare_managed_tmp_reap(
+        monkeypatch, tmp_path, reap_result
     )
 
-    def run_disk_reap(**kwargs):
-        events.append("reap")
-        captured.update(kwargs)
-        return SimpleNamespace(
-            cleanup_outcome={
-                "owners": list(owners),
-                "known_reclaimed_bytes": reclaimed_bytes,
-            },
-            steps=(object(),) * len(owners),
-        )
-
-    monkeypatch.setattr(script, "run_disk_reap", run_disk_reap)
-    monkeypatch.setattr(
-        script,
-        "_statvfs_available_bytes",
-        lambda _path: available_after_bytes,
-    )
-
-    def notify(*args: object, **kwargs: object) -> None:
-        events.append("notify")
-        notifications.append((*args, kwargs))
-        if isinstance(notification, Exception):
-            raise notification
-
-    monkeypatch.setattr(script, "notify_workflow_complete", notify)
-    return result_path, context_path, captured, events, notifications
-
-
-def test_disk_pressure_reaps_before_one_outcome_notification(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    result_path, context_path, captured, events, notifications = _prepare_disk_pressure(
-        monkeypatch,
-        tmp_path,
-        owners=(
-            {
-                "owner": "managed_tmp_reaper",
-                "status": "failed",
-                "changed": True,
-            },
-        ),
-        reclaimed_bytes=256,
-    )
-
-    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
-
-    assert captured["filesystem_available_bytes"] == 2 * 1024**3
-    assert captured["managed_tmp_pressure_min_available_bytes"] == 5 * 1024**3
-    assert captured["managed_tmp_pressure_recovery_available_bytes"] == 5 * 1024**3
-    assert events == ["reap", "notify"]
-    assert len(notifications) == 1
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result["counters"]["observations"] == 2
-    assert result["counters"]["failed"] == 1
-    assert result["status"] == "check_error"
-    assert result["reason"] == "cleanup_failed"
-    assert result["counters"]["changed"] == 1
-    assert result["counters"]["reclaimed_bytes"] == 256
-    assert result["counters"]["available_after_bytes"] == 8 * 1024**3
-    assert "changed_owners=managed_tmp_reaper" in result["summary"]
-    assert "failed_owners=managed_tmp_reaper" in result["summary"]
-    assert "Recovery target:" in str(notifications[0][3])
-
-
-def test_disk_pressure_notification_failure_does_not_prevent_reap(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    tmp_path: Path,
-) -> None:
-    result_path, context_path, _captured, events, _notifications = (
-        _prepare_disk_pressure(
-            monkeypatch,
-            tmp_path,
-            owners=(
-                {
-                    "owner": "proc_runtime",
-                    "status": "success",
-                    "changed": True,
-                },
-            ),
-            notification=ValueError("[Errno 28] No space left on device"),
-        )
-    )
-
-    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
-
-    assert events == ["reap", "notify"]
-    stderr = capsys.readouterr().err
-    assert "disk_pressure notification failed: ValueError:" in stderr
-    assert "[Errno 28] No space left on device" in stderr
-    assert len(stderr.splitlines()) == 1
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result["status"] == "check_error"
-    assert result["reason"] == "notify_failed"
-    assert result["counters"]["notify_failed"] == 1
-    assert result["counters"]["changed"] == 1
-
-
-def test_disk_pressure_persistent_pressure_after_blocked_owner_is_error(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    result_path, context_path, _captured, _events, _notifications = (
-        _prepare_disk_pressure(
-            monkeypatch,
-            tmp_path,
-            available_after_bytes=2 * 1024**3,
-            owners=(
-                {
-                    "owner": "managed_tmp_reaper",
-                    "status": "blocked",
-                    "changed": False,
-                },
-            ),
-        )
-    )
-
-    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
 
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result["status"] == "check_error"
-    assert result["reason"] == "recovery_blocked"
-    assert result["counters"]["blocked"] == 1
-
-
-def test_disk_pressure_changed_owner_is_ok_and_space_ok_is_noop(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    result_path, context_path, _captured, _events, _notifications = (
-        _prepare_disk_pressure(
-            monkeypatch,
-            tmp_path,
-            owners=(
-                {
-                    "owner": "managed_tmp_reaper",
-                    "status": "success",
-                    "changed": True,
-                },
-            ),
-        )
-    )
-
-    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
-
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result["status"] == "ok"
-    assert result["counters"]["changed"] == 1
-
-    result_path, context_path, _captured, events, notifications = (
-        _prepare_disk_pressure(
-            monkeypatch,
-            tmp_path / "space-ok",
-            managed_free_bytes=80 * 1024**3,
-            home_free_bytes=80 * 1024**3,
-        )
-    )
-    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
-    no_pressure = json.loads(result_path.read_text(encoding="utf-8"))
-    assert no_pressure["status"] == "no_op"
-    assert no_pressure["reason"] == "space_ok"
-    assert events == []
-    assert notifications == []
+    assert called == []
+    assert result["status"] == "no_op"
+    assert result["reason"] == "nothing_stale"

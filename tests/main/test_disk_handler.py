@@ -10,6 +10,7 @@ from sase.core.disk_footprint_models import DiskFootprintReport
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
 from sase.main.disk_handler import _exit_code
+from sase.main.disk_handler import _handle_reap
 from sase.main.disk_handler import _print_disk_report
 from sase.main.parser import create_parser, default_list_delegation_notice
 
@@ -102,6 +103,25 @@ def test_print_disk_report_renders_unmeasured_and_lower_bound(
     assert "0 B" not in output
     assert "1 owner unmeasured" in output
     assert "≥2.0 KiB attributed" in output
+
+
+def test_handle_reap_does_not_collect_inventory(monkeypatch, capsys) -> None:
+    called: list[str] = []
+
+    def boom() -> object:
+        called.append("inventory")
+        raise RuntimeError("inventory must not run")
+
+    monkeypatch.setattr("sase.main.disk_handler.collect_disk_footprint", boom)
+    monkeypatch.setattr(
+        "sase.main.disk_handler.run_disk_reap",
+        lambda **_kwargs: DiskReapResult(apply=False, project=None, steps=()),
+    )
+    args = argparse.Namespace(apply=False, json=True, project=None)
+
+    assert _handle_reap(args) == 0
+    assert called == []
+    assert '"apply": false' in capsys.readouterr().out
 
 
 def test_reap_exit_code_fails_for_nonzero_owner_exit() -> None:

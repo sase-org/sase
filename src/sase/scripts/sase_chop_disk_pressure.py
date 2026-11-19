@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import os
 import shutil
+from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
@@ -18,15 +20,33 @@ from sase.core.disk_pressure import (
     classify_disk_pressure,
     collect_filesystem_observations,
 )
+from sase.core.disk_pressure_recovery import (
+    INVENTORY_TIMEOUT_SECONDS,
+    PRESSURE_NOTICE_SENDER,
+    build_escalation_notes,
+    build_pressure_notes,
+    collect_inventory_fail_open,
+    end_all_episodes,
+    end_inactive_episodes,
+    escalation_plus_one_note,
+    filesystem_id,
+    pressure_escalation_key,
+    pressure_notice_key,
+    pressure_plus_one_note,
+    start_or_continue_episode,
+)
 from sase.core.paths import managed_tmpdir_root, sase_home
-from sase.notifications.senders import notify_workflow_complete
+from sase.core.time import get_timezone
+from sase.notifications.models import Notification, normalize_notification_tags
+from sase.notifications.store import upsert_notification
 
 
 @builtin_chop("disk_pressure")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
+    home = sase_home()
     targets = (
         {"label": "managed_tmp", "role": "owner", "path": str(managed_tmpdir_root())},
-        {"label": "sase_home", "role": "owner", "path": str(sase_home())},
+        {"label": "sase_home", "role": "owner", "path": str(home)},
     )
     observations = collect_filesystem_observations(
         targets,
@@ -40,6 +60,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     )
     free_percent = float(pressure_row["free_percent"])
     if not initial_pressure["pressure_active"]:
+        end_all_episodes(home)
         return runtime.emit_summary(
             {
                 "status": 0,
@@ -55,22 +76,6 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             reason="space_ok",
         )
 
-    report = collect_disk_footprint()
-    pressure = classify_disk_pressure(
-        observations,
-        owner_rows=(row.to_json_dict() for row in report.rows),
-    )
-    pressure_row = _worst_pressure_row(pressure["observations"])
-    managed_tmp_row = _pressure_row_for_label(
-        pressure["observations"],
-        "managed_tmp",
-    )
-    top_rows = tuple(pressure["top_owners"])
-    for row in top_rows:
-        runtime.log.info(
-            "disk_pressure owner: "
-            f"{row['owner']} {format_bytes(int(row['size_bytes']))} {row['path']}"
-        )
     # Artifact run cleanup is intentionally excluded from unattended pressure
     # cleanup; that owner is currently preview-only and apply fails closed.
     reap_result = run_disk_reap(
@@ -85,6 +90,28 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             managed_tmp_row["warn_threshold_bytes_effective"]
         ),
     )
+    inventory = collect_inventory_fail_open(
+        collect_disk_footprint,
+        timeout_seconds=INVENTORY_TIMEOUT_SECONDS,
+    )
+    report = inventory.report
+    pressure = initial_pressure
+    if report is not None:
+        pressure = classify_disk_pressure(
+            observations,
+            owner_rows=(row.to_json_dict() for row in report.rows),
+        )
+        pressure_row = _worst_pressure_row(pressure["observations"])
+        managed_tmp_row = _pressure_row_for_label(
+            pressure["observations"],
+            "managed_tmp",
+        )
+    top_rows = tuple(pressure["top_owners"])
+    for row in top_rows:
+        runtime.log.info(
+            "disk_pressure owner: "
+            f"{row['owner']} {format_bytes(int(row['size_bytes']))} {row['path']}"
+        )
     cleanup = reap_result.cleanup_outcome
     owners = tuple(cleanup.get("owners", ()))
     changed_owners = tuple(
@@ -119,52 +146,37 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     pressure_persists = (
         available_after_bytes is None or available_after_bytes < recovery_target_bytes
     )
-    notification_failed = 0
-    details = [
-        (
-            "SASE disk pressure: "
-            f"{format_bytes(int(pressure_row['free_bytes']))} free "
-            f"on {pressure_row['label']} ({free_percent:.1f}%)"
-        ),
-        "Top owners: "
-        + (
-            "; ".join(
-                f"{row['owner']} {format_bytes(int(row['size_bytes']))}"
-                for row in top_rows
-            )
-            if top_rows
-            else "none reported"
-        ),
-        "Reap changed owners: " + _owner_list(changed_owners),
-        "Reap failed owners: " + _owner_list(failed_owners),
-        "Reap blocked/incomplete owners: "
-        + _owner_list((*blocked_owners, *incomplete_owners)),
-        f"Reclaimed: {format_bytes(reclaimed_bytes)}",
-        "Available after: "
-        + (
-            format_bytes(available_after_bytes)
-            if available_after_bytes is not None
-            else "unknown"
-        ),
-        f"Recovery target: {format_bytes(recovery_target_bytes)}",
-    ]
-    unattributed_lead = _unattributed_lead_line(report, top_rows)
-    if unattributed_lead is not None:
-        details.insert(0, unattributed_lead)
-    try:
-        notify_workflow_complete(
-            "disk_pressure",
-            None,
-            False,
-            details,
-            tags=["disk", "housekeeping"],
-        )
-    except Exception as exc:  # noqa: BLE001 - reclaim already ran; report notify loss.
-        notification_failed = 1
-        runtime.log.warning(
-            f"disk_pressure notification failed: {type(exc).__name__}: "
-            f"{_bounded_error(exc)}"
-        )
+    missed_target = (
+        available_after_bytes is not None
+        and available_after_bytes < recovery_target_bytes
+    )
+    fs_id = filesystem_id(pressure_row)
+    episode_id = start_or_continue_episode(home, fs_id)
+    pressured = {
+        filesystem_id(row)
+        for row in pressure["observations"]
+        if str(row.get("status") or "OK") != "OK"
+    }
+    end_inactive_episodes(home, pressured)
+    notification_failed = _publish_notices(
+        runtime,
+        pressure_row=pressure_row,
+        free_percent=free_percent,
+        reclaimed_bytes=reclaimed_bytes,
+        available_after_bytes=available_after_bytes,
+        recovery_target_bytes=recovery_target_bytes,
+        top_rows=top_rows,
+        report=report,
+        unavailable_reason=inventory.unavailable_reason,
+        changed_owners=changed_owners,
+        failed_owners=failed_owners,
+        blocked_owners=blocked_owners,
+        incomplete_owners=incomplete_owners,
+        owners=owners,
+        fs_id=fs_id,
+        episode_id=episode_id,
+        missed_target=missed_target,
+    )
 
     failed = len(failed_owners)
     blocked_or_incomplete = bool(blocked_owners or incomplete_owners)
@@ -182,6 +194,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     elif pressure_persists and blocked_or_incomplete:
         check_error = True
         reason = "recovery_blocked"
+    elif missed_target:
+        check_error = True
+        reason = "recovery_missed"
     elif not changed_owners:
         reason = "nothing_eligible"
 
@@ -217,6 +232,107 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     return result
 
 
+def _publish_notices(
+    runtime: BuiltinChopRuntime,
+    *,
+    pressure_row: dict[str, Any],
+    free_percent: float,
+    reclaimed_bytes: int,
+    available_after_bytes: int | None,
+    recovery_target_bytes: int,
+    top_rows: tuple[dict[str, Any], ...],
+    report: Any,
+    unavailable_reason: str | None,
+    changed_owners: tuple[str, ...],
+    failed_owners: tuple[str, ...],
+    blocked_owners: tuple[str, ...],
+    incomplete_owners: tuple[str, ...],
+    owners: tuple[dict[str, Any], ...],
+    fs_id: str,
+    episode_id: str,
+    missed_target: bool,
+) -> int:
+    notification_failed = 0
+    details = build_pressure_notes(
+        pressure_row=pressure_row,
+        free_percent=free_percent,
+        reclaimed_bytes=reclaimed_bytes,
+        available_after_bytes=available_after_bytes,
+        recovery_target_bytes=recovery_target_bytes,
+        top_rows=top_rows,
+        report=report,
+        unavailable_reason=unavailable_reason,
+        changed_owners=changed_owners,
+        failed_owners=failed_owners,
+        blocked_owners=blocked_owners,
+        incomplete_owners=incomplete_owners,
+    )
+    if not _upsert_notice(
+        runtime,
+        notes=details,
+        dedup_key=pressure_notice_key(fs_id, episode_id),
+        plus_one_note=pressure_plus_one_note(
+            free_bytes=int(pressure_row["free_bytes"]),
+            reclaimed_bytes=reclaimed_bytes,
+        ),
+        tags=["disk", "housekeeping"],
+    ):
+        notification_failed = 1
+    if missed_target and available_after_bytes is not None:
+        escalation = build_escalation_notes(
+            pressure_row=pressure_row,
+            reclaimed_bytes=reclaimed_bytes,
+            available_after_bytes=available_after_bytes,
+            recovery_target_bytes=recovery_target_bytes,
+            owners=owners,
+            top_rows=top_rows,
+            report=report,
+        )
+        if not _upsert_notice(
+            runtime,
+            notes=escalation,
+            dedup_key=pressure_escalation_key(fs_id, episode_id),
+            plus_one_note=escalation_plus_one_note(
+                available_after_bytes=available_after_bytes,
+                recovery_target_bytes=recovery_target_bytes,
+            ),
+            tags=["disk", "housekeeping", "escalation"],
+        ):
+            notification_failed = 1
+    return notification_failed
+
+
+def _upsert_notice(
+    runtime: BuiltinChopRuntime,
+    *,
+    notes: list[str],
+    dedup_key: str,
+    plus_one_note: str,
+    tags: list[str],
+) -> bool:
+    timestamp = datetime.now(get_timezone()).isoformat()
+    try:
+        upsert_notification(
+            Notification(
+                id=str(uuid4()),
+                timestamp=timestamp,
+                sender=PRESSURE_NOTICE_SENDER,
+                notes=notes,
+                tags=normalize_notification_tags(tags),
+                dedup_key=dedup_key,
+            ),
+            plus_one_note=plus_one_note,
+            plus_one_timestamp=timestamp,
+        )
+    except Exception as exc:  # noqa: BLE001 - reclaim already ran; report notify loss.
+        runtime.log.warning(
+            f"disk_pressure notification failed: {type(exc).__name__}: "
+            f"{_bounded_error(exc)}"
+        )
+        return False
+    return True
+
+
 def _statvfs_available_bytes(path: str) -> int:
     """Measure available bytes without rescanning the disk footprint."""
 
@@ -231,43 +347,6 @@ def _owner_list(owners: tuple[str, ...]) -> str:
 def _bounded_error(exc: Exception) -> str:
     detail = " ".join(str(exc).split())
     return detail[:300] + ("…" if len(detail) > 300 else "")
-
-
-def _unattributed_lead_line(
-    report: Any,
-    top_rows: tuple[dict[str, Any], ...],
-) -> str | None:
-    """Lead the pressure notification with unattributed bytes when dominant.
-
-    Returns a lead sentence when the inventory's ``unattributed`` row
-    exceeds the largest attributed owner, otherwise ``None``.
-    """
-
-    unattributed_bytes = 0
-    for row in report.rows:
-        payload = row.to_json_dict() if hasattr(row, "to_json_dict") else row
-        if payload.get("owner") != "unattributed":
-            continue
-        size = payload.get("exclusive_size_bytes")
-        if size is None:
-            size = payload.get("size_bytes") or 0
-        unattributed_bytes = max(unattributed_bytes, int(size))
-    if unattributed_bytes <= 0:
-        return None
-    largest_attributed = max(
-        (
-            int(row["size_bytes"])
-            for row in top_rows
-            if row.get("owner") != "unattributed"
-        ),
-        default=0,
-    )
-    if unattributed_bytes <= largest_attributed:
-        return None
-    return (
-        f"Unattributed {format_bytes(unattributed_bytes)} on the SASE_HOME "
-        "filesystem falls outside every inventoried owner; see sase disk list"
-    )
 
 
 def _worst_pressure_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
