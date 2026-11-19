@@ -15,6 +15,7 @@ from sase.axe.state import (
     CycleResult,
     append_error,
     read_cycle_result,
+    read_error_counts,
     read_errors,
     read_last_error_digest_ts,
     read_metrics,
@@ -133,7 +134,13 @@ def test_concurrent_error_appends_are_atomic_and_lossless(
     temp_state_dir: Path,
 ) -> None:
     with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
-        append_error({"job": "seed", "error": "seed"})
+        append_error(
+            {
+                "job": "seed",
+                "error": "seed",
+                "failure_signature": "seed-signature",
+            }
+        )
         context = multiprocessing.get_context("spawn")
         workers = [
             context.Process(
@@ -163,11 +170,21 @@ def test_concurrent_error_appends_are_atomic_and_lossless(
         expected = {
             f"{worker_id}-{error_id}" for worker_id in range(4) for error_id in range(8)
         }
-        assert {
-            error["error"] for error in errors if error["job"] == "concurrent"
-        } == expected
-        assert len(errors) == len(expected) + 1
+        # The signature-fair ring keeps only the newest samples of the one
+        # loud concurrent signature; exact totals live in the counter.
+        concurrent = [error for error in errors if error["job"] == "concurrent"]
+        assert len(concurrent) == 5
+        assert {error["job"] for error in errors if error["error"] == "seed"} == {
+            "seed"
+        }
         assert invalid == []
+        counter = read_error_counts()
+        assert counter is not None
+        assert counter["total"] == len(expected) + 1
+        assert (
+            sum(group["count"] for group in counter["groups"].values())
+            == counter["total"]
+        )
 
 
 def test_read_errors_returns_empty_list_when_missing(temp_state_dir: Path) -> None:

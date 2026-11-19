@@ -64,8 +64,11 @@ notification modal. For failed script subprocesses, the digest includes the job 
 exit code, source log path, and a bounded subprocess output excerpt captured at failure
 time. The excerpt is redacted, stripped of terminal control sequences, and retained in
 `recent_errors.json`, so the digest remains useful even after per-run logs are pruned.
-Silent, missing, unreadable, malformed, and truncated output are called out explicitly
-instead of being reported as a Python traceback.
+The ring keeps at most 100 entries with at most 5 samples per error signature, so one
+loud cause cannot evict rare ones; exact per-cause totals live in the durable
+`~/.sase/axe/error_counts.json` interval counter next to it. Silent, missing,
+unreadable, malformed, and truncated output are called out explicitly instead of being
+reported as a Python traceback.
 
 The `notification_store_compact` job bounds `~/.sase/notifications/notifications.jsonl`
 by moving dismissed rows older than 3 days into `notifications-archive.jsonl`. Unread

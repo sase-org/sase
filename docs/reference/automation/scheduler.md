@@ -257,7 +257,8 @@ next step.
 │   └── runner_count                # Cross-process runner counter
 ├── error_digests/                   # Error digest files for ViewErrorReport
 │   └── digest_<timestamp>.txt      # Summarized error reports
-└── recent_errors.json              # Last 100 errors encountered
+├── recent_errors.json              # Last 100 error samples, capped per signature
+└── error_counts.json               # Durable exact per-cause interval totals
 ```
 
 ## Process Lifecycle
