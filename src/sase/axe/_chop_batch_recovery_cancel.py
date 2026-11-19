@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from sase.core.axe_chop_facade import (
+    CHOP_BATCH_SCHEMA_VERSION,
+    chop_batch_generation_matches,
+)
+
 from . import chop_batch_store
 from ._chop_batch_recovery_shared import (
     batch_clans,
@@ -17,7 +22,6 @@ from .chop_batch_store import (
     list_chop_batches_for_clan,
     retire_chop_batch,
 )
-from datetime import UTC
 
 
 def cancel_chop_batches_for_clan(
@@ -103,134 +107,22 @@ def _generation_matches(
 ) -> bool:
     """Return whether an explicit kill targets this batch's clan generation.
 
-    Only evidence recorded for the requested *clan* may satisfy or veto the
-    match. Generations recorded for other clans in a mixed-clan batch are
-    ignored, while selecting either constituent clan still cancels the whole
-    batch when that clan's own generation matches. The shared Rust policy is
-    authoritative when available; the Python below mirrors it for older pins
-    and still refuses an older kill when the selected clan has no recorded
-    generation.
+    The shared Rust ``chop_batch_generation_matches`` policy is the single
+    authority. Only evidence recorded for the requested *clan* may satisfy
+    or veto the match. Generations recorded for other clans in a mixed-clan
+    batch are ignored, while selecting either constituent clan still cancels
+    the whole batch when that clan's own generation matches.
     """
-    try:
-        from sase.core.axe_chop_facade import (
-            CHOP_BATCH_SCHEMA_VERSION,
-            chop_batch_generation_matches,
+    return bool(
+        chop_batch_generation_matches(
+            {
+                "schema_version": CHOP_BATCH_SCHEMA_VERSION,
+                "manifest": dict(manifest),
+                "clan": clan,
+                "generation": generation,
+            }
         )
-
-        rust_matched = bool(
-            chop_batch_generation_matches(
-                {
-                    "schema_version": CHOP_BATCH_SCHEMA_VERSION,
-                    "manifest": dict(manifest),
-                    "clan": clan,
-                    "generation": generation,
-                }
-            )
-        )
-    except Exception:
-        rust_matched = None
-    if rust_matched is False:
-        return False
-    if rust_matched is True:
-        # Older pins match unrecorded generations as True. Keep the timestamp
-        # veto so an older kill cannot cancel a newer batch.
-        return not _unrecorded_older_generation(manifest, clan, generation)
-    if not generation:
-        return True
-    scoped_generations = _scoped_clan_generations(manifest, clan)
-    if scoped_generations:
-        if generation not in scoped_generations:
-            # A reused clan name in another generation must not cancel this batch,
-            # and a wrong generation that happens to belong to another clan must
-            # not cancel the selected clan either.
-            return False
-        return True
-    return not _older_generation_predates_batch(manifest, generation)
-
-
-def _scoped_clan_generations(manifest: Mapping[str, Any], clan: str) -> set[str]:
-    members = (
-        manifest.get("members") if isinstance(manifest.get("members"), list) else []
     )
-    scoped_generations: set[str] = set()
-    for item in members or []:
-        if not isinstance(item, Mapping):
-            continue
-        item_clan = item.get("clan")
-        if isinstance(item_clan, str) and item_clan and item_clan != clan:
-            continue
-        item_generation = item.get("clan_generation")
-        if isinstance(item_generation, str) and item_generation:
-            # Members without a clan field are legacy single-clan evidence and
-            # count toward the requested clan; members of another clan are
-            # skipped above so they can neither satisfy nor veto the match.
-            scoped_generations.add(item_generation)
-    if scoped_generations:
-        return scoped_generations
-    top_clan = manifest.get("clan", manifest.get("clan_name"))
-    top_generation = manifest.get("clan_generation")
-    if isinstance(top_generation, str) and top_generation:
-        if isinstance(top_clan, str) and top_clan and top_clan != clan:
-            return scoped_generations
-        if not any(
-            isinstance(item, Mapping)
-            and isinstance(item.get("clan"), str)
-            and item.get("clan")
-            for item in members or []
-        ):
-            scoped_generations.add(top_generation)
-    return scoped_generations
-
-
-def _unrecorded_older_generation(
-    manifest: Mapping[str, Any], clan: str, generation: str
-) -> bool:
-    if _scoped_clan_generations(manifest, clan):
-        return False
-    return _older_generation_predates_batch(manifest, generation)
-
-
-def _older_generation_predates_batch(
-    manifest: Mapping[str, Any], generation: str
-) -> bool:
-    batch_started = _batch_started_at(manifest)
-    generation_started = _generation_started_at(generation)
-    return (
-        batch_started is not None
-        and generation_started is not None
-        and generation_started < batch_started
-    )
-
-
-def _batch_started_at(manifest: Mapping[str, Any]) -> Any:
-    from datetime import datetime, timezone
-
-    for value in (
-        manifest.get("created_at"),
-        (manifest.get("run") or {}).get("run_started_at")
-        if isinstance(manifest.get("run"), Mapping)
-        else None,
-    ):
-        if not isinstance(value, str) or not value:
-            continue
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
-        except ValueError:
-            continue
-    return None
-
-
-def _generation_started_at(generation: str) -> Any:
-    from datetime import datetime, timezone
-
-    digits = "".join(character for character in generation if character.isdigit())
-    if len(digits) < 14:
-        return None
-    try:
-        return datetime.strptime(digits[:14], "%Y%m%d%H%M%S").replace(tzinfo=UTC)
-    except ValueError:
-        return None
 
 
 def _cancel_linked_typed_bundle(manifest: Mapping[str, Any], *, reason: str) -> None:

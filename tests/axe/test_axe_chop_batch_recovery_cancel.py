@@ -258,9 +258,7 @@ def test_cancel_scoped_to_requested_clan_generation(
 def test_rust_generation_match_binding_scopes_to_clan(
     isolated_home: Path,
 ) -> None:
-    sase_core_rs = pytest.importorskip("sase_core_rs")
-    if not hasattr(sase_core_rs, "chop_batch_generation_matches"):
-        pytest.skip("core binding not yet built; fallback covers old pins")
+    pytest.importorskip("sase_core_rs")
     from sase.core.axe_chop_facade import (
         CHOP_BATCH_SCHEMA_VERSION,
         chop_batch_generation_matches,
@@ -324,9 +322,7 @@ def test_rust_generation_match_binding_scopes_to_clan(
 def test_rust_generation_match_binding_rejects_older_unrecorded_generation(
     isolated_home: Path,
 ) -> None:
-    sase_core_rs = pytest.importorskip("sase_core_rs")
-    if not hasattr(sase_core_rs, "chop_batch_generation_matches"):
-        pytest.skip("core binding not yet built; fallback covers old pins")
+    pytest.importorskip("sase_core_rs")
     from sase.core.axe_chop_facade import (
         CHOP_BATCH_SCHEMA_VERSION,
         chop_batch_generation_matches,
