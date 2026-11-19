@@ -35,7 +35,6 @@ __all__ = [
     "AGENT_RELINK_FIELDS",
     "DELTA_ISOLATED_FIELDS",
     "adopt_agents",
-    "agent_share_fingerprint",
     "copy_agent_graph",
     "copy_agent_rows_delta_isolated",
     "copy_agent_rows_relinked",
@@ -254,57 +253,6 @@ def copy_agent_rows_delta_isolated(
                     },
                 )
     return [owned[id(agent)] for agent in agents]
-
-
-def _fingerprint_value(value: Any) -> Any:
-    """Convert *value* to a cycle-safe comparable fingerprint element.
-
-    ``Agent`` references become identity tuples so working copies (which
-    point at other working copies) compare equal to live rows (which point
-    at live rows) when they describe the same roster. All other containers
-    recurse structurally; leaf values compare by ``==``.
-    """
-    if isinstance(value, Agent):
-        return ("agent", value.identity)
-    if isinstance(value, list):
-        return ("list", tuple(_fingerprint_value(item) for item in value))
-    if isinstance(value, tuple):
-        return ("tuple", tuple(_fingerprint_value(item) for item in value))
-    if isinstance(value, set):
-        try:
-            return ("set", tuple(sorted(_fingerprint_value(item) for item in value)))
-        except TypeError:
-            return ("set", tuple(_fingerprint_value(item) for item in value))
-    if isinstance(value, dict):
-        try:
-            items = sorted(value.items(), key=lambda kv: repr(kv[0]))
-        except TypeError:
-            items = list(value.items())
-        return (
-            "dict",
-            tuple((key, _fingerprint_value(item)) for key, item in items),
-        )
-    try:
-        hash(value)
-        return value
-    except TypeError:
-        try:
-            return ("repr", repr(value))
-        except Exception:
-            return ("type", type(value).__name__)
-
-
-def agent_share_fingerprint(agent: Agent) -> tuple[Any, ...]:
-    """Return a cycle-safe presentation fingerprint for share-back decisions.
-
-    Covers every dataclass field so an untouched row's working copy compares
-    equal to its live row even though relationship pointers address different
-    (but identity-equivalent) objects. Only rows whose fingerprint matches
-    the live row may be shared in the published roster.
-    """
-    return tuple(
-        _fingerprint_value(getattr(agent, field.name)) for field in fields(agent)
-    )
 
 
 def adopt_agents(

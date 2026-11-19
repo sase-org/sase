@@ -641,7 +641,7 @@ async def test_run_suppresses_pending_when_caches_are_fresh(
 
 
 @pytest.mark.asyncio
-async def test_run_retries_pending_request_after_roster_generation_changes(
+async def test_pending_request_runs_followup_scan_with_positive_timer_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _FakeApp()
@@ -655,16 +655,40 @@ async def test_run_retries_pending_request_after_roster_generation_changes(
         bead_display_agents=(agent,),
         roster_generation=0,
     )
+
+    candidate_refresh = _AgentBeadWarmupCandidates(
+        bead_display_agents=(agent,),
+        roster_generation=1,
+    )
+    app._bead_warmup_candidates = lambda **_: candidate_refresh  # type: ignore[method-assign]
+    spawned: list[bool] = []
+    app._spawn_bead_confirmation_warmup_task = lambda: spawned.append(  # type: ignore[method-assign]
+        True
+    )
+    worker_calls = 0
+
+    def warmup(_candidates: object) -> _AgentBeadWarmupResults:
+        nonlocal worker_calls
+        worker_calls += 1
+        return _AgentBeadWarmupResults({}, set())
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
-        lambda _candidates: _AgentBeadWarmupResults({}, set()),
+        warmup,
     )
 
     await app._run_bead_confirmation_warmup()
 
     assert app._timer_calls
-    assert app._timer_calls[-1][0] == 0.0
+    assert app._timer_calls[-1][0] == 0.05
+    assert all(delay > 0.0 for delay, _ in app._timer_calls)
     assert callable(app._timer_calls[-1][1])
+
+    app._timer_calls[-1][1]()
+    assert spawned == [True]
+    assert app._bead_warmup_scan_scheduled is True
+    await app._run_bead_confirmation_warmup()
+    assert worker_calls == 2
 
 
 @pytest.mark.asyncio

@@ -315,7 +315,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 getattr(self, "current_tab", "agents") == "agents"
                 or self._bead_warmup_forced_projects_pending()
             ):
-                delay = 1.0 if failed else (0.25 if retry_sweep else 0.0)
+                delay = max(0.05, 1.0 if failed else (0.25 if retry_sweep else 0.0))
                 self.set_timer(  # type: ignore[attr-defined]
                     delay,
                     lambda: self._schedule_bead_confirmation_warmup(

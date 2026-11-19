@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
+from ...models.agent_content_search import AgentContentSearchIndex
 from ...models._agent_loader_artifacts import slow_loader_load_state_fields
 from . import _loading_helpers
 from ._loading_compute import (
@@ -18,6 +19,7 @@ from ._loading_graph import (
     classify_exact_delta_fast_path,
     share_back_boundary_fast,
 )
+from ._loading_compute_types import PreparedApplyBoundary, PreparedApplySnapshot
 from ._loading_state import AgentLoadingStateMixin
 from ._refresh_trace import (
     classify_agents_data_cost,
@@ -26,6 +28,52 @@ from ._refresh_trace import (
 )
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _FinalizedDeltaBoundary:
+    """Worker result for the finalize and exact-delta share-back step."""
+
+    boundary: PreparedApplyBoundary
+    fast_path: ExactDeltaFastPath
+    shared_before: int
+    shared_live: int
+    share_back_seconds: float
+
+
+def _finalize_delta_boundary_worker(
+    boundary: PreparedApplyBoundary,
+    snapshot: PreparedApplySnapshot,
+    *,
+    content_index: AgentContentSearchIndex | None,
+) -> _FinalizedDeltaBoundary:
+    """Finalize and share back in one worker step before UI-thread apply."""
+    boundary = attach_finalize_plan_to_boundary(
+        boundary,
+        snapshot,
+        content_index=content_index,
+    )
+    fast_path = classify_exact_delta_fast_path(snapshot)
+    shared_before = len(boundary.fold.unfiltered_agents)
+    shared_live = 0
+    share_back_seconds = 0.0
+    if fast_path.eligible:
+        share_back_start = time.perf_counter()
+        boundary = share_back_boundary_fast(boundary, snapshot)
+        share_back_seconds = time.perf_counter() - share_back_start
+        live_ids = {id(agent) for agent in snapshot.cached_agents_with_children}
+        live_ids.update(id(agent) for agent in snapshot.capacity_agents_with_children)
+        live_ids.update(id(agent) for agent in snapshot.fleet_rows)
+        shared_live = sum(
+            1 for agent in boundary.fold.unfiltered_agents if id(agent) in live_ids
+        )
+    return _FinalizedDeltaBoundary(
+        boundary=boundary,
+        fast_path=fast_path,
+        shared_before=shared_before,
+        shared_live=shared_live,
+        share_back_seconds=share_back_seconds,
+    )
 
 
 class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
@@ -135,33 +183,20 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
         content_index = await self._prepare_agent_content_search_index_async(
             boundary.fold.local_unfiltered_agents
         )
-        boundary = await asyncio.to_thread(
-            attach_finalize_plan_to_boundary,
+        finalized = await asyncio.to_thread(
+            _finalize_delta_boundary_worker,
             boundary,
             worker_snapshot,
             content_index=content_index,
         )
-        # Exact-delta fast path: share back untouched presentation rows by
-        # fingerprint on the UI thread with no await before apply, so the
-        # published roster reuses live objects for unrelated components and
-        # only retained new objects scale with the affected closure. The
-        # worker pipeline already ran on isolated copies, so live rows are
-        # unchanged until this publish; ineligible loads keep owned copies.
-        fast_path = classify_exact_delta_fast_path(worker_snapshot)
-        assert isinstance(fast_path, ExactDeltaFastPath)
+        boundary = finalized.boundary
+        fast_path = finalized.fast_path
         if fast_path.eligible:
-            shared_before = len(boundary.fold.unfiltered_agents)
-            boundary = share_back_boundary_fast(boundary, worker_snapshot)
-            live_ids = {
-                id(agent) for agent in worker_snapshot.cached_agents_with_children
-            }
-            live_ids |= {
-                id(agent) for agent in worker_snapshot.capacity_agents_with_children
-            }
-            live_ids |= {id(agent) for agent in worker_snapshot.fleet_rows}
-            shared_live = sum(
-                1 for agent in boundary.fold.unfiltered_agents if id(agent) in live_ids
-            )
+            ui_share_back_start = time.perf_counter()
+            shared_before = finalized.shared_before
+            shared_live = finalized.shared_live
+            retained_new = shared_before - shared_live
+            share_back_ui_seconds = time.perf_counter() - ui_share_back_start
             from ...util.trace import tui_trace
 
             with tui_trace(
@@ -169,7 +204,9 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
                 reason=fast_path.reason,
                 roster=shared_before,
                 shared_live=shared_live,
-                retained_new=shared_before - shared_live,
+                retained_new=retained_new,
+                share_back_worker_ms=finalized.share_back_seconds * 1000.0,
+                share_back_ui_ms=share_back_ui_seconds * 1000.0,
             ):
                 pass
             record_agents_refresh_trace(

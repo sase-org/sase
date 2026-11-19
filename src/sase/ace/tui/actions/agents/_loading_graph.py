@@ -15,11 +15,11 @@ of them.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 
 from ...models._agent_graph import (
+    AGENT_RELINK_FIELDS,
     adopt_agents,
-    agent_share_fingerprint,
     copy_agent_graph,
     copy_agent_rows_delta_isolated,
 )
@@ -286,123 +286,255 @@ def own_exact_delta_snapshot_fast(
     return owned, memo, decision
 
 
-def _share_back_exact_delta_lists(
-    working: list[Agent],
-    live: list[Agent] | tuple[Agent, ...],
-) -> list[Agent]:
-    """Share back live rows whose fingerprints match the worked copies.
+_AGENT_NON_RELINK_FIELDS = tuple(
+    field.name for field in fields(Agent) if field.name not in AGENT_RELINK_FIELDS
+)
 
-    For each worked row, finds the live row with the same identity and
-    reuses the live object when every dataclass field matches modulo
-    ``Agent``-reference relinking (working copies point at working copies,
-    live rows at live rows). Changed rows (scalar updates, terminal
-    transitions, added children, deletions already absent, remirrors,
-    requeued waiters, reprojected containers) keep their worked copies.
-    Unrelated components therefore preserve object identity in the
-    published roster while mutated rows stay owned.
-    """
-    live_by_identity: dict[object, list[Agent]] = {}
-    for agent in live:
-        live_by_identity.setdefault(agent.identity, []).append(agent)
-    live_fingerprints: dict[int, tuple[object, ...]] = {}
-    shared: list[Agent] = []
-    for agent in working:
-        candidates = live_by_identity.get(agent.identity, [])
-        if not candidates:
-            shared.append(agent)
+
+def _same_share_back_fields(working: Agent, live: Agent) -> bool:
+    """Compare non-link fields, using shallow-copy identity as the fast path."""
+    for name in _AGENT_NON_RELINK_FIELDS:
+        working_value = getattr(working, name)
+        live_value = getattr(live, name)
+        if working_value is live_value:
             continue
-        work_fp = agent_share_fingerprint(agent)
-        match: Agent | None = None
-        for live_agent in candidates:
-            # Visible, capacity, and fleet rosters alias the same row object,
-            # so one identity routinely maps to the same object twice. Share
-            # the first live row whose fingerprint matches the worked copy.
-            live_key = id(live_agent)
-            live_fp = live_fingerprints.get(live_key)
-            if live_fp is None:
-                live_fp = agent_share_fingerprint(live_agent)
-                live_fingerprints[live_key] = live_fp
-            if work_fp == live_fp:
-                match = live_agent
-                break
-        shared.append(match if match is not None else agent)
-    return shared
+        try:
+            if working_value != live_value:
+                return False
+        except Exception:  # noqa: BLE001 - an incomparable field cannot be shared.
+            return False
+    return True
+
+
+def _agent_relink_pairs(
+    working_value: object,
+    live_value: object,
+) -> list[tuple[Agent, Agent]] | None:
+    """Return positional Agent-reference pairs, or None for a shape mismatch."""
+    if isinstance(working_value, Agent) or isinstance(live_value, Agent):
+        if isinstance(working_value, Agent) and isinstance(live_value, Agent):
+            return [(working_value, live_value)]
+        return None
+    if isinstance(working_value, (list, tuple)) or isinstance(
+        live_value, (list, tuple)
+    ):
+        if not isinstance(working_value, (list, tuple)) or not isinstance(
+            live_value, (list, tuple)
+        ):
+            return None
+        if len(working_value) != len(live_value):
+            return None
+        pairs: list[tuple[Agent, Agent]] = []
+        for working_item, live_item in zip(working_value, live_value, strict=True):
+            if isinstance(working_item, Agent) or isinstance(live_item, Agent):
+                if not isinstance(working_item, Agent) or not isinstance(
+                    live_item, Agent
+                ):
+                    return None
+                pairs.append((working_item, live_item))
+            elif working_item is not live_item:
+                try:
+                    if working_item != live_item:
+                        return None
+                except Exception:  # noqa: BLE001 - an incomparable value differs.
+                    return None
+        return pairs
+    if working_value is live_value:
+        return []
+    try:
+        return [] if working_value == live_value else None
+    except Exception:  # noqa: BLE001 - an incomparable value differs.
+        return None
+
+
+def _boundary_agent_lists(boundary: PreparedApplyBoundary) -> list[list[Agent]]:
+    """Return every Agent list whose rows are published from this boundary."""
+    lists = [
+        boundary.prep.filtered_agents,
+        boundary.prep.hideable_agents,
+        boundary.prep.capacity_agents,
+        boundary.prep.dismissed_agent_objects,
+        boundary.fold.unfiltered_agents,
+        boundary.fold.visible_agents,
+        boundary.fold.local_unfiltered_agents,
+        boundary.fold.local_visible_agents,
+    ]
+    if boundary.finalize is not None:
+        lists.extend(
+            (
+                boundary.finalize.query.filtered_agents,
+                boundary.finalize.agents_query_result,
+                boundary.finalize.scoped_agents,
+            )
+        )
+    return lists
+
+
+def _reachable_boundary_agents(boundary_lists: list[list[Agent]]) -> dict[int, Agent]:
+    """Collect each row published directly or through a relink field once."""
+    rows: dict[int, Agent] = {}
+    pending = [agent for agents in boundary_lists for agent in agents]
+    while pending:
+        agent = pending.pop()
+        key = id(agent)
+        if key in rows:
+            continue
+        rows[key] = agent
+        for name in AGENT_RELINK_FIELDS:
+            value = getattr(agent, name)
+            if isinstance(value, Agent):
+                pending.append(value)
+            elif isinstance(value, (list, tuple)):
+                pending.extend(item for item in value if isinstance(item, Agent))
+    return rows
 
 
 def share_back_boundary_fast(
     boundary: PreparedApplyBoundary,
     live_snapshot: PreparedApplySnapshot,
 ) -> PreparedApplyBoundary:
-    """Share back untouched rows on an exact-delta fast-path boundary.
+    """Share unchanged rows back while preserving aliases across the graph.
 
-    Replaces worked copies with live objects wherever fingerprints match,
-    across every published roster (prep, fold, and finalize query/scoped
-    lists) using one identity lookup so all rosters stay consistent. Only
-    runs when :func:`classify_exact_delta_fast_path` deems the live
-    snapshot eligible; every other load keeps its existing owned copies.
-    Call on the UI thread after finalize with no await before apply.
+    Each distinct worked row is compared once, then candidate sharing is
+    closed over ``AGENT_RELINK_FIELDS``. Rows that remain worker-owned have
+    their links rewritten through the final decision map, so no published
+    row can retain an orphaned worked copy. This runs in the final worker
+    step before the UI-thread apply seam.
     """
-    from dataclasses import replace as _replace
-
     if not classify_exact_delta_fast_path(live_snapshot).eligible:
         return boundary
-    live_union: list[Agent] = [
+
+    published_lists = _boundary_agent_lists(boundary)
+    working_rows = _reachable_boundary_agents(published_lists)
+    live_rows: dict[int, Agent] = {}
+    live_by_identity: dict[object, Agent] = {}
+    for agent in (
         *live_snapshot.cached_agents_with_children,
         *live_snapshot.capacity_agents_with_children,
         *live_snapshot.fleet_rows,
-    ]
+    ):
+        live_rows.setdefault(id(agent), agent)
+        live_by_identity.setdefault(agent.identity, agent)
+    keep_named_proc_copies = classify_cached_graph_needs(
+        live_snapshot
+    ).cached_named_procs
+
+    # Start optimistic: each row resolves to its one live identity match only
+    # when every non-link field is equal. Missing or changed rows resolve to
+    # themselves and cannot be accidentally shared through another list.
+    decisions: dict[int, Agent] = {}
+    for key, working_agent in working_rows.items():
+        if keep_named_proc_copies and working_agent.is_named_proc:
+            decisions[key] = working_agent
+            continue
+        live_agent = live_by_identity.get(working_agent.identity)
+        if live_agent is working_agent:
+            decisions[key] = working_agent
+        elif live_agent is not None and _same_share_back_fields(
+            working_agent, live_agent
+        ):
+            decisions[key] = live_agent
+        else:
+            decisions[key] = working_agent
+
+    # A row can be shared only while every link resolves to the exact object
+    # its live counterpart references. Record those dependencies once, then
+    # propagate any unshare decision through the reverse edges in linear time.
+    unshared: set[int] = set()
+    dependents: dict[int, set[int]] = {}
+    for source_key, working_agent in working_rows.items():
+        live_agent = decisions[source_key]
+        if live_agent is working_agent:
+            continue
+        for name in AGENT_RELINK_FIELDS:
+            pairs = _agent_relink_pairs(
+                getattr(working_agent, name), getattr(live_agent, name)
+            )
+            if pairs is None:
+                unshared.add(source_key)
+                break
+            for working_ref, live_ref in pairs:
+                target_key = id(working_ref)
+                if target_key not in decisions:
+                    if working_ref is not live_ref:
+                        unshared.add(source_key)
+                        break
+                    continue
+                target_decision = decisions[target_key]
+                if target_decision is not live_ref:
+                    unshared.add(source_key)
+                    break
+                if target_decision is not working_ref:
+                    dependents.setdefault(target_key, set()).add(source_key)
+            if source_key in unshared:
+                break
+
+    pending_unshare = list(unshared)
+    while pending_unshare:
+        target_key = pending_unshare.pop()
+        for source_key in dependents.get(target_key, ()):
+            if source_key not in unshared:
+                unshared.add(source_key)
+                pending_unshare.append(source_key)
+
+    for key in unshared:
+        decisions[key] = working_rows[key]
+
+    # Owned copies get fresh list containers and links to the objects chosen
+    # above. Live rows are never mutated by this repair.
+    live_ids = set(live_rows)
+    for key, agent in working_rows.items():
+        if decisions[key] is not agent or key in live_ids:
+            continue
+        for name in AGENT_RELINK_FIELDS:
+            value = getattr(agent, name)
+            if isinstance(value, Agent):
+                setattr(agent, name, decisions.get(id(value), value))
+            elif isinstance(value, list):
+                setattr(
+                    agent,
+                    name,
+                    [
+                        decisions.get(id(item), item)
+                        if isinstance(item, Agent)
+                        else item
+                        for item in value
+                    ],
+                )
+
+    def publish(rows: list[Agent]) -> list[Agent]:
+        return [decisions.get(id(agent), agent) for agent in rows]
+
     prep = boundary.prep
-    prep = _replace(
+    prep = replace(
         prep,
-        filtered_agents=_share_back_exact_delta_lists(
-            list(prep.filtered_agents), live_union
-        ),
-        hideable_agents=_share_back_exact_delta_lists(
-            list(prep.hideable_agents), live_union
-        ),
-        capacity_agents=_share_back_exact_delta_lists(
-            list(prep.capacity_agents), live_union
-        ),
-        dismissed_agent_objects=_share_back_exact_delta_lists(
-            list(prep.dismissed_agent_objects), live_union
-        ),
+        filtered_agents=publish(prep.filtered_agents),
+        hideable_agents=publish(prep.hideable_agents),
+        capacity_agents=publish(prep.capacity_agents),
+        dismissed_agent_objects=publish(prep.dismissed_agent_objects),
     )
     fold = boundary.fold
-    fold = _replace(
+    fold = replace(
         fold,
-        unfiltered_agents=_share_back_exact_delta_lists(
-            list(fold.unfiltered_agents), live_union
-        ),
-        visible_agents=_share_back_exact_delta_lists(
-            list(fold.visible_agents), live_union
-        ),
-        local_unfiltered_agents=_share_back_exact_delta_lists(
-            list(fold.local_unfiltered_agents), live_union
-        ),
-        local_visible_agents=_share_back_exact_delta_lists(
-            list(fold.local_visible_agents), live_union
-        ),
+        unfiltered_agents=publish(fold.unfiltered_agents),
+        visible_agents=publish(fold.visible_agents),
+        local_unfiltered_agents=publish(fold.local_unfiltered_agents),
+        local_visible_agents=publish(fold.local_visible_agents),
     )
     finalize = boundary.finalize
     if finalize is not None:
         query = finalize.query
-        query = _replace(
+        query = replace(
             query,
-            filtered_agents=_share_back_exact_delta_lists(
-                list(query.filtered_agents), live_union
-            ),
+            filtered_agents=publish(query.filtered_agents),
         )
-        finalize = _replace(
+        finalize = replace(
             finalize,
             query=query,
-            agents_query_result=_share_back_exact_delta_lists(
-                list(finalize.agents_query_result), live_union
-            ),
-            scoped_agents=_share_back_exact_delta_lists(
-                list(finalize.scoped_agents), live_union
-            ),
+            agents_query_result=publish(finalize.agents_query_result),
+            scoped_agents=publish(finalize.scoped_agents),
         )
-    return _replace(boundary, prep=prep, fold=fold, finalize=finalize)
+    return replace(boundary, prep=prep, fold=fold, finalize=finalize)
 
 
 def adopt_prepared_apply_data(
