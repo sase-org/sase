@@ -25,6 +25,19 @@ session name, not its root member's `--` name, so a session `foo` and a single a
 would be. Clans use that namespace rule deliberately, while dotted names alone do not
 create clan or session membership.
 
+### Forced Session-Name Reuse
+
+Forced reuse of a bare session name removes every recorded owner of that session
+reservation, including owners from older generations and saved launch bundles. It is not
+limited to the newest visible turn. Cleanup rebuilds the name registry and refuses the
+relaunch if any owner still reserves the name; the error identifies the remaining
+record. Reusing a session inside a clan preserves the enclosing clan.
+
+An individual turn name targets that turn's owner. A populated clan container cannot be
+replaced as though it were one agent. See the
+[directive syntax](../macros/directive-syntax.md#syntax) for forced-reuse syntax, and
+[hijack recovery](#hijack-recovery) for continuing with retained workspace changes.
+
 ## Sequential Agent Sessions
 
 An agent session is a strictly sequential chain. A session is created only when

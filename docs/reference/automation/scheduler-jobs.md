@@ -234,6 +234,41 @@ Python job packages should use the public `sase.jobs` SDK (`load_job_invocation`
 `JobLogger`, `JobReport`, `JobResultBuilder`, and `launch_proposal`) for argument
 parsing, summaries, reports, validation, and atomic result writes.
 
+### Interrupted Launch Batches
+
+An accepted launch batch has a durable record of its proposals, resolved agent names,
+clan identities, dependencies, launch context, and dispatch progress. Recovery runs
+before new work on scheduled and manual job encounters. It resumes the original run
+without rerunning its script, consuming another trigger, or allocating another clan.
+Both ordinary proposals and batches using typed admission retain this record.
+
+| Condition                                           | Recovery behavior                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Cooperative routine stop                            | Pauses between dispatches; already-started agents retain their job linkage.                                   |
+| Executor crash                                      | Reconciles saved dispatch progress with the original run's launch records before launching remaining members. |
+| Matching launch already recorded                    | Reuses that launch instead of starting the proposal again.                                                    |
+| Disabled job or scheduler maintenance               | Holds remaining launches until the condition clears.                                                          |
+| Unreadable launch evidence or conflicting ownership | Holds affected work and reports the reason instead of guessing whether a spawn occurred.                      |
+| Dry run                                             | Reports pending recovery without dispatching or changing the batch record.                                    |
+
+Ordinary recovery stops retrying a member after three failed launch attempts before
+process creation. The hold names the launch error; after repair, a new job run is
+required for that member. An uncertain spawn is reconciled separately rather than
+treated as a safe retry. While recovery is held, the job does not start fresh script
+work, including a manual forced run.
+
+Explicitly killing a clan container cancels the remaining launch intent for matching
+batches in that clan generation. Killing one member does not cancel the batch. If one
+accepted batch contains multiple clans, cancellation through any matching clan cancels
+that batch's remaining proposals. A dispatch already in progress may settle, but no
+later member starts. Cancellation preserves bookkeeping for started members until their
+outcomes are known.
+
+Interruption, resumption, cancellation, and recovery holds appear in the job's run log
+and notification inbox with the routine, job, original run ID, launched/remaining
+counts, and clan when present. Re-delivering a saved notice reuses its notification;
+repeated ticks do not create a new notice for an unchanged hold.
+
 ### Publishing a Report a Notification Can Open
 
 Per-job run history is capped, so a report that only rides along with a job result

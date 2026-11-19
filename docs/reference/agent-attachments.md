@@ -696,9 +696,9 @@ generated Markdown PDFs, generated images, generated videos, prompt-referenced m
 and explicit artifacts created with
 `sase artifact create [-k <kind>] [-l <label>] [-m] -p <path>` all use the same list.
 Generated videos are stored as ordinary `file` artifacts, but the picker labels
-supported video suffixes as `[video]` and the viewer opens them with terminal video
-playback. The panel is shown even for a single artifact so users can confirm the
-artifact label, kind, and path before opening it.
+supported video suffixes as `[video]` and opens a still-frame inspection view. The panel
+is shown even for a single artifact so users can confirm the artifact label, kind, and
+path before opening it.
 
 The selected agent's prompt/detail header also includes non-chat artifacts in the
 plan-adjacent `SASE CONTEXT` `ARTIFACTS` lane. The complete lane order is `PLAN`,
@@ -734,21 +734,20 @@ Only one plan artifact is listed for each agent. If run metadata contains both a
 archived plan path and an SDD tale path, committed plans prefer the SDD path;
 uncommitted plans prefer the archived path unless only the SDD path is available.
 
-Viewer dependencies are intentionally outside the agent completion path. `kitten` is
-required for image/PDF/Markdown display and the video inspect view, `ffmpeg` and
-`ffprobe` for video frames, storyboards, and metadata, `mpv` for opt-in in-pane motion
-where topology allows, `pdftoppm` for PDF/Markdown paging, and Markdown rendering also
-needs `pandoc` plus one PDF engine. If a dependency is missing, sase's TUI shows a
-warning instead of failing the TUI or changing the stored artifact list.
+Viewer dependencies are separate from agent completion. Image/PDF/Markdown display uses
+`kitten`; PDF paging also needs `pdftoppm`, and Markdown needs `pandoc` plus a PDF
+engine. Video inspection needs `ffmpeg` for frames and `ffprobe` for metadata; its Kitty
+graphics display uses `kitten`, while its Unicode cell fallback uses Pillow. Opt-in
+motion needs `mpv`. Missing tools show a warning without changing stored artifacts.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
 sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the image/PDF viewer.
-Video opens on inspect: `ffprobe` metadata such as `▶ Video 0:07 · 30 fps · h264`, the
-`ffmpeg` frame at t=0, and a decile storyboard once ready, shown with `kitten icat`.
-Motion starts on `space`; `o` hands off to native playback. Nothing autoplays.
+Video opens on a still frame at t=0 with duration, frame rate, and codec metadata. Kitty
+graphics terminals also show a storyboard sampled at tenths of the duration once ready.
+`space` starts motion; `o` opens native playback. Nothing autoplays.
 
 Keys: `h`/`←`/`l`/`→` seek 1 s, `,`/`.` step one frame, `0`–`9` jump deciles, `s`
 storyboard, `o` native player, `r` re-render, `z` zoom, `n`/`p` sequence, `<tab>` focus,
