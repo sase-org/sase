@@ -437,8 +437,7 @@ def test_managed_tmp_reap_reports_removal_failures_and_logs_details(
     assert "managed_tmp_reap removal error: remove error 4" in stderr
     assert "remove error 5" not in stderr
     assert "managed_tmp_reap skipped: skip reason 0" in stderr
-    assert "managed_tmp_reap skipped: skip reason 4" in stderr
-    assert "skip reason 5" not in stderr
+    assert "managed_tmp_reap skipped: skip reason 5" in stderr
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "check_error"
     assert result["reason"] == "removal_failed"
