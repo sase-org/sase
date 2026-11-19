@@ -1656,6 +1656,25 @@ gates are the structural tests below, all cheap enough for `just check`:
   a cold `<space>` followed by typing is never clobbered by a late prefill
   (`test_launchable_mru.py`, `test_space_prefill.py`).
 
+### Main-thread filesystem guard (phase sase-1tz.2.1.11)
+
+`tests/_main_thread_fs_guard.py` records and fails `os.stat`, `os.lstat`, `os.scandir`,
+and `Path.resolve` calls made on the test's own thread, while worker threads keep the
+real calls. Tests assert on the yielded violation list, because tick handlers swallow
+exceptions. It guards three paths that apollo's low-GC stalls sampled on the UI thread:
+
+- the 2 s launchable-MRU tick only schedules a single-flight pump-free peek of
+  `peek_current_project_change_token`; the stat and config token run on a worker
+  (`test_launchable_mru.py`);
+- `hijack_row_local_deps` copies row fields only; the artifacts-dir index is
+  canonicalized lazily on the hijack-decision worker
+  (`test_agent_hijack_roster_offload.py`);
+- while `sase tui` runs, `load_project_alias_map` / `resolve_project_alias_ref` serve a
+  memory-only alias map. `refresh_project_display_snapshot` revalidates it at the same
+  worker and tick boundaries as project labels, and in-process project and alias
+  mutations invalidate it. CLI processes still load the map fresh on every call
+  (`test_project_alias_map_tick_cache.py`).
+
 ## Pager bench
 
 The pager benchmark (epic `sase-1es`) measures open, keystroke, search, memory, leak,

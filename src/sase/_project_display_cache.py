@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 import os
 from threading import RLock
+from typing import TYPE_CHECKING
 
 from sase._project_display_snapshot import (
     ProjectDisplaySnapshot,
@@ -14,6 +15,9 @@ from sase._project_display_snapshot import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
+
+if TYPE_CHECKING:
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
 
 
 _PROJECT_DISPLAY_NAME_CACHE: dict[str, ProjectDisplaySnapshot] | None = None
@@ -29,6 +33,12 @@ _PROJECT_DISPLAY_NAME_CACHE_LOCK = RLock()
 _HUMANIZE_CACHE: dict[tuple[int, str], str] = {}
 _HUMANIZE_CACHE_GEN = 0
 _HUMANIZE_CACHE_CAP = 16384
+
+#: ``cache_key -> (alias map, freshness token)`` for tick-managed processes.
+#: Empty and unused unless :func:`set_project_alias_map_tick_managed` opted
+#: the process in; every other process loads the alias map fresh per call.
+_PROJECT_ALIAS_MAPS: dict[str, tuple[Mapping[str, str], object | None]] = {}
+_PROJECT_ALIAS_MAP_TICK_MANAGED = False
 
 
 def _projects_root(projects_root: Path | str | None) -> Path:
@@ -190,6 +200,12 @@ def refresh_project_display_snapshot(
     the snapshot first, then bump ``_HUMANIZE_CACHE_GEN``, clear
     ``_HUMANIZE_CACHE``, and invalidate the macro project identity, returning
     ``True``.
+
+    In a tick-managed process (:func:`set_project_alias_map_tick_managed`)
+    the same token also revalidates the cached project alias map: a cold or
+    token-stale map is rebuilt here from the same record load, so lookups
+    between refreshes stay memory-only. The return value still reports only
+    label changes.
     """
     cache_key = _projects_root_cache_key(projects_root)
     resolved = _projects_root(projects_root)
@@ -206,11 +222,19 @@ def refresh_project_display_snapshot(
             else None
         )
         old_signature = cached.signature if cached is not None else None
-    if new_token is not None and cached is not None and new_token == old_token:
+        alias_current = _project_alias_map_current_locked(cache_key, new_token)
+    display_current = (
+        new_token is not None and cached is not None and new_token == old_token
+    )
+    if display_current and alias_current:
         return False
     try:
         records = list_project_records(resolved, "all", include_home=True)
     except Exception:  # noqa: BLE001 - keep labels; retry on the next call.
+        return False
+    if not alias_current:
+        _refresh_project_alias_map(cache_key, records, new_token)
+    if display_current:
         return False
     fresh = ProjectDisplaySnapshot.from_records(records)
     changed = old_signature is None or fresh.signature != old_signature
@@ -290,7 +314,93 @@ def invalidate_project_display_snapshot(
     # The humanize memo keys on a generation instead of the map, so any
     # invalidation retires every entry even when only one root was popped.
     _bump_humanize_cache()
+    invalidate_project_alias_maps()
 
     from sase.macro.project_identity import invalidate_macro_project_identity
 
     invalidate_macro_project_identity()
+
+
+def set_project_alias_map_tick_managed(enabled: bool) -> None:
+    """Opt this long-lived process in or out of memory-only alias-map lookups.
+
+    While enabled, :func:`tick_managed_project_alias_map` serves a warm alias
+    map from memory, and :func:`refresh_project_display_snapshot` revalidates
+    it at the caller's worker or tick boundaries through the ProjectSpec
+    freshness token. Toggling drops every cached map.
+    """
+    global _PROJECT_ALIAS_MAP_TICK_MANAGED  # noqa: PLW0603
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        _PROJECT_ALIAS_MAP_TICK_MANAGED = enabled
+        _PROJECT_ALIAS_MAPS.clear()
+
+
+def tick_managed_project_alias_map(
+    projects_root: Path | str | None,
+    load: Callable[[Path | str | None], dict[str, str]],
+) -> Mapping[str, str] | None:
+    """Return the cached alias map in a tick-managed process, else ``None``.
+
+    ``None`` tells the caller to load fresh, which is the behavior of every
+    process that never opted in. A warm map is returned without any
+    filesystem access. A cold map is loaded once through *load*, stored with
+    the current freshness token, and returned; load errors propagate like
+    the uncached path. The returned mapping is shared: callers must not
+    mutate it.
+    """
+    if not _PROJECT_ALIAS_MAP_TICK_MANAGED:
+        return None
+    cache_key = _projects_root_cache_key(projects_root)
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        entry = _PROJECT_ALIAS_MAPS.get(cache_key)
+    if entry is not None:
+        return entry[0]
+    token = _project_display_freshness_token(_projects_root(projects_root))
+    alias_map = load(projects_root)
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        if _PROJECT_ALIAS_MAP_TICK_MANAGED:
+            _PROJECT_ALIAS_MAPS.setdefault(cache_key, (alias_map, token))
+    return alias_map
+
+
+def invalidate_project_alias_maps() -> None:
+    """Drop every cached alias map without disk I/O (in-process mutations)."""
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        _PROJECT_ALIAS_MAPS.clear()
+
+
+def _project_alias_map_current_locked(cache_key: str, token: object | None) -> bool:
+    """Return whether no alias-map rebuild is due; caller holds the lock."""
+    if not _PROJECT_ALIAS_MAP_TICK_MANAGED:
+        return True
+    entry = _PROJECT_ALIAS_MAPS.get(cache_key)
+    return entry is not None and token is not None and entry[1] == token
+
+
+def _refresh_project_alias_map(
+    cache_key: str,
+    records: Sequence[ProjectRecordWire],
+    token: object | None,
+) -> None:
+    """Rebuild one cached alias map from already-loaded *records*.
+
+    Runs on refresh (worker) paths only: building checks each record's spec
+    file. A changed map invalidates the macro project identity, which is
+    built from it. A build failure keeps the previous map so the next
+    refresh retries.
+    """
+    from sase.project_alias_records import project_alias_map_from_records
+
+    try:
+        alias_map = project_alias_map_from_records(records, strict=False)
+    except Exception:  # noqa: BLE001 - keep the previous map; retry later.
+        return
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        if not _PROJECT_ALIAS_MAP_TICK_MANAGED:
+            return
+        previous = _PROJECT_ALIAS_MAPS.get(cache_key)
+        _PROJECT_ALIAS_MAPS[cache_key] = (alias_map, token)
+    if previous is not None and dict(previous[0]) != alias_map:
+        from sase.macro.project_identity import invalidate_macro_project_identity
+
+        invalidate_macro_project_identity()

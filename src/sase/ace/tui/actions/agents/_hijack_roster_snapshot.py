@@ -2,6 +2,10 @@
 
 The TUI path must never fall back to archive walks. Lookups that the
 snapshot cannot answer return ``None`` or an empty list.
+
+:func:`hijack_row_local_deps` runs on the UI thread and only copies row
+fields. Path canonicalization (a per-component ``lstat`` walk) is deferred
+until the hijack worker first calls ``find_session_by_member_artifact_dir``.
 """
 
 from __future__ import annotations
@@ -22,10 +26,20 @@ _TERMINAL_STATUSES = frozenset({"DONE", "FAILED", "HIJACKED", "STOPPED", "LOST"}
 
 
 def hijack_row_local_deps(app: object, agent: Agent) -> StopDeps:
-    """Return StopDeps that resolve sessions, clans, and live rows from *app*."""
+    """Return StopDeps that resolve sessions, clans, and live rows from *app*.
+
+    Called on the UI thread: it snapshots row fields in memory only. The
+    artifacts-dir index resolves paths, so it is built lazily on first use,
+    which is the dedicated hijack-decision worker.
+    """
     snapshots = tuple(_row_snapshot(row) for row in _roster_rows(app, agent))
-    by_dir = _index_by_artifacts_dir(snapshots)
     by_name = _index_by_name(snapshots)
+    by_dir_cache: list[dict[str, SimpleNamespace]] = []
+
+    def by_dir() -> dict[str, SimpleNamespace]:
+        if not by_dir_cache:
+            by_dir_cache.append(_index_by_artifacts_dir(snapshots))
+        return by_dir_cache[0]
 
     def find_agent(name: str) -> NamedAgent | None:
         snap = by_name.get(name)
@@ -52,7 +66,7 @@ def hijack_row_local_deps(app: object, agent: Agent) -> StopDeps:
     def find_session_by_member_artifact_dir(
         path: str | Path,
     ) -> tuple[AgentSession, AgentSessionMember] | None:
-        snap = by_dir.get(_canonical_path(path))
+        snap = by_dir().get(_canonical_path(path))
         if snap is None:
             return None
         session_name = _session_name(snap)

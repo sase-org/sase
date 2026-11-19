@@ -11,7 +11,9 @@ project-admin output and in machine-readable (JSON) output.
 
 Lookups are memory-only: render paths never stat, glob, or read project records.
 Long-lived processes call :func:`refresh_project_display_snapshot` at their worker or
-tick boundaries to pick up projects created or renamed by other processes.
+tick boundaries to pick up projects created or renamed by other processes. A process
+that opts in through :func:`set_project_alias_map_tick_managed` (the TUI) also gets a
+memory-only project alias map revalidated by that same refresh.
 
 Thin facade over the split ``_project_display_*`` modules. Public names keep
 their original ``sase.project_display_names`` import path; private
@@ -22,11 +24,14 @@ from __future__ import annotations
 
 from sase._project_display_cache import (
     cached_project_display_snapshot,
+    invalidate_project_alias_maps,
     invalidate_project_display_snapshot,
     load_project_display_snapshot,
     load_project_ref_display_snapshot,
     project_display_snapshot_is_warm,
     refresh_project_display_snapshot,
+    set_project_alias_map_tick_managed,
+    tick_managed_project_alias_map,
 )
 from sase._project_display_labels import (
     attach_project_display_names,
@@ -55,6 +60,7 @@ __all__ = [
     "humanize_cl_name",
     "humanize_safe_stem",
     "humanize_vcs_refs_in_text",
+    "invalidate_project_alias_maps",
     "invalidate_project_display_snapshot",
     "load_project_display_snapshot",
     "load_project_ref_display_snapshot",
@@ -64,4 +70,6 @@ __all__ = [
     "project_display_name_for",
     "project_display_snapshot_is_warm",
     "refresh_project_display_snapshot",
+    "set_project_alias_map_tick_managed",
+    "tick_managed_project_alias_map",
 ]

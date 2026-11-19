@@ -86,6 +86,23 @@ def test_run_ace_app_does_not_join_default_executor_worker() -> None:
         assert finished.wait(timeout=1.0)
 
 
+def test_run_ace_app_scopes_tick_managed_alias_maps_to_the_app() -> None:
+    from sase import _project_display_cache as display_cache
+
+    seen: list[bool] = []
+
+    class _App:
+        async def run_async(self) -> None:
+            seen.append(display_cache._PROJECT_ALIAS_MAP_TICK_MANAGED)
+            raise RuntimeError("app crashed")
+
+    with pytest.raises(RuntimeError, match="app crashed"):
+        ace_handler._run_ace_app(_App())
+
+    assert seen == [True]
+    assert display_cache._PROJECT_ALIAS_MAP_TICK_MANAGED is False
+
+
 def test_hard_exit_flushes_before_bypassing_interpreter_shutdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -158,12 +158,19 @@ def _run_ace_app(app: Any) -> None:
     loop here lets the command bypass ``asyncio.run``'s mandatory executor
     join, which can otherwise trap the process behind a blocking worker after
     the TUI has already disappeared.
+
+    While the app runs, project alias-map lookups are memory-only and are
+    revalidated by the TUI's project-display refresh boundaries.
     """
+    from sase.project_display_names import set_project_alias_map_tick_managed
+
     loop = asyncio.new_event_loop()
+    set_project_alias_map_tick_managed(True)
     try:
         asyncio.set_event_loop(loop)
         loop.run_until_complete(app.run_async())
     finally:
+        set_project_alias_map_tick_managed(False)
         asyncio.set_event_loop(None)
         loop.close()
 

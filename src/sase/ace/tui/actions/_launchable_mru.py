@@ -3,9 +3,11 @@
 ``LaunchableMruMixin`` owns one immutable
 :class:`~sase.ace.tui.launchable_mru.LaunchableMruSnapshot` on ``AceApp``.
 A single-flight pump-free thread worker builds it; a ~2 s peek-token tick
-plus explicit launch/set-current triggers keep it fresh. ``ctrl+n/p``
-only peek it (see ``_vcs_mru_cycling``), so key paths do no disk I/O and
-spawn no subprocesses.
+plus explicit launch/set-current triggers keep it fresh. The tick's token
+peek also runs in a single-flight pump-free thread task, so the timer
+callback itself does no filesystem I/O. ``ctrl+n/p`` only peek the
+snapshot (see ``_vcs_mru_cycling``), so key paths do no disk I/O and spawn
+no subprocesses.
 """
 
 from __future__ import annotations
@@ -23,8 +25,8 @@ from ..util.pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
 
-#: Peek-token tick cadence. The peek itself is a time-gated ``os.stat`` plus
-#: config token, so this stays affordable; real builds run off-thread.
+#: Peek-token tick cadence. The peek (an ``os.stat`` plus the config token)
+#: and real builds both run off-thread; the tick only schedules them.
 _MRU_TICK_SECONDS = 2.0
 
 #: Forced recompute cadence, in ticks. Covers project-spec and Patch drift
@@ -42,6 +44,7 @@ def init_launchable_mru_state(self: Any) -> None:
     self._launchable_mru_snapshot = COLD_LAUNCHABLE_MRU_SNAPSHOT
     self._launchable_mru_generation = 0
     self._launchable_mru_build_in_flight = False
+    self._launchable_mru_peek_in_flight = False
     self._launchable_mru_pending = None
     self._launchable_mru_token = None
     self._launchable_mru_last_signature = None
@@ -58,6 +61,7 @@ class LaunchableMruMixin:
     _launchable_mru_snapshot: LaunchableMruSnapshot
     _launchable_mru_generation: int
     _launchable_mru_build_in_flight: bool
+    _launchable_mru_peek_in_flight: bool
     _launchable_mru_pending: tuple[str, bool] | None
     _launchable_mru_token: tuple[object, ...] | None
     _launchable_mru_last_signature: tuple[object, ...] | None
@@ -304,15 +308,60 @@ class LaunchableMruMixin:
             log.debug("Launchable MRU tick not armed", exc_info=True)
 
     def _launchable_mru_tick(self: Any) -> None:
-        """Peek the change token; rebuild on drift, recompute when idle."""
-        try:
-            from sase.current_project import peek_current_project_change_token
+        """Start one off-thread token peek; the tick itself never stats.
 
+        The peek stats the MRU file and may compute a cold config token, so
+        it runs in a single-flight pump-free thread task. A tick that lands
+        while a peek is still running is dropped; the next tick retries.
+        """
+        try:
             snapshot = self.peek_launchable_mru_snapshot()
             if snapshot.state != "ready":
                 self.request_launchable_mru_refresh(reason="tick-cold")
                 return
-            token = peek_current_project_change_token()
+            if getattr(self, "_launchable_mru_peek_in_flight", False):
+                return
+            self._launchable_mru_peek_in_flight = True
+            task = spawn_pump_free_task(
+                self,
+                self._run_launchable_mru_peek(),
+                name="launchable-mru-peek",
+                registry_attr="_launchable_mru_tasks",
+            )
+            if task is None:
+                self._launchable_mru_peek_in_flight = False
+        except Exception:  # noqa: BLE001 - ticks never break the pump.
+            self._launchable_mru_peek_in_flight = False
+            log.debug("Launchable MRU tick skipped", exc_info=True)
+
+    async def _run_launchable_mru_peek(self: Any) -> None:
+        """Peek the change token off-thread, then decide on the main thread.
+
+        The ``asyncio.to_thread`` continuation resumes on the event-loop
+        thread, so the decision helper is called directly.
+        """
+        from sase.current_project import peek_current_project_change_token
+
+        try:
+            token = await asyncio.to_thread(peek_current_project_change_token)
+        except Exception:  # noqa: BLE001 - a failed peek waits for the next tick.
+            log.debug("Launchable MRU peek failed", exc_info=True)
+            return
+        finally:
+            self._launchable_mru_peek_in_flight = False
+        self._apply_launchable_mru_peek(token)
+
+    def _apply_launchable_mru_peek(self: Any, token: tuple[object, ...]) -> None:
+        """Rebuild on token drift, or recompute when enough idle ticks passed.
+
+        Snapshot state is re-read here, after the peek's await, because a
+        build may have published or failed meanwhile.
+        """
+        try:
+            snapshot = self.peek_launchable_mru_snapshot()
+            if snapshot.state != "ready":
+                self.request_launchable_mru_refresh(reason="tick-cold")
+                return
             if token != self._launchable_mru_token:
                 self.request_launchable_mru_refresh(reason="token-drift")
                 return
@@ -326,7 +375,7 @@ class LaunchableMruMixin:
                 self._launchable_mru_tick_count = 0
                 self.request_launchable_mru_refresh(reason="recompute", force=True)
         except Exception:  # noqa: BLE001 - ticks never break the pump.
-            log.debug("Launchable MRU tick skipped", exc_info=True)
+            log.debug("Launchable MRU peek result skipped", exc_info=True)
 
     def _launchable_mru_recompute_idle(self: Any) -> bool:
         """Return whether a forced recompute may run now."""

@@ -110,7 +110,9 @@ def _load_project_changespec_names_cache_signature(
 
 def _invalidate_macro_project_identity() -> None:
     from sase.macro.project_identity import invalidate_macro_project_identity
+    from sase.project_display_names import invalidate_project_alias_maps
 
+    invalidate_project_alias_maps()
     invalidate_macro_project_identity()
 
 
@@ -240,11 +242,32 @@ def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str,
     """Return ``alias -> canonical project`` for all non-system projects.
 
     Conflicting refs are dropped deterministically instead of guessed, while
-    mutation paths continue to reject conflicts strictly.
+    mutation paths continue to reject conflicts strictly. A tick-managed
+    process (the TUI) gets a copy of its memory-only cached map; every other
+    process lists and parses ProjectSpecs on each call.
     """
+    cached = _tick_managed_alias_map(projects_root)
+    if cached is not None:
+        return dict(cached)
+    return _load_project_alias_map_uncached(projects_root)
+
+
+def _load_project_alias_map_uncached(
+    projects_root: Path | str | None,
+) -> dict[str, str]:
     return project_alias_map_from_records(
         _filtered_project_records(projects_root),
         strict=False,
+    )
+
+
+def _tick_managed_alias_map(
+    projects_root: Path | str | None,
+) -> Mapping[str, str] | None:
+    from sase.project_display_names import tick_managed_project_alias_map
+
+    return tick_managed_project_alias_map(
+        projects_root, _load_project_alias_map_uncached
     )
 
 
@@ -253,6 +276,9 @@ def resolve_project_alias_ref(
     projects_root: Path | str | None = None,
 ) -> str:
     """Return the canonical project name for an exact alias ref."""
+    cached = _tick_managed_alias_map(projects_root)
+    if cached is not None:
+        return cached.get(ref, ref)
     return load_project_alias_map(projects_root).get(ref, ref)
 
 
