@@ -176,9 +176,12 @@ before any runtime data is interpolated. The command's output replaces the
 `$(cmd)` expression, and neither the output nor any interpolated value is ever
 scanned again for commands.
 
-In a macro body, command substitutions run at launch, before the agent's workspace
-is claimed. They must not depend on the launch-time working directory; resolve
-workspace-relative paths inside the agent with `sase repo open` instead.
+When a launch already has an assigned workspace, launch-time command substitutions run
+inside that workspace. They run before workspace preparation syncs it, so
+revision-sensitive commands may see the workspace's previous state. `%wait`
+(deferred-workspace) launches run substitutions before any workspace is claimed; those
+commands must not depend on the working directory. For workspace-relative paths, use
+`sase repo open`.
 
 ```
 #bug:$(branch_bug)           # Use output of branch_bug command as the argument

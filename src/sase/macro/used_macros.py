@@ -91,6 +91,9 @@ def scan_macro_references(
     *,
     extra_macros: dict[str, Macro] | None = None,
     swarm_macros: Sequence[str] | None = None,
+    macro_catalog: dict[str, Macro] | None = None,
+    workflow_catalog: dict[str, Workflow] | None = None,
+    aliases_resolved: bool = False,
 ) -> list[_ScannedMacroReference]:
     """Return known and unknown references using the launch lexical contract.
 
@@ -103,15 +106,15 @@ def scan_macro_references(
     if "#" not in raw_prompt and not swarm_names:
         return []
 
-    prompt = resolve_macro_aliases(raw_prompt)
+    prompt = raw_prompt if aliases_resolved else resolve_macro_aliases(raw_prompt)
     if "#" not in prompt and not swarm_names:
         return []
 
     normalized_prompt = normalize_vcs_underscore_refs(prompt)
     ignored_ranges = literal_zone_ranges(normalized_prompt)
 
-    workflows = get_all_workflows()
-    macros = get_all_macros()
+    workflows = get_all_workflows() if workflow_catalog is None else workflow_catalog
+    macros = get_all_macros() if macro_catalog is None else macro_catalog
     if extra_macros:
         macros = {**macros, **extra_macros}
 
@@ -161,6 +164,9 @@ def collect_used_macros(
     *,
     extra_macros: dict[str, Macro] | None = None,
     swarm_macros: Sequence[str] | None = None,
+    macro_catalog: dict[str, Macro] | None = None,
+    workflow_catalog: dict[str, Workflow] | None = None,
+    aliases_resolved: bool = False,
 ) -> list[_UsedMacroRecord]:
     """Return known top-level macro references from *raw_prompt*.
 
@@ -176,6 +182,9 @@ def collect_used_macros(
         raw_prompt,
         extra_macros=extra_macros,
         swarm_macros=swarm_macros,
+        macro_catalog=macro_catalog,
+        workflow_catalog=workflow_catalog,
+        aliases_resolved=aliases_resolved,
     ):
         if scanned.kind is None or (scanned.item is None and scanned.kind != "swarm"):
             continue
@@ -223,6 +232,9 @@ def write_used_macros(
     extra_macros: dict[str, Macro] | None = None,
     swarm_macros: Sequence[str] | None = None,
     step_only: bool = False,
+    macro_catalog: dict[str, Macro] | None = None,
+    workflow_catalog: dict[str, Workflow] | None = None,
+    aliases_resolved: bool = False,
 ) -> list[_UsedMacroRecord]:
     """Collect and write macro metadata artifacts for *raw_prompt*.
 
@@ -244,6 +256,9 @@ def write_used_macros(
         raw_prompt,
         extra_macros=extra_macros,
         swarm_macros=swarm_macros,
+        macro_catalog=macro_catalog,
+        workflow_catalog=workflow_catalog,
+        aliases_resolved=aliases_resolved,
     )
     if not records or artifacts_dir is None:
         return records
@@ -254,7 +269,13 @@ def write_used_macros(
 
     if step_name:
         step_records = (
-            collect_used_macros(raw_prompt, extra_macros=extra_macros)
+            collect_used_macros(
+                raw_prompt,
+                extra_macros=extra_macros,
+                macro_catalog=macro_catalog,
+                workflow_catalog=workflow_catalog,
+                aliases_resolved=aliases_resolved,
+            )
             if swarm_macros
             else records
         )

@@ -6,12 +6,26 @@ launch-deferred fork set), and the launch-time prompt helpers.
 
 import os
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 from sase.core.revival_inputs import capture_revival_inputs
+from sase.macro.models import Macro
+from sase.macro.workflow_models import Workflow
+
+
+@dataclass(frozen=True)
+class LaunchPromptContext:
+    """Prompt aliases and macro sources captured before workspace entry."""
+
+    resolved_prompt: str
+    macros: dict[str, Macro] | None
+    workflows: dict[str, Workflow] | None
+
 
 __all__ = [
     "build_output_variable_namespaces",
+    "capture_launch_prompt_context",
     "expand_deferred_launch_macros",
     "preprocess_prompt_macros",
     "print_agent_start_banner",
@@ -20,7 +34,10 @@ __all__ = [
 
 
 def preprocess_prompt_macros(
-    prompt: str, artifacts_dir: str
+    prompt: str,
+    artifacts_dir: str,
+    *,
+    launch_context: LaunchPromptContext | None = None,
 ) -> tuple[str, str | None, str]:
     """Resolve aliases, save raw, expand macro references.
 
@@ -37,8 +54,11 @@ def preprocess_prompt_macros(
         process_macro_references,
     )
 
-    prompt = canonicalize_project_aliases_in_prompt(prompt)
-    prompt = resolve_macro_aliases(prompt)
+    if launch_context is None:
+        prompt = canonicalize_project_aliases_in_prompt(prompt)
+        prompt = resolve_macro_aliases(prompt)
+    else:
+        prompt = launch_context.resolved_prompt
     raw_resolved_prompt = prompt
     vcs_tag = extract_vcs_workflow_tag(prompt)
 
@@ -66,6 +86,11 @@ def preprocess_prompt_macros(
             artifacts_dir,
             prompt,
             swarm_macros=swarm_macros,
+            macro_catalog=(None if launch_context is None else launch_context.macros),
+            workflow_catalog=(
+                None if launch_context is None else launch_context.workflows
+            ),
+            aliases_resolved=True,
         )
     except Exception as e:
         print(f"Warning: Failed to write macro metadata: {e}", file=sys.stderr)
@@ -78,11 +103,58 @@ def preprocess_prompt_macros(
     except Exception as e:
         print(f"Warning: Failed to archive revival inputs: {e}", file=sys.stderr)
 
-    prompt = process_macro_references(
-        prompt,
-        defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
-    )
+    process_kwargs: dict[str, Any] = {"defer_macro_names": LAUNCH_DEFERRED_MACRO_NAMES}
+    if launch_context is not None:
+        process_kwargs["aliases_resolved"] = True
+        if launch_context.macros is not None:
+            process_kwargs["macro_catalog"] = launch_context.macros
+    prompt = process_macro_references(prompt, **process_kwargs)
     return prompt, vcs_tag, raw_resolved_prompt
+
+
+def capture_launch_prompt_context(prompt: str) -> LaunchPromptContext:
+    """Snapshot launch aliases and macro definitions before workspace entry.
+
+    Macro expansion runs after workspace entry so authored command
+    substitutions use the assigned workspace cwd. Catalog discovery must
+    retain its previous launch-cwd root, so bootstrap captures the catalog
+    before changing directories and passes this context into
+    ``preprocess_prompt_macros``. Alias resolution also consults project config,
+    so its result is retained from the launch cwd.
+    """
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+    from sase.macro import resolve_macro_aliases
+    from sase.macro._processor_lexical import (
+        prompt_may_reference_macro,
+        registered_project_namespace_from_prompt,
+    )
+    from sase.macro.loader import get_all_macros, get_all_workflows
+    from sase.macro.used_macros import decode_launch_swarm_macros
+
+    prompt = resolve_macro_aliases(canonicalize_project_aliases_in_prompt(prompt))
+    has_macro_refs = prompt_may_reference_macro(prompt)
+    try:
+        swarm_macros = decode_launch_swarm_macros(os.environ)
+    except ValueError:
+        # Metadata capture handles malformed swarm provenance best-effort.
+        swarm_macros = None
+
+    macros = None
+    workflows = None
+    if has_macro_refs or swarm_macros:
+        project = registered_project_namespace_from_prompt(prompt)
+        try:
+            macros = get_all_macros(project=project)
+            workflows = get_all_workflows(project=project)
+        except Exception:
+            if has_macro_refs:
+                raise
+
+    return LaunchPromptContext(
+        resolved_prompt=prompt,
+        macros=macros,
+        workflows=workflows,
+    )
 
 
 def expand_deferred_launch_macros(

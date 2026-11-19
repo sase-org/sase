@@ -30,6 +30,8 @@ def process_macro_references(
     extra_macros: dict[str, Macro] | None = None,
     scope: dict[str, Any] | None = None,
     *,
+    macro_catalog: dict[str, Macro] | None = None,
+    aliases_resolved: bool = False,
     trace: ExpansionTrace | None = None,
     defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
@@ -57,6 +59,11 @@ def process_macro_references(
         prompt: The prompt text to process
         extra_macros: Optional additional macros that take highest priority
             (e.g., workflow-local macros).
+        macro_catalog: Optional preloaded catalog. Launch bootstrap uses this
+            to preserve the source directory's macro discovery before entering
+            the assigned workspace.
+        aliases_resolved: Whether project and macro aliases were already
+            resolved in the source directory before the caller changed cwd.
         scope: Optional base context (e.g., workflow execution context) passed
             through to Jinja2 template rendering. Macro-specific args take
             priority over scope values.
@@ -90,7 +97,8 @@ def process_macro_references(
     if not prompt_may_reference_macro(prompt, extra_macros):
         return prompt
 
-    prompt = resolve_macro_aliases(prompt)
+    if not aliases_resolved:
+        prompt = resolve_macro_aliases(prompt)
     if "#" not in prompt:
         return prompt
     if not prompt_may_reference_macro(prompt, extra_macros):
@@ -99,7 +107,11 @@ def process_macro_references(
     from ._processor_lexical import registered_project_namespace_from_prompt
 
     project = registered_project_namespace_from_prompt(prompt)
-    macros = get_all_macros() if project is None else get_all_macros(project=project)
+    macros = (
+        (get_all_macros() if project is None else get_all_macros(project=project))
+        if macro_catalog is None
+        else dict(macro_catalog)
+    )
     if extra_macros:
         macros.update(extra_macros)
 

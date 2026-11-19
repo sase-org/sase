@@ -23,6 +23,7 @@ from sase.axe.run_agent_runner_refresh import (
 )
 from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
+    capture_launch_prompt_context,
     enter_agent_workspace,
     load_retry_handoff_from_env,
     preprocess_prompt_macros,
@@ -405,7 +406,8 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     )
     state.project_name = project_name
     state.artifacts_timestamp = artifacts_timestamp
-    state.rebind_artifacts_dir(artifacts_dir)
+    state.rebind_artifacts_dir(os.path.abspath(artifacts_dir))
+    artifacts_dir = state.artifacts_dir
 
     # Persist the raw output location before any prompt processing or
     # dependency wait. A refreshed pass reuses the artifact directory, so retain
@@ -424,6 +426,27 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
 
     _load_submitted_prompt(state)
 
+    deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
+    state.workspace_dir = os.path.abspath(state.workspace_dir)
+    from sase.axe.run_agent_retry_spawn import ENV_RETRY_HANDOFF
+    from sase.agent.multi_prompt_macros import (
+        read_local_macros_path,
+        set_local_macros_path,
+    )
+
+    retry_handoff_path = os.environ.get(ENV_RETRY_HANDOFF)
+    if retry_handoff_path and not os.path.isabs(retry_handoff_path):
+        os.environ[ENV_RETRY_HANDOFF] = os.path.abspath(retry_handoff_path)
+
+    local_macros_path = read_local_macros_path(os.environ)
+    if local_macros_path and not os.path.isabs(local_macros_path):
+        # Directive extraction has always read this file after workspace
+        # entry. Preserve that target while making it independent of cwd.
+        set_local_macros_path(
+            os.environ,
+            os.path.abspath(os.path.join(state.workspace_dir, local_macros_path)),
+        )
+
     init_telemetry()
     register_flush_on_exit(
         job="agent_runner", workflow=state.workflow_name, instance=state.timestamp
@@ -437,15 +460,24 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
             prompt=state.prompt,
         )
 
+    # An assigned workspace is already known, so source-authored command
+    # substitutions can run there. Snapshot the macro sources first because
+    # catalog discovery has historically used the launcher's cwd. Deferred
+    # launches keep expanding before entering their provisional workspace.
+    launch_context = None
+    if not deferred_workspace:
+        launch_context = capture_launch_prompt_context(state.prompt)
+        enter_agent_workspace(state.workspace_dir, state.workspace_num)
+
     # The preprocessed VCS tag is superseded by agent-ref resolution in the
     # launch phase, so only the rewritten prompts are carried forward.
     state.prompt, _, raw_resolved_prompt = preprocess_prompt_macros(
-        state.prompt, state.artifacts_dir
+        state.prompt, state.artifacts_dir, launch_context=launch_context
     )
     retry_handoff = load_retry_handoff_from_env()
-    deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
-    enter_agent_workspace(state.workspace_dir, state.workspace_num)
+    if deferred_workspace:
+        enter_agent_workspace(state.workspace_dir, state.workspace_num)
     inherited_commit_finalizer_baseline = _capture_commit_finalizer_baseline(
         state.artifacts_dir,
         workspace_dir=state.workspace_dir,

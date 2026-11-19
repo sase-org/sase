@@ -25,6 +25,7 @@ from sase.axe.run_agent_runner_setup_meta import (
 )
 from sase.axe.run_agent_runner_setup_prompt import (
     build_output_variable_namespaces,
+    capture_launch_prompt_context,
     expand_deferred_launch_macros,
     preprocess_prompt_macros,
     print_agent_start_banner,
@@ -43,6 +44,7 @@ from sase.axe.run_agent_runner_setup_workspace import (
 __all__ = [
     "apply_retry_chain_to_meta",
     "build_output_variable_namespaces",
+    "capture_launch_prompt_context",
     "bump_spawn_telemetry",
     "capture_instruction_snapshot",
     "capture_launch_evidence",
