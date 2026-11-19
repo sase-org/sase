@@ -141,6 +141,33 @@ def test_allowlisted_modules_do_not_name_rust_owned_files() -> None:
     )
 
 
+def _has_exact_conn_member(source: str) -> bool:
+    """Return whether *source* defines or touches an exact ``_conn`` member.
+
+    Matches the retired ``BeadProject._conn`` / ``_conn_cache._conn`` path
+    without banning unrelated names by substring (``_connection``,
+    ``_connector``, and similar must not fail this guard).
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == "_conn":
+                return True
+        elif isinstance(node, ast.Attribute):
+            if node.attr == "_conn":
+                return True
+        elif isinstance(node, ast.Name):
+            if node.id == "_conn":
+                return True
+        elif isinstance(node, ast.arg):
+            if node.arg == "_conn":
+                return True
+    return False
+
+
 def test_beads_db_has_single_rust_owner() -> None:
     """Bead-store ``beads.db`` is Rust-owned; Python never opens it via SQLite.
 
@@ -162,9 +189,17 @@ def test_beads_db_has_single_rust_owner() -> None:
     ):
         assert "import sqlite3" not in text, f"{label} must not import sqlite3"
         assert "_conn_cache" not in text, f"{label} must not keep _conn_cache"
-        assert "_conn" not in text or "_conn_cache" not in text, f"{label} stale"
+        assert not _has_exact_conn_member(text), f"{label} must not define _conn"
         assert "init_db" not in text, f"{label} must not init a SQLite mirror"
         assert "rebuild_from_jsonl" not in text, f"{label} must not rebuild a mirror"
+
+    from sase.bead._project_store import BeadProjectStoreMixin
+    from sase.bead.project import BeadProject
+
+    assert not hasattr(BeadProject, "_conn"), "BeadProject must not expose _conn"
+    assert not hasattr(BeadProjectStoreMixin, "_conn"), (
+        "BeadProjectStoreMixin must not expose _conn"
+    )
 
     assert "_close_connection" not in store_text
     assert "_max_local_child_counter" not in store_text

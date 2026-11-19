@@ -1,10 +1,13 @@
 """Single-owner regression: Python never opens ``beads.db`` via SQLite.
 
-Covers a new store and a legacy JSONL store prepared in a separate completed
-subprocess. Reopens across Rust mutations, asserts canonical data, and uses a
-coordinated subprocess writer to prove real mutations keep unique child IDs,
-retained updates, and lock exclusion. Never mocks Rust mutations; stdlib
-SQLite opens of ``beads.db`` fail deterministically.
+Covers a new store, a legacy JSONL-only store, and a legacy store with a real
+preexisting WAL mirror, each prepared in a separate completed subprocess where
+applicable. Reopens across Rust mutations, asserts canonical data, preserves
+the preexisting mirror inode and bytes, exercises real ``sync()`` in a
+disposable git repository, and uses a coordinated subprocess writer to prove
+real mutations keep unique child IDs, retained updates, and lock exclusion.
+Never mocks Rust mutations; stdlib SQLite opens of ``beads.db`` fail
+deterministically.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 
 _PROCESS_TIMEOUT_SECONDS = 120.0
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _guarded_sqlite_connect(
@@ -60,6 +65,84 @@ def _prepare_legacy_store_in_subprocess(store_parent: Path) -> None:
     subprocess.run([sys.executable, "-c", script], check=True, timeout=60)
 
 
+def _prepare_existing_mirror_in_subprocess(store_parent: Path) -> None:
+    """Write a real WAL ``beads.db`` plus matching JSONL in a subprocess.
+
+    Uses the existing test-only legacy helpers so the mirror is a genuine
+    WAL-mode SQLite file. The connection is explicitly closed and the
+    subprocess is waited on before any Rust operation runs in the parent.
+    """
+    script = (
+        "import json, sys; "
+        f"sys.path.insert(0, {str(REPO_ROOT)!r}); "
+        "from pathlib import Path; "
+        "from tests.test_bead.legacy_sqlite import db as db_mod; "
+        "from tests.test_bead.legacy_sqlite.jsonl import export_to_jsonl; "
+        "from sase.bead.model import BeadTier, Issue, IssueType, Status; "
+        f"base = Path({str(store_parent)!r}) / 'beads'; "
+        "base.mkdir(parents=True, exist_ok=True); "
+        "(base / 'config.json').write_text(json.dumps("
+        "{'issue_prefix': 'legacy', 'next_counter': 3, 'owner': ''})); "
+        "db_path = base / 'beads.db'; "
+        "conn = db_mod.init_db(db_path); "
+        "epic = Issue(id='legacy-1', title='Legacy epic', status=Status.OPEN, "
+        "issue_type=IssueType.PLAN, tier=BeadTier.EPIC, "
+        "created_at='2026-01-01T00:00:00Z', updated_at='2026-01-01T00:00:00Z'); "
+        "child = Issue(id='legacy-1.1', title='Legacy child', status=Status.OPEN, "
+        "issue_type=IssueType.PHASE, parent_id='legacy-1', "
+        "created_at='2026-01-01T00:00:00Z', updated_at='2026-01-01T00:00:00Z'); "
+        "db_mod.create_issue(conn, epic); "
+        "db_mod.create_issue(conn, child); "
+        "export_to_jsonl(conn, base / 'issues.jsonl'); "
+        "conn.commit(); conn.close(); "
+    )
+    subprocess.run(
+        [sys.executable, "-c", script], check=True, timeout=60, cwd=REPO_ROOT
+    )
+
+
+def _init_disposable_git_repo(root: Path, beads_rel: str) -> None:
+    """Init a disposable git repo with the production ``beads.db*`` ignore."""
+    subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "commit.gpgsign", "false"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    )
+    (root / ".gitignore").write_text(f"{beads_rel}/beads.db*\n", encoding="utf-8")
+
+
+def _assert_sync_excludes_beads_db(repo_root: Path) -> None:
+    """Assert a real ``sync()`` never stages ``beads.db`` or its sidecars."""
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert not any("beads.db" in name for name in staged), staged
+
+
 def _child_creator(
     project_dir: str,
     epic_id: str,
@@ -84,6 +167,7 @@ def _child_creator(
 
 
 def test_new_store_never_opens_beads_db(tmp_path: Path) -> None:
+    _init_disposable_git_repo(tmp_path, "sdd/beads")
     opened: list[str] = []
     real_connect = sqlite3.connect
     with _mock.patch(
@@ -98,12 +182,16 @@ def test_new_store_never_opens_beads_db(tmp_path: Path) -> None:
             assert [i.id for i in project.list_issues()] == [epic.id, child.id]
             project._export()
             assert "Epic" in (project.beads_dir / "issues.jsonl").read_text()
+            project.sync()
+            _assert_sync_excludes_beads_db(tmp_path)
 
         with BeadProject(tmp_path) as reopened:
             assert reopened.show(child.id).dependencies[0].depends_on_id == epic.id
             second = reopened.create("Second", IssueType.PHASE, parent_id=epic.id)
             assert second.id == f"{epic.id}.2"
             reopened._export()
+            reopened.sync()
+            _assert_sync_excludes_beads_db(tmp_path)
 
         with BeadProject(tmp_path) as final:
             assert sorted(i.id for i in final.list_issues()) == sorted(
@@ -142,6 +230,84 @@ def test_legacy_store_adoption_never_opens_beads_db(tmp_path: Path) -> None:
             assert "legacy-1" in {i.id for i in final.list_issues()}
             assert created.id in {i.id for i in final.list_issues()}
         assert opened == []
+
+
+def test_existing_mirror_adoption_preserves_inode_and_bytes(
+    tmp_path: Path,
+) -> None:
+    """Adopting a preexisting WAL mirror leaves its bytes and inode alone.
+
+    The mirror is deliberately stale after the Rust mutation; reads must still
+    report canonical state. ``-wal``/``-shm`` sentinels below are untouched
+    placeholder files testing exclusion/preservation, not a live WAL
+    reproduction: a clean SQLite close checkpoints and removes live sidecars.
+    """
+    _init_disposable_git_repo(tmp_path, "beads")
+    _prepare_existing_mirror_in_subprocess(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_db = beads_dir / "beads.db"
+    assert beads_db.exists()
+    assert (beads_dir / "issues.jsonl").exists()
+    assert (beads_dir / "config.json").exists()
+
+    st_before = beads_db.stat()
+    bytes_before = beads_db.read_bytes()
+
+    wal_path = beads_dir / "beads.db-wal"
+    shm_path = beads_dir / "beads.db-shm"
+    sentinels: dict[Path, bytes] = {}
+    if wal_path.exists() or shm_path.exists():
+        for sidecar in (wal_path, shm_path):
+            if sidecar.exists():
+                sentinels[sidecar] = sidecar.read_bytes()
+    else:
+        wal_path.write_bytes(b"sentinel-wal-not-live-wal\n")
+        shm_path.write_bytes(b"sentinel-shm-not-live-shm\n")
+        for sidecar in (wal_path, shm_path):
+            sentinels[sidecar] = sidecar.read_bytes()
+
+    opened: list[str] = []
+    real_connect = sqlite3.connect
+    with _mock.patch(
+        "sqlite3.connect",
+        side_effect=_guarded_sqlite_connect(opened, real_connect),
+    ):
+        with BeadProject(tmp_path, beads_dirname="beads") as project:
+            assert project.show("legacy-1").title == "Legacy epic"
+            assert sorted(i.id for i in project.list_issues()) == [
+                "legacy-1",
+                "legacy-1.1",
+            ]
+            project.update("legacy-1.1", description="adopted mutation")
+            child = project.create(
+                "Adopted child", IssueType.PHASE, parent_id="legacy-1"
+            )
+            assert child.id == "legacy-1.2"
+            project._export()
+            assert "adopted mutation" in (beads_dir / "issues.jsonl").read_text()
+            project.sync()
+            _assert_sync_excludes_beads_db(tmp_path)
+
+        with BeadProject(tmp_path, beads_dirname="beads") as reopened:
+            assert reopened.show("legacy-1.1").description == "adopted mutation"
+            assert reopened.show(child.id).title == "Adopted child"
+            assert sorted(i.id for i in reopened.list_issues()) == [
+                "legacy-1",
+                "legacy-1.1",
+                child.id,
+            ]
+            reopened.sync()
+            _assert_sync_excludes_beads_db(tmp_path)
+        assert opened == []
+
+    st_after = beads_db.stat()
+    assert (st_after.st_dev, st_after.st_ino) == (
+        st_before.st_dev,
+        st_before.st_ino,
+    )
+    assert beads_db.read_bytes() == bytes_before
+    for sidecar, before in sentinels.items():
+        assert sidecar.read_bytes() == before
 
 
 def test_coordinated_writers_keep_unique_child_ids(tmp_path: Path) -> None:
