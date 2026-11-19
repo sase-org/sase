@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import shutil
+import time
+from concurrent.futures import Future
+from concurrent.futures import FIRST_COMPLETED
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +19,10 @@ from sase.core._disk_footprint_inventory_shared import STRAY_SCAN_SECONDS
 from sase.core._disk_footprint_inventory_shared import UNRESOLVED_PATH
 from sase.config import get_disk_pressure_warn_free_percent
 from sase.core.disk_footprint_inventory_rows import managed_tmp_rows
+from sase.core.disk_footprint_inventory_rows import managed_tmp_root_paths
+from sase.core.disk_footprint_inventory_rows import sase_state_owner_roots
 from sase.core.disk_footprint_inventory_rows import sase_state_rows
+from sase.core.disk_footprint_inventory_rows import workspace_checkout_roots
 from sase.core.disk_footprint_inventory_rows import workspace_rows
 from sase.core.disk_footprint_inventory_strays import cargo_stray_rows
 from sase.core.disk_footprint_inventory_strays import rust_target_rows
@@ -26,13 +34,24 @@ from sase.core.disk_footprint_models import DiskFootprintReport
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import BoundedTreeSizer
 from sase.core.disk_footprint_utils import InventoryScanBudget
+from sase.core.disk_footprint_utils import TreeSizeMeasurement
 from sase.core.disk_footprint_utils import TreeSizeFn
+from sase.core.disk_footprint_utils import du_size
 from sase.core.disk_inventory import classify_disk_inventory
 from sase.core.paths import sase_home
+from sase.core.paths import sase_projects_dir
 from sase.core.time import local_now
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 _UNATTRIBUTED_OWNER = "unattributed"
+
+# Owner roots get their own bounded pass before the existing shared detail/stray
+# budget starts. The 60-second per-root timeout covers the 42.8-second SASE workspace
+# root measured on athena; four concurrent du processes keep the total pass bounded
+# to 90 seconds even when a project has many workspace roots.
+OWNER_ROOT_SCAN_SECONDS = 90.0
+OWNER_ROOT_TIMEOUT_SECONDS = 60.0
+OWNER_ROOT_MAX_CONCURRENCY = 4
 
 
 def collect_disk_footprint(
@@ -46,37 +65,89 @@ def collect_disk_footprint(
 ) -> DiskFootprintReport:
     """Collect SASE-owned and SASE-shaped disk usage rows.
 
-    SASE-known heavy locations (managed roots, state, workspaces, rust
-    targets) are always sized before the generic stray walk, so an
-    exhausted shared scan budget can only clip the stray walk. When the
-    scan is partial or the ``SASE_HOME`` filesystem is under pressure, an
-    ``unattributed`` row accounts for ``df`` used minus attributed bytes.
+    Workspace checkouts and owner roots use a dedicated bounded ``du`` pass
+    before managed-temp buckets, workspace detail rows, and the stray walk use
+    the shared scan budget. If the shared pass is exhausted, detail rows can
+    remain unmeasured and the stray walk is clipped. When the scan is partial
+    or the ``SASE_HOME`` filesystem is under pressure, an ``unattributed`` row
+    accounts for ``df`` used minus attributed bytes.
     """
 
     rows: list[DiskFootprintRow] = []
     diagnostics: list[str] = []
+    workspace_inventory: Any = None
+    workspace_inventory_error: Exception | None = None
+    try:
+        workspace_inventory = workspace_inventory_fn(include_disabled=True)
+    except Exception as exc:  # noqa: BLE001 - inventory remains fail-open.
+        workspace_inventory_error = exc
+
+    try:
+        project_dirs = tuple(sase_projects_dir().iterdir())
+        project_listing_error = None
+    except OSError as exc:
+        project_dirs = ()
+        project_listing_error = f"{type(exc).__name__}: {exc}"
+        diagnostics.append(
+            f"SASE projects root listing failed: {project_listing_error}"
+        )
+
+    managed_roots = managed_tmp_root_paths()
+    owner_roots = [
+        *workspace_checkout_roots(workspace_inventory),
+        *sase_state_owner_roots(project_dirs),
+        *managed_roots,
+    ]
+    owner_measurements, owner_diagnostics = _measure_owner_roots(
+        owner_roots,
+        tree_size_fn=tree_size_fn,
+    )
+    diagnostics.extend(owner_diagnostics)
+
+    def cached_workspace_inventory(**_kwargs: Any) -> Any:
+        if workspace_inventory_error is not None:
+            raise workspace_inventory_error
+        return workspace_inventory
+
     budget = InventoryScanBudget(
         max_nodes=STRAY_MAX_VISITED,
         max_seconds=STRAY_SCAN_SECONDS,
     )
-    size_fn: TreeSizeFn
+    shared_size_fn: TreeSizeFn
     if tree_size_fn is None:
         bounded_sizer = BoundedTreeSizer(budget=budget)
-        size_fn = bounded_sizer.size
+        shared_size_fn = bounded_sizer.size
     else:
         bounded_sizer = None
-        size_fn = tree_size_fn
+        shared_size_fn = tree_size_fn
+
+    def size_fn(path: Path) -> int | TreeSizeMeasurement:
+        if path in owner_measurements:
+            return owner_measurements[path]
+        return shared_size_fn(path)
+
     generated = (now or local_now()).isoformat()
     rows.extend(
-        managed_tmp_rows(tree_size_fn=size_fn, budget=budget, diagnostics=diagnostics)
+        managed_tmp_rows(
+            tree_size_fn=size_fn,
+            budget=budget,
+            diagnostics=diagnostics,
+            roots=managed_roots,
+        )
     )
     rows.extend(
-        sase_state_rows(tree_size_fn=size_fn, budget=budget, diagnostics=diagnostics)
+        sase_state_rows(
+            tree_size_fn=size_fn,
+            budget=budget,
+            diagnostics=diagnostics,
+            project_dirs=project_dirs,
+            project_listing_error=project_listing_error,
+        )
     )
     rows.extend(
         workspace_rows(
             tree_size_fn=size_fn,
-            workspace_inventory_fn=workspace_inventory_fn,
+            workspace_inventory_fn=cached_workspace_inventory,
             diagnostics=diagnostics,
         )
     )
@@ -134,6 +205,95 @@ def collect_disk_footprint(
             scan_diagnostics=diagnostics,
         )
     return report
+
+
+def _measure_owner_roots(
+    roots: Sequence[Path],
+    *,
+    tree_size_fn: TreeSizeFn | None,
+) -> tuple[dict[Path, TreeSizeMeasurement], list[str]]:
+    """Measure owner roots under a separate overall and per-root deadline."""
+
+    ordered_roots = tuple(dict.fromkeys(roots))
+    if tree_size_fn is not None:
+        injected_measurements = {}
+        for path in ordered_roots:
+            value = tree_size_fn(path)
+            injected_measurements[path] = (
+                value
+                if isinstance(value, TreeSizeMeasurement)
+                else TreeSizeMeasurement(size_bytes=int(value))
+            )
+        return injected_measurements, []
+
+    measurements: dict[Path, TreeSizeMeasurement] = {}
+    timeouts: dict[Path, float] = {}
+    deadline = time.monotonic() + OWNER_ROOT_SCAN_SECONDS
+    pending: dict[Future[int | None], Path] = {}
+    next_root = 0
+    with ThreadPoolExecutor(max_workers=OWNER_ROOT_MAX_CONCURRENCY) as executor:
+        while next_root < len(ordered_roots) or pending:
+            now = time.monotonic()
+            while (
+                next_root < len(ordered_roots)
+                and len(pending) < OWNER_ROOT_MAX_CONCURRENCY
+                and now < deadline
+            ):
+                path = ordered_roots[next_root]
+                timeout = min(OWNER_ROOT_TIMEOUT_SECONDS, deadline - now)
+                future = executor.submit(du_size, path, timeout=timeout)
+                pending[future] = path
+                timeouts[path] = timeout
+                next_root += 1
+                now = time.monotonic()
+
+            if not pending:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            completed, _ = wait(
+                pending,
+                timeout=remaining,
+                return_when=FIRST_COMPLETED,
+            )
+            if not completed:
+                break
+            for future in completed:
+                path = pending.pop(future)
+                try:
+                    measured = future.result()
+                except Exception as exc:  # noqa: BLE001 - inventory stays fail-open.
+                    measured = None
+                    detail = f"{type(exc).__name__}: {exc}"
+                else:
+                    detail = f"failed or exceeded {timeouts[path]:.1f}s"
+                if measured is None:
+                    message = f"{path}: du -skx {detail}; size unmeasured"
+                    measurements[path] = TreeSizeMeasurement(
+                        size_bytes=0,
+                        state=DISK_SIZE_UNMEASURED,
+                        diagnostics=(message,),
+                    )
+                else:
+                    measurements[path] = TreeSizeMeasurement(size_bytes=measured)
+
+    for path in ordered_roots:
+        if path in measurements:
+            continue
+        message = f"{path}: skipped; owner-root sizing budget exhausted"
+        measurements[path] = TreeSizeMeasurement(
+            size_bytes=0,
+            state=DISK_SIZE_UNMEASURED,
+            diagnostics=(message,),
+        )
+
+    diagnostics = [
+        diagnostic
+        for path in ordered_roots
+        for diagnostic in measurements[path].diagnostics
+    ]
+    return measurements, diagnostics
 
 
 def largest_unowned_rows(

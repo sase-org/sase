@@ -17,7 +17,7 @@ DISK_SIZE_UNMEASURED = "unmeasured"
 
 
 @dataclass(frozen=True)
-class _TreeSizeMeasurement:
+class TreeSizeMeasurement:
     """One tree-size observation: exact, a floor, or unknown."""
 
     size_bytes: int
@@ -25,7 +25,7 @@ class _TreeSizeMeasurement:
     diagnostics: tuple[str, ...] = ()
 
 
-type TreeSizeFn = Callable[[Path], int | _TreeSizeMeasurement]
+type TreeSizeFn = Callable[[Path], int | TreeSizeMeasurement]
 
 
 class _MeasuredRowFields(TypedDict):
@@ -35,12 +35,12 @@ class _MeasuredRowFields(TypedDict):
     diagnostics: tuple[str, ...]
 
 
-def _coerce_tree_size(value: int | _TreeSizeMeasurement) -> _TreeSizeMeasurement:
+def _coerce_tree_size(value: int | TreeSizeMeasurement) -> TreeSizeMeasurement:
     """Treat a plain int from ``tree_size_fn`` as a complete measurement."""
 
-    if isinstance(value, _TreeSizeMeasurement):
+    if isinstance(value, TreeSizeMeasurement):
         return value
-    return _TreeSizeMeasurement(size_bytes=int(value), state=DISK_SIZE_MEASURED)
+    return TreeSizeMeasurement(size_bytes=int(value), state=DISK_SIZE_MEASURED)
 
 
 def measured_row_fields(
@@ -185,20 +185,20 @@ class BoundedTreeSizer:
             self.budget = budget
         return budget
 
-    def size(self, path: Path) -> _TreeSizeMeasurement:
+    def size(self, path: Path) -> TreeSizeMeasurement:
         budget = self._budget
         if budget.exhausted:
             budget.truncated = True
             diagnostic = f"{path}: skipped; shared scan budget exhausted"
             budget.record_diagnostic(diagnostic)
-            return _TreeSizeMeasurement(
+            return TreeSizeMeasurement(
                 size_bytes=0,
                 state=DISK_SIZE_UNMEASURED,
                 diagnostics=(diagnostic,),
             )
         measured = du_size(path, timeout=budget.remaining_seconds(5.0))
         if measured is not None:
-            return _TreeSizeMeasurement(
+            return TreeSizeMeasurement(
                 size_bytes=measured,
                 state=DISK_SIZE_MEASURED,
             )
@@ -212,12 +212,12 @@ class BoundedTreeSizer:
         diagnostic = f"{path}: fallback walk {reason}; visited={visited}; bytes={size}"
         budget.record_diagnostic(diagnostic)
         if truncated:
-            return _TreeSizeMeasurement(
+            return TreeSizeMeasurement(
                 size_bytes=size,
                 state=DISK_SIZE_LOWER_BOUND,
                 diagnostics=(diagnostic,),
             )
-        return _TreeSizeMeasurement(
+        return TreeSizeMeasurement(
             size_bytes=size,
             state=DISK_SIZE_MEASURED,
             diagnostics=(diagnostic,),

@@ -112,12 +112,16 @@ def sase_state_rows(
     tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
+    project_dirs: Sequence[Path] | None = None,
+    project_listing_error: str | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
     _sync_rows_patchables()
     return inventory_rows.sase_state_rows(
         tree_size_fn=tree_size_fn,
         budget=budget,
         diagnostics=diagnostics,
+        project_dirs=project_dirs,
+        project_listing_error=project_listing_error,
     )
 
 
@@ -167,6 +171,7 @@ def _sync_collect_patchables() -> None:
     inventory_collect.collect_workspace_inventory = collect_workspace_inventory
     inventory_collect.local_now = local_now
     inventory_collect.sase_home = sase_home
+    inventory_collect.sase_projects_dir = sase_projects_dir
     inventory_collect.managed_tmp_rows = managed_tmp_rows
     inventory_collect.sase_state_rows = sase_state_rows
     inventory_collect.workspace_rows = workspace_rows

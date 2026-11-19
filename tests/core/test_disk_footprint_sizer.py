@@ -8,7 +8,7 @@ from sase.core.disk_footprint_utils import DISK_SIZE_LOWER_BOUND
 from sase.core.disk_footprint_utils import DISK_SIZE_MEASURED
 from sase.core.disk_footprint_utils import DISK_SIZE_UNMEASURED
 from sase.core.disk_footprint_utils import BoundedTreeSizer
-from sase.core.disk_footprint_utils import _TreeSizeMeasurement
+from sase.core.disk_footprint_utils import TreeSizeMeasurement
 from sase.core.disk_footprint_utils import _coerce_tree_size
 from sase.core.disk_footprint_utils import format_measured_bytes
 from sase.core.disk_footprint_utils import measured_row_fields
@@ -57,5 +57,5 @@ def test_du_timeout_with_truncated_walk_is_lower_bound(
 def test_plain_int_tree_size_fn_is_measured() -> None:
     measurement = _coerce_tree_size(42)
 
-    assert measurement == _TreeSizeMeasurement(size_bytes=42, state=DISK_SIZE_MEASURED)
+    assert measurement == TreeSizeMeasurement(size_bytes=42, state=DISK_SIZE_MEASURED)
     assert format_measured_bytes(42, DISK_SIZE_MEASURED) == "42 B"

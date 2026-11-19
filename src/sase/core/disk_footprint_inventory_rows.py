@@ -73,6 +73,12 @@ def managed_tmp_rows(
     return tuple(rows)
 
 
+def managed_tmp_root_paths() -> tuple[Path, ...]:
+    """Return every managed temp root used by writers or the reaper."""
+
+    return tuple(_all_managed_tmp_roots())
+
+
 def _all_managed_tmp_roots() -> list[Path]:
     """Return every managed temp root one inventory pass must cover."""
 
@@ -95,11 +101,12 @@ def _managed_tmp_root_rows(
     default_horizon: float,
     qualify_name: bool,
 ) -> list[DiskFootprintRow]:
+    root_name = f"{root.name}/<root>" if qualify_name else "<root>"
     if not root.exists():
         return [
             DiskFootprintRow(
                 section="managed_tmp",
-                name="<root>",
+                name=root_name,
                 path=str(root),
                 size_bytes=0,
                 owner="managed_tmp_reaper",
@@ -108,6 +115,19 @@ def _managed_tmp_root_rows(
                 physical_path=str(normalize_path_no_follow(root)),
             ),
         ]
+
+    rows: list[DiskFootprintRow] = [
+        DiskFootprintRow(
+            section="managed_tmp",
+            name=root_name,
+            path=str(root),
+            physical_path=str(normalize_path_no_follow(root)),
+            owner="managed_tmp_reaper",
+            horizon="managed temp root; includes bucket rows",
+            reclaim="sase disk reap --apply",
+            **measured_row_fields(tree_size_fn, root),
+        )
+    ]
 
     listing = iter_children_bounded(root, budget) if budget is not None else None
     children = listing.children if listing is not None else tuple(iter_children(root))
@@ -121,7 +141,6 @@ def _managed_tmp_root_rows(
                 f"managed tmp root partial listing: {root_diagnostics[0]}"
             )
 
-    rows: list[DiskFootprintRow] = []
     for entry in children:
         horizon_seconds = (
             horizons.get(entry.name, default_horizon)
@@ -171,6 +190,8 @@ def sase_state_rows(
     tree_size_fn: TreeSizeFn,
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
+    project_dirs: Sequence[Path] | None = None,
+    project_listing_error: str | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
     rows = [
         DiskFootprintRow(
@@ -224,17 +245,22 @@ def sase_state_rows(
     ]
     months = get_artifact_retention_keep_recent_run_months()
     projects = sase_projects_dir()
-    listing = iter_children_bounded(projects, budget) if budget is not None else None
-    project_dirs = (
-        listing.children if listing is not None else tuple(iter_children(projects))
-    )
+    if project_dirs is None:
+        listing = (
+            iter_children_bounded(projects, budget) if budget is not None else None
+        )
+        project_dirs = (
+            listing.children if listing is not None else tuple(iter_children(projects))
+        )
+        if listing is not None and not listing.complete:
+            project_listing_error = (
+                listing.error or "SASE projects root listing was clipped"
+            )
     project_coverage = DISK_COVERAGE_COMPLETE
     project_diagnostics: tuple[str, ...] = ()
-    if listing is not None and not listing.complete:
+    if project_listing_error:
         project_coverage = DISK_COVERAGE_PARTIAL
-        project_diagnostics = (
-            listing.error or "SASE projects root listing was clipped",
-        )
+        project_diagnostics = (project_listing_error,)
         if diagnostics is not None:
             diagnostics.append(
                 f"SASE projects root partial listing: {project_diagnostics[0]}"
@@ -263,6 +289,24 @@ def sase_state_rows(
             )
         )
     return tuple(rows)
+
+
+def sase_state_owner_roots(project_dirs: Sequence[Path]) -> tuple[Path, ...]:
+    """Return the fixed state roots and discovered artifact-run owner roots."""
+
+    roots = [
+        procs_dir() / "runtime",
+        sase_home() / "tools",
+        sase_home() / "cache" / "rust-prebuild",
+        sase_home() / "cache" / "project_stats",
+    ]
+    for project_dir in project_dirs:
+        if not project_dir.is_dir() or project_dir.is_symlink():
+            continue
+        ace_run = project_dir / "artifacts" / "ace-run"
+        if ace_run.exists():
+            roots.append(ace_run)
+    return tuple(roots)
 
 
 def workspace_rows(
@@ -332,6 +376,27 @@ def workspace_rows(
     return tuple(rows)
 
 
+def workspace_checkout_roots(inventory: Any) -> tuple[Path, ...]:
+    """Return each distinct checkout root represented by a workspace inventory."""
+
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for project in getattr(inventory, "projects", ()):
+        checkout_dir = Path(project.root_dir)
+        key = str(normalize_path_no_follow(checkout_dir))
+        if key not in seen:
+            roots.append(checkout_dir)
+            seen.add(key)
+        raw_primary_dir = getattr(project, "primary_workspace_dir", "") or ""
+        if bool(getattr(project, "share_git_objects", True)) and raw_primary_dir:
+            primary_dir = Path(raw_primary_dir)
+            primary_key = str(normalize_path_no_follow(primary_dir))
+            if primary_key not in seen:
+                roots.append(primary_dir)
+                seen.add(primary_key)
+    return tuple(roots)
+
+
 def _workspace_checkout_rows(
     *,
     label: str,
@@ -394,7 +459,10 @@ def _workspace_checkout_rows(
 
 
 __all__ = [
+    "managed_tmp_root_paths",
     "managed_tmp_rows",
+    "sase_state_owner_roots",
     "sase_state_rows",
+    "workspace_checkout_roots",
     "workspace_rows",
 ]

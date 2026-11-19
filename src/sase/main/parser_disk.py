@@ -28,7 +28,11 @@ def register_disk_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "List SASE-owned and SASE-shaped disk usage by owner. Unmeasured "
             "rows render as unmeasured rather than 0 B complete, and truncated "
-            "du fallbacks render as a lower bound."
+            "du fallbacks render as a lower bound. Workspace checkouts and "
+            "owner roots are measured first under a separate 90-second budget "
+            "with a 60-second timeout per root and at most four concurrent du "
+            "processes; the existing shared budget then covers detail rows and "
+            "strays."
         ),
     )
     list_parser.add_argument(

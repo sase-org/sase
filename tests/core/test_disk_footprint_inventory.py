@@ -12,7 +12,8 @@ from sase.core.disk_footprint_models import DISK_SIZE_UNMEASURED
 from sase.core.disk_footprint_models import DiskFootprintReport
 from sase.core.disk_footprint_models import DiskFootprintRow
 from sase.core.disk_footprint_utils import InventoryScanBudget
-from sase.core.disk_footprint_utils import _TreeSizeMeasurement
+from sase.core.disk_footprint_utils import TreeSizeMeasurement
+from sase.core.disk_footprint_utils import du_size
 
 from tests.core._disk_footprint_helpers import _Inventory, _ProjectInfo, _write
 
@@ -267,6 +268,10 @@ def test_managed_tmp_rows_cover_every_registered_root(
     rows = managed_tmp_rows(tree_size_fn=lambda _path: 7)
 
     by_path = {Path(row.path): row for row in rows}
+    assert by_path[first].name == "first-tmp/<root>"
+    assert by_path[first].size_bytes == 7
+    assert by_path[second].name == "second-tmp/<root>"
+    assert by_path[second].size_bytes == 7
     assert by_path[first / "cargo-targets"].owner == "managed_tmp_reaper"
     assert by_path[second / "agent-tmp"].owner == "managed_tmp_reaper"
     assert by_path[first / "cargo-targets"].name == "first-tmp/cargo-targets"
@@ -363,13 +368,12 @@ def test_unattributed_row_reports_df_gap_when_coverage_partial(
     assert "sase disk list" in (row.reclaim or "")
 
 
-def test_budget_exhaustion_clips_stray_walk_but_keeps_workspace_rows(
+def test_shared_budget_exhaustion_still_measures_workspace_roots(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Known heavy locations are sized before the generic stray walk."""
+    """The real owner-root pass is independent of the shared stray budget."""
     managed = tmp_path / "managed-tmp"
-    for bucket in ("cargo-targets", "agent-tmp", "build-targets"):
-        _write(managed / bucket / "entry" / "payload", "x")
+    _write(managed / "cargo-targets" / "entry" / "payload", "x")
     home = tmp_path / "home"
     _write(home / "forgotten" / "target" / ".rustc_info.json", "{}")
     workspace_root = tmp_path / "workspaces" / "proj"
@@ -387,12 +391,11 @@ def test_budget_exhaustion_clips_stray_walk_but_keeps_workspace_rows(
     )
     monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
     monkeypatch.setattr(
-        "sase.core.disk_footprint_inventory_collect.STRAY_MAX_VISITED", 2
+        "sase.core.disk_footprint_inventory_collect.STRAY_SCAN_SECONDS", 0.0
     )
 
     report = collect_disk_footprint(
         home=home,
-        tree_size_fn=lambda path: 100 if path == workspace_root else 0,
         workspace_inventory_fn=lambda **_kwargs: _Inventory(
             projects=(
                 _ProjectInfo(
@@ -407,7 +410,9 @@ def test_budget_exhaustion_clips_stray_walk_but_keeps_workspace_rows(
     )
 
     rows_by_path = {Path(row.path): row for row in report.rows if row.path}
-    assert rows_by_path[workspace_root].size_bytes == 100
+    workspace = rows_by_path[workspace_root]
+    assert workspace.size_state == "measured"
+    assert workspace.size_bytes == du_size(workspace_root)
     assert report.stray_scan_truncated is True
     assert report.coverage_status == "partial"
 
@@ -464,6 +469,9 @@ def test_exhausted_sizer_budget_marks_existing_rows_unmeasured(
     monkeypatch.setattr(
         "sase.core.disk_footprint_inventory_collect.STRAY_SCAN_SECONDS", 0.0
     )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_inventory_collect.OWNER_ROOT_SCAN_SECONDS", 0.0
+    )
 
     report = collect_disk_footprint(
         include_strays=False,
@@ -506,9 +514,9 @@ def test_unattributed_row_names_unmeasured_owners(tmp_path: Path, monkeypatch) -
     )
     monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
 
-    def sizes(path: Path) -> int | _TreeSizeMeasurement:
+    def sizes(path: Path) -> int | TreeSizeMeasurement:
         if path == workspace_root:
-            return _TreeSizeMeasurement(
+            return TreeSizeMeasurement(
                 size_bytes=0,
                 state=DISK_SIZE_UNMEASURED,
                 diagnostics=(f"{path}: skipped; shared scan budget exhausted",),
