@@ -31,6 +31,7 @@ DEFAULT_TOOL_RUNS_LOG_DAYS = 14
 DEFAULT_TOOL_RUNS_LOG_MAX_BYTES = 2 * 1024 * 1024 * 1024
 DEFAULT_TOOL_RUNS_RUN_LOG_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_TOOL_RUNS_EVENT_MAX_BYTES = 16 * 1024 * 1024
+DEFAULT_TOOL_RUNS_HOUSEKEEPING_INTERVAL_SECONDS = 3600
 
 _GIT_REMOTE_TIMEOUT_SECONDS = 5.0
 _WORKSPACE_SUFFIX = re.compile(r"_\d+$")
@@ -43,6 +44,7 @@ _TOOL_RUNS_FIELDS = (
     "log_max_bytes",
     "run_log_max_bytes",
     "event_max_bytes",
+    "housekeeping_interval_seconds",
     "soft_ceiling",
 )
 
@@ -283,6 +285,29 @@ def get_tool_runs_config() -> dict[str, int]:
     return values
 
 
+def get_tool_run_housekeeping_interval_seconds() -> int:
+    """Return how often the scheduled ToolRun retention pass may apply.
+
+    This interval is Python housekeeping cadence, not part of the Rust
+    retention policy payload.
+    """
+    from sase.config.core import load_merged_config
+
+    raw = load_merged_config().get("tool_runs", {})
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, Mapping):
+        raise ToolRunsConfigError("tool_runs must be a mapping")
+    return _positive_int(
+        raw.get(
+            "housekeeping_interval_seconds",
+            DEFAULT_TOOL_RUNS_HOUSEKEEPING_INTERVAL_SECONDS,
+        ),
+        "tool_runs.housekeeping_interval_seconds",
+        DEFAULT_TOOL_RUNS_HOUSEKEEPING_INTERVAL_SECONDS,
+    )
+
+
 def _non_project_tools_diagnostics() -> list[str]:
     try:
         layers = load_config_layers()
@@ -422,6 +447,7 @@ __all__ = [
     "ToolCatalog",
     "ToolCatalogError",
     "ToolRunsConfigError",
+    "get_tool_run_housekeeping_interval_seconds",
     "get_tool_runs_config",
     "get_tool_runs_soft_ceiling_seconds",
     "load_project_tool_catalog",

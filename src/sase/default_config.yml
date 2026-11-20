@@ -176,6 +176,9 @@ tool_runs:
   run_log_max_bytes: 268435456
   # 16 MiB per-run event-file cap.
   event_max_bytes: 16777216
+  # How often the housekeeping state_retention chop may apply the existing
+  # tool_run_retention owner, independent of disk pressure.
+  housekeeping_interval_seconds: 3600
   # The most time an agent should block on one `sase tool run` before
   # escalating to a monitor; it kills nothing; the effective budget is the
   # smaller of this and the hard ceiling's budget.
@@ -1780,6 +1783,17 @@ axe:
             The Rust owner rechecks the proc store under its lock before deletion so concurrent reservations are
             preserved. Runtime directories for proc rows actually pruned by retention are deleted immediately by the
             proc store path; this job handles historical orphans over a bounded per-pass budget.
+        - name: state_retention
+          script: sase_job_state_retention
+          timeout: "2m"
+          description: |-
+            Apply ToolRun log retention on a schedule and remove emptied run dirs
+
+            Calls the existing tool_run_retention owner (the same step as sase disk reap and
+            disk_pressure) at most once per tool_runs.housekeeping_interval_seconds, whether or
+            not the filesystem is under pressure. After that pass it removes empty run
+            directories under ~/.sase/tools/logs without following symlinks. This job adds no
+            second tool-run policy.
         - name: disk_pressure
           script: sase_job_disk_pressure
           timeout: "5m"

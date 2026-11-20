@@ -176,6 +176,13 @@ def test_tool_runs_defaults_are_positive_and_consistent() -> None:
     assert policy["log_max_bytes"] == 2147483648
     assert policy["run_log_max_bytes"] == 268435456
     assert policy["event_max_bytes"] == 16777216
+    assert "housekeeping_interval_seconds" not in policy
+
+
+def test_tool_run_housekeeping_interval_defaults() -> None:
+    from sase.config.tools import get_tool_run_housekeeping_interval_seconds
+
+    assert get_tool_run_housekeeping_interval_seconds() == 3600
 
 
 def test_tool_runs_rejects_inconsistent_horizons(

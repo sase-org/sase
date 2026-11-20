@@ -107,6 +107,40 @@ def test_error_digest_emits_action_summary(
     }
 
 
+def test_error_digest_prunes_even_when_notify_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_error_digest")
+    record = {
+        "interval_id": "interval-1",
+        "interval_end": "2099-05-12T10:05:00-04:00",
+        "total": 2,
+        "groups": [{"job": "a"}],
+    }
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["sase_chop_error_digest", "--context", str(context_path)],
+    )
+    monkeypatch.setattr(script, "rotate_error_interval", lambda: [record])
+    monkeypatch.setattr(
+        script,
+        "notify_axe_error_digest",
+        Mock(side_effect=ValueError("dedup_key requires plus_one_note")),
+    )
+    monkeypatch.setattr(script, "mark_error_digest_sent", Mock())
+    monkeypatch.setattr(script, "prune_old_error_digests", lambda: 7)
+
+    script.main()
+
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["counters"]["pruned"] == 7
+    assert result["counters"]["notified"] == 0
+    assert result["status"] == "check_error"
+
+
 def _pin_reap_free_space(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep real host free space from leaking pressure counters into the contract."""
     from sase.core import managed_tmp_reaper

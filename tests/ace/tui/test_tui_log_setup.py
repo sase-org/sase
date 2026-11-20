@@ -99,3 +99,61 @@ def test_tui_log_keeps_only_configured_rotating_generations(
     assert path.exists()
     assert path.with_name("tui.log.1").exists()
     assert not path.with_name("tui.log.2").exists()
+
+
+def _stamp(ts: float, message: str) -> str:
+    from datetime import datetime
+
+    rendered = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+    return f"{rendered} WARNING sase: {message}\n"
+
+
+def test_tui_log_rotates_by_age_and_prunes_old_segments(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui.log"
+    now = 1_700_000_000.0
+    monkeypatch.setattr(launch_log, "TUI_LOG", str(path))
+    monkeypatch.setattr(log_setup, "_MAX_AGE_SECONDS", 14 * 86400)
+    monkeypatch.setattr(log_setup, "_now", lambda: now)
+    path.write_text(_stamp(now - 20 * 86400, "ancient"), encoding="utf-8")
+    stale_backup = path.with_name("tui.log.1")
+    stale_backup.write_text(_stamp(now - 40 * 86400, "rotated"), encoding="utf-8")
+
+    install_tui_file_logging()
+    logging.getLogger("sase.rotation").warning("fresh")
+    for handler in _sase_handlers():
+        handler.flush()
+
+    text = path.read_text(encoding="utf-8")
+    assert "fresh" in text
+    assert "ancient" not in text
+    assert not stale_backup.exists()
+
+
+def test_tui_log_keeps_rotated_segment_with_recent_entries(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui.log"
+    now = 1_700_000_000.0
+    monkeypatch.setattr(launch_log, "TUI_LOG", str(path))
+    monkeypatch.setattr(log_setup, "_MAX_AGE_SECONDS", 14 * 86400)
+    monkeypatch.setattr(log_setup, "_now", lambda: now)
+    path.write_text(
+        _stamp(now - 20 * 86400, "old") + _stamp(now - 3600, "recent"),
+        encoding="utf-8",
+    )
+
+    install_tui_file_logging()
+    logging.getLogger("sase.rotation").warning("fresh")
+    for handler in _sase_handlers():
+        handler.flush()
+
+    backup = path.with_name("tui.log.1")
+    assert backup.exists()
+    backup_text = backup.read_text(encoding="utf-8")
+    assert "old" in backup_text
+    assert "recent" in backup_text
+    assert "fresh" in path.read_text(encoding="utf-8")

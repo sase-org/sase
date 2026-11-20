@@ -17,13 +17,26 @@ _logger = logging.getLogger(__name__)
 
 @builtin_chop("error_digest")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
+    pruned = 0
+    try:
+        pruned = prune_old_error_digests()
+    except Exception as exc:  # noqa: BLE001 - prune is best-effort
+        _logger.warning("Failed to prune old error digests: %s", exc)
     pending = rotate_error_interval()
     notified = 0
     errors_total = 0
     causes = 0
     newest = None
+    notify_failed = False
     for record in pending:
-        notify_axe_error_digest(record=record)
+        try:
+            notify_axe_error_digest(record=record)
+        except Exception as exc:  # noqa: BLE001 - remaining records and prune already ran
+            notify_failed = True
+            runtime.log.warning(
+                f"error_digest notify failed: {type(exc).__name__}: {exc}"
+            )
+            continue
         interval_id = record.get("interval_id")
         if isinstance(interval_id, str) and interval_id:
             mark_error_digest_sent(interval_id)
@@ -35,12 +48,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         groups = record.get("groups")
         if isinstance(groups, list):
             causes += len(groups)
-    pruned = 0
-    try:
-        pruned = prune_old_error_digests()
-    except Exception as exc:  # noqa: BLE001 - prune is best-effort
-        _logger.warning("Failed to prune old error digests: %s", exc)
-    return runtime.emit_summary(
+    result = runtime.emit_summary(
         {
             "errors_total": errors_total,
             "causes": causes,
@@ -50,6 +58,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         },
         reason=None if pending or pruned else "no_recent_errors",
     )
+    if notify_failed:
+        result.status = "check_error"
+    return result
 
 
 def main() -> None:

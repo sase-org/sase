@@ -189,7 +189,10 @@ Retention keeps run summaries for `summary_days`, detailed stage and sample rows
 runs' files are selected until the remainder fits. Unsettled runs and their files are
 never selected; if they alone exceed the target, the preview and apply report the
 `over_target_bytes` instead of hiding it. Reclaimed bytes count only files actually
-unlinked (no-follow, confined to the ToolRun root), never SQLite row deletion.
+unlinked (no-follow, confined to the ToolRun root), never SQLite row deletion. Empty run
+directories left after that unlink are removed in the same owner step. The hourly
+`state_retention` housekeeping job applies this owner on a schedule, not only under disk
+pressure.
 
 ## Incomplete evidence
 

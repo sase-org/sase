@@ -132,6 +132,11 @@ detail pane to it. The jump target is session-scoped: it is the most recent erro
 in this sase's TUI process, not a durable pointer, and it degrades to the ordinary tail
 with an in-pane notice if the entry has rotated out of the log.
 
+`~/.sase/logs/tui.log` is the catch-all TUI diagnostics file. It rotates when the active
+file exceeds 2 MiB or when its oldest entry is older than 14 days, keeping three size
+generations, and deletes rotated segments whose newest entry is older than that horizon
+at TUI start and after each rotation.
+
 ### Machines tab
 
 The Machines tab is the controller's local fleet inventory. It always includes the local

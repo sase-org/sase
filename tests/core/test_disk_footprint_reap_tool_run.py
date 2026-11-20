@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.core.disk_footprint_reap_tool_run import tool_run_reap_step
+from sase.core.disk_footprint_reap_tool_run import (
+    remove_empty_tool_run_log_dirs,
+    tool_run_reap_step,
+)
 
 
 def test_tool_run_reap_preview_reports_missing_store(
@@ -126,3 +129,100 @@ def test_tool_run_reap_preview_reports_protected_bytes_over_the_target(
     assert step.details["protected_bytes"] == 900
     assert step.details["over_target_bytes"] == 400
     assert step.reclaimed_bytes == 0
+
+
+def test_tool_run_reap_apply_removes_empty_run_dirs(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    tools = home / "tools"
+    empty = tools / "logs" / "run-empty"
+    empty.mkdir(parents=True)
+    live = tools / "logs" / "run-live"
+    live.mkdir(parents=True)
+    (live / "stdout.log").write_text("keep", encoding="utf-8")
+    outside = tmp_path / "escape-empty"
+    outside.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(home))
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_wire_schema_version",
+        lambda: 1,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_store_stats",
+        lambda store_path=None: {"exists": True, "run_count": 0},
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_retention_apply",
+        lambda request, store_path=None: {
+            "schema_version": 1,
+            "dry_run": False,
+            "summary_rows": 0,
+            "detail_rows": 0,
+            "file_candidates": [],
+            "protected_unsettled": 0,
+            "diagnostics": [],
+        },
+    )
+    step = tool_run_reap_step(apply=True)
+    assert not empty.exists()
+    assert live.exists()
+    assert (live / "stdout.log").exists()
+    assert outside.exists()
+    assert step.details["empty_dirs_removed"] == 1
+    assert str(empty) in step.details["empty_dirs"]
+
+
+def test_tool_run_reap_apply_removes_dir_emptied_by_file_delete(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    log = home / "tools" / "logs" / "run-1" / "stdout.log"
+    log.parent.mkdir(parents=True)
+    log.write_bytes(b"abcdef")
+    monkeypatch.setenv("SASE_HOME", str(home))
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_wire_schema_version",
+        lambda: 1,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_store_stats",
+        lambda store_path=None: {"exists": True, "run_count": 1},
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_retention_apply",
+        lambda request, store_path=None: {
+            "schema_version": 1,
+            "dry_run": False,
+            "summary_rows": 0,
+            "detail_rows": 0,
+            "file_candidates": [
+                {
+                    "kind": "stdout",
+                    "run_id": "run-1",
+                    "path": str(log),
+                    "protected": False,
+                    "reason": "log_days",
+                }
+            ],
+            "protected_unsettled": 0,
+            "diagnostics": [],
+        },
+    )
+    step = tool_run_reap_step(apply=True)
+    assert not log.exists()
+    assert not log.parent.exists()
+    assert step.details["removed_files"] == 1
+    assert step.details["empty_dirs_removed"] == 1
+
+
+def test_remove_empty_tool_run_log_dirs_missing_root(tmp_path: Path) -> None:
+    missing = tmp_path / "no-such-logs"
+    sweep = remove_empty_tool_run_log_dirs(apply=True, logs_root=missing)
+    assert sweep.scanned == 0
+    assert sweep.selected == 0
+    assert sweep.removed == 0
+    assert sweep.errors == ()
+    assert sweep.paths == ()

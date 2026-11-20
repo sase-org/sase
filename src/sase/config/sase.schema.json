@@ -1685,6 +1685,12 @@
           "default": 16777216,
           "description": "Per-run event file cap in bytes (default 16 MiB)."
         },
+        "housekeeping_interval_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "Minimum seconds between scheduled applications of the existing tool_run_retention owner by the housekeeping state_retention chop. Disk-pressure reaping is unchanged."
+        },
         "soft_ceiling": {
           "type": "object",
           "description": "The most time an agent should block on one `sase tool run` before escalating to a monitor; it kills nothing; the effective budget is the smaller of this and the hard ceiling's budget.",

@@ -150,11 +150,12 @@ def notify_axe_error_digest(record: dict) -> None:
         if isinstance(interval_id, str) and interval_id
         else None
     )
+    note = digest_notification_note(payload)
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender="axe",
-        notes=[digest_notification_note(payload)],
+        notes=[note],
         files=[str(digest_file)],
         action="ViewErrorReport",
         action_data={"error_report_path": str(digest_file)},
@@ -170,7 +171,7 @@ def notify_axe_error_digest(record: dict) -> None:
             already = False
         if already:
             return
-        upsert_notification(n)
+        upsert_notification(n, plus_one_note=note)
         return
     append_notification(n)
 

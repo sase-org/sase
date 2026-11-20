@@ -313,9 +313,13 @@ def _notify_rotated_digest() -> Notification:
     pending = rotate_error_interval()
     assert len(pending) == 1
     notifications: list[Notification] = []
+
+    def _capture(notification: Notification, **_kwargs: object) -> None:
+        notifications.append(notification)
+
     with (
         patch("sase.notifications.senders.load_notifications", return_value=[]),
-        patch("sase.notifications.senders.upsert_notification", notifications.append),
+        patch("sase.notifications.senders.upsert_notification", _capture),
     ):
         senders.notify_axe_error_digest(pending[0])
     assert len(notifications) == 1

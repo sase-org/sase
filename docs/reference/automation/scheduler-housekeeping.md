@@ -18,6 +18,7 @@ Periodic maintenance:
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                  |
 | `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root                |
 | `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                     |
+| `state_retention`            | Apply ToolRun log retention on a schedule and remove emptied run dirs            |
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                         |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate      |
 | `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished   |
@@ -191,6 +192,13 @@ Fresh, invalidly named, symlinked, active, or otherwise retained entries are pre
 The summary reports `scanned`, `selected`, `removed`, `skipped`, `errors`,
 `reclaimable_bytes`, `reclaimed_bytes`, and `capped`.
 
+The `state_retention` job applies the existing `tool_run_retention` owner — the same
+step as [`sase disk reap`](../disk-cleanup.md) and `disk_pressure` — at most once per
+[`tool_runs.housekeeping_interval_seconds`](../config/runtime-and-storage.md#toolruns)
+(default one hour), whether or not the filesystem is under pressure. It then removes
+empty run directories under `~/.sase/tools/logs` without following symlinks. It adds no
+second tool-run policy. `clutter_reapers` adds further owner steps to this same chop.
+
 The `disk_pressure` job measures the filesystems that hold the managed temp root and
 `~/.sase` (once per distinct filesystem) and classifies them through the Rust
 disk-pressure policy: a filesystem is under pressure when its free space falls below the
@@ -200,7 +208,8 @@ With no pressure, the job exits with reason `space_ok` without scanning the disk
 footprint and ends any active pressure episode. Under pressure it reaps first
 (managed-temp, using measured free space and the warn threshold as its pressure floor
 and recovery target, plus proc-row/log retention and the rowless runtime sweep, plus
-tool-run retention). Inventory collection runs afterward under a 20s fail-open cap: an
+tool-run retention). Hourly `state_retention` applies that same tool-run owner without
+waiting for pressure. Inventory collection runs afterward under a 20s fail-open cap: an
 exception or timeout becomes "attribution unavailable" in the notice and never skips or
 delays recovery. The notice leads with free space and the recovery result, names
 unmeasured owners, lists only measured top owners, and labels the residual the way

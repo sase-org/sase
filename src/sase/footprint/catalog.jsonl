@@ -1,4 +1,4 @@
-{"count": 3711, "rev": "d0990e7780ea", "schema": "sase.footprint.catalog/1"}
+{"count": 3713, "rev": "77f5291f8808", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -35,6 +35,7 @@
 {"area": "automation", "id": "auto:axe.housekeeping.notification_store_compact", "kind": "auto", "label": "Archive old dismissed notifications out of the live JSONL store", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.proc_runtime_sweep", "kind": "auto", "label": "Prune stale rowless proc runtime directories", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.staged_handoff_reconcile", "kind": "auto", "label": "Recover finalized staged handoffs after their originating runner dies", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.housekeeping.state_retention", "kind": "auto", "label": "Apply ToolRun log retention on a schedule and remove emptied run dirs", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.publication", "kind": "auto", "label": "Drain durable agent publication work in the background", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.publication.agent_publication", "kind": "auto", "label": "Drain queued agent hood, artifact-link, and Referenced By publication requests", "ns": "auto", "parent": "auto:axe.publication", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.sidecar_sync", "kind": "auto", "label": "Fetch and fast-forward opted-in primary sidecar clones", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2951,6 +2952,7 @@
 {"area": "config.tmux_agent", "id": "config:tmux_agent.window_name", "kind": "config", "label": "Window name", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.detail_days", "kind": "config", "label": "Detail days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.event_max_bytes", "kind": "config", "label": "Event max bytes", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.tool_runs", "id": "config:tool_runs.housekeeping_interval_seconds", "kind": "config", "label": "Housekeeping interval seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.log_days", "kind": "config", "label": "Log days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.log_max_bytes", "kind": "config", "label": "Log max bytes", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.run_log_max_bytes", "kind": "config", "label": "Run log max bytes", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

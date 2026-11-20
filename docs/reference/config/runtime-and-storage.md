@@ -293,6 +293,7 @@ tool_runs:
   log_max_bytes: 2147483648
   run_log_max_bytes: 268435456
   event_max_bytes: 16777216
+  housekeeping_interval_seconds: 3600
   soft_ceiling:
     default: ""
     providers: {}
@@ -304,6 +305,11 @@ tool_runs:
 before escalating to a monitor; it kills nothing; the effective budget is the smaller of
 this and the hard ceiling's budget. The provider entry wins, then `default`, then none.
 A malformed or non-positive value is ignored with one warning and never fails a launch.
+
+The hourly `state_retention` housekeeping job applies this owner at most once per
+`housekeeping_interval_seconds` (default 3600), whether or not the filesystem is under
+pressure, and then removes emptied run directories. `sase disk reap` and `disk_pressure`
+still call the same owner; this interval does not change the Rust retention policy.
 
 Unknown fields and non-positive or inconsistent horizons are rejected. JSON Schema
 cannot express `detail_days <= summary_days`; runtime validation covers that.

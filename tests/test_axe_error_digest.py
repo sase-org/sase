@@ -272,8 +272,9 @@ def test_retry_notify_does_not_create_second_row(temp_state_dir: Path) -> None:
     record = rotate_error_interval()[0]
     created: list[Notification] = []
 
-    def _create(notification: Notification) -> None:
+    def _create(notification: Notification, **kwargs) -> None:
         created.append(notification)
+        assert kwargs.get("plus_one_note")
 
     with (
         patch("sase.notifications.senders.upsert_notification", side_effect=_create),

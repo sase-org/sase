@@ -274,6 +274,7 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     assert "bead_stale_cleanup" in housekeeping.chop_names
     assert "notification_store_compact" in housekeeping.chop_names
     assert "artifact_retention" in housekeeping.chop_names
+    assert "state_retention" in housekeeping.chop_names
     stale_cleanup = next(
         chop for chop in housekeeping.chops if chop.name == "bead_stale_cleanup"
     )
