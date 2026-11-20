@@ -18,6 +18,8 @@ from sase.config.tools import (
     get_tool_run_housekeeping_interval_seconds,
 )
 from sase.core.disk_footprint_models import DiskReapStep
+from sase.core.disk_footprint_reap_proc_log_locks import proc_log_lock_reap_step
+from sase.core.disk_footprint_reap_registry_tmps import registry_tmp_reap_step
 from sase.core.disk_footprint_reap_tool_run import (
     EmptyLogDirSweep,
     remove_empty_tool_run_log_dirs,
@@ -40,6 +42,8 @@ class StateRetentionOutcome:
     empty_dirs: EmptyLogDirSweep
     interval_seconds: int
     errors: tuple[str, ...]
+    proc_log_lock_step: DiskReapStep | None = None
+    registry_tmp_step: DiskReapStep | None = None
 
 
 def _state_retention_stamp_path() -> Path:
@@ -95,6 +99,14 @@ def run_state_retention(
     else:
         empty_dirs = remove_empty_tool_run_log_dirs(apply=apply_empty_dirs)
         errors.extend(empty_dirs.errors)
+    # clutter_reapers backlog owners run on every pass: they are cheap
+    # directory scans, so they do not wait for the tool-run interval gate.
+    proc_log_lock_step = _run_owner_step(
+        proc_log_lock_reap_step, errors, owner_name="proc_log_lock_sweep"
+    )
+    registry_tmp_step = _run_owner_step(
+        registry_tmp_reap_step, errors, owner_name="registry_tmp_sweep"
+    )
     return StateRetentionOutcome(
         owner_applied=owner_applied,
         owner_skipped=owner_skipped,
@@ -102,7 +114,28 @@ def run_state_retention(
         empty_dirs=empty_dirs,
         interval_seconds=interval,
         errors=tuple(errors),
+        proc_log_lock_step=proc_log_lock_step,
+        registry_tmp_step=registry_tmp_step,
     )
+
+
+def _run_owner_step(
+    step_fn: Any,
+    errors: list[str],
+    *,
+    owner_name: str,
+) -> DiskReapStep | None:
+    """Run one backlog owner step, folding failures into *errors*."""
+    try:
+        step = step_fn(apply=True)
+    except Exception as exc:  # noqa: BLE001 - owners stay fail-soft in the chop.
+        errors.append(f"{owner_name} owner raised {type(exc).__name__}: {exc}")
+        return None
+    if step.owner_error:
+        errors.append(step.owner_error)
+    if step.mode == "blocked":
+        errors.append(f"{owner_name} owner blocked: {step.summary}")
+    return step
 
 
 def outcome_summary_fields(outcome: StateRetentionOutcome) -> dict[str, Any]:
@@ -118,10 +151,18 @@ def outcome_summary_fields(outcome: StateRetentionOutcome) -> dict[str, Any]:
         "removed_files": int(details.get("removed_files") or 0),
         "empty_dirs_scanned": outcome.empty_dirs.scanned,
         "empty_dirs_removed": outcome.empty_dirs.removed,
+        "proc_log_locks_removed": _removed_from_step(outcome.proc_log_lock_step),
+        "registry_tmps_removed": _removed_from_step(outcome.registry_tmp_step),
         "protected_unsettled": int(details.get("protected_unsettled") or 0),
         "errors": len(outcome.errors),
         "interval_seconds": outcome.interval_seconds,
     }
+
+
+def _removed_from_step(step: DiskReapStep | None) -> int:
+    if step is None:
+        return 0
+    return int((step.details or {}).get("removed") or 0)
 
 
 def _read_stamp(path: Path) -> float | None:

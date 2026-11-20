@@ -140,6 +140,14 @@ agent_hold_max_ttl: 12h
 # `future` with `scope=host`.
 agent_hold_confirm_capture_threshold: 10
 
+agent_names:
+  # Age before a leftover agent-name registry temp file (`.agent_name_registry.json.*.tmp`,
+  # left behind when a registry dump is hard-killed) may be swept. The writer sweeps
+  # its own stale temp files under the registry mutation lock before every write, and
+  # the hourly housekeeping pass reaps the backlog within the per-pass budget below.
+  registry_tmp_horizon_seconds: 600
+  registry_tmp_max_removals: 200
+
 procs:
   # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
   # never pruned. Finished procs tagged `command-line` (TUI Command Line
@@ -150,6 +158,11 @@ procs:
   # converges old orphans within this age horizon and per-pass budget.
   runtime_orphan_horizon_seconds: 259200
   runtime_orphan_max_removals: 2000
+  # Orphaned proc log lock files (`.<id>.log.lock` left behind after the log is
+  # gone) are reaped only when no log sibling remains, no proc row references the
+  # id, and the lock is older than this horizon, within the per-pass budget.
+  log_lock_orphan_horizon_seconds: 86400
+  log_lock_orphan_max_removals: 2000
 
 # Retention for the local Footprint usage census. Only the background fold and
 # explicit report commands read this section; CLI and TUI recorders stay fast.

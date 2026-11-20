@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 import tempfile
 from typing import Any
@@ -82,6 +84,131 @@ def read_registry(path: Path) -> dict[str, Any] | None:
     return data
 
 
+@dataclass(frozen=True)
+class _RegistryTmpSweepResult:
+    """Outcome of sweeping stale agent-name registry temp files."""
+
+    scanned: int = 0
+    selected: int = 0
+    removed: int = 0
+    skipped: int = 0
+    errors: tuple[str, ...] = ()
+    reclaimable_bytes: int = 0
+    reclaimed_bytes: int = 0
+    capped: bool = False
+    paths: tuple[str, ...] = ()
+
+
+def _default_registry_tmp_max_age_seconds() -> float:
+    """Return the configured stale age for registry temp files."""
+    try:
+        from sase.config.core import get_agent_name_registry_tmp_horizon_seconds
+
+        return float(get_agent_name_registry_tmp_horizon_seconds())
+    except Exception:  # noqa: BLE001 - a sweep must never break a registry write.
+        return 600.0
+
+
+def _default_registry_tmp_max_removals() -> int:
+    """Return the configured per-pass budget for the registry temp sweep."""
+    try:
+        from sase.config.core import get_agent_name_registry_tmp_max_removals
+
+        return int(get_agent_name_registry_tmp_max_removals())
+    except Exception:  # noqa: BLE001 - fall back to the built-in budget.
+        return 200
+
+
+def _registry_tmp_prefix(path: Path) -> str:
+    return f".{path.name}."
+
+
+def sweep_stale_registry_tmp_files(
+    path: Path,
+    *,
+    max_age_seconds: float | None = None,
+    now: float | None = None,
+    apply: bool = True,
+    max_removals: int | None = None,
+) -> _RegistryTmpSweepResult:
+    """Remove ``.<name>.*.tmp`` siblings of the registry older than the horizon.
+
+    Callers that already hold the registry mutation lock (every
+    :func:`write_registry` path) sweep under that lock; the retention-chop
+    reaper applies this same age-gated sweep without the lock, relying on the
+    horizon to protect in-progress dumps. Only direct children of the registry
+    directory are considered, symlinks are never followed, and at most
+    *max_removals* files go in one pass.
+    """
+    horizon = (
+        _default_registry_tmp_max_age_seconds()
+        if max_age_seconds is None
+        else max_age_seconds
+    )
+    budget = (
+        _default_registry_tmp_max_removals() if max_removals is None else max_removals
+    )
+    moment = time.time() if now is None else now
+    prefix = _registry_tmp_prefix(path)
+    try:
+        entries = list(path.parent.iterdir())
+    except OSError as exc:
+        return _RegistryTmpSweepResult(errors=(f"registry dir listing failed: {exc}",))
+    candidates: list[tuple[float, int, Path]] = []
+    skipped = 0
+    for entry in entries:
+        if not entry.name.startswith(prefix) or not entry.name.endswith(".tmp"):
+            continue
+        try:
+            if entry.is_symlink() or not entry.is_file():
+                skipped += 1
+                continue
+            stat = entry.stat()
+        except OSError:
+            skipped += 1
+            continue
+        if moment - stat.st_mtime < horizon:
+            skipped += 1
+            continue
+        candidates.append((stat.st_mtime, stat.st_size, entry))
+    candidates.sort(key=lambda item: (item[0], str(item[2])))
+    scanned = len(candidates) + skipped
+    selected = candidates[: max(0, budget)]
+    capped_out = candidates[len(selected) :]
+    capped = bool(capped_out)
+    skipped += len(capped_out)
+    removed = 0
+    reclaimed = 0
+    reclaimable = sum(size for _, size, _ in selected)
+    errors: list[str] = []
+    swept: list[str] = []
+    if apply:
+        for _, size, entry in selected:
+            try:
+                entry.unlink()
+            except FileNotFoundError:
+                skipped += 1
+            except OSError as exc:
+                errors.append(f"{entry.name}: {exc}")
+            else:
+                removed += 1
+                reclaimed += size
+                swept.append(str(entry))
+    else:
+        swept = [str(entry) for _, _, entry in selected]
+    return _RegistryTmpSweepResult(
+        scanned=scanned,
+        selected=len(selected),
+        removed=removed,
+        skipped=skipped,
+        errors=tuple(errors),
+        reclaimable_bytes=reclaimable,
+        reclaimed_bytes=reclaimed,
+        capped=capped,
+        paths=tuple(swept),
+    )
+
+
 def write_registry(
     path: Path,
     data: dict[str, Any],
@@ -93,6 +220,14 @@ def write_registry(
 
     timer = active_launch_timing_recorder()
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Every write_registry caller holds the registry mutation lock, so this
+        # sweep runs under that lock; the horizon still protects the temp file
+        # this very write is about to create. Failures stay silent: a sweep
+        # must never break a registry write.
+        sweep_stale_registry_tmp_files(path)
+    except Exception:  # noqa: BLE001 - sweep failures must not break writes.
+        pass
     tmp_path: Path | None = None
     replaced = False
     try:

@@ -127,6 +127,7 @@ FAMILIES: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "Runtime and stored data",
         "Process history, service hosting, artifacts, disk use, and reading surfaces.",
         (
+            "agent_names",
             "artifacts",
             "artifact_refs",
             "disk",

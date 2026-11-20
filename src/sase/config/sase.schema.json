@@ -5681,6 +5681,37 @@
           "minimum": 1,
           "default": 2000,
           "description": "Maximum historical rowless proc runtime directories removed in one owner pass."
+        },
+        "log_lock_orphan_horizon_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 86400,
+          "description": "Age horizon before the hourly proc log-lock owner may remove orphaned .log.lock files. Lock files with a live log sibling, a referencing proc row, or a fresh mtime are always kept."
+        },
+        "log_lock_orphan_max_removals": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2000,
+          "description": "Maximum orphaned proc log lock files removed in one owner pass."
+        }
+      }
+    },
+    "agent_names": {
+      "type": "object",
+      "description": "Agent-name registry temp-file sweep limits.",
+      "additionalProperties": false,
+      "properties": {
+        "registry_tmp_horizon_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 600,
+          "description": "Age horizon before a leftover agent-name registry temp file may be swept. The writer sweeps its own stale temp files before every write; the hourly housekeeping pass reaps the backlog."
+        },
+        "registry_tmp_max_removals": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 200,
+          "description": "Maximum stale agent-name registry temp files removed in one owner pass."
         }
       }
     },

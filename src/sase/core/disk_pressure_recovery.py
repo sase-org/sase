@@ -26,6 +26,8 @@ PRESSURE_REAP_OWNERS = frozenset(
     {
         "managed_tmp_reaper",
         "proc_runtime_sweep",
+        "proc_log_lock_sweep",
+        "registry_tmp_sweep",
         "tool_run_retention",
     }
 )

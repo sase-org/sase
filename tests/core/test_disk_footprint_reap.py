@@ -59,6 +59,8 @@ def test_run_disk_reap_does_not_collect_inventory(monkeypatch) -> None:
     assert [step.owner for step in result.steps] == [
         "managed_tmp_reaper",
         "proc_runtime_sweep",
+        "proc_log_lock_sweep",
+        "registry_tmp_sweep",
         "tool_run_retention",
     ]
 
@@ -321,6 +323,22 @@ def test_managed_tmp_reap_failure_is_a_step_and_group_continues(
         ),
     )
     monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.proc_log_lock_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="proc_log_lock_sweep",
+            mode="apply" if apply else "dry_run",
+            summary="locks ok",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.registry_tmp_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="registry_tmp_sweep",
+            mode="apply" if apply else "dry_run",
+            summary="tmps ok",
+        ),
+    )
+    monkeypatch.setattr(
         "sase.core.disk_footprint_reap.tool_run_reap_step",
         lambda *, apply: DiskReapStep(
             owner="tool_run_retention",
@@ -341,6 +359,8 @@ def test_managed_tmp_reap_failure_is_a_step_and_group_continues(
     assert [step.owner for step in result.steps] == [
         "managed_tmp_reaper",
         "proc_runtime_sweep",
+        "proc_log_lock_sweep",
+        "registry_tmp_sweep",
         "tool_run_retention",
     ]
     assert result.steps[0].owner_error is not None

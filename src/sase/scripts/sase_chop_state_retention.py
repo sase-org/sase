@@ -28,6 +28,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "state_retention: tool-run owner skipped; interval not elapsed",
             "cyan",
         )
+    if outcome.proc_log_lock_step is not None:
+        runtime.log(outcome.proc_log_lock_step.summary, "cyan")
+    if outcome.registry_tmp_step is not None:
+        runtime.log(outcome.registry_tmp_step.summary, "cyan")
     if outcome.empty_dirs.removed:
         runtime.log(
             f"state_retention: removed {outcome.empty_dirs.removed} empty run dir(s)",

@@ -11,21 +11,21 @@ This page describes the scheduler housekeeping routine.
 
 Periodic maintenance:
 
-| Job                          | Description                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------- |
-| `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action)  |
-| `footprint_fold`             | Fold local Footprint spool records into the daily census ledger                  |
-| `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                  |
-| `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root                |
-| `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                     |
-| `state_retention`            | Apply ToolRun log retention on a schedule and remove emptied run dirs            |
-| `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                         |
-| `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate      |
-| `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished   |
-| `staged_handoff_reconcile`   | Recover finalized handoffs and notify once on recorded holds                     |
-| `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair refs after a rename |
-| `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                  |
-| `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |
+| Job                          | Description                                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action)                                       |
+| `footprint_fold`             | Fold local Footprint spool records into the daily census ledger                                                       |
+| `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                                                       |
+| `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root                                                     |
+| `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                                                          |
+| `state_retention`            | Apply ToolRun log retention on a schedule, remove emptied run dirs, and reap proc log-lock and registry temp backlogs |
+| `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                                                              |
+| `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate                                           |
+| `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished                                        |
+| `staged_handoff_reconcile`   | Recover finalized handoffs and notify once on recorded holds                                                          |
+| `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair refs after a rename                                      |
+| `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                                                       |
+| `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                                                               |
 
 The `staged_handoff_reconcile` job recovers staged handoffs after the originating
 process dies and host finalization is complete. Each pass attempts at most 32 candidates
@@ -197,7 +197,12 @@ step as [`sase disk reap`](../disk-cleanup.md) and `disk_pressure` — at most o
 [`tool_runs.housekeeping_interval_seconds`](../config/runtime-and-storage.md#toolruns)
 (default one hour), whether or not the filesystem is under pressure. It then removes
 empty run directories under `~/.sase/tools/logs` without following symlinks. It adds no
-second tool-run policy. `clutter_reapers` adds further owner steps to this same chop.
+second tool-run policy. `clutter_reapers` adds two further owner steps to this same
+chop, running on every pass: `proc_log_lock_sweep` reaps orphaned `.log.lock` files
+under `~/.sase/procs/logs` (no log sibling, no referencing proc row, older than
+`procs.log_lock_orphan_horizon_seconds`), and `registry_tmp_sweep` reaps stale
+agent-name registry temp files (older than `agent_names.registry_tmp_horizon_seconds`).
+Agent-index `*.bak` backups are report-only and never reaped.
 
 The `disk_pressure` job measures the filesystems that hold the managed temp root and
 `~/.sase` (once per distinct filesystem) and classifies them through the Rust
@@ -207,12 +212,13 @@ larger of 3 GiB and
 With no pressure, the job exits with reason `space_ok` without scanning the disk
 footprint and ends any active pressure episode. Under pressure it reaps first
 (managed-temp, using measured free space and the warn threshold as its pressure floor
-and recovery target, plus proc-row/log retention and the rowless runtime sweep, plus
-tool-run retention). Hourly `state_retention` applies that same tool-run owner without
-waiting for pressure. Inventory collection runs afterward under a 20s fail-open cap: an
-exception or timeout becomes "attribution unavailable" in the notice and never skips or
-delays recovery. The notice leads with free space and the recovery result, names
-unmeasured owners, lists only measured top owners, and labels the residual the way
+and recovery target, plus proc-row/log retention and the rowless runtime sweep, plus the
+proc log-lock and registry temp sweeps, plus tool-run retention). Hourly
+`state_retention` applies that same tool-run owner without waiting for pressure.
+Inventory collection runs afterward under a 20s fail-open cap: an exception or timeout
+becomes "attribution unavailable" in the notice and never skips or delays recovery. The
+notice leads with free space and the recovery result, names unmeasured owners, lists
+only measured top owners, and labels the residual the way
 [`sase disk list`](../disk-cleanup.md) does. Upserts use an episode-scoped key
 `disk_pressure:<filesystem>:<episode>` so later passes in the same pressure episode +1
 the same row; `space_ok` ends the episode and the next pressure event creates a new row.

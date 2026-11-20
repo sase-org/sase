@@ -27,6 +27,8 @@ procs:
   history_limit: 100
   runtime_orphan_horizon_seconds: 259200
   runtime_orphan_max_removals: 2000
+  log_lock_orphan_horizon_seconds: 86400
+  log_lock_orphan_max_removals: 2000
 ```
 
 [Generated reference for `procs`](runtime.md#procs)

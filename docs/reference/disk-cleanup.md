@@ -49,13 +49,21 @@ rebuildable status without offering a reclaim command; it is not one of the
 `sase disk reap` cleanup passes.
 
 `sase disk reap` previews the owner passes; `--apply` runs them. Their order is
-managed-temp reaping, proc runtime cleanup, [tool run](glossary.md#tool-run) retention,
-ACE-run artifact retention (the same owner as `sase artifact prune-runs`), and workspace
-Git object compaction. Reaping never waits on inventory completeness: `sase disk reap`,
-the hourly `managed_tmp_reap` job, the hourly `state_retention` job, and the hourly
+managed-temp reaping, proc runtime cleanup, orphan proc log-lock sweeping, stale
+registry temp-file sweeping, [tool run](glossary.md#tool-run) retention, ACE-run
+artifact retention (the same owner as `sase artifact prune-runs`), and workspace Git
+object compaction. Reaping never waits on inventory completeness: `sase disk reap`, the
+hourly `managed_tmp_reap` job, the hourly `state_retention` job, and the hourly
 `disk_pressure` job all invoke owner passes without collecting `sase disk list` first.
 `state_retention` applies tool-run retention on that schedule even when the filesystem
-is not under pressure, and removes emptied run directories under `~/.sase/tools/logs`.
+is not under pressure, removes emptied run directories under `~/.sase/tools/logs`, and
+reaps the proc log-lock and registry temp-file backlogs. Deleting a proc's logs also
+removes its lock file; orphaned `.log.lock` files are only reaped when no log sibling
+remains, no proc row references the id, and the lock is older than
+`procs.log_lock_orphan_horizon_seconds` (default 1 day). The registry writer sweeps its
+own stale temp files under the mutation lock before every write. Agent-index `*.bak`
+backups are never deleted automatically: they get a report-only inventory row marked for
+human action, which the disk-pressure notice names among the largest unreaped owners.
 `disk_pressure` reaps before a fail-open inventory, names unmeasured owners in its
 episode-scoped notice, and upserts a distinct missed-target escalation when available
 space stays below the recovery target. See

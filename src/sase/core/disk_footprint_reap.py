@@ -5,10 +5,13 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Callable
 
+from sase.agent.names._registry_store import registry_path
 from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.core import disk_footprint_reap_artifacts as _artifacts
 from sase.core import disk_footprint_reap_managed_tmp as _managed_tmp
 from sase.core import disk_footprint_reap_proc as _proc
+from sase.core import disk_footprint_reap_proc_log_locks as _proc_log_locks
+from sase.core import disk_footprint_reap_registry_tmps as _registry_tmps
 from sase.core import disk_footprint_reap_tool_run as _tool_run
 from sase.core import disk_footprint_reap_workspace as _workspace
 from sase.core.agent_artifact_run_retention import (
@@ -26,7 +29,7 @@ from sase.core.managed_tmp_roots import (
 from sase.core.paths import managed_tmpdir_root as _paths_managed_tmpdir_root
 from sase.core.time import local_now
 from sase.procs.runtime import sweep_orphan_proc_runtime_dirs
-from sase.procs.store import prune_procs
+from sase.procs.store import prune_procs, read_proc_snapshot
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 managed_tmpdir_root = _paths_managed_tmpdir_root
@@ -59,6 +62,8 @@ def run_disk_reap(
         )
     )
     steps.append(proc_runtime_reap_step(apply=apply))
+    steps.append(proc_log_lock_reap_step(apply=apply))
+    steps.append(registry_tmp_reap_step(apply=apply))
     steps.append(tool_run_reap_step(apply=apply))
     if include_artifact_runs:
         steps.append(artifact_run_reap_step(apply=apply, project=project))
@@ -93,6 +98,16 @@ def managed_tmp_reap_step(
 def proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
     _sync_proc_patchables()
     return _proc.proc_runtime_reap_step(apply=apply)
+
+
+def proc_log_lock_reap_step(*, apply: bool) -> DiskReapStep:
+    _sync_proc_log_lock_patchables()
+    return _proc_log_locks.proc_log_lock_reap_step(apply=apply)
+
+
+def registry_tmp_reap_step(*, apply: bool) -> DiskReapStep:
+    _sync_registry_tmp_patchables()
+    return _registry_tmps.registry_tmp_reap_step(apply=apply)
 
 
 def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
@@ -137,6 +152,14 @@ def _sync_proc_patchables() -> None:
     _proc.sweep_orphan_proc_runtime_dirs = sweep_orphan_proc_runtime_dirs
 
 
+def _sync_proc_log_lock_patchables() -> None:
+    _proc_log_locks.read_proc_snapshot = read_proc_snapshot
+
+
+def _sync_registry_tmp_patchables() -> None:
+    _registry_tmps.registry_path = registry_path
+
+
 def _sync_artifact_patchables() -> None:
     _artifacts.AceRunRetentionPolicy = AceRunRetentionPolicy  # type: ignore[misc]
     _artifacts.apply_ace_run_retention = apply_ace_run_retention
@@ -157,7 +180,9 @@ def _sync_workspace_patchables() -> None:
 __all__ = [
     "artifact_run_reap_step",
     "managed_tmp_reap_step",
+    "proc_log_lock_reap_step",
     "proc_runtime_reap_step",
+    "registry_tmp_reap_step",
     "run_disk_reap",
     "tool_run_reap_step",
     "workspace_compact_steps",

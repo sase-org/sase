@@ -58,6 +58,8 @@ _iter_children = iter_children
 _managed_tmp_reap_step = _reap.managed_tmp_reap_step
 _managed_tmp_rows = _inventory.managed_tmp_rows
 _proc_runtime_reap_step = _reap.proc_runtime_reap_step
+_proc_log_lock_reap_step = _reap.proc_log_lock_reap_step
+_registry_tmp_reap_step = _reap.registry_tmp_reap_step
 _tool_run_reap_step = _reap.tool_run_reap_step
 _resolve_sase_core_dir = _inventory.resolve_sase_core_dir
 _resolve_sase_core_dirs = _inventory.resolve_sase_core_dirs
@@ -199,6 +201,8 @@ def _sync_reap_patchables() -> None:
     _reap.collect_workspace_inventory = collect_workspace_inventory
     _reap.managed_tmp_reap_step = _managed_tmp_reap_step
     _reap.proc_runtime_reap_step = _proc_runtime_reap_step
+    _reap.proc_log_lock_reap_step = _proc_log_lock_reap_step
+    _reap.registry_tmp_reap_step = _registry_tmp_reap_step
     _reap.tool_run_reap_step = _tool_run_reap_step
     _reap.artifact_run_reap_step = _artifact_run_reap_step
     _reap.workspace_compact_steps = _workspace_compact_steps

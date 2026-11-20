@@ -22,6 +22,10 @@ DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD = 10
 DEFAULT_PROC_HISTORY_LIMIT = 100
 DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS = 3 * 24 * 3600
 DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS = 2000
+DEFAULT_PROC_LOG_LOCK_ORPHAN_HORIZON_SECONDS = 24 * 3600
+DEFAULT_PROC_LOG_LOCK_ORPHAN_MAX_REMOVALS = 2000
+DEFAULT_AGENT_NAME_REGISTRY_TMP_HORIZON_SECONDS = 10 * 60
+DEFAULT_AGENT_NAME_REGISTRY_TMP_MAX_REMOVALS = 200
 
 
 def get_use_chezmoi() -> bool:
@@ -192,13 +196,68 @@ def get_proc_runtime_orphan_max_removals() -> int:
     return DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS
 
 
+def get_proc_log_lock_orphan_horizon_seconds() -> float:
+    """Return the age horizon for orphaned proc log lock files."""
+    value = _procs_config().get(
+        "log_lock_orphan_horizon_seconds",
+        DEFAULT_PROC_LOG_LOCK_ORPHAN_HORIZON_SECONDS,
+    )
+    if type(value) in {int, float} and value >= 0:
+        return float(value)
+    return float(DEFAULT_PROC_LOG_LOCK_ORPHAN_HORIZON_SECONDS)
+
+
+def get_proc_log_lock_orphan_max_removals() -> int:
+    """Return the per-pass budget for orphaned proc log lock files."""
+    value = _procs_config().get(
+        "log_lock_orphan_max_removals",
+        DEFAULT_PROC_LOG_LOCK_ORPHAN_MAX_REMOVALS,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_PROC_LOG_LOCK_ORPHAN_MAX_REMOVALS
+
+
+def _agent_names_config() -> dict[str, Any]:
+    value = _merged_config().get("agent_names", {})
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def get_agent_name_registry_tmp_horizon_seconds() -> float:
+    """Return the age horizon for stale agent-name registry temp files."""
+    value = _agent_names_config().get(
+        "registry_tmp_horizon_seconds",
+        DEFAULT_AGENT_NAME_REGISTRY_TMP_HORIZON_SECONDS,
+    )
+    if type(value) in {int, float} and value >= 0:
+        return float(value)
+    return float(DEFAULT_AGENT_NAME_REGISTRY_TMP_HORIZON_SECONDS)
+
+
+def get_agent_name_registry_tmp_max_removals() -> int:
+    """Return the per-pass budget for stale agent-name registry temp files."""
+    value = _agent_names_config().get(
+        "registry_tmp_max_removals",
+        DEFAULT_AGENT_NAME_REGISTRY_TMP_MAX_REMOVALS,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_AGENT_NAME_REGISTRY_TMP_MAX_REMOVALS
+
+
 __all__ = [
     "DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD",
     "DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS",
     "DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS",
+    "DEFAULT_AGENT_NAME_REGISTRY_TMP_HORIZON_SECONDS",
+    "DEFAULT_AGENT_NAME_REGISTRY_TMP_MAX_REMOVALS",
     "DEFAULT_MAX_AGENT_PIPE_CHAIN",
     "DEFAULT_MAX_RUNNING_AGENTS",
     "DEFAULT_PROC_HISTORY_LIMIT",
+    "DEFAULT_PROC_LOG_LOCK_ORPHAN_HORIZON_SECONDS",
+    "DEFAULT_PROC_LOG_LOCK_ORPHAN_MAX_REMOVALS",
     "DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS",
     "DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS",
     "DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS",
@@ -206,9 +265,13 @@ __all__ = [
     "get_agent_hold_confirm_capture_threshold",
     "get_agent_hold_default_ttl_seconds",
     "get_agent_hold_max_ttl_seconds",
+    "get_agent_name_registry_tmp_horizon_seconds",
+    "get_agent_name_registry_tmp_max_removals",
     "get_configured_max_running_agents",
     "get_max_agent_pipe_chain",
     "get_proc_history_limit",
+    "get_proc_log_lock_orphan_horizon_seconds",
+    "get_proc_log_lock_orphan_max_removals",
     "get_proc_runtime_orphan_horizon_seconds",
     "get_proc_runtime_orphan_max_removals",
     "get_runner_slot_deference_max_seconds",

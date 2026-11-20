@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+import time
 from typing import Any
 
 from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.config import get_managed_tmp_handoff_horizon_seconds
+from sase.config import get_proc_log_lock_orphan_horizon_seconds
 from sase.core._disk_footprint_inventory_shared import UNRESOLVED_PATH
 from sase.core.disk_footprint_models import DISK_COVERAGE_COMPLETE
 from sase.core.disk_footprint_models import DISK_COVERAGE_PARTIAL
@@ -25,7 +27,7 @@ from sase.core.managed_tmp_roots import effective_managed_tmp_roots
 from sase.core.paths import managed_tmpdir_root
 from sase.core.paths import sase_home
 from sase.core.paths import sase_projects_dir
-from sase.procs.paths import procs_dir
+from sase.procs.paths import proc_logs_dir, procs_dir
 
 #: Heavy sub-trees sized per workspace checkout so a clipped scan still
 #: attributes bytes to the owning project instead of only the stray walk.
@@ -185,6 +187,120 @@ def _managed_tmp_root_rows(
     return rows
 
 
+#: Owner for the report-only agent-index backup inventory row. Nothing
+#: automatically deletes these backups; the row exists so the disk-pressure
+#: notice names them for human action.
+AGENT_INDEX_BACKUPS_OWNER = "agent_index_backups"
+
+#: Owner for the agent-name registry stale temp-file backlog row.
+REGISTRY_TMP_SWEEP_OWNER = "registry_tmp_sweep"
+
+#: Owner for the proc log directory row; the step only reaps orphaned locks.
+PROC_LOG_LOCK_SWEEP_OWNER = "proc_log_lock_sweep"
+
+
+def _agent_index_backup_files(index_path: Path) -> list[tuple[Path, int, float]]:
+    """Return live ``*.bak`` files next to the index plus their -shm/-wal kin.
+
+    Only direct children of the index directory are considered and symlinks
+    are never followed, mirroring the reaper safety rules.
+    """
+    try:
+        entries = list(index_path.parent.iterdir())
+    except OSError:
+        return []
+    backups = [
+        entry
+        for entry in entries
+        if entry.name.startswith(f"{index_path.name}.") and entry.name.endswith(".bak")
+    ]
+    found: list[tuple[Path, int, float]] = []
+    for backup in backups:
+        candidates = [backup] + [
+            backup.parent / f"{backup.name}{suffix}"
+            for suffix in ("-shm", "-wal", "-journal")
+        ]
+        for candidate in candidates:
+            try:
+                if candidate.is_symlink() or not candidate.is_file():
+                    continue
+                stat = candidate.stat()
+            except OSError:
+                continue
+            found.append((candidate, stat.st_size, stat.st_mtime))
+    found.sort(key=lambda item: str(item[0]))
+    return found
+
+
+def _agent_index_backup_row(*, now: float | None = None) -> DiskFootprintRow | None:
+    """Report agent-index ``*.bak`` files and their journal kin for humans.
+
+    The ``index_backups = report`` decision keeps these files out of every
+    automatic reaper: the row carries their age and size, is marked for human
+    action, and names its owner so the disk-pressure notice lists it among
+    the largest unreaped owners.
+    """
+    from sase.core.agent_scan_index import default_agent_artifact_index_path
+
+    index_path = default_agent_artifact_index_path()
+    found = _agent_index_backup_files(index_path)
+    if not found:
+        return None
+    moment = time.time() if now is None else now
+    total = sum(size for _, size, _ in found)
+    oldest_age_days = max(
+        0, int((moment - min(mtime for _, _, mtime in found)) / 86_400)
+    )
+    return DiskFootprintRow(
+        section="sase_home",
+        name="agent_artifact_index/backups",
+        path=f"{index_path}*.bak",
+        size_bytes=total,
+        owner=AGENT_INDEX_BACKUPS_OWNER,
+        horizon=(
+            "reported for human action; "
+            f"oldest backup {oldest_age_days}d; never auto-deleted"
+        ),
+        reclaim=None,
+    )
+
+
+def _registry_tmp_backlog_row() -> DiskFootprintRow | None:
+    """Report the sweep-eligible registry temp-file backlog, if any."""
+    from sase.agent.names._registry_store import (
+        registry_path,
+        sweep_stale_registry_tmp_files,
+    )
+
+    path = registry_path()
+    try:
+        preview = sweep_stale_registry_tmp_files(path, apply=False)
+    except Exception:  # noqa: BLE001 - inventory must stay fail-open.
+        return None
+    if not preview.selected:
+        return None
+    from sase.config.core import get_agent_name_registry_tmp_horizon_seconds
+
+    try:
+        horizon_seconds = get_agent_name_registry_tmp_horizon_seconds()
+    except Exception:  # noqa: BLE001 - fall back to the built-in horizon text.
+        horizon_seconds = 600.0
+    return DiskFootprintRow(
+        section="sase_home",
+        name="agent_name_registry-tmp",
+        path=str(path),
+        physical_path=str(normalize_path_no_follow(path)),
+        size_bytes=preview.reclaimable_bytes,
+        owner=REGISTRY_TMP_SWEEP_OWNER,
+        horizon=(
+            "stale temp files older than "
+            f"{format_horizon_seconds(horizon_seconds)}; "
+            "live registry never touched"
+        ),
+        reclaim="sase disk reap --apply",
+    )
+
+
 def sase_state_rows(
     *,
     tree_size_fn: TreeSizeFn,
@@ -206,6 +322,20 @@ def sase_state_rows(
         ),
         DiskFootprintRow(
             section="sase_home",
+            name="procs/logs",
+            path=str(proc_logs_dir()),
+            physical_path=str(normalize_path_no_follow(proc_logs_dir())),
+            owner=PROC_LOG_LOCK_SWEEP_OWNER,
+            horizon=(
+                "orphan locks older than "
+                f"{format_horizon_seconds(get_proc_log_lock_orphan_horizon_seconds())}; "  # noqa: E501
+                "live logs pruned with their proc rows"
+            ),
+            reclaim="sase disk reap --apply",
+            **measured_row_fields(tree_size_fn, proc_logs_dir()),
+        ),
+        DiskFootprintRow(
+            section="sase_home",
             name="tools",
             path=str(sase_home() / "tools"),
             physical_path=str(normalize_path_no_follow(sase_home() / "tools")),
@@ -214,6 +344,11 @@ def sase_state_rows(
             reclaim="sase disk reap --apply",
             **measured_row_fields(tree_size_fn, sase_home() / "tools"),
         ),
+        *[
+            row
+            for row in (_agent_index_backup_row(), _registry_tmp_backlog_row())
+            if row is not None
+        ],
         DiskFootprintRow(
             section="sase_home",
             name="cache/rust-prebuild",
@@ -296,6 +431,7 @@ def sase_state_owner_roots(project_dirs: Sequence[Path]) -> tuple[Path, ...]:
 
     roots = [
         procs_dir() / "runtime",
+        proc_logs_dir(),
         sase_home() / "tools",
         sase_home() / "cache" / "rust-prebuild",
         sase_home() / "cache" / "project_stats",
@@ -459,6 +595,9 @@ def _workspace_checkout_rows(
 
 
 __all__ = [
+    "AGENT_INDEX_BACKUPS_OWNER",
+    "PROC_LOG_LOCK_SWEEP_OWNER",
+    "REGISTRY_TMP_SWEEP_OWNER",
     "managed_tmp_root_paths",
     "managed_tmp_rows",
     "sase_state_owner_roots",

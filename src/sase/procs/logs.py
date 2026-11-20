@@ -153,6 +153,7 @@ def delete_proc_logs(
                 )
             )
             continue
+        removed_for_proc = 0
         for candidate in (path, path.with_name(f"{path.name}.1")):
             scanned += 1
             try:
@@ -187,6 +188,7 @@ def delete_proc_logs(
             try:
                 candidate.unlink()
                 removed += 1
+                removed_for_proc += 1
                 reclaimed_bytes += size
                 entries.append(
                     ProcLogRetentionEntry(
@@ -220,6 +222,18 @@ def delete_proc_logs(
                         size_bytes=size,
                     )
                 )
+        if removed_for_proc:
+            lock_reclaimed, lock_entry = _remove_proc_log_lock(path)
+            if lock_entry is not None:
+                entries.append(lock_entry)
+                if lock_entry.status == "removed":
+                    removed += 1
+                    reclaimed_bytes += lock_reclaimed
+                elif lock_entry.status == "error":
+                    errors += 1
+                    byte_accounting_complete = False
+                else:
+                    skipped += 1
     return ProcLogRetentionResult(
         log_root=log_root,
         apply=True,
@@ -232,6 +246,89 @@ def delete_proc_logs(
         reclaimed_bytes=reclaimed_bytes,
         byte_accounting_complete=byte_accounting_complete,
         entries=tuple(entries),
+    )
+
+
+def _lock_path_for_proc_log(path: Path) -> Path:
+    """Return the sibling flock path that coordinates appends to *path*."""
+    return path.with_name(f".{path.name}.lock")
+
+
+def _remove_proc_log_lock(
+    path: Path,
+) -> tuple[int, ProcLogRetentionEntry | None]:
+    """Remove the lock sibling of a proc log whose files were just deleted.
+
+    The caller holds no lock; this takes the proc's own file lock while
+    unlinking so a concurrent writer either finishes first or blocks until
+    the lock file is gone. A missing lock returns no entry so pruning rows
+    that never logged stays quiet. Returns reclaimed bytes and the entry.
+    """
+    lock_path = _lock_path_for_proc_log(path)
+    try:
+        if os.path.islink(lock_path):
+            return 0, ProcLogRetentionEntry(
+                proc_id=path.stem,
+                path=str(lock_path),
+                status="skipped",
+                reason="log lock path is a symlink",
+                size_bytes=0,
+            )
+    except OSError as exc:
+        return 0, ProcLogRetentionEntry(
+            proc_id=path.stem,
+            path=str(lock_path),
+            status="error",
+            reason=f"lock stat failed: {exc}",
+            size_bytes=None,
+        )
+    # Probe before taking the lock: entering ``log_file_lock`` creates the
+    # file, so an in-lock stat could never report a lock that was never there.
+    try:
+        size = lock_path.stat().st_size
+    except FileNotFoundError:
+        return 0, None
+    except OSError as exc:
+        return 0, ProcLogRetentionEntry(
+            proc_id=path.stem,
+            path=str(lock_path),
+            status="error",
+            reason=f"lock stat failed: {exc}",
+            size_bytes=None,
+        )
+    with log_file_lock(path):
+        try:
+            if os.path.islink(lock_path):
+                return 0, ProcLogRetentionEntry(
+                    proc_id=path.stem,
+                    path=str(lock_path),
+                    status="skipped",
+                    reason="log lock path is a symlink",
+                    size_bytes=0,
+                )
+            lock_path.unlink()
+        except FileNotFoundError:
+            return 0, ProcLogRetentionEntry(
+                proc_id=path.stem,
+                path=str(lock_path),
+                status="skipped",
+                reason="already missing",
+                size_bytes=size,
+            )
+        except OSError as exc:
+            return 0, ProcLogRetentionEntry(
+                proc_id=path.stem,
+                path=str(lock_path),
+                status="error",
+                reason=f"unlink failed: {exc}",
+                size_bytes=size,
+            )
+    return size, ProcLogRetentionEntry(
+        proc_id=path.stem,
+        path=str(lock_path),
+        status="removed",
+        reason="store-owned log lock pruned",
+        size_bytes=size,
     )
 
 

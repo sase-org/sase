@@ -63,6 +63,39 @@ def test_proc_log_tail_spans_rotation_and_delete(
     assert outcome.reclaimed_bytes == len("one\ntwo\n") + len("three\nfour\n")
 
 
+def test_delete_proc_logs_removes_lock_files(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = proc_log_path("proc-one")
+    path.parent.mkdir(parents=True)
+    path.write_text("three\nfour\n", encoding="utf-8")
+    lock_path = path.with_name(f".{path.name}.lock")
+    lock_path.write_text("", encoding="utf-8")
+
+    outcome = delete_proc_logs(["proc-one"])
+
+    assert not path.exists()
+    assert not lock_path.exists()
+    assert outcome.removed == 2
+    assert outcome.reclaimed_bytes == len("three\nfour\n")
+    statuses = {(entry.path, entry.status) for entry in outcome.entries}
+    assert (str(lock_path), "removed") in statuses
+
+
+def test_delete_proc_logs_keeps_lock_when_logs_survive(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    outside = tmp_path / "artifacts" / "owned.log"
+    outside.parent.mkdir(parents=True)
+    outside.write_text("keep", encoding="utf-8")
+
+    outcome = delete_proc_logs(["escape-proc"], log_paths={"escape-proc": str(outside)})
+
+    assert outside.read_text(encoding="utf-8") == "keep"
+    assert outcome.removed == 0
+    assert all(entry.status != "removed" for entry in outcome.entries)
+
+
 def test_proc_log_path_rejects_traversal(monkeypatch: Any, tmp_path: Path) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     with pytest.raises(ValueError, match="invalid proc id"):
