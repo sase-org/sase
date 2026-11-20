@@ -27,9 +27,10 @@ class ProjectHoodInventoryReuse:
         self,
         requested_hoods: AbstractSet[str],
         *,
-        builder: InventoryBuilder = build_project_hood_inventory,
+        builder: InventoryBuilder | None = None,
     ) -> None:
         self.requested_hoods = frozenset(requested_hoods)
+        # ``None`` resolves the module-level builder at build time.
         self._builder = builder
         self._input_token: _InputToken | None = None
         self._inventory: ProjectHoodInventory | None = None
@@ -53,7 +54,8 @@ class ProjectHoodInventoryReuse:
         ):
             return self._inventory
 
-        inventory = self._builder(
+        builder = self._builder or build_project_hood_inventory
+        inventory = builder(
             target,
             identity,
             git_runner=git_runner,

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.agents_sync.publication_completion import stale_requested_revision_rows
@@ -16,10 +14,6 @@ from sase.agents_sync.publication_outbox import (
     configured_publication_max_attempts,
     publication_request_subject,
     snapshot_publication_document_from_path,
-)
-from sase.agents_sync.publication_standing import (
-    STANDING_ALERTS_FILENAME,
-    STANDING_ALERTS_SCHEMA_VERSION,
 )
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
@@ -43,6 +37,10 @@ from sase.doctor._agent_publication import (
     outbox_project_data,
     problem_for_item,
 )
+from sase.doctor._agent_publication_standing import (
+    read_standing_alerts,
+    unmatched_standing_issues,
+)
 from sase.doctor.checks_agent_publication_sidecar import (
     outbox_sidecar_states,
     owner_manifest_problems,
@@ -57,6 +55,12 @@ _MIGRATION_NEXT_STEP = (
     f"Obsolete publication requests were dropped while reading the outbox; run "
     f"`{PUBLICATION_RETRY_COMMAND}` to rewrite it at schema "
     f"{PUBLICATION_OUTBOX_SCHEMA_VERSION} and clear this notice."
+)
+_STANDING_NEXT_STEP = (
+    "Standing alerts without stuck rows are live publisher failures (target "
+    "unavailable, drain timeout, lock busy, heartbeat write, ...); read the "
+    "`agent-publication` notification for each cause. An alert clears on its "
+    "project's next clean publication pass."
 )
 
 
@@ -214,7 +218,14 @@ def check_agent_publication_outbox(
         )
     )
     groups = group_outbox_problems(tuple(problems))
-    standing_alerts, standing_by_group = _read_standing_alerts(context.sase_home)
+    standing_alerts, standing_by_group = read_standing_alerts(context.sase_home)
+    standing_issues = unmatched_standing_issues(
+        standing_alerts,
+        ((group.project_key, group.signature) for group in groups),
+        project_names={
+            record.project_name: effective_project_name(record) for record in records
+        },
+    )
     data = outbox_data(
         projects_root=projects_root,
         records=records,
@@ -237,6 +248,10 @@ def check_agent_publication_outbox(
         groups=groups,
         standing_alerts=standing_alerts,
         standing_by_group=standing_by_group,
+    )
+    data["standing_issue_count"] = len(standing_issues)
+    data["standing_issues"] = tuple(
+        issue.to_data(checked_at) for issue in standing_issues
     )
     diverged_replays = tuple(
         state
@@ -271,6 +286,7 @@ def check_agent_publication_outbox(
 
     if (
         groups
+        or standing_issues
         or manifest_problems
         or migration_notices
         or stale_lines
@@ -278,6 +294,8 @@ def check_agent_publication_outbox(
     ):
         visible_groups = groups[:_MAX_DETAIL_ROWS]
         remaining_detail_rows = _MAX_DETAIL_ROWS - len(visible_groups)
+        visible_standing = standing_issues[:remaining_detail_rows]
+        remaining_detail_rows -= len(visible_standing)
         visible_manifest_problems = manifest_problems[:remaining_detail_rows]
         remaining_detail_rows -= len(visible_manifest_problems)
         visible_notices = tuple(migration_notices[:remaining_detail_rows])
@@ -294,6 +312,11 @@ def check_agent_publication_outbox(
             *((f"{retired_count} retired",) if retired_count else ()),
             *((f"{stalled_count} stalled",) if stalled_count else ()),
             *((f"{parked_count} parked",) if parked_count else ()),
+            *(
+                (f"{len(standing_issues)} standing alert(s) without stuck rows",)
+                if standing_issues
+                else ()
+            ),
             *(
                 (f"{len(manifest_problems)} unreadable owner manifest",)
                 if manifest_problems
@@ -326,6 +349,7 @@ def check_agent_publication_outbox(
         )
         next_steps = (
             *(_next_step_for_command(command) for command in sorted(commands)),
+            *((_STANDING_NEXT_STEP,) if standing_issues else ()),
             *((_MIGRATION_NEXT_STEP,) if migration_notices else ()),
             *(
                 f"Run `{command}` to review {purpose}; apply only after checking its report."
@@ -343,6 +367,7 @@ def check_agent_publication_outbox(
         )
         attention_count = (
             len(groups)
+            + len(standing_issues)
             + len(manifest_problems)
             + len(migration_notices)
             + len(stale_lines)
@@ -365,6 +390,7 @@ def check_agent_publication_outbox(
             ),
             details=(
                 *(group.detail() for group in visible_groups),
+                *(issue.detail(checked_at) for issue in visible_standing),
                 *(problem.detail() for problem in visible_manifest_problems),
                 *visible_notices,
                 *visible_stale,
@@ -375,6 +401,7 @@ def check_agent_publication_outbox(
                 **data,
                 "details_truncated": (
                     len(groups) > len(visible_groups)
+                    or len(standing_issues) > len(visible_standing)
                     or len(manifest_problems) > len(visible_manifest_problems)
                     or len(migration_notices) > len(visible_notices)
                     or len(stale_lines) > len(visible_stale)
@@ -397,56 +424,6 @@ def check_agent_publication_outbox(
         ),
         data=data,
     )
-
-
-def _read_standing_alerts(
-    sase_home: Path,
-) -> tuple[tuple[dict[str, Any], ...], dict[tuple[str, str], dict[str, Any]]]:
-    """Read live publication standing alerts without touching the store.
-
-    Best-effort and strictly read-only: a missing, corrupt, or
-    wrong-version store degrades to no alerts rather than failing doctor or
-    quarantining another subsystem's state aside.
-    """
-
-    path = sase_home / "agent_publication" / STANDING_ALERTS_FILENAME
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - doctor isolates store trouble.
-        return (), {}
-    if not isinstance(payload, dict):
-        return (), {}
-    if payload.get("schema_version") != STANDING_ALERTS_SCHEMA_VERSION:
-        return (), {}
-    raw_alerts = payload.get("alerts")
-    if not isinstance(raw_alerts, dict):
-        return (), {}
-    alerts: list[dict[str, Any]] = []
-    by_group: dict[tuple[str, str], dict[str, Any]] = {}
-    for raw in raw_alerts.values():
-        if not isinstance(raw, dict):
-            continue
-        project = raw.get("project")
-        signature = raw.get("signature")
-        if not isinstance(project, str) or not isinstance(signature, str):
-            continue
-        row = {
-            "project": project,
-            "signature": signature,
-            "failure_kind": raw.get("failure_kind"),
-            "error_class": raw.get("error_class"),
-            "attempts": raw.get("attempts"),
-            "first_seen": raw.get("first_seen"),
-            "last_seen": raw.get("last_seen"),
-            "last_reported": raw.get("last_reported"),
-            "escalated": raw.get("escalated"),
-            "next_attempt_at": raw.get("next_attempt_at"),
-            "project_scoped": raw.get("project_scoped"),
-        }
-        alerts.append(row)
-        by_group[(project, signature)] = row
-    ordered = tuple(sorted(alerts, key=lambda row: (row["project"], row["signature"])))
-    return ordered, by_group
 
 
 def _stale_requested_revision_entries(

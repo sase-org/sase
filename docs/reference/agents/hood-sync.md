@@ -427,6 +427,10 @@ stops retries, releases that revision's staging-pool protection, is skipped by
 `--retry-quarantined`, and never counts as published: the request is retired, not
 acknowledged. A source that reappears before the terminal decision restores normally.
 
+Already-quarantined prompt rows get there too: each publisher pass re-checks up to 25
+per project and retires the unrecoverable ones, never charging or erroring. A row whose
+source exists stays quarantined and is re-checked hourly.
+
 ### Withheld publication
 
 Publication protection can withhold a run or hood when its content is blocked or cannot
@@ -450,29 +454,30 @@ rows that share a normalized error signature fold into a single group carrying i
 request count, total attempts, and first/last times, so the issue count stays flat while
 the state is unchanged. Each group carries its live standing-alert row (`attempts`,
 `first_seen`, `last_seen`, `next_attempt_at`) when the publisher has one, and the
-payload lists every open standing alert in `standing_alerts`. Rows retired as
-`prompt_archive_unrecoverable` are reported as settled and audited — counted in
-`settled_request_count` with a pointer at `terminal_obligations.jsonl`, never as issues.
-The payload also reports a `last_error_histogram` that groups requests by stable failure
-class (`timeout`, `lock_busy`, `index_lock`, `unstaged_changes`, `rebase_conflict`,
-`manifest_mismatch`, `other`, `unknown`), the oldest active request's age in
-`oldest_active_age_seconds`, a `stale_requested_revision_count` of revision-scope rows
-whose requested revision is absent from their published run's commits, and per-project
-hidden-clone state in `sidecar_states` (commits ahead of/behind upstream, rebase in
-progress, untracked `files/objects`, dirty `prompts/`/`artifacts/`). Every
-commit-triggered drain also appends one structured timing line to
-`~/.sase/logs/agent_publication_drains.jsonl` with per-stage durations, inventory
-counters, and a `cleanup_result` of `completed`, `deferred`, or `failed`. The drain
-alarm fires early enough to leave a cleanup reserve inside the overall timeout so
-exception cleanup can finish; a deferred cleanup is completed by the next pass's payload
-clean (`deferred_cleanup_completed`). Cleanup trouble stays diagnostic and never
-replaces the original drain error. Payload clean restores regenerable families from git,
-then removes root-level `.sase-v2-stage-*` and `.sase-v2-backup-*` directories left by
-an interrupted apply. A failed drain names the sync-lock holder (pid, operation, agent,
-age) recorded beside the lock file. Profile a representative drain read-only with
-`tools/agents_publication_profile --project <key>`; see the
-[publication internals](../../contribute/agents-sidecar-sync.md) for profiling and
-repair procedures.
+payload lists every open standing alert in `standing_alerts`. An alert matching no row
+group (say `target_unavailable`) is its own issue in `standing_issues`, showing kind,
+attempts, first/last seen, and backoff. Rows retired as `prompt_archive_unrecoverable`
+are reported as settled and audited — counted in `settled_request_count` with a pointer
+at `terminal_obligations.jsonl`, never as issues. The payload also reports a
+`last_error_histogram` that groups requests by stable failure class (`timeout`,
+`lock_busy`, `index_lock`, `unstaged_changes`, `rebase_conflict`, `manifest_mismatch`,
+`other`, `unknown`), the oldest active request's age in `oldest_active_age_seconds`, a
+`stale_requested_revision_count` of revision-scope rows whose requested revision is
+absent from their published run's commits, and per-project hidden-clone state in
+`sidecar_states` (commits ahead of/behind upstream, rebase in progress, untracked
+`files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain also
+appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl` with
+per-stage durations, inventory counters, and a `cleanup_result` of `completed`,
+`deferred`, or `failed`. The drain alarm fires early enough to leave a cleanup reserve
+inside the overall timeout so exception cleanup can finish; a deferred cleanup is
+completed by the next pass's payload clean (`deferred_cleanup_completed`). Cleanup
+trouble stays diagnostic and never replaces the original drain error. Payload clean
+restores regenerable families from git, then removes root-level `.sase-v2-stage-*` and
+`.sase-v2-backup-*` directories left by an interrupted apply. A failed drain names the
+sync-lock holder (pid, operation, agent, age) recorded beside the lock file. Profile a
+representative drain read-only with `tools/agents_publication_profile --project <key>`;
+see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
+and repair procedures.
 
 ### Standing alerts
 
@@ -480,14 +485,15 @@ A repeated publication failure is reported once as a standing alert keyed by
 `(project, signature)` instead of once per tick. The store
 (`~/.sase/agent_publication/standing_alerts.json`) keeps the true attempt count and
 first/last-seen times; the scheduler error count and the chop `reason` name only
-reported transitions (`opened`, `changed`, `escalated` once after 24 h, `cleared`). A
-tick whose only outcomes are unchanged standing alerts returns `ok` with a
-`standing=<n>` summary count. Project-scoped failures back off (1 minute doubling to a
-30 minute cap): while an alert backs off, its project's drain and doorbell stay skipped
-and queued hints stay queued. One notification per alert is filed with sender
-`agent-publication`. Row-scoped failures (charged hood items) take no extra backoff:
-attempts, quarantine, and parking already govern them. The publisher heartbeat's
-per-project stats carry `standing_open`, `standing_signatures`, and
+reported transitions (`opened`, `changed`, `escalated` once after 24 h, `cleared`); only
+a new failure kind or error class is `changed`. Machine-wide failures are alerts on the
+`*publisher*` pseudo-project. A tick whose only outcomes are unchanged standing alerts
+returns `ok` with a `standing=<n>` summary count. Project-scoped failures back off (1
+minute doubling to a 30 minute cap): while an alert backs off, its project's drain and
+doorbell stay skipped and queued hints stay queued. One notification per alert is filed
+with sender `agent-publication`. Row-scoped failures (charged hood items) take no extra
+backoff: attempts, quarantine, and parking already govern them. The publisher
+heartbeat's per-project stats carry `standing_open`, `standing_signatures`, and
 `standing_next_attempt_at` for live counts.
 
 Retired agent-publication requests stay stopped until an explicit recovery. After a

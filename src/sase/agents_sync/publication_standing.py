@@ -505,6 +505,19 @@ def is_due(
     return not blocking_alerts(alerts, project, now)
 
 
+def has_open_alert_of_kind(
+    alerts: Mapping[tuple[str, str], _StoredStandingAlert],
+    project: str,
+    failure_kind: str,
+) -> bool:
+    """Return whether *project* already has an open alert of *failure_kind*."""
+
+    return any(
+        owner == project and alert.failure_kind == failure_kind
+        for (owner, _), alert in alerts.items()
+    )
+
+
 def project_standing_stats(
     alerts: Mapping[tuple[str, str], _StoredStandingAlert],
     project: str,
@@ -668,6 +681,7 @@ __all__ = [
     "StandingReport",
     "apply_project_observations",
     "blocking_alerts",
+    "has_open_alert_of_kind",
     "is_due",
     "load_standing_alerts",
     "open_alert_count",

@@ -146,6 +146,31 @@ def test_forced_write_failure_is_counted_and_logged_once(
     assert counter["write_failures"] == 4
 
 
+def test_lock_open_failure_is_counted_and_logged_once(
+    temp_state_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    lock_path = temp_state_dir / "recent_errors.json.lock"
+    lock_path.mkdir(parents=True)  # open(lock, "a+") now fails with an OSError
+    with caplog.at_level("WARNING"):
+        append_error(_error("agent_publication", "first failure"))
+        append_error(_error("agent_publication", "second failure"))
+    warnings = [
+        record for record in caplog.records if "Failed to lock" in record.message
+    ]
+    assert len(warnings) == 1
+    assert sched_shared.pending_write_failures == 2
+    assert len(sched_shared.pending_increments) == 2
+    assert read_error_counts() is None
+    lock_path.rmdir()
+    append_error(_error("agent_publication", "third failure"))
+    counter = read_error_counts()
+    assert counter is not None
+    assert counter["total"] == 3
+    assert counter["write_failures"] == 2
+    assert sched_shared.pending_write_failures == 0
+    assert len(read_errors()) == 1
+
+
 def test_corrupt_ring_is_preserved_aside(temp_state_dir: Path) -> None:
     ring = temp_state_dir / "recent_errors.json"
     ring.parent.mkdir(parents=True, exist_ok=True)
@@ -177,16 +202,11 @@ def test_corrupt_counter_is_preserved_aside(temp_state_dir: Path) -> None:
 
 def test_grouped_facade_shapes() -> None:
     from sase.core.axe_error_facade import (
-        axe_error_wire_schema_version,
         group_errors,
         normalize_error_signature,
         signature_for_entry,
     )
 
-    try:
-        assert axe_error_wire_schema_version() == 1
-    except (AttributeError, ImportError):
-        pytest.skip("sase_core_rs without error-signature bindings")
     assert normalize_error_signature(
         "failed for project nut after 900s, pid 1"
     ) == normalize_error_signature("failed for project nut after 30s, pid 99999")
@@ -213,6 +233,7 @@ def test_grouped_facade_shapes() -> None:
             },
         ]
     )
+    assert response["schema_version"] == 1
     (group,) = response["groups"]
     assert group["count"] == 2
     assert group["first_ts"] == "2026-11-19T10:00:00-05:00"

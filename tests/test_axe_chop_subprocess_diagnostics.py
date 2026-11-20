@@ -13,9 +13,11 @@ from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
 from sase.axe.state import (
     MAX_CHOP_RUN_HISTORY,
+    append_error,
     chop_run_log_path,
     read_chop_run,
     read_errors,
+    rotate_error_interval,
 )
 from sase.notifications import senders
 from sase.notifications.models import Notification
@@ -218,11 +220,7 @@ def test_scheduled_error_digest_keeps_diagnostic_after_run_log_pruned(
     assert read_chop_run("telegram", "tg_inbound", failed_run_id) is None
     assert not chop_run_log_path("telegram", "tg_inbound", failed_run_id).exists()
 
-    notifications: list[Notification] = []
-    with patch("sase.notifications.senders.append_notification", notifications.append):
-        senders.notify_axe_error_digest(errors)
-
-    report_path = Path(notifications[0].files[0])
+    report_path = Path(_notify_rotated_digest().files[0])
     report = report_path.read_text(encoding="utf-8")
     assert failed_run_id in report
     assert "Subprocess Output:" in report
@@ -279,11 +277,7 @@ def test_scheduled_zero_exit_check_error_diagnostic_survives_log_pruning(
     assert read_chop_run("telegram", "tg_inbound", failed_run_id) is None
     assert not chop_run_log_path("telegram", "tg_inbound", failed_run_id).exists()
 
-    notifications: list[Notification] = []
-    with patch("sase.notifications.senders.append_notification", notifications.append):
-        senders.notify_axe_error_digest(errors)
-
-    report_path = Path(notifications[0].files[0])
+    report_path = Path(_notify_rotated_digest().files[0])
     report = report_path.read_text(encoding="utf-8")
     assert failed_run_id in report
     assert "Subprocess Output:" in report
@@ -305,15 +299,27 @@ def test_digest_keeps_legacy_host_tracebacks(
             "traceback": "Traceback (most recent call last):\nRuntimeError: host",
         }
     ]
-    notifications: list[Notification] = []
-    with patch("sase.notifications.senders.append_notification", notifications.append):
-        senders.notify_axe_error_digest(errors)
+    append_error(errors[0])
 
-    report = Path(notifications[0].files[0]).read_text(encoding="utf-8")
+    report = Path(_notify_rotated_digest().files[0]).read_text(encoding="utf-8")
     assert "  Routine:    hooks" in report
     assert "  Lumberjack:" not in report
     assert "  Traceback:" in report
     assert "RuntimeError: host" in report
+
+
+def _notify_rotated_digest() -> Notification:
+    """Rotate the error interval and send its one digest, as the chop does."""
+    pending = rotate_error_interval()
+    assert len(pending) == 1
+    notifications: list[Notification] = []
+    with (
+        patch("sase.notifications.senders.load_notifications", return_value=[]),
+        patch("sase.notifications.senders.upsert_notification", notifications.append),
+    ):
+        senders.notify_axe_error_digest(pending[0])
+    assert len(notifications) == 1
+    return notifications[0]
 
 
 def _fake_timeout_traceback_script_body(*, exit_code: int) -> str:

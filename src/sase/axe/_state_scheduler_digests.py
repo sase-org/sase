@@ -26,7 +26,7 @@ from sase.axe._state_scheduler_shared import (
     log_once,
     valid_pending_digest,
 )
-from sase.core.atomic_json import write_json_value_atomic, write_text_atomic
+from sase.core.atomic_json import write_json_value_atomic
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone, parse_local
 
@@ -118,15 +118,19 @@ def rotate_error_interval() -> list[dict]:
                 log_once("counter_write", "Failed to write %s: %s", counter_file, exc)
                 bump_write_failures()
                 return pending
+            # The snapshot now owns everything folded from the in-process
+            # buffers, so clear them before the ring reset: a failed reset
+            # below must survive into the new interval's write_failures.
+            clear_pending_buffers()
             if reset_ring:
                 try:
                     write_json_value_atomic(errors_file, [])
                 except Exception as exc:  # noqa: BLE001 - snapshot already copied samples
                     log_once("ring_write", "Failed to write %s: %s", errors_file, exc)
                     bump_write_failures()
-            clear_pending_buffers()
             return list(new_counter["pending_digests"])
-    except OSError:
+    except OSError as exc:
+        log_once("error_lock", "Failed to lock %s: %s", errors_file, exc)
         return []
 
 
@@ -158,34 +162,3 @@ def mark_error_digest_sent(interval_id: str) -> None:
                 bump_write_failures()
     except OSError:
         return
-
-
-def write_last_error_digest_ts(ts: str) -> None:
-    """Write the timestamp of the newest error in the last digest notification.
-
-    Args:
-        ts: ISO formatted timestamp string.
-    """
-    ts_file = _state.axe_state_dir() / "last_error_digest_ts"
-    if not best_effort_test_state_write_allowed(ts_file, category="axe-error-state"):
-        return
-    try:
-        write_text_atomic(ts_file, ts)
-    except Exception as exc:  # noqa: BLE001 - digest state is best-effort
-        log_once("digest_ts_write", "Failed to write %s: %s", ts_file, exc)
-
-
-def read_last_error_digest_ts() -> str | None:
-    """Read the high-water mark timestamp from the last error digest.
-
-    Returns:
-        ISO timestamp string, or None if file is missing or empty.
-    """
-    ts_file = _state.axe_state_dir() / "last_error_digest_ts"
-    if not ts_file.exists():
-        return None
-    try:
-        content = ts_file.read_text().strip()
-        return content if content else None
-    except OSError:
-        return None

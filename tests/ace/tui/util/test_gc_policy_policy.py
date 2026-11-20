@@ -261,7 +261,8 @@ def test_swap_pressure_defers_a_due_full_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pressure = {
-        "vmswap_bytes": gc_policy.SWAP_BYTES_PRESSURE_THRESHOLD + 1,
+        "vmswap_bytes": 2 * gc_policy.SWAP_GROWTH_PRESSURE_BYTES,
+        "vmswap_growth_bytes": gc_policy.SWAP_GROWTH_PRESSURE_BYTES + 1,
         "major_faults_per_s": 0.0,
         "sample_age_s": 0.0,
     }
@@ -284,8 +285,10 @@ def test_swap_pressure_defers_a_due_full_collection(
     assert collector.collections == 0
     assert emitted[-1]["event"] == "tui_gc_memory_pressure"
     assert emitted[-1]["reason"] == "swapping"
+    assert emitted[-1]["pressure_signal"] == "swap_growth"
 
-    pressure["vmswap_bytes"] = 0
+    # The swapped-out level stays, but it stopped growing: no longer pressure.
+    pressure["vmswap_growth_bytes"] = 0
     assert policy.tick(clock.now) == "idle"
     assert collector.collections == 1
 

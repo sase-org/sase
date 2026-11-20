@@ -13,9 +13,12 @@ swap-pressure deferral, and a pause estimate:
 - ``threshold2`` raised to 10_000 on the classic three-generation collector so
   automatic full collections become a rare backstop;
 - tagged full collections only while input is quiet, no prompt is active, and
-  a collection is due, with 5-minute and RSS-growth backstops; cached swap /
-  major-fault pressure defers all full collections and an estimated pause over
-  2 s is deferred unless input has been idle for 15 minutes;
+  a collection is due, with 5-minute and RSS-growth backstops; cached paging
+  activity (VmSwap growth or a high major-fault rate, never a residual VmSwap
+  level) defers full collections, but holds the backstops for at most 10
+  minutes before one runs after 60 s of quiet; an estimated pause over 2 s is
+  deferred unless input has been idle for 15 minutes, and every observed full
+  collection (automatic gen-2 included) refreshes that estimate;
 - duty-cycle bound: each own full collection's pause (timed with the
   injected clock) defers the next full collection by ``pause * DUTY_FACTOR``
   (clamped to 15 min, floored at 60 s), applied to idle and backstop
@@ -61,8 +64,10 @@ from ._gc_policy_config import (
     MAX_DUTY_DELAY_S as MAX_DUTY_DELAY_S,
     MIN_FULL_INTERVAL_S as MIN_FULL_INTERVAL_S,
     NONCLASSIC_DUE_S as NONCLASSIC_DUE_S,
+    PRESSURE_MAX_DEFERRAL_S as PRESSURE_MAX_DEFERRAL_S,
+    PRESSURE_OVERRIDE_QUIET_S as PRESSURE_OVERRIDE_QUIET_S,
     PRESSURE_SAMPLE_MAX_AGE_S as PRESSURE_SAMPLE_MAX_AGE_S,
-    SWAP_BYTES_PRESSURE_THRESHOLD as SWAP_BYTES_PRESSURE_THRESHOLD,
+    SWAP_GROWTH_PRESSURE_BYTES as SWAP_GROWTH_PRESSURE_BYTES,
     RAISED_THRESHOLD2 as RAISED_THRESHOLD2,
     RSS_GROWTH_BACKSTOP_BYTES as RSS_GROWTH_BACKSTOP_BYTES,
     THRESHOLD_RAISED as THRESHOLD_RAISED,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -34,6 +35,7 @@ from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
 _HOOD_BATCH_LIMIT = 25
 _LOCK_BUSY_TEXT = "agents sync lock is busy"
+_log = logging.getLogger(__name__)
 
 
 def drain_project(
@@ -190,6 +192,9 @@ def drain_project(
                 if result.outcome == "idle":
                     result.outcome = "referenced_by_error"
 
+        if not stop_for_repository_failure and time.monotonic() < deadline:
+            _sweep_quarantined_prompts(target, deadline=deadline, git_runner=git_runner)
+
         pending_active = active_items(project_key)
         pending_refby = safe_referenced_by_items(project_key)
         pending_publishable = tuple(
@@ -217,6 +222,36 @@ def drain_project(
     except BaseException:
         # Leave the renamed claim in place; the next pass re-merges it.
         raise
+
+
+def _sweep_quarantined_prompts(
+    target: ProjectTarget,
+    *,
+    deadline: float,
+    git_runner: GitRunner,
+) -> None:
+    """Retire a bounded batch of unrecoverable quarantined prompt rows.
+
+    The sweep is housekeeping on rows that already left the active queue, so
+    its trouble is logged and retried next pass, never a project error.
+    """
+
+    from sase.agents_sync.prompt_archive.quarantine_sweep import (
+        sweep_quarantined_prompt_archives,
+    )
+
+    try:
+        sweep_quarantined_prompt_archives(
+            target,
+            git_runner=git_runner,
+            deadline=deadline,
+        )
+    except Exception:  # noqa: BLE001 - housekeeping retries on the next pass.
+        _log.warning(
+            "quarantined prompt sweep failed for %s",
+            target.project_key,
+            exc_info=True,
+        )
 
 
 def _hinted_keys(

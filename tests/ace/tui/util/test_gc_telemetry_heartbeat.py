@@ -133,6 +133,7 @@ def test_pressure_sampler_caches_swap_and_recent_major_fault_rate(
     initial = tel.memory_pressure_snapshot()
     assert initial is not None
     assert initial["vmswap_bytes"] == 0
+    assert initial["vmswap_growth_bytes"] is None
     assert initial["major_faults_per_s"] == 0.0
 
     _write_proc_files(tmp_path, rss_kb=200, swap_kb=16, major_faults=142)
@@ -141,9 +142,18 @@ def test_pressure_sampler_caches_swap_and_recent_major_fault_rate(
     sample = tel.memory_pressure_snapshot()
     assert sample is not None
     assert sample["vmswap_bytes"] == 16 * 1024
+    assert sample["vmswap_growth_bytes"] == 16 * 1024
     assert sample["major_faults_per_s"] == pytest.approx(20.0)
     assert sample["sample_age_s"] == 0.0
     assert tel.latest_rss == 200 * 1024
+
+    # A residual level that stays flat reports zero growth.
+    clock.advance(5.0)
+    tel._sample_memory_pressure(clock.now)
+    steady = tel.memory_pressure_snapshot()
+    assert steady is not None
+    assert steady["vmswap_bytes"] == 16 * 1024
+    assert steady["vmswap_growth_bytes"] == 0
 
 
 def test_heartbeat_window_spans_since_previous_heartbeat(

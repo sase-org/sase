@@ -43,7 +43,7 @@ def recorder() -> Recorder:
 def _run_startup(clock: Clock, collector: Collector, recorder: Recorder):
     policy = idle_policy(clock, collector, recorder)
     # These tests isolate the duty floor; the pause cost gate has separate tests.
-    policy._predicted_pause_s = lambda _now: 0.0
+    policy._predicted_pause_s = lambda _now, _trigger="idle": 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     recorder.gen1 = 150
     clock.advance(61.0)

@@ -117,6 +117,7 @@ def append_error(error_info: dict) -> None:
     stored = dict(error_info)
     stored["failure_signature"] = signature
     stored["timestamp"] = timestamp
+    counted = False
     try:
         with hold_error_lock():
             counter = load_counter_locked(counter_file)
@@ -137,6 +138,7 @@ def append_error(error_info: dict) -> None:
                 log_once("counter_write", "Failed to write %s: %s", counter_file, exc)
             else:
                 clear_pending_buffers()
+            counted = True
             ring.append(stored)
             _evict_ring_fair(ring)
             try:
@@ -144,8 +146,14 @@ def append_error(error_info: dict) -> None:
             except Exception as exc:  # noqa: BLE001 - every failed write counts
                 bump_write_failures()
                 log_once("ring_write", "Failed to write %s: %s", errors_file, exc)
-    except OSError:
-        return
+    except OSError as exc:
+        # The lock (or its directory) could not be opened or taken, so
+        # neither file was written. Queue the increment in process so the
+        # next successful write folds it in and counts the failure, instead
+        # of letting the error vanish.
+        if not counted:
+            record_counter_write_failure(routine, job, signature, timestamp, sample)
+        log_once("error_lock", "Failed to lock %s: %s", errors_file, exc)
 
 
 def read_errors() -> list[dict]:

@@ -16,9 +16,18 @@ FULL_BACKSTOP_S = 5 * 60.0
 DUTY_FACTOR = 30.0
 MAX_DUTY_DELAY_S = 15 * 60.0
 RSS_GROWTH_BACKSTOP_BYTES = 500 * 1024 * 1024
-SWAP_BYTES_PRESSURE_THRESHOLD = 16 * 1024 * 1024
+# Paging activity, not a residual VmSwap level, is memory pressure: VmSwap
+# growth between two consecutive telemetry samples (5 s apart) or a recent
+# major-fault rate above these thresholds defers a full collection.
+SWAP_GROWTH_PRESSURE_BYTES = 16 * 1024 * 1024
 MAJOR_FAULTS_PER_S_PRESSURE_THRESHOLD = 100.0
 PRESSURE_SAMPLE_MAX_AGE_S = 20.0
+# Pressure may hold the ``backstop`` / ``rss_backstop`` triggers this long at
+# most; afterwards a backstop runs once input has been quiet this long.
+PRESSURE_MAX_DEFERRAL_S = 10 * 60.0
+PRESSURE_OVERRIDE_QUIET_S = 60.0
+# Only the opportunistic ``idle`` trigger needs a cost sample this fresh; the
+# backstops price themselves from the latest observed full collection.
 COST_SAMPLE_MAX_AGE_S = 15 * 60.0
 MAX_PREDICTED_FULL_PAUSE_S = 2.0
 COST_PREDICTION_SAFETY_FACTOR = 2.0

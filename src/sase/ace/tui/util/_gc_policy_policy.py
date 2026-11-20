@@ -38,19 +38,17 @@ from ._gc_policy_config import (
     IDLE_QUIET_S,
     LONG_IDLE_COLLECTION_INTERVAL_S,
     LONG_IDLE_QUIET_S,
-    MAJOR_FAULTS_PER_S_PRESSURE_THRESHOLD,
     MAX_PREDICTED_FULL_PAUSE_S,
     MAX_DUTY_DELAY_S,
     MIN_FULL_INTERVAL_S,
     NONCLASSIC_DUE_S,
-    PRESSURE_SAMPLE_MAX_AGE_S,
     RAISED_THRESHOLD2,
     RSS_GROWTH_BACKSTOP_BYTES,
-    SWAP_BYTES_PRESSURE_THRESHOLD,
     THRESHOLD_RAISED,
     THRESHOLD_UNSUPPORTED,
     TRIM_INTERVAL_S,
 )
+from ._gc_policy_pressure import PressureDeferral, newer_full_pause, paging_pressure
 from ._gc_policy_trim import spawn_trim_thread
 
 # Preserve the pre-split logger name so existing log capture keeps working.
@@ -149,6 +147,7 @@ class GCPolicy:
         self._census_emit = census_emit
         self._allocated_blocks_probe = allocated_blocks_probe or _allocated_blocks
         self._memory_pressure_probe = memory_pressure_probe or latest_memory_pressure
+        self._pressure_deferral = PressureDeferral()
         self._last_census_mono: float | None = None
         self._timer: Any = None
         self.threshold_policy = THRESHOLD_UNSUPPORTED
@@ -165,22 +164,7 @@ class GCPolicy:
         self._last_deferred_emit_mono: dict[str, float] = {}
         self._last_trim_mono: float | None = None
         self._logged_survivor_census_skip = False
-        try:
-            recorded_pause = self._recorder.last_full_pause_s()
-            recorded_mono = self._recorder.last_full_collection_mono()
-            if (
-                isinstance(recorded_pause, (int, float))
-                and recorded_pause >= 0.0
-                and isinstance(recorded_mono, (int, float))
-                and recorded_mono >= 0.0
-            ):
-                self._last_full_pause_s = float(recorded_pause)
-                self._cost_sample_mono = float(recorded_mono)
-                self._last_full_scan_blocks = max(
-                    1, self._heap_blocks_at_last_full or 1
-                )
-        except Exception:
-            pass
+        self._refresh_cost_sample()
 
     def duty_floor_s(self) -> float:
         """Minimum gap after the last full collection (duty-cycle bound).
@@ -358,8 +342,14 @@ class GCPolicy:
             or _safe_probe(self._modal_input_active, False)
         )
 
-    def _predicted_pause_s(self, now_mono: float) -> float | None:
-        """Estimate the next full sweep from the last pause and heap growth."""
+    def _predicted_pause_s(
+        self, now_mono: float, trigger: str = "idle"
+    ) -> float | None:
+        """Estimate the next full sweep from the last pause and heap growth.
+
+        Only ``idle`` needs a sample younger than ``COST_SAMPLE_MAX_AGE_S``;
+        a backstop prices itself from the latest observed full collection.
+        """
         pause = self._last_full_pause_s
         baseline = self._heap_blocks_at_last_full
         scanned_blocks = self._last_full_scan_blocks
@@ -372,40 +362,32 @@ class GCPolicy:
             or scanned_blocks <= 0
             or current is None
             or sampled is None
-            or now_mono - sampled > COST_SAMPLE_MAX_AGE_S
+            or (trigger == "idle" and now_mono - sampled > COST_SAMPLE_MAX_AGE_S)
         ):
             return None
         new_blocks = max(1, current - baseline)
         return pause * new_blocks / scanned_blocks * COST_PREDICTION_SAFETY_FACTOR
 
     def _memory_pressure(self, now_mono: float) -> dict[str, Any] | None:
-        """Return a fresh pressure sample only when swap/fault thresholds trip."""
-        sample = _safe_probe(self._memory_pressure_probe, None)
-        if not isinstance(sample, dict):
-            return None
-        age = sample.get("sample_age_s")
-        if not isinstance(age, (int, float)) or age < 0.0:
-            return None
-        if age > PRESSURE_SAMPLE_MAX_AGE_S:
-            return None
-        swap = sample.get("vmswap_bytes")
-        faults = sample.get("major_faults_per_s")
-        swapping = (
-            isinstance(swap, int)
-            and not isinstance(swap, bool)
-            and swap > SWAP_BYTES_PRESSURE_THRESHOLD
-        ) or (
-            isinstance(faults, (int, float))
-            and faults > MAJOR_FAULTS_PER_S_PRESSURE_THRESHOLD
-        )
-        if not swapping:
-            return None
-        return {
-            "vmswap_bytes": swap,
-            "major_faults_per_s": faults,
-            "sample_age_s": round(float(age), 3),
-            "sampled_at_mono": now_mono - float(age),
-        }
+        """Return a fresh pressure sample only when the process is paging."""
+        return paging_pressure(_safe_probe(self._memory_pressure_probe, None), now_mono)
+
+    def _refresh_cost_sample(self) -> None:
+        """Seed the cost estimate from any newer full collection, even automatic.
+
+        Before the startup freeze a full collection scans the whole heap;
+        afterwards only blocks allocated since the last freeze.
+        """
+        observed = newer_full_pause(self._recorder, self._cost_sample_mono)
+        if observed is None:
+            return
+        self._last_full_pause_s, self._cost_sample_mono = observed
+        self._pressure_deferral.clear()
+        scanned = self._read_allocated_blocks() or 1
+        baseline = self._heap_blocks_at_last_full
+        if self._froze_startup and baseline is not None:
+            scanned -= baseline
+        self._last_full_scan_blocks = max(1, scanned)
 
     def _record_deferred(
         self,
@@ -438,8 +420,13 @@ class GCPolicy:
             row.update(
                 {
                     "vmswap_bytes": pressure.get("vmswap_bytes"),
+                    "vmswap_growth_bytes": pressure.get("vmswap_growth_bytes"),
                     "major_faults_per_s": pressure.get("major_faults_per_s"),
+                    "pressure_signal": pressure.get("signal"),
                     "pressure_sample_age_s": pressure.get("sample_age_s"),
+                    "pressure_deferred_s": round(
+                        self._pressure_deferral.deferred_for_s(now_mono), 3
+                    ),
                 }
             )
         queue_row(
@@ -452,6 +439,7 @@ class GCPolicy:
     def tick(self, now_mono: float | None = None) -> str | None:
         """Run one 1 s tick; return the collection trigger, if any ran."""
         now = self._monotonic() if now_mono is None else now_mono
+        self._refresh_cost_sample()
         if not self._froze_startup:
             if not self._startup_freeze_gate(now):
                 return None
@@ -470,7 +458,11 @@ class GCPolicy:
         input_idle_s = self._input_idle_s(now)
         long_idle = input_idle_s >= LONG_IDLE_QUIET_S
         pressure = self._memory_pressure(now)
-        if pressure is not None:
+        if pressure is None:
+            self._pressure_deferral.clear()
+        elif self._pressure_deferral.defers(
+            trigger=tag, now_mono=now, input_idle_s=input_idle_s
+        ):
             self._record_deferred(
                 now_mono=now,
                 trigger=tag,
@@ -480,7 +472,7 @@ class GCPolicy:
             )
             return None
 
-        predicted_pause = self._predicted_pause_s(now)
+        predicted_pause = self._predicted_pause_s(now, tag)
         if not long_idle and (
             predicted_pause is None or predicted_pause > MAX_PREDICTED_FULL_PAUSE_S
         ):
@@ -546,6 +538,7 @@ class GCPolicy:
     ) -> None:
         """Record an own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
+        self._pressure_deferral.clear()
         self._cost_sample_mono = self._own_last_full_mono
         if pause_s is not None:
             try:

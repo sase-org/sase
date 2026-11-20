@@ -70,7 +70,7 @@ class OutboxProblem:
     def detail(self) -> str:
         reason = ", ".join(self.reasons)
         age = (
-            f", age {_format_duration(self.age_seconds)}"
+            f", age {format_duration(self.age_seconds)}"
             if self.age_seconds is not None
             else ""
         )
@@ -247,7 +247,7 @@ class _OutboxGroup:
 
     def detail(self) -> str:
         first = (
-            _format_duration(self.last_time - self.first_time)
+            format_duration(self.last_time - self.first_time)
             if self.first_time is not None and self.last_time is not None
             else "unknown"
         )
@@ -401,7 +401,7 @@ def problem_for_item(
     if item.attempts >= stalled_attempts:
         reasons.append(f"stalled: attempts >= {stalled_attempts}")
     if age_seconds is not None and age_seconds >= stalled_age_seconds:
-        reasons.append(f"stalled: age >= {_format_duration(stalled_age_seconds)}")
+        reasons.append(f"stalled: age >= {format_duration(stalled_age_seconds)}")
     if not reasons:
         return None
     return OutboxProblem(
@@ -550,7 +550,7 @@ def oldest_active_age_seconds(
     return max(ages) if ages else None
 
 
-def _format_duration(seconds: float | None) -> str:
+def format_duration(seconds: float | None) -> str:
     if seconds is None:
         return "unknown"
     total = max(int(seconds), 0)

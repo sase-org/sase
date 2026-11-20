@@ -9,6 +9,7 @@ so one lock acquisition -- and one durable retry -- covers both.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
 from pathlib import Path
@@ -40,6 +41,8 @@ log = logging.getLogger(__name__)
 
 # Young unresolved archives self-resolve; 30 minutes covers the worst observed case.
 DEFERRED_PROMPT_GRACE_SECONDS = 1800
+# Every deferred prompt restore failure recorded on an outbox row starts here.
+DEFERRED_PROMPT_RESTORE_ERROR_PREFIX = "could not restore deferred prompt archive for "
 UNRESOLVED_PROMPT_ARCHIVE_REASON = (
     "prompt archive is unresolved and a missing local source does not prove "
     "there was no prompt obligation"
@@ -253,8 +256,8 @@ def restore_deferred_prompt_archives(
             raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             restore_error = (
-                "could not restore deferred prompt archive for "
-                f"{request.global_agent}@{request.primary_revision[:12]}: {exc}"
+                DEFERRED_PROMPT_RESTORE_ERROR_PREFIX
+                + f"{request.global_agent}@{request.primary_revision[:12]}: {exc}"
             )
         if protection_status is not None:
             from sase.agents_sync.prompt_archive.protection import (
@@ -316,14 +319,75 @@ def restore_deferred_prompt_archives(
     return failures
 
 
+def classify_quarantined_prompt_archives(
+    target: ProjectTarget,
+    requests: tuple[AgentPublicationOutboxItem, ...],
+    *,
+    identity: AgentIdentitySnapshot,
+    load_inventory: Callable[[], ProjectHoodInventory],
+    now: float | None = None,
+) -> dict[tuple[str, str], str]:
+    """Return the terminal message for each request the classifier calls unrecoverable.
+
+    This is the probe-only twin of :func:`restore_deferred_prompt_archives`
+    for rows that left the active queue: it never regenerates or writes an
+    archive. Each row goes through the same Rust classifier with the same
+    probes -- the row's ``artifacts_dir``, the matching inventory run's
+    ``source_label``, the sidecar's archived sessions, and the published
+    snapshot. *load_inventory* runs at most once, and only when some row has
+    no prompt source in its own ``artifacts_dir``: the run's source label can
+    only add a source, never remove one, so skipping it then changes no
+    classifier input.
+    """
+
+    if not requests:
+        return {}
+    observed = time.time() if now is None else now
+    needs_runs = any(
+        not _local_prompt_source_present(None, request) for request in requests
+    )
+    prompt_runs = (
+        prompt_runs_by_request(load_inventory(), identity) if needs_runs else {}
+    )
+    archived_agents = _prompt_archive_agents(target.sidecar_path, identity)
+    owner = identity.owner
+    terminal: dict[tuple[str, str], str] = {}
+    for request in requests:
+        matching = prompt_runs.get((request.local_agent, request.primary_revision))
+        archive_present = _prompt_archive_present(archived_agents, request, identity)
+        prompt_in_snapshot = (
+            snapshot_prompt_file_present(target, request, owner)
+            if isinstance(owner, AgentOwnerIdentity)
+            else None
+        )
+        decision = classify_deferred_prompt_obligation(
+            restore_wrote=False,
+            restore_error=None,
+            local_source_present=_local_prompt_source_present(matching, request),
+            archive_present=archive_present,
+            prompt_file_in_snapshot=prompt_in_snapshot,
+            past_grace_period=_past_grace_period(request, observed),
+            attempts_exhausted=_attempts_exhausted(request),
+        )
+        if decision.status != PROMPT_STATUS_UNRECOVERABLE:
+            continue
+        terminal[request.logical_key] = _terminal_prompt_failure(
+            request,
+            matching=matching,
+            archive_present=archive_present,
+            prompt_in_snapshot=prompt_in_snapshot,
+        )
+    return terminal
+
+
 def _prompt_restore_failure(
     request: AgentPublicationOutboxItem,
     restore_error: str | None,
     decision: DeferredPromptDecision,
 ) -> str:
     return restore_error or (
-        "could not restore deferred prompt archive for "
-        f"{request.global_agent}@{request.primary_revision[:12]}: "
+        DEFERRED_PROMPT_RESTORE_ERROR_PREFIX
+        + f"{request.global_agent}@{request.primary_revision[:12]}: "
         f"{decision.reason}"
     )
 
@@ -428,8 +492,8 @@ def _terminal_prompt_failure(
         f"quarantined={request.quarantined}"
     )
     return (
-        f"could not restore deferred prompt archive for "
-        f"{request.global_agent}@{request.primary_revision[:12]}: "
+        DEFERRED_PROMPT_RESTORE_ERROR_PREFIX
+        + f"{request.global_agent}@{request.primary_revision[:12]}: "
         f"{terminal_prompt_archive_reason(evidence)}"
     )
 
@@ -480,8 +544,10 @@ def _prompt_archive_present(
 
 __all__ = [
     "DEFERRED_PROMPT_GRACE_SECONDS",
+    "DEFERRED_PROMPT_RESTORE_ERROR_PREFIX",
     "DeferredPromptRestoreFailure",
     "UNRESOLVED_PROMPT_ARCHIVE_REASON",
+    "classify_quarantined_prompt_archives",
     "prepare_deferred_prompt_archive",
     "prompt_runs_by_request",
     "restore_deferred_prompt_archives",

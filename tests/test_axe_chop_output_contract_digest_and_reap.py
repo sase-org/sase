@@ -73,7 +73,6 @@ def test_error_digest_emits_action_summary(
         "total": 2,
         "groups": [{"job": "a"}, {"job": "b"}],
     }
-    written: list[str] = []
     marked: list[str] = []
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
@@ -84,14 +83,12 @@ def test_error_digest_emits_action_summary(
     monkeypatch.setattr(script, "rotate_error_interval", lambda: [record])
     notify = Mock()
     monkeypatch.setattr(script, "notify_axe_error_digest", notify)
-    monkeypatch.setattr(script, "write_last_error_digest_ts", written.append)
     monkeypatch.setattr(script, "mark_error_digest_sent", marked.append)
     monkeypatch.setattr(script, "prune_old_error_digests", lambda: 0)
 
     script.main()
 
     notify.assert_called_once_with(record=record)
-    assert written == ["2099-05-12T10:05:00-04:00"]
     assert marked == ["interval-1"]
     out = capsys.readouterr().out
     assert "error_digest:" in out

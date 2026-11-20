@@ -1058,14 +1058,14 @@ collections off the interactive path:
 - After 5 minutes without a full collection, or when RSS grew more than 500 MB since the
   last full one (from cached process samples, never a UI-thread `/proc` read), the quiet
   window remains 3 s and the backstops run tagged `backstop` / `rss_backstop` when their
-  other gates pass. A telemetry worker samples `VmSwap` and major faults every 5 s;
-  `VmSwap` above 16 MiB or a recent major-fault rate above 100/s defers full collections
-  and emits a `tui_gc_memory_pressure` row. Samples older than 20 s are ignored.
-- The pause estimate is the last policy full-sweep duration scaled by the ratio of new
-  allocated blocks to the prior sweep's blocks, with a 2× safety factor. When it exceeds
-  the 2 s budget (or no recent estimate exists), the policy emits
-  `tui_gc_collection_deferred` and waits. The cost gate is bypassed after 15 minutes
-  without input; swap-pressure deferral still applies.
+  other gates pass.
+- Every 5 s a telemetry worker samples `VmSwap` and major faults (stale after 20 s).
+  Only paging is pressure: `VmSwap` growth above 16 MiB per sample, or over 100 major
+  faults/s. It defers full collections (`tui_gc_memory_pressure` row) but holds the
+  backstops at most 10 minutes, then one runs after 60 s of quiet.
+- The pause estimate is the latest observed full sweep (policy or automatic gen-2)
+  scaled by new versus swept allocated blocks, times 2. Above the 2 s budget, or with no
+  estimate, the policy emits `tui_gc_collection_deferred` and waits for 15 idle minutes.
 - After an idle or backstop collection, freed arenas are released with `malloc_trim` on
   a daemon worker thread (`sase-tui-gc-trim`, via the `trim_allocator` half of
   `sase.axe.runner_idle_memory`), at most every 10 minutes.

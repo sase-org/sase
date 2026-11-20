@@ -13,7 +13,7 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 
 
-def axe_error_wire_schema_version() -> int:
+def _axe_error_wire_schema_version() -> int:
     """Return the axe error-group wire schema version from ``sase_core_rs``."""
     binding = require_rust_binding("axe_error_wire_schema_version")
     return int(binding())
@@ -50,7 +50,7 @@ def group_errors(entries: list[dict[str, Any]]) -> dict[str, Any]:
     return dict(
         binding(
             {
-                "schema_version": axe_error_wire_schema_version(),
+                "schema_version": _axe_error_wire_schema_version(),
                 "entries": [dict(entry) for entry in entries],
             }
         )
@@ -58,7 +58,6 @@ def group_errors(entries: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 __all__ = [
-    "axe_error_wire_schema_version",
     "group_errors",
     "normalize_error_signature",
     "signature_for_entry",

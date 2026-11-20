@@ -150,6 +150,7 @@ class GCTelemetry:
         self._next_pressure_sample_mono = now
         self._pressure_sample_mono: float | None = None
         self._pressure_vmswap_bytes: int | None = None
+        self._pressure_vmswap_growth_bytes: int | None = None
         self._pressure_major_faults: int | None = None
         self._pressure_major_faults_per_s: float | None = None
         self._stop_event = threading.Event()
@@ -250,6 +251,7 @@ class GCTelemetry:
             return None
         return {
             "vmswap_bytes": self._pressure_vmswap_bytes,
+            "vmswap_growth_bytes": self._pressure_vmswap_growth_bytes,
             "major_faults_per_s": self._pressure_major_faults_per_s,
             "sample_age_s": max(0.0, self._monotonic() - sampled),
         }
@@ -314,6 +316,12 @@ class GCTelemetry:
         major = _read_major_faults(self._stat_path)
         if rss is not None:
             self._last_rss = rss
+        # Growth since the previous sample is the paging signal; a residual
+        # level that stays flat is not pressure.
+        previous_swap = self._pressure_vmswap_bytes
+        self._pressure_vmswap_growth_bytes = (
+            None if swap is None or previous_swap is None else swap - previous_swap
+        )
         self._pressure_vmswap_bytes = swap
         previous_major = self._pressure_major_faults
         previous_mono = self._pressure_sample_mono

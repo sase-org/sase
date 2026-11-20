@@ -20,13 +20,13 @@ from sase.axe.state import (
     read_error_counts,
     read_errors,
     rotate_error_interval,
-    write_last_error_digest_ts,
 )
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 from sase.notifications.senders import notify_axe_error_digest
 
 import sase.axe._state_scheduler as sched
+import sase.axe._state_scheduler_digests as sched_digests
 import sase.axe._state_scheduler_shared as sched_shared
 from sase.core.atomic_json import write_json_value_atomic
 
@@ -188,6 +188,50 @@ def test_write_failures_surface_as_gte_with_count(temp_state_dir: Path) -> None:
     assert note.startswith("≥1 error from 1 cause since")
 
 
+def test_ring_reset_failure_surfaces_in_next_digest(temp_state_dir: Path) -> None:
+    append_error(_error("agent_publication", "boom", signature="storm"))
+    real_write = sched_digests.write_json_value_atomic
+
+    def _fail_ring_reset(path: Path, value: object) -> None:
+        if path.name == "recent_errors.json":
+            raise OSError("ring reset failed")
+        real_write(path, value)
+
+    with patch.object(
+        sched_digests, "write_json_value_atomic", side_effect=_fail_ring_reset
+    ):
+        first = rotate_error_interval()
+    assert len(first) == 1
+    assert first[0]["write_failures"] == 0
+    assert sched_shared.pending_write_failures == 1
+    mark_error_digest_sent(first[0]["interval_id"])
+    append_error(_error("housekeeping", "disk full", signature="disk"))
+    second = rotate_error_interval()
+    assert len(second) == 1
+    assert second[0]["total"] == 1
+    assert second[0]["write_failures"] == 1
+    body = render_error_digest(second[0])
+    assert "≥1 error from 1 cause" in body
+    assert "1 write failure" in body
+
+
+def test_grouping_has_no_python_fallback(temp_state_dir: Path) -> None:
+    record = {
+        "interval_id": "interval-1",
+        "interval_start": "2026-11-19T10:00:00-05:00",
+        "interval_end": "2026-11-19T11:00:00-05:00",
+        "total": 1,
+        "groups": [],
+        "ring_samples": [_error("agent_publication", "boom", signature="storm")],
+    }
+    with patch(
+        "sase.axe.error_digest.group_errors",
+        side_effect=ImportError("sase_core_rs missing group_axe_errors"),
+    ):
+        with pytest.raises(ImportError):
+            render_error_digest(record)
+
+
 def test_loud_signature_plus_rare_ones_one_line_per_cause(
     temp_state_dir: Path,
 ) -> None:
@@ -246,15 +290,6 @@ def test_retry_notify_does_not_create_second_row(temp_state_dir: Path) -> None:
     report = Path(created[0].action_data["error_report_path"])
     assert report.exists()
     assert "1 error from 1 cause" in report.read_text(encoding="utf-8")
-
-
-def test_last_error_digest_ts_write_is_atomic(temp_state_dir: Path) -> None:
-    ts = "2026-11-19T15:02:00-05:00"
-    write_last_error_digest_ts(ts)
-    path = temp_state_dir / "last_error_digest_ts"
-    assert path.read_text() == ts
-    temps = list(temp_state_dir.glob(".last_error_digest_ts.*.tmp"))
-    assert temps == []
 
 
 def test_pruning_removes_old_files_but_keeps_floor(tmp_path: Path) -> None:

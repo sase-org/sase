@@ -11,9 +11,7 @@ The implementation now lives in the sibling section modules
 
 from sase.axe._state_scheduler_digests import (
     mark_error_digest_sent,
-    read_last_error_digest_ts,
     rotate_error_interval,
-    write_last_error_digest_ts,
 )
 from sase.axe._state_scheduler_errors import (
     append_error,
@@ -56,7 +54,6 @@ __all__ = [
     "read_cycle_result",
     "read_error_counts",
     "read_errors",
-    "read_last_error_digest_ts",
     "read_metrics",
     "read_output_log_tail",
     "read_pid_file",
@@ -64,5 +61,4 @@ __all__ = [
     "remove_pid_file",
     "rotate_error_interval",
     "write_cycle_result",
-    "write_last_error_digest_ts",
 ]

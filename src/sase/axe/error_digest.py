@@ -8,11 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.core.axe_error_facade import (
-    axe_error_wire_schema_version,
-    group_errors,
-    normalize_error_signature,
-)
+from sase.core.axe_error_facade import group_errors, signature_for_entry
 from sase.core.time import parse_local
 
 _logger = logging.getLogger(__name__)
@@ -20,7 +16,6 @@ _logger = logging.getLogger(__name__)
 _NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
 _EN_DASH = "\u2013"
 _CAUSE_SAMPLE_CHARS = 80
-_UNCLASSIFIED_SIGNATURE = "<unclassified>"
 
 ERROR_DIGEST_MAX_AGE_DAYS = 30.0
 ERROR_DIGEST_KEEP_COUNT = 50
@@ -39,46 +34,6 @@ def error_digest_dir() -> Path:
 def digest_dedup_key(interval_id: str) -> str:
     """Return the notification dedup key for one digest interval."""
     return f"{ERROR_DIGEST_DEDUP_PREFIX}{interval_id}"
-
-
-def digest_record_from_errors(errors: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build a digest record from raw ring entries.
-
-    Uses the Rust grouping facade so one loud signature still becomes a
-    single cause. Totals are the grouped counts, which matches a ring-only
-    caller that has no durable interval counter.
-    """
-    entries: list[dict[str, Any]] = []
-    for error in errors:
-        routine = _as_str(error.get("lumberjack"), "unknown")
-        job = _as_str(error.get("job"), "unknown")
-        timestamp = _as_str(error.get("timestamp"), "")
-        sample = _as_str(error.get("error"), "")
-        entries.append(
-            {
-                "routine": routine,
-                "job": job,
-                "signature": _signature_of(error),
-                "timestamp": timestamp,
-                "sample": sample,
-            }
-        )
-    grouped = _group_entries(entries)
-    timestamps = [item["timestamp"] for item in entries if item["timestamp"]]
-    interval_start = min(timestamps) if timestamps else ""
-    interval_end = max(timestamps) if timestamps else ""
-    return {
-        "schema_version": _wire_schema_version(),
-        "interval_id": "",
-        "interval_start": interval_start,
-        "interval_end": interval_end,
-        "total": sum(int(group.get("count") or 0) for group in grouped),
-        "write_failures": 0,
-        "corrupt_files": 0,
-        "samples_kept": len(errors),
-        "groups": grouped,
-        "ring_samples": [dict(error) for error in errors],
-    }
 
 
 def render_error_digest(record: Mapping[str, Any]) -> str:
@@ -216,64 +171,11 @@ def prune_old_error_digests(
     return deleted
 
 
-def _wire_schema_version() -> int:
-    try:
-        return int(axe_error_wire_schema_version())
-    except Exception:  # noqa: BLE001 - rendering must survive a missing binding
-        return 1
-
-
-def _signature_of(entry: Mapping[str, Any]) -> str:
-    explicit = entry.get("failure_signature")
-    if isinstance(explicit, str) and explicit:
-        return explicit
-    error = entry.get("error", "")
-    text = error if isinstance(error, str) else str(error)
-    try:
-        return normalize_error_signature(text)
-    except Exception:  # noqa: BLE001 - grouping degrades to unclassified
-        return text.casefold()[:200] or _UNCLASSIFIED_SIGNATURE
-
-
 def _group_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fold ring entries into per-cause groups through the Rust facade."""
     if not entries:
         return []
-    try:
-        response = group_errors(entries)
-        groups = response.get("groups")
-        if isinstance(groups, list):
-            return [group for group in groups if isinstance(group, dict)]
-    except Exception:  # noqa: BLE001 - Python fallback keeps the digest truthful
-        _logger.warning("Error grouping facade unavailable; grouping in Python")
-    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
-    order: list[tuple[str, str, str]] = []
-    for entry in entries:
-        key = (
-            str(entry.get("routine") or ""),
-            str(entry.get("job") or ""),
-            str(entry.get("signature") or ""),
-        )
-        group = grouped.get(key)
-        timestamp = str(entry.get("timestamp") or "")
-        sample = str(entry.get("sample") or "")
-        if group is None:
-            grouped[key] = {
-                "routine": key[0],
-                "job": key[1],
-                "signature": key[2],
-                "count": 1,
-                "first_ts": timestamp,
-                "last_ts": timestamp,
-                "sample": sample,
-            }
-            order.append(key)
-            continue
-        group["count"] += 1
-        if timestamp and (not group["first_ts"] or timestamp < group["first_ts"]):
-            group["first_ts"] = timestamp
-        if timestamp and timestamp > group["last_ts"]:
-            group["last_ts"] = timestamp
-    return [grouped[key] for key in order]
+    return [dict(group) for group in group_errors(entries)["groups"]]
 
 
 def _causes_with_samples(record: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -286,7 +188,7 @@ def _causes_with_samples(record: Mapping[str, Any]) -> list[dict[str, Any]]:
     for entry in ring:
         routine = _as_str(entry.get("lumberjack"), "unknown")
         job = _as_str(entry.get("job"), "unknown")
-        signature = _signature_of(entry)
+        signature = signature_for_entry(entry)
         key = (routine, job, signature)
         if key not in full_by_key:
             full_by_key[key] = entry
@@ -469,7 +371,6 @@ __all__ = [
     "ERROR_DIGEST_RETENTION_MARKER",
     "digest_dedup_key",
     "digest_notification_note",
-    "digest_record_from_errors",
     "error_digest_dir",
     "prune_old_error_digests",
     "render_error_digest",

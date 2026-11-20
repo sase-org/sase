@@ -7,7 +7,6 @@ from sase.axe.error_digest import prune_old_error_digests
 from sase.axe.state import (
     mark_error_digest_sent,
     rotate_error_interval,
-    write_last_error_digest_ts,
 )
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
@@ -30,7 +29,6 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             mark_error_digest_sent(interval_id)
         end = record.get("interval_end")
         if isinstance(end, str) and end:
-            write_last_error_digest_ts(end)
             newest = end
         notified += 1
         errors_total += int(record.get("total") or 0)

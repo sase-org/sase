@@ -28,6 +28,7 @@ from sase.agents_sync.publication_standing import (
     StandingReport,
     apply_project_observations,
     blocking_alerts,
+    has_open_alert_of_kind,
     is_due,
     load_standing_alerts,
     open_alert_count,
@@ -57,6 +58,10 @@ from sase.core.project_lifecycle_facade import list_project_records
 
 PUBLICATION_JOB_WORK_BUDGET_SECONDS = 240.0
 
+# Machine-wide failures (project listing, target resolution, heartbeat write)
+# are keyed to a pseudo-project that can never collide with a real project.
+_PUBLISHER_STANDING_PROJECT = "*publisher*"
+
 
 def run_publication_job(
     *,
@@ -84,6 +89,9 @@ def _run_publication_job(
     summary = PublicationJobSummary()
     started = time.monotonic()
     deadline = started + max(0.0, work_budget_seconds)
+    # Machine-wide failures fold into one standing apply after the heartbeat
+    # write, so each reports only its transitions and a clean pass clears it.
+    publisher_observations: list[tuple[str, str]] = []
     try:
         records = list_project_records(
             sase_projects_dir(),
@@ -101,8 +109,9 @@ def _run_publication_job(
             )
         )
     except Exception as exc:  # noqa: BLE001 - heartbeat exposes failed discovery.
-        summary.errors += 1
-        summary.diagnostics.append(f"could not list enabled projects: {exc}")
+        publisher_observations.append(
+            (STANDING_KIND_SELECTION_ERROR, f"could not list enabled projects: {exc}")
+        )
         project_keys = ()
     targets: dict[str, ProjectTarget] = {}
     outcomes_by_key: dict[str, SyncOutcome] = {}
@@ -120,8 +129,12 @@ def _run_publication_job(
                     # so a repeated failure reports only its transition.
                     selection_errors[outcome.project_key] = outcome.error
         except Exception as exc:  # noqa: BLE001 - projects are retried next tick.
-            summary.errors += 1
-            summary.diagnostics.append(f"could not resolve publication targets: {exc}")
+            publisher_observations.append(
+                (
+                    STANDING_KIND_SELECTION_ERROR,
+                    f"could not resolve publication targets: {exc}",
+                )
+            )
     standing_alerts = load_standing_alerts()
     standing_now = time.time()
 
@@ -138,6 +151,14 @@ def _run_publication_job(
                 _count_standing_report(
                     summary, project_key, blocked_report, standing_now
                 )
+            _defer_selection_error(
+                summary,
+                project_key,
+                selection_errors,
+                tracked=has_open_alert_of_kind(
+                    standing_alerts, project_key, STANDING_KIND_SELECTION_ERROR
+                ),
+            )
             blocked_active = safe_active_items(project_key)
             blocked_parked = _parked_items(blocked_active)
             summary.active_remaining += len(blocked_active)
@@ -166,8 +187,18 @@ def _run_publication_job(
                     "last_outcome": "deferred_budget",
                     **project_standing_stats(standing_alerts, deferred_key),
                 }
-                if read_diverged_replay_marker(deferred_key) is None:
+                if read_diverged_replay_marker(deferred_key) is None and is_due(
+                    standing_alerts, deferred_key, standing_now
+                ):
                     _safe_ring(deferred_key)
+                _defer_selection_error(
+                    summary,
+                    deferred_key,
+                    selection_errors,
+                    tracked=has_open_alert_of_kind(
+                        standing_alerts, deferred_key, STANDING_KIND_SELECTION_ERROR
+                    ),
+                )
             break
         observations: list[tuple[str, str]] = []
         selection_error = selection_errors.pop(project_key, None)
@@ -291,31 +322,40 @@ def _run_publication_job(
             **project_standing_stats(standing_alerts, project_key),
         }
 
+    # Every listed project pops its own selection error above. An outcome
+    # keyed to a project outside the listing can never be processed, so it is
+    # recorded on the publisher pseudo-project, where a later clean pass
+    # clears it.
     for leftover_key in sorted(selection_errors):
-        summary.errors += 1
-        summary.diagnostics.append(f"{leftover_key}: {selection_errors[leftover_key]}")
+        publisher_observations.append(
+            (
+                STANDING_KIND_SELECTION_ERROR,
+                f"{leftover_key}: {selection_errors[leftover_key]}",
+            )
+        )
 
-    # The heartbeat write is machine-wide, so its standing alert is keyed to a
-    # project that can never collide with a real project. A failed write
-    # reports only its transition; a clean write clears the alert.
+    # The heartbeat write is machine-wide too. Every publisher observation
+    # folds into one apply, because a pass clears any publisher alert it did
+    # not observe: a failure reports only its transition, a clean pass clears.
     try:
         write_publication_heartbeat(summary.project_stats)
-        heartbeat_observations: list[tuple[str, str]] = []
     except Exception as exc:  # noqa: BLE001 - the next pass retries heartbeat.
-        heartbeat_observations = [
+        publisher_observations.append(
             (
                 STANDING_KIND_HEARTBEAT_WRITE,
                 f"could not write publisher heartbeat: {exc}",
             )
-        ]
-    for heartbeat_report in apply_project_observations(
+        )
+    for publisher_report in apply_project_observations(
         standing_alerts,
-        "*publisher*",
-        heartbeat_observations,
+        _PUBLISHER_STANDING_PROJECT,
+        publisher_observations,
         now=standing_now,
-        clean=not heartbeat_observations,
+        clean=not publisher_observations,
     ):
-        _count_standing_report(summary, "*publisher*", heartbeat_report, standing_now)
+        _count_standing_report(
+            summary, _PUBLISHER_STANDING_PROJECT, publisher_report, standing_now
+        )
 
     summary.standing = open_alert_count(standing_alerts)
     save_standing_alerts(standing_alerts)
@@ -378,6 +418,30 @@ def _oldest_age(
     observed = time.time() if now is None else now
     created = min(item.created_at for item in items)
     return max(0.0, observed - created)
+
+
+def _defer_selection_error(
+    summary: PublicationJobSummary,
+    project_key: str,
+    selection_errors: dict[str, str],
+    *,
+    tracked: bool,
+) -> None:
+    """Leave a skipped project's selection error for its next processed pass.
+
+    A project skipped this tick (budget-deferred or backing off) is not
+    charged: its next processed pass records the error through the standing
+    decider, which reports only transitions. When *tracked* (an open
+    selection-error alert already covers the project) it stays quiet;
+    otherwise it is noted so the log still explains the skipped error.
+    """
+
+    error = selection_errors.pop(project_key, None)
+    if error is None or tracked:
+        return
+    summary.diagnostics.append(
+        f"{project_key}: selection error left for the next processed pass: {error}"
+    )
 
 
 def _safe_ring(project_key: str) -> None:

@@ -210,7 +210,6 @@ from sase.axe._state_scheduler import (  # noqa: E402
     read_cycle_result,
     read_error_counts,
     read_errors,
-    read_last_error_digest_ts,
     read_metrics,
     read_output_log_tail,
     read_pid_file,
@@ -218,7 +217,6 @@ from sase.axe._state_scheduler import (  # noqa: E402
     remove_pid_file,
     rotate_error_interval,
     write_cycle_result,
-    write_last_error_digest_ts,
 )
 
 __all__ = [
@@ -275,7 +273,6 @@ __all__ = [
     "read_error_counts",
     "read_errors",
     "read_json",
-    "read_last_error_digest_ts",
     "read_lumberjack_log_tail",
     "read_lumberjack_metrics",
     "read_lumberjack_pid",
@@ -295,7 +292,6 @@ __all__ = [
     "write_chop_run",
     "write_chop_timestamps",
     "write_cycle_result",
-    "write_last_error_digest_ts",
     "write_lumberjack_metrics",
     "write_lumberjack_pid",
     "write_lumberjack_status",

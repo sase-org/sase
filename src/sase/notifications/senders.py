@@ -115,22 +115,21 @@ def notify_mentors_complete(
     append_notification(n)
 
 
-def notify_axe_error_digest(
-    errors: list[dict] | None = None,
-    *,
-    record: dict | None = None,
-) -> None:
-    """Send a grouped digest notification summarising axe errors."""
+def notify_axe_error_digest(record: dict) -> None:
+    """Send a grouped digest notification for one rotated error interval.
+
+    *record* is a pending digest record from
+    :func:`sase.axe.state.rotate_error_interval`.
+    """
     from sase.axe.error_digest import (
         digest_dedup_key,
         digest_notification_note,
-        digest_record_from_errors,
         error_digest_dir,
         render_error_digest,
     )
     from sase.core.atomic_json import write_text_atomic
 
-    payload = record if record is not None else digest_record_from_errors(errors or [])
+    payload = record
     groups = payload.get("groups")
     if int(payload.get("total") or 0) <= 0 and not (
         isinstance(groups, list) and groups
