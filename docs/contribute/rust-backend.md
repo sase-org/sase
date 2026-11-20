@@ -1276,9 +1276,14 @@ The cache lives under `~/.sase/cache/rust-prebuild/`. Each completed set is stam
 the exact upstream core commit, `Cargo.lock` digest, `rustc --version`, Rust dev
 profile, target interpreter, and Python ABI. `sase update` consumes a set only when all
 of those fields still match the live checkout and tool venv; otherwise it reports a miss
-reason and runs the normal `just rust-dev-install-uv-tool` path. The install step copies
-the extension and LSP binary atomically, purges stale extension copies, and then probes
-`import sase_core_rs` before it counts as a hit.
+reason (`hit: false`) and runs the normal `just rust-dev-install-uv-tool` path. A miss
+exits 0 from `python -m sase.dev_update.prebuild consume` and the update timeline
+records the step as `miss`, not a warning or failure. Consume exits non-zero only for a
+real install error such as a copy failure or a failed `import sase_core_rs` probe after
+the copy. The background producer skips work while any code-swap writer is live,
+including `sase dev update`, `just install-dev`, and `just install`. The install step
+copies the extension and LSP binary atomically, purges stale extension copies, and then
+probes `import sase_core_rs` before it counts as a hit.
 
 Only the two newest completed sets are retained. It is safe to remove the whole cache
 directory manually:

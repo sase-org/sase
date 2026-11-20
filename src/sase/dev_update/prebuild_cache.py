@@ -46,6 +46,8 @@ MISS_DIGEST_MISMATCH = "digest-mismatch"
 MISS_COPY_FAILURE = "copy-failure"
 MISS_HEALTH_CHECK_FAILED = "health-check-failed"
 MISS_DISABLED = "disabled"
+CONSUME_ERROR_REASONS = frozenset({MISS_COPY_FAILURE, MISS_HEALTH_CHECK_FAILED})
+"""Consume reasons that are real failures, not cache misses."""
 
 _FIELD_MISMATCH_REASONS = (
     ("core_commit", MISS_COMMIT_MISMATCH),
@@ -91,6 +93,22 @@ class RustPrebuildConsumeOutcome:
             hit=self.hit,
             reason="hit" if self.hit else self.reason,
         )
+
+
+def consume_exit_code(outcome: RustPrebuildConsumeOutcome) -> int:
+    """Return 0 for hits and cache misses; non-zero only for consume errors."""
+    return 1 if (not outcome.hit and outcome.reason in CONSUME_ERROR_REASONS) else 0
+
+
+def prebuild_result_status(result: DevRustPrebuildResult) -> str:
+    """Classify a recorded prebuild attempt as hit, miss, error, or not-attempted."""
+    if not result.attempted:
+        return "not-attempted"
+    if result.hit:
+        return "hit"
+    if result.reason in CONSUME_ERROR_REASONS:
+        return "error"
+    return "miss"
 
 
 def outcome_marker(outcome: RustPrebuildConsumeOutcome) -> str:

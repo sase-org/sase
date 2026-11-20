@@ -24,6 +24,7 @@ from sase.dev_update.prebuild_cache import (
     RustPrebuildConsumeOutcome as _RustPrebuildConsumeOutcome,
     RustPrebuildProvenance as _RustPrebuildProvenance,
     completed_stamps as _completed_stamps,
+    consume_exit_code as _consume_exit_code,
     current_provenance as _current_provenance,
     outcome_marker as _outcome_marker,
     parse_outcome_marker,
@@ -164,6 +165,9 @@ def _consume_prebuild(
     )
 
 
+_CODE_SWAP_WRITER_OPS = frozenset({"dev.update", "install.dev", "install.pypi"})
+
+
 def _code_swap_writer_active() -> bool:
     """Best-effort non-blocking probe for the active update writer holder."""
     lock_path = sase_subdir("locks") / CODE_SWAP_LOCK_FILENAME
@@ -177,7 +181,7 @@ def _code_swap_writer_active() -> bool:
         payload = json.loads(raw)
     except json.JSONDecodeError:
         return True
-    return isinstance(payload, dict) and payload.get("op") == "dev.update"
+    return isinstance(payload, dict) and payload.get("op") in _CODE_SWAP_WRITER_OPS
 
 
 def _run_command(
@@ -262,7 +266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile=args.profile,
     )
     print(_outcome_marker(outcome))
-    return 0 if outcome.hit else 1
+    return _consume_exit_code(outcome)
 
 
 if __name__ == "__main__":

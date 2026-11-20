@@ -14,12 +14,20 @@ from typing import Literal, Protocol
 from collections.abc import Iterator
 
 StepStatus = Literal[
-    "pending", "running", "done", "warned", "failed", "skipped", "interrupted"
+    "pending",
+    "running",
+    "done",
+    "miss",
+    "warned",
+    "failed",
+    "skipped",
+    "interrupted",
 ]
 """Lifecycle states for one timeline step."""
 
 TERMINAL_STATUSES: tuple[StepStatus, ...] = (
     "done",
+    "miss",
     "warned",
     "failed",
     "skipped",

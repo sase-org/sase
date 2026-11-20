@@ -12,6 +12,7 @@ from sase.dev_update import (
     DevUpdateResult,
     DevUpdateRootPlan,
 )
+from sase.dev_update.prebuild_cache import prebuild_result_status
 from sase.main.update_state import combined_changed, dev_counts
 from sase.main.update_types import UPDATE_JSON_SCHEMA_VERSION, RestartInfo
 from sase.uv_tool.render import PlannedPackage, UpdateOutcome, UpdateSummary
@@ -227,6 +228,7 @@ def _dev_rust_prebuild_json(result: DevUpdateResult) -> dict[str, Any]:
         "attempted": result.rust_prebuild.attempted,
         "hit": result.rust_prebuild.hit,
         "reason": result.rust_prebuild.reason,
+        "status": prebuild_result_status(result.rust_prebuild),
     }
 
 

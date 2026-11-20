@@ -200,6 +200,7 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
         "attempted": False,
         "hit": False,
         "reason": "not-attempted",
+        "status": "not-attempted",
     }
     assert payload["dev"]["packages"][0]["name"] == "sase"
     assert payload["dev"]["packages"][0]["status"] == "updated"

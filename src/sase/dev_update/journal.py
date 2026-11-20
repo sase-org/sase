@@ -14,6 +14,7 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
 )
+from sase.dev_update.prebuild_cache import prebuild_result_status
 from sase.logs._bounded import (
     DEFAULT_MAX_BYTES,
     append_jsonl_record,
@@ -100,6 +101,7 @@ def _dev_update_journal_record(
                 "attempted": result.rust_prebuild.attempted,
                 "hit": result.rust_prebuild.hit,
                 "reason": result.rust_prebuild.reason,
+                "status": prebuild_result_status(result.rust_prebuild),
             },
             "core_bindings_verified": result.core_bindings_verified,
             "outcomes": [
@@ -173,7 +175,9 @@ def _result_status(result: DevUpdateResult) -> str:
 
 
 def _result_counts(result: DevUpdateResult) -> dict[str, int]:
-    counts = {"updated": 0, "skipped": 0, "failed": 0}
+    counts = {"updated": 0, "skipped": 0, "failed": 0, "miss": 0}
     for outcome in result.outcomes:
         counts[outcome.status] += 1
+    if prebuild_result_status(result.rust_prebuild) == "miss":
+        counts["miss"] += 1
     return counts

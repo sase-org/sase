@@ -350,14 +350,16 @@ def test_producer_lock_refuses_overlap(tmp_path: Path) -> None:
     assert runner.calls == []
 
 
+@pytest.mark.parametrize("op", ["dev.update", "install.dev", "install.pypi"])
 def test_produce_refuses_while_update_writer_lock_held(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    op: str,
 ) -> None:
     locks_dir = tmp_path / "locks"
     locks_dir.mkdir()
     (locks_dir / "code-swap-v2.lock").write_text(
-        json.dumps({"pid": 999, "op": "dev.update", "command": [], "blocking": True}),
+        json.dumps({"pid": 999, "op": op, "command": [], "blocking": True}),
         encoding="utf-8",
     )
     monkeypatch.setattr(prebuild, "sase_subdir", lambda name: tmp_path / name)
@@ -373,6 +375,22 @@ def test_produce_refuses_while_update_writer_lock_held(
 
     assert outcome.hit is False
     assert runner.calls == []
+    assert prebuild._code_swap_writer_active() is True  # noqa: SLF001
+
+
+def test_code_swap_writer_probe_ignores_reader_ops(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    locks_dir = tmp_path / "locks"
+    locks_dir.mkdir()
+    (locks_dir / "code-swap-v2.lock").write_text(
+        json.dumps({"pid": 12, "op": "agent.runner", "command": [], "blocking": True}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(prebuild, "sase_subdir", lambda name: tmp_path / name)
+
+    assert prebuild._code_swap_writer_active() is False  # noqa: SLF001
 
 
 def test_successful_producer_writes_stamp_last_and_prunes_to_two(
@@ -467,6 +485,109 @@ def test_lsp_package_and_binary_follows_core_checkout(
 ) -> None:
     assert lsp_package_name(tmp_path) == "sase_macro_lsp"
     assert lsp_binary_name(tmp_path, "dev-update") == "sase-macro-lsp"
+
+
+def test_consume_copy_failure_is_an_error_reason(tmp_path: Path) -> None:
+    core = tmp_path / "sase-core"
+    host = tmp_path / "sase"
+    core_dest = core / "crates/sase_core_py/python/sase_core_rs"
+    core_dest.mkdir(parents=True)
+    (core / "Cargo.lock").write_text("lock", encoding="utf-8")
+    (host / "tools").mkdir(parents=True)
+    python = str(tmp_path / "tool/bin/python")
+    Path(python).parent.mkdir(parents=True)
+    runner = FakeRunner(core_root=core, python=python)
+    provenance = _provenance(core, runner)
+    cache = tmp_path / "cache"
+    _write_completed_set(cache, provenance)
+
+    def replace_file(_src: Path, _dest: Path) -> None:
+        raise OSError("disk full")
+
+    outcome = prebuild._consume_prebuild(  # noqa: SLF001
+        core_root=core,
+        host_root=host,
+        target_python=python,
+        root=cache,
+        config={"ace": {"updates": {"prebuild_rust": True}}},
+        run=runner,
+        replace_file=replace_file,
+    )
+
+    assert outcome.hit is False
+    assert outcome.reason == "copy-failure"
+    assert prebuild._consume_exit_code(outcome) == 1  # noqa: SLF001
+
+
+def test_consume_health_check_failure_is_an_error_reason(tmp_path: Path) -> None:
+    core = tmp_path / "sase-core"
+    host = tmp_path / "sase"
+    core_dest = core / "crates/sase_core_py/python/sase_core_rs"
+    core_dest.mkdir(parents=True)
+    (core / "Cargo.lock").write_text("lock", encoding="utf-8")
+    (host / "tools").mkdir(parents=True)
+    python = str(tmp_path / "tool/bin/python")
+    Path(python).parent.mkdir(parents=True)
+    runner = FakeRunner(core_root=core, python=python)
+    runner.probe_ok = False
+    provenance = _provenance(core, runner)
+    cache = tmp_path / "cache"
+    _write_completed_set(cache, provenance)
+
+    outcome = prebuild._consume_prebuild(  # noqa: SLF001
+        core_root=core,
+        host_root=host,
+        target_python=python,
+        root=cache,
+        config={"ace": {"updates": {"prebuild_rust": True}}},
+        run=runner,
+    )
+
+    assert outcome.hit is False
+    assert outcome.reason == "health-check-failed"
+    assert prebuild._consume_exit_code(outcome) == 1  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("hit", "reason", "exit_code"),
+    [
+        (True, "hit", 0),
+        (False, "commit-mismatch", 0),
+        (False, "stamp-missing", 0),
+        (False, "copy-failure", 1),
+        (False, "health-check-failed", 1),
+    ],
+)
+def test_consume_main_exit_code_matches_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    hit: bool,
+    reason: str,
+    exit_code: int,
+) -> None:
+    outcome = prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
+        hit,
+        reason,
+        set_key="cache-key" if hit else None,
+    )
+    monkeypatch.setattr(prebuild, "_consume_prebuild", lambda **_kwargs: outcome)
+
+    code = prebuild.main(
+        [
+            "consume",
+            "--core-root",
+            "/core",
+            "--host-root",
+            "/host",
+            "--python",
+            "/tool/bin/python",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert code == exit_code
+    assert f'"hit": {str(hit).lower()}' in captured.out
+    assert f'"reason": "{reason}"' in captured.out
 
 
 def test_run_command_bounds_builds_and_maps_timeouts(

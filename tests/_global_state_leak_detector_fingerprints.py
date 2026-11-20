@@ -71,13 +71,16 @@ def test_snapshot_includes_live_config_token_refresh_threads() -> None:
 
     def _run() -> None:
         started.set()
-        hold.wait(timeout=30.0)
+        # Keep this dummy worker until the test releases ``hold``. A short
+        # timeout loses the thread while ``capture_process_snapshot`` walks
+        # every loaded sase module under a loaded xdist worker.
+        hold.wait()
 
     from sase.config.core import CONFIG_TOKEN_REFRESH_THREAD_NAME
 
     thread = threading.Thread(target=_run, name=CONFIG_TOKEN_REFRESH_THREAD_NAME)
     thread.start()
-    assert started.wait(timeout=1.0)
+    assert started.wait(timeout=5.0)
     try:
         assert _live_config_token_refresh_threads()
         snap = capture_process_snapshot()

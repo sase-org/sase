@@ -387,11 +387,11 @@ class LiveTimelineRenderer:
         snapshot = self._model.snapshot()
         collapsible: dict[str, int] = {}
         for _depth, row in walk(snapshot):
-            if row.status in ("done", "warned", "skipped", "failed"):
+            if row.status in ("done", "miss", "warned", "skipped", "failed"):
                 finished = [
                     child.id
                     for child in row.children
-                    if child.status in ("done", "warned", "skipped")
+                    if child.status in ("done", "miss", "warned", "skipped")
                 ]
                 if finished:
                     collapsible[row.id] = len(finished)
@@ -403,7 +403,7 @@ class LiveTimelineRenderer:
             for _depth, row in walk(snapshot)
             if row.id in collapsible
             for child in row.children
-            if child.status in ("done", "warned", "skipped")
+            if child.status in ("done", "miss", "warned", "skipped")
         }
         out: list[_Item] = []
         emitted: set[str] = set()

@@ -378,6 +378,51 @@ def test_execute_dev_update_prebuild_miss_falls_back_to_rust_build() -> None:
     runner = FakeRunner(
         responses={
             prebuild_command: DevCommandResult(
+                0,
+                stdout=prebuild._outcome_marker(  # noqa: SLF001
+                    prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
+                        False,
+                        "commit-mismatch",
+                    )
+                ),
+            )
+        }
+    )
+
+    result = execute_dev_update(
+        plan(reconcile=(prebuild_step, rust_step, health_step)),
+        run=runner,
+    )
+
+    assert result.rust_prebuild.attempted is True
+    assert result.rust_prebuild.hit is False
+    assert result.rust_prebuild.reason == "commit-mismatch"
+    assert rust_command in [call[0] for call in runner.calls]
+
+
+def test_execute_dev_update_legacy_prebuild_nonzero_miss_still_falls_back() -> None:
+    prebuild_command = ("python", "-m", "sase.dev_update.prebuild", "consume")
+    rust_command = ("just", "rust-dev-install-uv-tool")
+    prebuild_step = DevReconcileStep(
+        kind="rust_prebuild_install",
+        label="Install prebuilt Rust dev artifacts into the uv-tool venv",
+        command=prebuild_command,
+        cwd="/host",
+    )
+    rust_step = DevReconcileStep(
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=rust_command,
+        cwd="/host",
+    )
+    health_step = DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=("/tool/bin/python", "-c", "import sase_core_rs"),
+    )
+    runner = FakeRunner(
+        responses={
+            prebuild_command: DevCommandResult(
                 1,
                 stdout=prebuild._outcome_marker(  # noqa: SLF001
                     prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
@@ -397,6 +442,51 @@ def test_execute_dev_update_prebuild_miss_falls_back_to_rust_build() -> None:
     assert result.rust_prebuild.attempted is True
     assert result.rust_prebuild.hit is False
     assert result.rust_prebuild.reason == "commit-mismatch"
+    assert rust_command in [call[0] for call in runner.calls]
+
+
+def test_execute_dev_update_prebuild_consume_error_falls_back_to_rust_build() -> None:
+    prebuild_command = ("python", "-m", "sase.dev_update.prebuild", "consume")
+    rust_command = ("just", "rust-dev-install-uv-tool")
+    prebuild_step = DevReconcileStep(
+        kind="rust_prebuild_install",
+        label="Install prebuilt Rust dev artifacts into the uv-tool venv",
+        command=prebuild_command,
+        cwd="/host",
+    )
+    rust_step = DevReconcileStep(
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=rust_command,
+        cwd="/host",
+    )
+    health_step = DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=("/tool/bin/python", "-c", "import sase_core_rs"),
+    )
+    runner = FakeRunner(
+        responses={
+            prebuild_command: DevCommandResult(
+                1,
+                stdout=prebuild._outcome_marker(  # noqa: SLF001
+                    prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
+                        False,
+                        "copy-failure",
+                    )
+                ),
+            )
+        }
+    )
+
+    result = execute_dev_update(
+        plan(reconcile=(prebuild_step, rust_step, health_step)),
+        run=runner,
+    )
+
+    assert result.rust_prebuild.attempted is True
+    assert result.rust_prebuild.hit is False
+    assert result.rust_prebuild.reason == "copy-failure"
     assert rust_command in [call[0] for call in runner.calls]
 
 

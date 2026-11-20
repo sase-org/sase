@@ -432,6 +432,104 @@ def test_execute_prebuild_hit_skips_rebuild_with_progress() -> None:
     assert rust_command not in [call[0] for call in runner.calls]
 
 
+def test_execute_prebuild_miss_records_miss_and_rebuilds() -> None:
+    prebuild_command = ("python", "-m", "sase.dev_update.prebuild", "consume")
+    rust_command = ("just", "rust-dev-install-uv-tool")
+    update_plan = plan(
+        reconcile=(
+            DevReconcileStep(
+                kind="rust_prebuild_install",
+                label="Install prebuilt Rust dev artifacts into the uv-tool venv",
+                command=prebuild_command,
+                cwd="/host",
+            ),
+            DevReconcileStep(
+                kind="rust_dev_install",
+                label="Rebuild Rust dev artifacts into the uv-tool venv",
+                command=rust_command,
+                cwd="/host",
+            ),
+            DevReconcileStep(
+                kind="rust_health_check",
+                label="Verify sase-core-rs imports in the uv-tool venv",
+                command=("/tool/bin/python", "-c", "import sase_core_rs"),
+            ),
+        )
+    )
+    runner = StreamingRunner(
+        responses={
+            prebuild_command: DevCommandResult(
+                0,
+                stdout=prebuild._outcome_marker(  # noqa: SLF001
+                    prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
+                        False,
+                        "commit-mismatch",
+                    )
+                ),
+            )
+        }
+    )
+    progress = RecordingProgress()
+
+    result = execute_dev_update(update_plan, run=runner, progress=progress)
+
+    assert result.changed is True
+    assert result.rust_prebuild.reason == "commit-mismatch"
+    assert progress.finishes("reconcile:0") == [
+        ("finish", "reconcile:0", "miss", "cache miss · commit-mismatch")
+    ]
+    assert progress.finishes("reconcile:1") == [("finish", "reconcile:1", "done", None)]
+    assert rust_command in [call[0] for call in runner.calls]
+
+
+def test_execute_prebuild_consume_error_records_warned_and_rebuilds() -> None:
+    prebuild_command = ("python", "-m", "sase.dev_update.prebuild", "consume")
+    rust_command = ("just", "rust-dev-install-uv-tool")
+    update_plan = plan(
+        reconcile=(
+            DevReconcileStep(
+                kind="rust_prebuild_install",
+                label="Install prebuilt Rust dev artifacts into the uv-tool venv",
+                command=prebuild_command,
+                cwd="/host",
+            ),
+            DevReconcileStep(
+                kind="rust_dev_install",
+                label="Rebuild Rust dev artifacts into the uv-tool venv",
+                command=rust_command,
+                cwd="/host",
+            ),
+            DevReconcileStep(
+                kind="rust_health_check",
+                label="Verify sase-core-rs imports in the uv-tool venv",
+                command=("/tool/bin/python", "-c", "import sase_core_rs"),
+            ),
+        )
+    )
+    runner = StreamingRunner(
+        responses={
+            prebuild_command: DevCommandResult(
+                1,
+                stdout=prebuild._outcome_marker(  # noqa: SLF001
+                    prebuild._RustPrebuildConsumeOutcome(  # noqa: SLF001
+                        False,
+                        "health-check-failed",
+                    )
+                ),
+            )
+        }
+    )
+    progress = RecordingProgress()
+
+    result = execute_dev_update(update_plan, run=runner, progress=progress)
+
+    assert result.rust_prebuild.reason == "health-check-failed"
+    assert progress.finishes("reconcile:0") == [
+        ("finish", "reconcile:0", "warned", "cache error · health-check-failed")
+    ]
+    assert rust_command in [call[0] for call in runner.calls]
+
+
 def test_execute_preflight_dirty_failure_marks_child_failed() -> None:
     runner = StreamingRunner(
         responses={

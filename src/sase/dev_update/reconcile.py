@@ -13,7 +13,7 @@ from sase.dev_update.models import (
     DevReconcileStep,
     DevRustPrebuildResult,
 )
-from sase.dev_update.prebuild import parse_outcome_marker
+from sase.dev_update.prebuild_cache import CONSUME_ERROR_REASONS, parse_outcome_marker
 from sase.dev_update.progress import (
     NULL_PROGRESS,
     output_sink_for,
@@ -162,7 +162,7 @@ def _run_rust_prebuild_step(
 ) -> tuple[DevRustPrebuildResult, bool]:
     if not step.available:
         reason = step.reason or "stamp-missing"
-        progress.finish(step_id, "warned", detail=f"cache miss · {reason}")
+        progress.finish(step_id, "miss", detail=f"cache miss · {reason}")
         return (
             DevRustPrebuildResult(
                 attempted=True,
@@ -185,7 +185,10 @@ def _run_rust_prebuild_step(
     )
     parsed = parse_outcome_marker("\n".join((result.stdout, result.stderr)))
     if parsed is None:
-        progress.finish(step_id, "warned", detail="cache miss · stamp-missing")
+        if result.returncode != 0:
+            progress.finish(step_id, "warned", detail="prebuild consume failed")
+        else:
+            progress.finish(step_id, "miss", detail="cache miss · stamp-missing")
         return (
             DevRustPrebuildResult(
                 attempted=True,
@@ -195,11 +198,14 @@ def _run_rust_prebuild_step(
             False,
         )
     dev_result = parsed.to_dev_result()
-    if result.returncode == 0 and parsed.hit:
+    if parsed.hit:
         progress.finish(step_id, "done", detail="cache hit")
-    else:
-        progress.finish(step_id, "warned", detail=f"cache miss · {dev_result.reason}")
-    return dev_result, result.returncode == 0 and parsed.hit
+        return dev_result, True
+    if parsed.reason in CONSUME_ERROR_REASONS:
+        progress.finish(step_id, "warned", detail=f"cache error · {dev_result.reason}")
+        return dev_result, False
+    progress.finish(step_id, "miss", detail=f"cache miss · {dev_result.reason}")
+    return dev_result, False
 
 
 def _is_rust_build_step(step: DevReconcileStep) -> bool:

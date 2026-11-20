@@ -139,11 +139,17 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
     )
     assert record["result"]["status"] == "failed"
     assert record["result"]["duration_seconds"] == 301.5
-    assert record["result"]["counts"] == {"updated": 0, "skipped": 0, "failed": 1}
+    assert record["result"]["counts"] == {
+        "updated": 0,
+        "skipped": 0,
+        "failed": 1,
+        "miss": 1,
+    }
     assert record["result"]["rust_prebuild"] == {
         "attempted": True,
         "hit": False,
         "reason": "commit-mismatch",
+        "status": "miss",
     }
     assert record["result"]["core_bindings_verified"] is False
     assert record["commands"][0]["duration_seconds"] == 294.25
