@@ -164,6 +164,16 @@ def _locate_artifact_dirs_for_run(
     return tuple(dirs), None
 
 
+def locate_artifact_dirs_for_run(
+    target: ProjectTarget,
+    local_name: str,
+    source_run_id: str,
+) -> tuple[tuple[Path, ...], str | None]:
+    """Locate exact-run artifact directories for scheduled evidence memoing."""
+
+    return _locate_artifact_dirs_for_run(target, local_name, source_run_id)
+
+
 def _summary_is_candidate(
     summary: Any,
     target: ProjectTarget,

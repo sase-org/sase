@@ -30,6 +30,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     )
     for diagnostic in summary.diagnostics:
         runtime.log.warning(f"[agent_state_refresh] {diagnostic}")
+    if summary.daily_unchanged_unresolved:
+        runtime.log.info(
+            "[agent_state_refresh] unchanged unresolved runs skipped today: "
+            f"{summary.daily_unchanged_unresolved}"
+        )
     if summary.selected_project:
         runtime.log.info(
             f"[agent_state_refresh] refreshed {summary.selected_project}: "
@@ -43,6 +48,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "already_current": summary.already_current,
             "live": summary.live,
             "unresolved": summary.unresolved,
+            "unchanged_unresolved": summary.unchanged_unresolved,
             "withheld": summary.withheld,
             "failed": summary.failed,
             "errors": summary.errors,

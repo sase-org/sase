@@ -28,6 +28,7 @@ from sase.agents_sync._publication_state_repair_types import (
     STATE_REPAIR_WORK_BUDGET_SECONDS,
     StateRepairReport,
     StateRepairWindowRow,
+    UnresolvedVerdictMemo,
 )
 
 
@@ -129,6 +130,7 @@ def repair_project_run_states(
     inventory_loader: InventoryLoader | None = None,
     work_budget_seconds: float = STATE_REPAIR_WORK_BUDGET_SECONDS,
     payload_budget_bytes: int = MAX_PAYLOAD_BYTES,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> StateRepairReport:
     """Repair one project's published run states in a bounded window."""
 
@@ -149,6 +151,7 @@ def repair_project_run_states(
             state_after=state_after,
             inventory_loader=loader,
             work_budget_seconds=work_budget_seconds,
+            unresolved_verdict_memo=unresolved_verdict_memo,
         )
     timeout = (
         configured_agents_lock_timeout()
@@ -196,6 +199,7 @@ def repair_project_run_states(
             inventory_loader=loader,
             work_budget_seconds=work_budget_seconds,
             payload_budget_bytes=payload_budget_bytes,
+            unresolved_verdict_memo=unresolved_verdict_memo,
         )
 
 
@@ -207,6 +211,7 @@ def _preview_project(
     state_after: str | None,
     inventory_loader: InventoryLoader,
     work_budget_seconds: float,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> StateRepairReport:
     mode = "preview"
     deadline = time.monotonic() + max(work_budget_seconds, 0.0)
@@ -219,6 +224,7 @@ def _preview_project(
             after=state_after,
             deadline=deadline,
             inventory_loader=inventory_loader,
+            unresolved_verdict_memo=unresolved_verdict_memo,
         )
     except Exception as exc:  # noqa: BLE001 - preview never raises
         return StateRepairReport(
@@ -284,6 +290,7 @@ def _apply_project_locked(
     inventory_loader: InventoryLoader,
     work_budget_seconds: float,
     payload_budget_bytes: int,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> StateRepairReport:
     from sase.agents_sync.git_sync_ops import (
         abort_agents_rebase,
@@ -321,6 +328,7 @@ def _apply_project_locked(
         payload_budget_bytes=payload_budget_bytes,
         push_op="agents_state_repair.push",
         allow_retry=True,
+        unresolved_verdict_memo=unresolved_verdict_memo,
     )
     cleanup_error = clean_agents_payload_worktree(repo, git_runner)
     if cleanup_error is not None and report.error is None:

@@ -12,7 +12,8 @@ with backoff.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone, UTC
 import json
 import os
 import tempfile
@@ -21,12 +22,19 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from sase.agents_sync.agent_state_refresh_memo import (
+    AgentStateRefreshVerdictMemo,
+    UnresolvedVerdictMemoEntry,
+    memo_entry_from_json,
+    memo_entry_to_json,
+)
 from sase.agents_sync.publication_state_repair import (
     STATE_REPAIR_DEFAULT_LIMIT,
     STATE_REPAIR_WORK_BUDGET_SECONDS,
     StateRepairReport,
     repair_project_run_states,
 )
+from sase.agents_sync._publication_state_repair_types import UnresolvedVerdictMemo
 
 AGENT_STATE_REFRESH_SCHEMA_VERSION = 1
 AGENT_STATE_REFRESH_STATE_FILENAME = "agent_state_refresh.json"
@@ -34,6 +42,7 @@ AGENT_STATE_REFRESH_LOCK_FILENAME = "agent_state_refresh.lock"
 AGENT_STATE_REFRESH_DEFAULT_LIMIT = STATE_REPAIR_DEFAULT_LIMIT
 AGENT_STATE_REFRESH_WORK_BUDGET_SECONDS = STATE_REPAIR_WORK_BUDGET_SECONDS
 AGENT_STATE_REFRESH_COMMAND = "sase agent sync --repair-states"
+AGENT_STATE_REFRESH_MAX_VERDICT_MEMOS = 5_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +63,8 @@ class AgentStateRefreshSummary:
     next_cursor: str | None = None
     diagnostics: tuple[str, ...] = ()
     reason: str | None = None
+    unchanged_unresolved: int = 0
+    daily_unchanged_unresolved: int = 0
 
 
 @dataclass
@@ -61,12 +72,19 @@ class _Checkpoint:
     cursor: str | None = None
     failure_count: int = 0
     retry_after_ms: int = 0
+    memo_generation: int = 0
+    memo_pass_complete: bool = True
 
 
 @dataclass
 class _PersistedState:
     last_selected: dict[str, str] | None = None
     checkpoints: dict[str, _Checkpoint] = field(default_factory=dict)
+    unresolved_verdicts: dict[str, UnresolvedVerdictMemoEntry] = field(
+        default_factory=dict
+    )
+    last_unresolved_summary_day: str | None = None
+    pending_daily_unchanged_unresolved: int = 0
 
 
 def _owner_token(owner: Any) -> str:
@@ -120,8 +138,55 @@ def _read_state(path: Path) -> _PersistedState:
                 cursor=cursor,
                 failure_count=failures,
                 retry_after_ms=retry_after,
+                memo_generation=_nonnegative_int(raw_entry.get("memo_generation")),
+                memo_pass_complete=raw_entry.get("memo_pass_complete") is not False,
             )
-    return _PersistedState(last_selected=last_selected, checkpoints=checkpoints)
+    unresolved_verdicts: dict[str, UnresolvedVerdictMemoEntry] = {}
+    raw_verdicts = payload.get("unresolved_verdicts")
+    if isinstance(raw_verdicts, dict):
+        for key, raw_entry in raw_verdicts.items():
+            if not isinstance(key, str):
+                continue
+            entry = memo_entry_from_json(raw_entry)
+            expected_key = (
+                json.dumps(
+                    [entry.project, entry.owner, entry.source_run_id],
+                    separators=(",", ":"),
+                )
+                if entry is not None
+                else None
+            )
+            if entry is not None and key == expected_key:
+                unresolved_verdicts[key] = entry
+    last_summary_day = payload.get("last_unresolved_summary_day")
+    pending_summary = payload.get("pending_daily_unchanged_unresolved")
+    return _PersistedState(
+        last_selected=last_selected,
+        checkpoints=checkpoints,
+        unresolved_verdicts=unresolved_verdicts,
+        last_unresolved_summary_day=(
+            last_summary_day if isinstance(last_summary_day, str) else None
+        ),
+        pending_daily_unchanged_unresolved=_nonnegative_int(pending_summary),
+    )
+
+
+def _nonnegative_int(value: object) -> int:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return 0
+
+
+def _prune_verdict_memo_size(state: _PersistedState) -> None:
+    excess = len(state.unresolved_verdicts) - AGENT_STATE_REFRESH_MAX_VERDICT_MEMOS
+    if excess <= 0:
+        return
+    oldest = sorted(
+        state.unresolved_verdicts.items(),
+        key=lambda item: item[1].updated_at_ms,
+    )
+    for memo_key, _entry in oldest[:excess]:
+        del state.unresolved_verdicts[memo_key]
 
 
 def _write_state(path: Path, state: _PersistedState) -> None:
@@ -134,9 +199,19 @@ def _write_state(path: Path, state: _PersistedState) -> None:
                 "cursor": entry.cursor,
                 "failure_count": entry.failure_count,
                 "retry_after_ms": entry.retry_after_ms,
+                "memo_generation": entry.memo_generation,
+                "memo_pass_complete": entry.memo_pass_complete,
             }
             for key, entry in sorted(state.checkpoints.items())
         },
+        "unresolved_verdicts": {
+            key: memo_entry_to_json(entry)
+            for key, entry in sorted(state.unresolved_verdicts.items())
+        },
+        "last_unresolved_summary_day": state.last_unresolved_summary_day,
+        "pending_daily_unchanged_unresolved": (
+            state.pending_daily_unchanged_unresolved
+        ),
     }
     fd, temporary = tempfile.mkstemp(
         dir=path.parent,
@@ -166,10 +241,14 @@ def _apply_schedule_transition(
     checkpoint = transition.updated_checkpoint
     if isinstance(checkpoint, AgentRunStateProjectCheckpointWire):
         identity = checkpoint.identity
-        state.checkpoints[_state_key(identity.project, identity.owner)] = _Checkpoint(
+        key = _state_key(identity.project, identity.owner)
+        previous = state.checkpoints.get(key, _Checkpoint())
+        state.checkpoints[key] = _Checkpoint(
             cursor=checkpoint.cursor,
             failure_count=checkpoint.failure_count,
             retry_after_ms=checkpoint.retry_after_ms,
+            memo_generation=previous.memo_generation,
+            memo_pass_complete=previous.memo_pass_complete,
         )
         state.last_selected = {
             "project": identity.project,
@@ -178,10 +257,14 @@ def _apply_schedule_transition(
         return
     if checkpoint is not None:
         identity = checkpoint.identity
-        state.checkpoints[_state_key(identity.project, identity.owner)] = _Checkpoint(
+        key = _state_key(identity.project, identity.owner)
+        previous = state.checkpoints.get(key, _Checkpoint())
+        state.checkpoints[key] = _Checkpoint(
             cursor=checkpoint.cursor,
             failure_count=checkpoint.failure_count,
             retry_after_ms=checkpoint.retry_after_ms,
+            memo_generation=previous.memo_generation,
+            memo_pass_complete=previous.memo_pass_complete,
         )
         state.last_selected = {
             "project": identity.project,
@@ -218,6 +301,7 @@ def _repair_one(
     state_after: str | None,
     state_limit: int = AGENT_STATE_REFRESH_DEFAULT_LIMIT,
     work_budget_seconds: float = AGENT_STATE_REFRESH_WORK_BUDGET_SECONDS,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> StateRepairReport:
     return repair_project_run_states(
         target,
@@ -226,6 +310,7 @@ def _repair_one(
         state_limit=state_limit,
         state_after=state_after,
         work_budget_seconds=work_budget_seconds,
+        unresolved_verdict_memo=unresolved_verdict_memo,
     )
 
 
@@ -315,9 +400,13 @@ def _run_locked(
             diagnostics.append(f"{key}: {message}")
 
     persisted = _read_state(state_path)
+    _prune_verdict_memo_size(persisted)
     live_keys = {_state_key(target.project_key, token) for target in targets}
     for stale_key in [key for key in persisted.checkpoints if key not in live_keys]:
         del persisted.checkpoints[stale_key]
+    for memo_key, memo_entry in list(persisted.unresolved_verdicts.items()):
+        if _state_key(memo_entry.project, memo_entry.owner) not in live_keys:
+            del persisted.unresolved_verdicts[memo_key]
 
     if not targets:
         try:
@@ -404,6 +493,23 @@ def _run_locked(
     checkpoint = persisted.checkpoints.get(
         _state_key(target.project_key, token), _Checkpoint()
     )
+    checkpoint_key = _state_key(target.project_key, token)
+    memo_generation = checkpoint.memo_generation
+    if checkpoint.memo_pass_complete:
+        memo_generation += 1
+    checkpoint = replace(
+        checkpoint,
+        memo_generation=memo_generation,
+        memo_pass_complete=False,
+    )
+    persisted.checkpoints[checkpoint_key] = checkpoint
+    verdict_memo = AgentStateRefreshVerdictMemo(
+        persisted.unresolved_verdicts,
+        project=target.project_key,
+        owner=owner,
+        generation=memo_generation,
+        now_ms=moment,
+    )
     outcome_identity = AgentRunStateProjectIdentityWire(
         project=target.project_key,
         owner=token,
@@ -435,6 +541,11 @@ def _run_locked(
             dict(persisted.last_selected) if persisted.last_selected else None
         ),
         checkpoints=dict(persisted.checkpoints),
+        unresolved_verdicts=dict(persisted.unresolved_verdicts),
+        last_unresolved_summary_day=persisted.last_unresolved_summary_day,
+        pending_daily_unchanged_unresolved=(
+            persisted.pending_daily_unchanged_unresolved
+        ),
     )
     _apply_schedule_transition(pre_persisted, pre_transition, outcome_identity)
     try:
@@ -449,6 +560,7 @@ def _run_locked(
             state_after=checkpoint.cursor,
             state_limit=state_limit,
             work_budget_seconds=work_budget_seconds,
+            unresolved_verdict_memo=verdict_memo,
         )
     except Exception as exc:  # noqa: BLE001 - per-project isolation contract
         report = StateRepairReport(
@@ -507,6 +619,25 @@ def _run_locked(
         )
 
     _apply_schedule_transition(persisted, transition, outcome_identity)
+    if report.pass_complete:
+        verdict_memo.prune_completed_pass()
+    completed_checkpoint = persisted.checkpoints.get(checkpoint_key, checkpoint)
+    persisted.checkpoints[checkpoint_key] = replace(
+        completed_checkpoint,
+        memo_generation=memo_generation,
+        memo_pass_complete=report.pass_complete,
+    )
+    persisted.pending_daily_unchanged_unresolved += verdict_memo.unchanged_count
+    today = datetime.fromtimestamp(moment / 1000, tz=UTC).date().isoformat()
+    daily_unchanged_unresolved = 0
+    if (
+        persisted.pending_daily_unchanged_unresolved
+        and persisted.last_unresolved_summary_day != today
+    ):
+        daily_unchanged_unresolved = persisted.pending_daily_unchanged_unresolved
+        persisted.pending_daily_unchanged_unresolved = 0
+        persisted.last_unresolved_summary_day = today
+    _prune_verdict_memo_size(persisted)
     try:
         _write_state(state_path, persisted)
     except Exception as exc:  # noqa: BLE001 - persistence retries next tick
@@ -549,6 +680,8 @@ def _run_locked(
         next_cursor=report.next_cursor,
         diagnostics=(*diagnostics, *report.diagnostics),
         reason=reason,
+        unchanged_unresolved=verdict_memo.unchanged_count,
+        daily_unchanged_unresolved=daily_unchanged_unresolved,
     )
 
 

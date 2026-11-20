@@ -90,6 +90,31 @@ def test_chop_reports_bounded_success(tmp_path: Path, monkeypatch) -> None:
     assert result.counters["changed"] == 1
 
 
+def test_chop_reports_unchanged_verdict_skips_and_daily_summary(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        refresh_chop,
+        "run_agent_state_refresh",
+        lambda **kwargs: AgentStateRefreshSummary(
+            projects=1,
+            examined=10,
+            unresolved=7,
+            unchanged_unresolved=6,
+            daily_unchanged_unresolved=42,
+        ),
+    )
+    runtime = _runtime(tmp_path)
+
+    result = refresh_chop._run(runtime)  # noqa: SLF001
+
+    assert result.counters["unresolved"] == 7
+    assert result.counters["unchanged_unresolved"] == 6
+    runtime.log.info.assert_called_once_with(
+        "[agent_state_refresh] unchanged unresolved runs skipped today: 42"
+    )
+
+
 def test_builtin_chop_is_registered() -> None:
     from sase.chops.builtin import _BUILTIN_CHOPS
 

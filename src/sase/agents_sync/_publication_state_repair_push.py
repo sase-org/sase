@@ -19,6 +19,7 @@ from sase.agents_sync._publication_state_repair_types import (
     InventoryLoader,
     StateRepairReport,
     StateRepairWindowRow,
+    UnresolvedVerdictMemo,
 )
 
 _BUDGET_MESSAGE = (
@@ -87,6 +88,7 @@ def plan_and_push_repair(
     payload_budget_bytes: int,
     push_op: str,
     allow_retry: bool,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> StateRepairReport:
     from sase.agents_sync.git_sync_ops import (
         abort_agents_rebase,
@@ -108,6 +110,7 @@ def plan_and_push_repair(
             after=state_after,
             deadline=deadline,
             inventory_loader=inventory_loader,
+            unresolved_verdict_memo=unresolved_verdict_memo,
         )
     except Exception as exc:  # noqa: BLE001 - per-project isolation
         return StateRepairReport(

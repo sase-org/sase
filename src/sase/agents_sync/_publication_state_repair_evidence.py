@@ -20,6 +20,7 @@ from sase.agents_sync._publication_state_repair_types import (
     PlannedRepair,
     ResolvedWindow,
     StateRepairAffected,
+    UnresolvedVerdictMemo,
 )
 
 
@@ -58,6 +59,7 @@ def plan_repair_window(
     after: str | None,
     deadline: float,
     inventory_loader: InventoryLoader,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> PlannedRepair:
     """Discover a bounded window and resolve only the selected runs."""
 
@@ -147,6 +149,7 @@ def plan_repair_window(
         inventory if injected else None,
         selected,
         deadline,
+        unresolved_verdict_memo=unresolved_verdict_memo,
     )
     next_cursor = discovery.next_cursor
     pass_complete = discovery.pass_complete
@@ -193,6 +196,8 @@ def _resolve_selected(
     inventory: ProjectHoodInventory | None,
     selected: list[tuple[str, str]],
     deadline: float,
+    *,
+    unresolved_verdict_memo: UnresolvedVerdictMemo | None = None,
 ) -> ResolvedWindow:
     from sase.agents_sync._publication_state_repair_observations import (
         filesystem_observations_for_run,
@@ -226,6 +231,16 @@ def _resolve_selected(
             )
             continue
         global_name, record = published
+        memo = unresolved_verdict_memo
+        if memo is not None:
+            try:
+                memo.mark_seen(record)
+                if memo.should_skip(target, record):
+                    resolved.unresolved += 1
+                    resolved.unchanged_unresolved += 1
+                    continue
+            except Exception:  # noqa: BLE001 - memo failure must fail open
+                pass
         local_run = inventory_by_source.get(run_id) if use_inventory else None
         if use_inventory:
             observations = (
@@ -267,6 +282,11 @@ def _resolve_selected(
             resolved.diagnostics.append(
                 f"{global_name}: {lookup_error}; preserved {record.state}"
             )
+            if memo is not None:
+                try:
+                    memo.clear(record)
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
             continue
         try:
             response = resolve_observations(
@@ -285,6 +305,11 @@ def _resolve_selected(
             resolved.diagnostics.append(
                 f"{global_name}: unresolved state evidence ({exc}); unchanged"
             )
+            if memo is not None:
+                try:
+                    memo.clear(record)
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
             continue
         if time.monotonic() >= deadline:
             resolved.failed += 1
@@ -293,14 +318,39 @@ def _resolve_selected(
             break
         if is_live_reason(response.reason):
             resolved.live += 1
+            if memo is not None:
+                try:
+                    memo.clear(record)
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
         elif is_unresolved_reason(response.reason):
             resolved.unresolved += 1
-            resolved.diagnostics.append(
-                f"{global_name}: {response.reason}; preserved {record.state}"
-            )
+            diagnostic = f"{global_name}: {response.reason}; preserved {record.state}"
+            resolved.diagnostics.append(diagnostic)
+            if memo is not None:
+                try:
+                    memo.record_unresolved(
+                        target,
+                        record,
+                        owner,
+                        response.reason,
+                        observations,
+                    )
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
         elif not response.changed:
             resolved.already_current += 1
+            if memo is not None:
+                try:
+                    memo.clear(record)
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
         else:
+            if memo is not None:
+                try:
+                    memo.clear(record)
+                except Exception:  # noqa: BLE001 - memo failure must fail open
+                    pass
             resolved.changed[(hood, run_id)] = StateRepairAffected(
                 hood, run_id, global_name, response.selected_state
             )

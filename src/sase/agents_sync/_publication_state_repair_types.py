@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_models import V2HoodSnapshot, V2RunRecord
-from sase.core.agent_identity_facade import AgentIdentitySnapshot
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.agent_run_state_wire import AgentRunStateRawObservationWire
 
 STATE_REPAIR_DEFAULT_LIMIT = 100
 STATE_REPAIR_MAX_HOODS = 5
@@ -24,6 +26,30 @@ REPAIR_STATES_APPLY_COMMAND = "sase agent sync --repair-states --apply"
 InventoryLoader = Callable[
     [ProjectTarget, AgentIdentitySnapshot, frozenset[str]], ProjectHoodInventory
 ]
+
+
+class UnresolvedVerdictMemo(Protocol):
+    """Optional scheduled-path cache for unchanged unresolved run evidence."""
+
+    def mark_seen(self, record: V2RunRecord) -> None: ...
+
+    def should_skip(self, target: ProjectTarget, record: V2RunRecord) -> bool: ...
+
+    def record_unresolved(
+        self,
+        target: ProjectTarget,
+        record: V2RunRecord,
+        owner: AgentOwnerIdentity,
+        verdict: str,
+        observations: tuple[AgentRunStateRawObservationWire, ...],
+    ) -> None: ...
+
+    def clear(self, record: V2RunRecord) -> None: ...
+
+    def prune_completed_pass(self) -> None: ...
+
+    @property
+    def unchanged_count(self) -> int: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +140,7 @@ class ResolvedWindow:
     already_current: int = 0
     live: int = 0
     unresolved: int = 0
+    unchanged_unresolved: int = 0
     failed: int = 0
     budget_exhausted: bool = False
     diagnostics: list[str] = field(default_factory=list)
