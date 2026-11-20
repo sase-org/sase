@@ -42,8 +42,15 @@ def cancel_gate(
     reason: str = "requester_cancelled",
     source: str = "requester",
     lock_timeout_seconds: float | None = CANCEL_LOCK_TIMEOUT_SECONDS,
+    settle_notification: bool = True,
 ) -> dict[str, Any]:
-    """Persist a write-once cancellation if the lifecycle policy allows it."""
+    """Persist a write-once cancellation if the lifecycle policy allows it.
+
+    ``settle_notification=False`` leaves the gate's notification row alone.
+    Only a caller whose successor gate already adopted that row (see
+    ``create_gate(notification_id=...)``) passes it, so retiring the
+    superseded bundle does not dismiss the row the successor now owns.
+    """
     bundle_path = assert_owned_bundle(bundle_path)
     with file_lock(
         bundle_path / ACCEPTANCE_LOCK_FILENAME, timeout=lock_timeout_seconds
@@ -92,7 +99,8 @@ def cancel_gate(
             "cancelled_at_unix": time.time(),
         }
         atomic_write_json(path, cancellation, exclusive=True)
-        settle_gate_notification(envelope, {}, source=source, action="cancelled")
+        if settle_notification:
+            settle_gate_notification(envelope, {}, source=source, action="cancelled")
         dismiss_gate_execution_failed(bundle_path=bundle_path, envelope=envelope)
         return cancellation
 

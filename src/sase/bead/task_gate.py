@@ -78,8 +78,13 @@ def create_task_triage_gate(
     task_type: str = "",
     task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
+    notification_id: str | None = None,
 ) -> Any:
-    """Create one human-only triage gate for a ready standalone task bead."""
+    """Create one human-only triage gate for a ready standalone task bead.
+
+    ``notification_id`` adopts the row of the pending gate this one
+    supersedes, so a re-presentation refreshes one inbox row in place.
+    """
     from sase.notification_gates.service import create_gate
 
     return create_gate(
@@ -100,7 +105,8 @@ def create_task_triage_gate(
             task_type=task_type,
             task_type_fields=task_type_fields,
             producer=producer,
-        )
+        ),
+        notification_id=notification_id,
     )
 
 

@@ -31,9 +31,12 @@ write-once response validation. The pending-action 24-hour stale threshold is
 transport-only; it may hide remote controls but does not terminate a waiting producer.
 Only cancellation or an explicit per-request gate timeout is terminal. Every terminal
 response or cancellation marks the pending action handled and dismisses the notification
-row, regardless of gate kind or client surface. When sase's TUI opens the notification
-modal, it also repairs live gate rows whose bundles became terminal without a
-corresponding dismissal.
+row, regardless of gate kind or client surface. The one exception is a re-presented
+gate: a successor gate may adopt a pending gate's row, refreshing its content in place
+while its read, dismissed, and snooze state carry over, and the superseded gate is then
+cancelled without settling that row. When sase's TUI opens the notification modal, it
+also repairs live gate rows whose bundles became terminal without a corresponding
+dismissal.
 
 sase's TUI, Telegram, and mobile derive gate-kind capabilities from the shared adapter
 registry and render branches in query order from the same normalized envelope structure.

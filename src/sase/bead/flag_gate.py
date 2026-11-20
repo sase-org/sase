@@ -89,8 +89,13 @@ def create_flag_triage_gate(
     task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
     call_sites: Sequence[FlagCallSite] | None = None,
+    notification_id: str | None = None,
 ) -> Any:
-    """Create one human-only removal-triage gate for a due flag bead."""
+    """Create one human-only removal-triage gate for a due flag bead.
+
+    ``notification_id`` adopts the row of the pending gate this one
+    supersedes, so a re-presentation refreshes one inbox row in place.
+    """
     from sase.notification_gates.service import create_gate
 
     frozen_call_sites = (
@@ -118,7 +123,8 @@ def create_flag_triage_gate(
             task_type_fields=task_type_fields,
             producer=producer,
             call_sites=frozen_call_sites,
-        )
+        ),
+        notification_id=notification_id,
     )
 
 

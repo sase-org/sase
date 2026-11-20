@@ -54,7 +54,15 @@ def presentation_fingerprint(
     flag_due_state: str | None = None,
     task_type_display: Mapping[str, object] | None = None,
 ) -> str:
-    """Hash every persisted field and contract version that changes a gate.
+    """Hash every persisted field and contract version the bead's gate renders.
+
+    The hash covers what the gate kind :func:`expected_gate_kind` picks would
+    show, so editing a field that gate never renders does not cancel and
+    recreate it. Inputs a kind does not render are pinned to their empty
+    value rather than dropped, so a pending gate's stored fingerprint
+    survives this rule: the FlagTriage gate renders neither +1 evidence nor
+    close history, and only the BeadSnooze gate renders the snooze record.
+    ``status`` stays because each kind implies exactly one gateable status.
 
     The snooze record is part of it because both the wake gate's notification
     note and its preview render the wake conditions: a re-snooze must replace
@@ -76,7 +84,9 @@ def presentation_fingerprint(
     The supplied versions cover renderer and trusted-interaction changes whose
     outputs cannot be inferred from the bead fields alone.
     """
-    snooze = issue.snooze
+    kind = expected_gate_kind(issue)
+    renders_history = kind != FLAG_TRIAGE_KIND
+    snooze = issue.snooze if kind == BEAD_SNOOZE_KIND else None
     payload: dict[str, Any] = {
         "format_version": format_version,
         "gate_contract_version": gate_contract_version,
@@ -126,7 +136,7 @@ def presentation_fingerprint(
                     else {}
                 ),
             }
-            for evidence in issue.plus_one_evidence
+            for evidence in (issue.plus_one_evidence if renders_history else ())
         ],
         "close_history": [
             {
@@ -137,7 +147,7 @@ def presentation_fingerprint(
                 "reopened_via": record.reopened_via.value,
                 "reopened_by": record.reopened_by,
             }
-            for record in issue.close_history
+            for record in (issue.close_history if renders_history else ())
         ],
     }
     fields = flag_fields(issue)
@@ -172,13 +182,20 @@ def cancel_pending_gate(
     request_id: str,
     *,
     reason: str = "task_bead_no_longer_ready",
+    settle_notification: bool = True,
 ) -> bool:
+    """Cancel one pending gate; ``False`` means a response already won.
+
+    ``settle_notification=False`` retires a gate whose notification row a
+    successor gate already adopted, so the row stays live for the successor.
+    """
     paths = bundle_paths(kind, request_id)
     try:
         cancel_gate(
             paths.root,
             reason=reason,
             source="bead_task_triage",
+            settle_notification=settle_notification,
         )
     except GateError as exc:
         if exc.code == "already_answered":
@@ -211,20 +228,33 @@ def _parse_instant(value: str | None) -> datetime | None:
 
 
 @dataclass
-class NotificationSnoozeIndex:
-    """The snooze state of every live notification, read at most once."""
+class NotificationIndex:
+    """The snooze state and presented gate of every live row, read at most once."""
 
-    _rows: dict[str, tuple[bool, str | None]] | None = None
+    _rows: dict[str, tuple[bool, str | None, str | None]] | None = None
 
-    def snooze_state(self, notification_id: str) -> tuple[bool, str | None] | None:
+    def _row(self, notification_id: str) -> tuple[bool, str | None, str | None] | None:
         if self._rows is None:
             from sase.notifications.store import load_notifications
 
             self._rows = {
-                notification.id: (notification.muted, notification.snooze_until)
+                notification.id: (
+                    notification.muted,
+                    notification.snooze_until,
+                    notification.action_data.get("request_id"),
+                )
                 for notification in load_notifications()
             }
         return self._rows.get(notification_id)
+
+    def snooze_state(self, notification_id: str) -> tuple[bool, str | None] | None:
+        row = self._row(notification_id)
+        return None if row is None else (row[0], row[1])
+
+    def presented_request_id(self, notification_id: str) -> str | None:
+        """Return the gate request a live row currently presents, if any."""
+        row = self._row(notification_id)
+        return None if row is None else row[2]
 
     def forget(self, notification_id: str) -> None:
         """Drop one row so a later pass re-reads what this chop just wrote."""
@@ -235,7 +265,7 @@ class NotificationSnoozeIndex:
 def heal_snoozed_notification(
     request_id: str,
     snooze: SnoozeRecord | None,
-    index: NotificationSnoozeIndex,
+    index: NotificationIndex,
     *,
     notification_id_for: Callable[[str, str], str | None],
 ) -> bool:
@@ -275,8 +305,14 @@ def create_gate(
     task_gate_factory: Callable[..., Any],
     snooze_gate_factory: Callable[..., Any],
     flag_gate_factory: Callable[..., Any],
-) -> None:
-    """Create the one gate this bead's status and type call for."""
+    notification_id: str | None = None,
+) -> Any:
+    """Create the one gate this bead's status and type call for.
+
+    ``notification_id`` names the row of the pending gate this one
+    supersedes; the factory's gate adopts it instead of appending a row.
+    Returns the factory's creation result.
+    """
     if kind == FLAG_TRIAGE_KIND:
         fields = flag_fields(issue)
         if fields is None:
@@ -294,7 +330,7 @@ def create_gate(
             release=release,
         )
         definition = feature_flag_definitions().get(fields.key)
-        flag_gate_factory(
+        return flag_gate_factory(
             request_id=request_id,
             bead_id=bead_id,
             project=project_name,
@@ -318,8 +354,8 @@ def create_gate(
             task_type=issue.task_type or FLAG_TASK_TYPE,
             task_type_fields=dict(issue.task_type_fields),
             producer={"chop": "bead_task_triage", "project": project_name},
+            notification_id=notification_id,
         )
-        return
     common: dict[str, Any] = {
         "request_id": request_id,
         "bead_id": bead_id,
@@ -336,10 +372,10 @@ def create_gate(
         "task_type": issue.task_type,
         "task_type_fields": dict(issue.task_type_fields),
         "producer": {"chop": "bead_task_triage", "project": project_name},
+        "notification_id": notification_id,
     }
     if kind == TASK_TRIAGE_KIND:
-        task_gate_factory(**common, closed_at=issue.closed_at)
-        return
+        return task_gate_factory(**common, closed_at=issue.closed_at)
     if issue.snooze is None:
         raise ValueError(f"snoozed task {bead_id} has no snooze record")
-    snooze_gate_factory(snooze=issue.snooze, **common)
+    return snooze_gate_factory(snooze=issue.snooze, **common)

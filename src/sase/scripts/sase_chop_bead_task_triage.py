@@ -12,11 +12,20 @@ A gateable bead is deferred while work is in flight (an active launch proc
 **or** a live agent). A pending gate is left in place while the launch proc
 is still running — the launch may still fail — and canceled with reason
 ``bead_work_in_flight`` once a live agent owns the bead.
+
+A pending gate whose rendered presentation drifted is re-presented in place:
+its successor generation adopts the pending gate's notification row, and only
+then is the superseded gate retired without settling that row. The inbox keeps
+one row per bead and gate kind, whose read, dismissed, and snooze state
+survive; a row is new and unread only when the gate kind changes or the bead
+re-enters a gateable state.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import sase
 from sase.bead.config import get_task_triage_min_plus_ones
@@ -41,7 +50,7 @@ from sase.scripts._chop_incremental_index import chop_scan_full_walk
 from sase.scripts._bead_task_triage_gates import (
     REQUEST_ID_PREFIXES as _REQUEST_ID_PREFIXES,
     GateState as _GateState,
-    NotificationSnoozeIndex as _NotificationSnoozeIndex,
+    NotificationIndex as _NotificationIndex,
     cancel_pending_gate as _cancel_pending_gate_impl,
     create_gate as _create_gate_impl,
     expected_gate_kind as _expected_gate_kind_impl,
@@ -154,14 +163,31 @@ def _cancel_pending_gate(
     return _cancel_pending_gate_impl(kind, request_id, reason=reason)
 
 
+def _retire_superseded_gate(kind: str, request_id: str, *, reason: str) -> bool:
+    """Cancel a gate whose notification row a successor gate already adopted."""
+    return _cancel_pending_gate_impl(
+        kind, request_id, reason=reason, settle_notification=False
+    )
+
+
 def _gate_notification_id(kind: str, request_id: str) -> str | None:
     return _gate_notification_id_impl(kind, request_id)
+
+
+@dataclass(frozen=True)
+class _Superseded:
+    """A pending gate whose successor adopts its notification row."""
+
+    kind: str
+    request_id: str
+    fingerprint: str | None
+    notification_id: str
 
 
 def _heal_snoozed_notification(
     request_id: str,
     snooze: SnoozeRecord | None,
-    index: _NotificationSnoozeIndex,
+    index: _NotificationIndex,
 ) -> bool:
     return _heal_snoozed_notification_impl(
         request_id,
@@ -229,8 +255,9 @@ def _create_gate(
     bead_id: str,
     project_name: str,
     issue: Issue,
-) -> None:
-    _create_gate_impl(
+    notification_id: str | None = None,
+) -> Any:
+    return _create_gate_impl(
         kind,
         request_id=request_id,
         bead_id=bead_id,
@@ -239,7 +266,157 @@ def _create_gate(
         task_gate_factory=create_task_triage_gate,
         flag_gate_factory=create_flag_triage_gate,
         snooze_gate_factory=create_bead_snooze_gate,
+        notification_id=notification_id,
     )
+
+
+def _cancel_conflicting_gate(
+    kind: str, request_id: str, *, adopted_notification_id: str | None
+) -> None:
+    """Retire a gate whose request id a different specification already holds.
+
+    A conflicting gate that already adopted the row this re-presentation
+    carries (a pass that crashed after creating it) is retired without
+    settling that row, so the retry can adopt it again.
+    """
+    if (
+        adopted_notification_id is not None
+        and _gate_notification_id(kind, request_id) == adopted_notification_id
+    ):
+        _retire_superseded_gate(kind, request_id, reason="request_id_conflict")
+        return
+    _cancel_pending_gate(kind, request_id, reason="request_id_conflict")
+
+
+def _create_bead_gate(
+    log: ChopLogger,
+    project_state: _ProjectState,
+    *,
+    kind: str,
+    project_name: str,
+    bead_id: str,
+    issue: Issue,
+    notification_id: str | None,
+) -> tuple[str, int, Any] | None:
+    """Create a bead's next-generation gate; ``None`` when none exists yet.
+
+    A ``request_id_conflict`` retires the conflicting gate, records a fresh
+    generation that survives even if the bounded retry fails, and retries.
+    """
+    generation = project_state.generations.get(bead_id, 0) + 1
+    request_id = _request_id(project_name, bead_id, generation, kind)
+    try:
+        result = _create_gate(
+            kind,
+            request_id=request_id,
+            bead_id=bead_id,
+            project_name=project_name,
+            issue=issue,
+            notification_id=notification_id,
+        )
+    except GateError as exc:
+        if exc.code != "request_id_conflict":
+            log.warning(
+                f"[bead_task_triage] Failed to create gate for "
+                f"{project_name}:{bead_id}: {exc}"
+            )
+            return None
+
+        # A conflicting id belongs to an earlier gate specification.
+        # Retire it when it is still pending, then record a fresh
+        # generation that survives even if the bounded retry fails.
+        try:
+            _cancel_conflicting_gate(
+                kind, request_id, adopted_notification_id=notification_id
+            )
+        except GateError as cancel_exc:
+            if cancel_exc.code not in {
+                "already_answered",
+                "already_canceled",
+                "not_pending",
+            }:
+                log.warning(
+                    f"[bead_task_triage] Failed to cancel conflicting "
+                    f"gate {request_id}: {cancel_exc}"
+                )
+        except Exception as cancel_exc:  # noqa: BLE001 - keep generation durable.
+            log.warning(
+                f"[bead_task_triage] Failed to cancel conflicting "
+                f"gate {request_id}: {cancel_exc}"
+            )
+
+        retry_generation = generation + 1
+        retry_request_id = _request_id(project_name, bead_id, retry_generation, kind)
+        project_state.generations[bead_id] = retry_generation
+        log.warning(
+            f"[bead_task_triage] request_id_conflict for {request_id}; "
+            f"retrying with {retry_request_id}"
+        )
+        try:
+            result = _create_gate(
+                kind,
+                request_id=retry_request_id,
+                bead_id=bead_id,
+                project_name=project_name,
+                issue=issue,
+                notification_id=notification_id,
+            )
+        except Exception as retry_exc:  # noqa: BLE001 - retry next pass.
+            log.warning(
+                f"[bead_task_triage] Failed to create gate for "
+                f"{project_name}:{bead_id}: {retry_exc}"
+            )
+            return None
+        return retry_request_id, retry_generation, result
+    except Exception as exc:  # noqa: BLE001 - retry deterministically.
+        log.warning(
+            f"[bead_task_triage] Failed to create gate for "
+            f"{project_name}:{bead_id}: {exc}"
+        )
+        return None
+    return request_id, generation, result
+
+
+def _retire_predecessor(
+    log: ChopLogger, predecessor: _Superseded, *, successor_row: str | None
+) -> int:
+    """Retire the gate a successor re-presented; 1 when this pass canceled it.
+
+    When the successor adopted the predecessor's row, the cancellation leaves
+    the row to the successor; otherwise the predecessor settles its own row.
+    A failure leaves the predecessor untracked, so the untracked sweep
+    retires it on a later pass.
+    """
+    try:
+        if successor_row == predecessor.notification_id:
+            was_canceled = _retire_superseded_gate(
+                predecessor.kind,
+                predecessor.request_id,
+                reason="task_triage_presentation_changed",
+            )
+        else:
+            was_canceled = _cancel_pending_gate(
+                predecessor.kind,
+                predecessor.request_id,
+                reason="task_triage_presentation_changed",
+            )
+    except Exception as exc:  # noqa: BLE001 - the untracked sweep retries it.
+        log.warning(
+            f"[bead_task_triage] Failed to retire superseded gate "
+            f"{predecessor.request_id}: {exc}"
+        )
+        return 0
+    return int(was_canceled)
+
+
+def _keep_tracking(
+    project_state: _ProjectState, bead_id: str, predecessor: _Superseded
+) -> None:
+    """Re-track a superseded gate whose successor could not be created."""
+    project_state.gates[bead_id] = predecessor.request_id
+    project_state.kinds[bead_id] = predecessor.kind
+    if predecessor.fingerprint is not None:
+        project_state.fingerprints[bead_id] = predecessor.fingerprint
 
 
 def _sweep_inactive_state_projects(
@@ -313,6 +490,7 @@ def _sweep_untracked_produced_gates(
         return 0
 
     canceled = 0
+    notifications = _NotificationIndex()
     for gate in pending_gates:
         if gate.producer_chop != "bead_task_triage":
             continue
@@ -321,7 +499,16 @@ def _sweep_untracked_produced_gates(
         if gate.project in skipped_projects:
             continue
         try:
-            was_canceled = _cancel_pending_gate(
+            row = _gate_notification_id(gate.kind, gate.request_id)
+            presented = None if row is None else notifications.presented_request_id(row)
+            # A superseded gate whose retirement failed: its row now presents
+            # the successor, which must keep it.
+            cancel = (
+                _retire_superseded_gate
+                if presented is not None and presented != gate.request_id
+                else _cancel_pending_gate
+            )
+            was_canceled = cancel(
                 gate.kind,
                 gate.request_id,
                 reason="gate_no_longer_tracked",
@@ -360,7 +547,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     state_changed = False
     reconciled_projects: set[str] = set()
     skipped_projects = set(inventory.skipped_projects)
-    notifications = _NotificationSnoozeIndex()
+    notifications = _NotificationIndex()
     work: BeadWorkInFlight = bead_work_in_flight(
         runtime.log.warning,
         live_agents=lambda: beads_with_live_agents(use_index=not chop_scan_full_walk()),
@@ -400,6 +587,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
         reconciled_projects.add(project_name)
         project_state = projects.setdefault(project_name, _ProjectState())
+        superseded: dict[str, _Superseded] = {}
         for bead_id, request_id in list(project_state.gates.items()):
             kind = project_state.kinds.get(bead_id, TASK_TRIAGE_KIND)
             try:
@@ -441,21 +629,36 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                             f"notification for gate {request_id}: {exc}"
                         )
                     continue
-                try:
-                    was_canceled = _cancel_pending_gate(
-                        kind,
-                        request_id,
-                        reason=_pending_refresh_reason(
-                            worked=worked, wrong_kind=wrong_kind
-                        ),
+                adopt_row = (
+                    None
+                    if worked or wrong_kind
+                    else _gate_notification_id(kind, request_id)
+                )
+                if adopt_row is not None:
+                    # Re-present in place: the successor adopts this row
+                    # below, and only then is this gate retired.
+                    superseded[bead_id] = _Superseded(
+                        kind=kind,
+                        request_id=request_id,
+                        fingerprint=project_state.fingerprints.get(bead_id),
+                        notification_id=adopt_row,
                     )
-                except Exception as exc:  # noqa: BLE001 - retry on the next tick.
-                    runtime.log.warning(
-                        f"[bead_task_triage] Failed to refresh stale presentation "
-                        f"for gate {request_id}: {exc}"
-                    )
-                    continue
-                canceled += int(was_canceled)
+                else:
+                    try:
+                        was_canceled = _cancel_pending_gate(
+                            kind,
+                            request_id,
+                            reason=_pending_refresh_reason(
+                                worked=worked, wrong_kind=wrong_kind
+                            ),
+                        )
+                    except Exception as exc:  # noqa: BLE001 - retry next tick.
+                        runtime.log.warning(
+                            f"[bead_task_triage] Failed to refresh stale "
+                            f"presentation for gate {request_id}: {exc}"
+                        )
+                        continue
+                    canceled += int(was_canceled)
                 if worked:
                     _log_live_agent_work(
                         runtime.log,
@@ -494,6 +697,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 live_tasks[bead_id] = issue
 
         for bead_id, issue in sorted(live_tasks.items()):
+            predecessor = superseded.get(bead_id)
             if work.covers(project_name, bead_id):
                 if work.is_worked(project_name, bead_id):
                     _log_live_agent_work(
@@ -505,78 +709,26 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     )
                 deferred += 1
                 continue
-            generation = project_state.generations.get(bead_id, 0) + 1
             kind = _expected_gate_kind(issue)
-            request_id = _request_id(project_name, bead_id, generation, kind)
-            try:
-                _create_gate(
-                    kind,
-                    request_id=request_id,
-                    bead_id=bead_id,
-                    project_name=project_name,
-                    issue=issue,
-                )
-            except GateError as exc:
-                if exc.code != "request_id_conflict":
-                    runtime.log.warning(
-                        f"[bead_task_triage] Failed to create gate for "
-                        f"{project_name}:{bead_id}: {exc}"
-                    )
-                    continue
-
-                # A conflicting id belongs to an earlier gate specification.
-                # Retire it when it is still pending, then record a fresh
-                # generation that survives even if the bounded retry fails.
-                try:
-                    _cancel_pending_gate(kind, request_id, reason="request_id_conflict")
-                except GateError as cancel_exc:
-                    if cancel_exc.code not in {
-                        "already_answered",
-                        "already_canceled",
-                        "not_pending",
-                    }:
-                        runtime.log.warning(
-                            f"[bead_task_triage] Failed to cancel conflicting "
-                            f"gate {request_id}: {cancel_exc}"
-                        )
-                except Exception as cancel_exc:  # noqa: BLE001 - keep generation durable.
-                    runtime.log.warning(
-                        f"[bead_task_triage] Failed to cancel conflicting "
-                        f"gate {request_id}: {cancel_exc}"
-                    )
-
-                retry_generation = generation + 1
-                retry_request_id = _request_id(
-                    project_name, bead_id, retry_generation, kind
-                )
-                project_state.generations[bead_id] = retry_generation
+            generations_before = project_state.generations.get(bead_id)
+            created = _create_bead_gate(
+                runtime.log,
+                project_state,
+                kind=kind,
+                project_name=project_name,
+                bead_id=bead_id,
+                issue=issue,
+                notification_id=(
+                    None if predecessor is None else predecessor.notification_id
+                ),
+            )
+            if project_state.generations.get(bead_id) != generations_before:
                 state_changed = True
-                runtime.log.warning(
-                    f"[bead_task_triage] request_id_conflict for {request_id}; "
-                    f"retrying with {retry_request_id}"
-                )
-                try:
-                    _create_gate(
-                        kind,
-                        request_id=retry_request_id,
-                        bead_id=bead_id,
-                        project_name=project_name,
-                        issue=issue,
-                    )
-                except Exception as retry_exc:  # noqa: BLE001 - retry next pass.
-                    runtime.log.warning(
-                        f"[bead_task_triage] Failed to create gate for "
-                        f"{project_name}:{bead_id}: {retry_exc}"
-                    )
-                    continue
-                request_id = retry_request_id
-                generation = retry_generation
-            except Exception as exc:  # noqa: BLE001 - retry deterministically.
-                runtime.log.warning(
-                    f"[bead_task_triage] Failed to create gate for "
-                    f"{project_name}:{bead_id}: {exc}"
-                )
+            if created is None:
+                if predecessor is not None:
+                    _keep_tracking(project_state, bead_id, predecessor)
                 continue
+            request_id, generation, result = created
             project_state.gates[bead_id] = request_id
             project_state.generations[bead_id] = generation
             project_state.fingerprints[bead_id] = _presentation_fingerprint(
@@ -585,6 +737,12 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
             project_state.kinds[bead_id] = kind
             gated += 1
             state_changed = True
+            if predecessor is not None:
+                canceled += _retire_predecessor(
+                    runtime.log,
+                    predecessor,
+                    successor_row=getattr(result, "notification_id", None),
+                )
 
     if inventory.sweep_allowed:
         (

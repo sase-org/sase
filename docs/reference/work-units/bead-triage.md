@@ -340,8 +340,17 @@ with the gate into its Markdown preview when that attribution is known. The job 
 pending gates in lane state so later ticks do not repeat the notification, cancels a
 pending gate if the bead leaves `ready` or falls below the `+1` bar, defers re-gating
 while that task bead's detached launch is still in flight, and uses a new deterministic
-generation if the same task becomes ready again or its pending gate needs a
-presentation-contract refresh.
+generation if the same task becomes ready again or its pending gate needs a presentation
+refresh.
+
+A refresh happens only when something the gate renders changes, such as a new `+1`, an
+edited description or note, or new references. Editing a field the gate does not show
+never refreshes it; a flag-removal gate, for example, ignores `+1` evidence and close
+history. The refreshed gate takes over the pending gate's notification row in place, so
+the inbox keeps one row per bead and gate kind. A refresh never toasts, rings, or marks
+the row unread, and a dismissal or notification snooze survives it. A new unread row
+appears only when the gate kind changes (a snooze or a wake) or the bead re-enters
+`ready`.
 
 The hourly `bead_stale_cleanup` job is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once

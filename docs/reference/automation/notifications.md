@@ -433,8 +433,8 @@ transport's own eligibility checks).
 ```yaml
 ace:
   notification_rules:
-    - name: quiet-task-beads
-      description: Task-bead triage is too noisy to announce right now.
+    - name: quiet-beads-tab
+      description: Review task-bead triage in the Beads tab without announcements.
       match:
         tab: beads
       toast: false

@@ -11,8 +11,10 @@ shared journal/hash/lookup primitives in
 from __future__ import annotations
 
 import dataclasses
+import logging
 import shutil
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -53,6 +55,9 @@ from sase.notification_gates.service_evaluation import (
     apply_frozen_auto_state,
     effective_auto_state,
 )
+from sase.notifications.models import Notification
+
+log = logging.getLogger(__name__)
 
 
 def create_gate(
@@ -60,6 +65,7 @@ def create_gate(
     *,
     frozen_auto: Mapping[str, Any] | None = None,
     resource_bytes: Mapping[str, bytes] | None = None,
+    notification_id: str | None = None,
 ) -> GateCreationResult:
     """Create or repair one durable gate, idempotently by request id.
 
@@ -67,6 +73,14 @@ def create_gate(
     provided, creation consumes it instead of evaluating autonomy again.
     ``resource_bytes`` overlays snapshot bytes onto source-backed resources
     so publication never reopens mutable relative source paths.
+
+    ``notification_id`` adopts an existing notification row instead of
+    appending a new one. A successor gate that re-presents the question a
+    pending gate already asks refreshes that row's content in place, so its
+    read, dismissed, mute, and snooze state survive and no second row, toast,
+    or unread count appears. A missing row is created. Automatic gates
+    publish no row and ignore it. The caller owns retiring the superseded
+    gate without settling the shared row.
     """
     spec = (
         spec_value
@@ -113,6 +127,7 @@ def create_gate(
             paths,
             frozen_auto=frozen_auto,
             resource_bytes=resource_bytes,
+            adopt_notification_id=notification_id or None,
         )
 
 
@@ -123,6 +138,7 @@ def _start_gate_creation(
     *,
     frozen_auto: Mapping[str, Any] | None = None,
     resource_bytes: Mapping[str, bytes] | None = None,
+    adopt_notification_id: str | None = None,
 ) -> GateCreationResult:
     if frozen_auto is not None:
         effective, decision, policy_block, auto_execute = apply_frozen_auto_state(
@@ -132,7 +148,9 @@ def _start_gate_creation(
         effective, decision, policy_block, auto_execute = effective_auto_state(
             spec, adapter, request_id=paths.root.name
         )
-    notification_id = None if auto_execute else str(uuid4())
+    adopted = adopt_notification_id is not None and not auto_execute
+    notification_id = None if auto_execute else (adopt_notification_id or str(uuid4()))
+    adoption = {"notification_adopted": True} if adopted else {}
     paths.root.mkdir(parents=True, exist_ok=False)
     fsync_dir(paths.root.parent)
     write_journal(
@@ -141,8 +159,11 @@ def _start_gate_creation(
         request_id=paths.root.name,
         kind=adapter.kind,
         notification_id=notification_id,
+        **adoption,
     )
     published = False
+    adopting = False
+    previous: Notification | None = None
     try:
         for resource in effective.resources:
             overlay: bytes | None = None
@@ -177,6 +198,7 @@ def _start_gate_creation(
             kind=adapter.kind,
             notification_id=notification_id,
             spec_sha256=fingerprint,
+            **adoption,
         )
         if auto_execute:
             return _resolve_auto_gate(
@@ -197,13 +219,19 @@ def _start_gate_creation(
             kind=adapter.kind,
             notification_id=notification_id,
             spec_sha256=fingerprint,
+            **adoption,
         )
         notification = build_gate_notification(
             effective, adapter, paths, notification_id
         )
-        from sase.notifications.store import append_notification_strict
+        if adopted:
+            previous = find_notification(notification_id)
+            adopting = True
+            _adopt_gate_notification(notification)
+        else:
+            from sase.notifications.store import append_notification_strict
 
-        append_notification_strict(notification)
+            append_notification_strict(notification)
         published = True
         return _complete_manual_gate(
             effective,
@@ -215,6 +243,15 @@ def _start_gate_creation(
             policy_block,
         )
     except BaseException:
+        if adopted and previous is not None:
+            # The row predates this gate and still belongs to the gate it
+            # supersedes: put its content back rather than dismissing it.
+            _restore_adopted_notification(previous, paths)
+            raise
+        if adopted and not adopting:
+            # The adopted row is still the superseded gate's; leave it alone.
+            shutil.rmtree(paths.root, ignore_errors=True)
+            raise
         row_exists = notification_id is not None and notification_exists(
             notification_id
         )
@@ -397,7 +434,11 @@ def _resume_gate_creation(
             str(paths.journal),
             "manual gate journal has no notification id",
         )
-    if notification_exists(notification_id):
+    if journal.get("notification_adopted") is True:
+        _adopt_gate_notification(
+            build_gate_notification(effective, adapter, paths, notification_id)
+        )
+    elif notification_exists(notification_id):
         from sase.notifications.pending_actions import register_notification
 
         notification = find_notification(notification_id)
@@ -546,6 +587,52 @@ def _complete_manual_gate(
         spec_sha256=fingerprint,
     )
     return result
+
+
+def _adopt_gate_notification(notification: Notification) -> None:
+    """Point an existing row at this gate, keeping its inbox state.
+
+    Only the reconciler-owned content fields are copied, so read, dismissed,
+    timestamp, and +1 history stay as they are on disk; a missing row is
+    created. A gate born snoozed re-applies its wake time, because the
+    adopted row may still carry the superseded gate's.
+    """
+    from sase.notifications.pending_actions import register_notification
+    from sase.notifications.store import mark_snoozed, reconcile_notification_rows
+
+    reconcile_notification_rows([notification], refresh_files=True)
+    if notification.snooze_until is not None:
+        mark_snoozed(
+            notification.id,
+            datetime.fromisoformat(notification.snooze_until.replace("Z", "+00:00")),
+        )
+    register_notification(notification)
+
+
+def _restore_adopted_notification(previous: Notification, paths: Any) -> None:
+    """Return an adopted row to its superseded gate after a failed creation.
+
+    A restore that itself fails leaves the journal where it was, so retrying
+    the same request id resumes the adoption idempotently.
+    """
+    try:
+        from sase.notifications.pending_actions import register_notification
+        from sase.notifications.store import reconcile_notification_rows
+
+        reconcile_notification_rows([previous], refresh_files=True)
+        register_notification(previous)
+        write_journal(
+            paths.journal,
+            state="failed",
+            request_id=paths.root.name,
+            kind=paths.root.parent.name,
+            notification_id=previous.id,
+            notification_adopted=True,
+        )
+    except Exception:
+        log.warning(
+            "Failed to restore adopted notification %s", previous.id, exc_info=True
+        )
 
 
 def _compensate_published_gate(notification_id: str | None, paths: Any) -> None:
