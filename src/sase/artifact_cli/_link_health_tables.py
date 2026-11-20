@@ -10,6 +10,7 @@ from sase.artifact_cli._link_health_constants import LINKS_START
 from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_refs import ArtifactRefContext
 from sase.core.rust import require_rust_binding
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_CURATED_ORIGINS
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.referenced_by_index import document_has_referenced_by_block
 
@@ -65,7 +66,7 @@ def _curated_peer_keys(
     label = require_rust_binding("artifact_relation_label")
     for row in rows:
         origin = str(row.get("origin") or "")
-        if origin not in {"manual", "migrated", "derived"}:
+        if origin not in ARTIFACT_LINK_CURATED_ORIGINS:
             continue
         source = str(row.get("source_ref") or "")
         target = str(row.get("target_ref") or "")

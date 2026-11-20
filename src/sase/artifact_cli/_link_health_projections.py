@@ -13,6 +13,7 @@ from sase.artifact_cli._link_health_constants import (
 from sase.artifact_cli._link_health_tables import markdown_path_for
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_projection import safety_body
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_CURATED_ORIGINS
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
 
@@ -42,7 +43,7 @@ def rebuild_existing_projections(
         table_rows = []
         for row in touching:
             origin = str(row.get("origin") or "")
-            if origin not in {"manual", "migrated", "derived"}:
+            if origin not in ARTIFACT_LINK_CURATED_ORIGINS:
                 continue
             source = str(row.get("source_ref") or "")
             target = str(row.get("target_ref") or "")

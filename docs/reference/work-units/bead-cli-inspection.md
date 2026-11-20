@@ -231,12 +231,13 @@ REFERENCED BY (1)
 ```
 
 `LINKS` holds `manual`, `migrated`, and any other non-automatic origin. `REFERENCED BY`
-holds `prompt_ref` and `read` origins with friendly labels (`prompt citation`,
-`audited read`) and accumulated use counts. Unknown origin values print as raw labels.
-Identity and provenance rows stay atomic; link reasons wrap with the same `--wrap`
-budget as description prose. Missing optional sidecars mean there are no external rows.
-A present but malformed or unsupported link index fails loudly and prints a hint to
-rerun with `--no-links`. Stored `issue.refs` remain a separate `REFS` section.
+holds `prompt_ref`, `prompt_prose`, and `read` origins with friendly labels
+(`prompt citation`, `prose citation`, `audited read`) and accumulated use counts.
+Unknown origin values print as raw labels. Identity and provenance rows stay atomic;
+link reasons wrap with the same `--wrap` budget as description prose. Missing optional
+sidecars mean there are no external rows. A present but malformed or unsupported link
+index fails loudly and prints a hint to rerun with `--no-links`. Stored `issue.refs`
+remain a separate `REFS` section.
 
 `full` is the default detail block. `compact` prints the same single row as
 `sase bead list` and never expands artifact links. `json` emits a single-bead envelope

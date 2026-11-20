@@ -11,6 +11,10 @@ from sase.agents_sync.referenced_by_outbox_models import ReferencedByOutboxItem
 from sase.core.rust import require_rust_binding
 from sase.sdd._referenced_by_refresh_utils import relative_path
 from sase.sdd._artifact_link_store_support import upsert_artifact_link_rows
+from sase.sdd.artifact_link_origins import (
+    ARTIFACT_LINK_AUTOMATIC_ORIGINS,
+    ARTIFACT_LINK_CURATED_ORIGINS,
+)
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
 )
@@ -19,8 +23,6 @@ from sase.sdd.hosted_links import resolve_hosted_branch
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
 
-_CURATED_ORIGINS = frozenset({"manual", "migrated", "derived"})
-_AUTOMATIC_ORIGINS = frozenset({"prompt_ref", "prompt_prose", "read"})
 _MAX_RENDERED_ROWS = 50
 
 
@@ -120,7 +122,7 @@ def render_artifact_link_projection(
     links_rows = _table_rows_for_origins(
         artifact_id,
         rows,
-        origins=_CURATED_ORIGINS,
+        origins=ARTIFACT_LINK_CURATED_ORIGINS,
         store=store,
         resolver=resolver,
         include_uses=False,
@@ -128,7 +130,7 @@ def render_artifact_link_projection(
     automatic_rows = _table_rows_for_origins(
         artifact_id,
         rows,
-        origins=_AUTOMATIC_ORIGINS,
+        origins=ARTIFACT_LINK_AUTOMATIC_ORIGINS,
         store=store,
         resolver=resolver,
         include_uses=True,

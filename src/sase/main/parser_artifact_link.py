@@ -160,7 +160,10 @@ def register_artifact_link_parser(
         "-o",
         "--origin",
         default=None,
-        help="Only show this origin (manual, migrated, prompt_ref, read, derived)",
+        help=(
+            "Only show this origin (manual, migrated, prompt_ref, prompt_prose, "
+            "read, derived, projected)"
+        ),
     )
     list_parser.add_argument(
         "-R",

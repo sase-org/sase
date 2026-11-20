@@ -28,6 +28,7 @@ from sase.sdd._artifact_link_outbox_types import (
     sidecar_refs as _sidecar_refs,
 )
 from sase.sdd._artifact_link_store_support import BEAD_KIND, kind_of_ref
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_MACHINE_TRUSTED_ORIGINS
 from sase.sdd.artifact_link_event_publisher import (
     artifact_link_alias_producer_id,
     artifact_link_derived_producer_id,
@@ -483,7 +484,7 @@ def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
     if event is None:
         return False
     origin = str(event.get("origin") or "")
-    if origin not in {"derived", "migrated", "prompt_ref", "prompt_prose"}:
+    if origin not in ARTIFACT_LINK_MACHINE_TRUSTED_ORIGINS:
         return False
     return entry.agent_name in {
         "sase",

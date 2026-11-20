@@ -175,7 +175,7 @@ Options:
 | `-h`, `--help`                          | show this help message and exit                                                                       | —       |
 | `-j`, `--json`                          | Emit a machine-readable JSON array (stable schema)                                                    | `false` |
 | `-l N`, `--limit N`                     | Maximum rows to return (default: 50; 0 means unlimited)                                               | `50`    |
-| `-o ORIGIN`, `--origin ORIGIN`          | Only show this origin (manual, migrated, prompt_ref, read, derived)                                   | —       |
+| `-o ORIGIN`, `--origin ORIGIN`          | Only show this origin (manual, migrated, prompt_ref, prompt_prose, read, derived, projected)          | —       |
 | `-R RELATION`, `--relation RELATION`    | Only show this relation slug                                                                          | —       |
 | `-s SOURCE`, `--source SOURCE`          | Read from the machine-local index or durable store truth (default: index) (choices: `index`, `store`) | `index` |
 

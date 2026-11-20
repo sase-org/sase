@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.core.paths import sase_projects_dir
 from sase.core.rust import require_rust_binding
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_COMMIT_SCOPED_ORIGINS
 from sase.sdd.referenced_by_index import (
     referenced_by_index_relpath,
     referenced_by_index_schema_version,
@@ -24,11 +25,6 @@ NON_SIDECAR_KINDS = frozenset({"agent", "bead", "stitch"})
 PLANS_ROLE = "plans"
 PLAN_KIND = "plan"
 BEAD_KIND = "bead"
-
-# Origins written from a `ReferencedByOutboxItem` drained at commit
-# granularity: a repeated drain of the same commit's entry must converge its
-# `uses` count rather than re-accumulate it.
-_COMMIT_SCOPED_ORIGINS = frozenset({"prompt_ref", "prompt_prose"})
 
 _PROJECTION_RELATIONS = (
     {
@@ -330,7 +326,7 @@ def upsert_artifact_link_rows(
     )
     outcome_row = dict(outcome["row"])
     outcome_rows = [dict(row) for row in outcome["rows"]]
-    if str(incoming_row.get("origin") or "") in _COMMIT_SCOPED_ORIGINS:
+    if str(incoming_row.get("origin") or "") in ARTIFACT_LINK_COMMIT_SCOPED_ORIGINS:
         outcome_rows = _converge_prompt_ref_uses(
             original_rows,
             incoming_row,
@@ -339,7 +335,7 @@ def upsert_artifact_link_rows(
         identity = _row_identity(incoming_row)
         for row in outcome_rows:
             if (
-                str(row.get("origin") or "") in _COMMIT_SCOPED_ORIGINS
+                str(row.get("origin") or "") in ARTIFACT_LINK_COMMIT_SCOPED_ORIGINS
                 and _row_identity(row) == identity
             ):
                 outcome_row = dict(row)

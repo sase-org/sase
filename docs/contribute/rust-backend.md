@@ -1256,12 +1256,20 @@ and Git query helpers:
 | Agent launch                 | `tests/core/test_agent_launch_*.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py`           |
 | Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/integration/bead_*`              |
 | Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                             |
+| Artifact-link host origins   | `tests/sdd/test_artifact_link_host_origins_contract.py`                                                                            |
 
 The `tests/core_golden/` corpus (`myproj.sase`, `myproj-archive.sase`) plus the
 `inline_snapshot` JSON expectations in `test_core_golden.py` are the cross-language
 reference: any change to the Rust output that breaks a snapshot must be matched by an
 equivalent change in the corresponding `sase-core` Rust parity test
 (`../sase-core/.../tests/`) before either side ships.
+
+The artifact-link host-origin contract is not a snapshot: it sends one row per entry in
+`ARTIFACT_LINK_HOST_ORIGINS` (`src/sase/sdd/artifact_link_origins.py`) through the
+compiled `artifact_link_validate_row` and `artifact_link_upsert_row` bindings. A host
+origin that `ArtifactLinkOriginWire` cannot parse fails it, as does a usage-bearing
+subset that disagrees with the core's `increments_uses`. Add a new origin to that
+constant and to the sase-core enum together, then move the pin.
 
 ## Editable Dev Prebuild Cache
 

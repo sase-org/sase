@@ -9,6 +9,7 @@ from typing import Any, Literal
 from sase.core.bead_read_facade import BeadArtifactLinkRow
 from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_beads import rows_from_bead_issues
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_AUTOMATIC_ORIGINS
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     resolve_artifact_link_store,
@@ -17,7 +18,6 @@ from sase.sdd.artifact_link_store import (
 LinkDirection = Literal["outgoing", "incoming", "symmetric"]
 LinkSection = Literal["links", "referenced_by"]
 
-_REFERENCED_BY_ORIGINS = frozenset({"prompt_ref", "prompt_prose", "read"})
 _ORIGIN_LABELS = {
     "prompt_ref": "prompt citation",
     "prompt_prose": "prose citation",
@@ -174,7 +174,9 @@ def _view_from_row(canonical: str, row: Mapping[str, Any]) -> BeadLinkView:
         actor=str(row.get("created_by") or ""),
         timestamp=str(row.get("created_at") or ""),
         uses=uses if uses > 0 else 1,
-        section=("referenced_by" if origin in _REFERENCED_BY_ORIGINS else "links"),
+        section=(
+            "referenced_by" if origin in ARTIFACT_LINK_AUTOMATIC_ORIGINS else "links"
+        ),
     )
 
 

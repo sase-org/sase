@@ -66,13 +66,13 @@ sase artifact link list -l 20 -R related
 
 Without a reference, `list` shows the current project's newest 50 rows. With one, it
 shows that artifact's neighborhood. `-d in|out|both`, `-R/--relation`, and `-o/--origin`
-(`manual`, `migrated`, `prompt_ref`, `read`, `derived`, or `projected`) narrow it;
-`-l 0` is unlimited and `-j` emits a stable JSON array. The default `--source index`
-reads the rebuildable machine-local aggregate and includes computed projections.
-`--source store` recomputes rows from durable document and bead truth plus pending event
-outbox entries, and excludes computed projections. Before the legacy cutover is
-complete, that durable truth also includes the frozen document-sidecar `links/` indexes;
-after cutover it comes from immutable events and bead records.
+(`manual`, `migrated`, `prompt_ref`, `prompt_prose`, `read`, `derived`, or `projected`)
+narrow it; `-l 0` is unlimited and `-j` emits a stable JSON array. The default
+`--source index` reads the rebuildable machine-local aggregate and includes computed
+projections. `--source store` recomputes rows from durable document and bead truth plus
+pending event outbox entries, and excludes computed projections. Before the legacy
+cutover is complete, that durable truth also includes the frozen document-sidecar
+`links/` indexes; after cutover it comes from immutable events and bead records.
 
 Ask SASE for write-free, hard-evidence suggestions before adding a deliberate edge:
 

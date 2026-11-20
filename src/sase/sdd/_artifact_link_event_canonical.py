@@ -12,6 +12,7 @@ from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     validate_artifact_link_row,
 )
+from sase.sdd.artifact_link_origins import ARTIFACT_LINK_USAGE_BEARING_ORIGINS
 
 ARTIFACT_LINK_EVENT_COMMIT_MESSAGE = "chore(artifact-links): persist link events"
 ARTIFACT_LINK_EVENT_LOCK_FILENAME = "artifact-link-events.lock"
@@ -109,7 +110,7 @@ def observation_or_put_event_from_row(
     canonical_row = validate_artifact_link_row(row)
     origin = str(canonical_row.get("origin") or "")
     edge = edge_from_row(canonical_row)
-    if origin in {"read", "prompt_ref", "prompt_prose"}:
+    if origin in ARTIFACT_LINK_USAGE_BEARING_ORIGINS:
         kind = {
             "type": "observation",
             "edge": edge,
