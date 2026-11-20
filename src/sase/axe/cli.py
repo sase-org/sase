@@ -386,6 +386,10 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     success = lumberjack.run()
+    if lumberjack.swap_restart_requested:
+        from sase.axe.chop_swap_guard import ROUTINE_SWAP_RESTART_EXIT_CODE
+
+        sys.exit(ROUTINE_SWAP_RESTART_EXIT_CODE)
     sys.exit(0 if success else 1)
 
 

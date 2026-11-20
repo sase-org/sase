@@ -7,10 +7,13 @@ Writers stay non-blocking for direct callers. A caller that passes a
 :class:`CodeSwapWait` (the TUI) polls with a bound and holds nothing while
 waiting.
 
-Direct ``sase bead work`` stays fail-fast: a process that has already imported
-editable SASE modules must not wait across a swap. Host-owned epic launches
-wait in ``code_swap_guarded_exec.py`` (executed by filename, not as a
-package import). The bootstrap owns the shared lock while waiting, then execs
+Direct ``sase bead work`` never *works* across a swap: a process that has
+already imported editable SASE modules must not continue once a swap may have
+torn them. When the writer refuses it, or a swap completed after it started,
+it releases the lock, waits without doing work, and re-execs itself once
+(``sase.agent.launch_swap_retry``). Host-owned epic launches wait in
+``code_swap_guarded_exec.py`` (executed by filename, not as a package
+import). The bootstrap owns the shared lock while waiting, then execs
 a fresh ``sase bead work`` and publishes the held descriptor for exactly one
 handoff. :func:`code_swap_reader_lock` adopts that descriptor, restores
 close-on-exec, and releases it when launch orchestration finishes. The handoff
@@ -389,8 +392,8 @@ def guarded_exec_argv(command: Sequence[str]) -> list[str]:
     """Build argv that waits for the shared lock, then execs *command*.
 
     The returned process imports no editable SASE modules until the lock is
-    held. Direct ``sase bead work`` callers must not use this path: they
-    stay fail-fast through :func:`code_swap_reader_lock`.
+    held. Direct ``sase bead work`` callers do not use this path: they take
+    :func:`code_swap_reader_lock` themselves and re-exec once across a swap.
     """
     parts = [str(part) for part in command]
     if not parts or not parts[0]:

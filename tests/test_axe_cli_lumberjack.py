@@ -197,3 +197,42 @@ def test_handle_axe_lumberjack_status_with_running(
     assert "running" in output
     assert "12345" in output
     assert "42" in output
+
+
+# --- handle_axe_lumberjack_run exit status Tests ---
+
+
+@pytest.mark.parametrize(
+    ("swap_restart_requested", "expected_code"),
+    [(False, 0), (True, 75)],
+)
+def test_handle_axe_lumberjack_run_exits_for_a_swap_restart(
+    swap_restart_requested: bool,
+    expected_code: int,
+) -> None:
+    from sase.axe.chop_swap_guard import ROUTINE_SWAP_RESTART_EXIT_CODE
+    from sase.axe.cli import handle_axe_lumberjack_run
+
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook checks",
+                interval=1,
+                chops=[ChopConfig(name="hook_checks", description="Check hooks")],
+            )
+        }
+    )
+    routine = MagicMock()
+    routine.run.return_value = True
+    routine.swap_restart_requested = swap_restart_requested
+
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch("sase.axe.lumberjack.Lumberjack", return_value=routine),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_lumberjack_run(argparse.Namespace(lumberjack_name="hooks"))
+
+    assert ROUTINE_SWAP_RESTART_EXIT_CODE == 75
+    assert exc_info.value.code == expected_code

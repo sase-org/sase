@@ -12,6 +12,7 @@ from sase.axe import source_skew
 from sase.axe.source_skew import (
     DISABLE_IMPORT_PRELOAD_ENV,
     code_swap_explanation,
+    preload_host_completion_modules,
     preload_post_gate_modules,
     snapshot_source_revision,
 )
@@ -65,8 +66,45 @@ def test_preload_imports_the_deferred_post_gate_surface() -> None:
         "sase.agents_sync.prompt_archive",
         "sase.notifications.senders",
         "sase.vcs_provider.plugins._git_commit_dispatch",
+        "sase.finalizers.failed_close_recovery",
+        "sase.finalizers.commit_transient",
+        "sase_core_rs",
     ):
         assert name in sys.modules, f"{name} was not preloaded"
+
+
+def test_host_completion_preload_covers_finalizers_and_the_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    imported: list[str] = []
+    real_import = source_skew._import_best_effort
+
+    def record(name: str) -> bool:
+        imported.append(name)
+        return real_import(name)
+
+    monkeypatch.setattr(source_skew, "_import_best_effort", record)
+
+    assert preload_host_completion_modules() > 0
+    assert "sase_core_rs" in imported
+    assert "sase.finalizers.failed_close_recovery" in imported
+    assert all(
+        name == "sase_core_rs" or name.startswith("sase.finalizers")
+        for name in imported
+    ), "the host completion preload must stay narrow"
+
+
+def test_host_completion_preload_honours_the_kill_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(DISABLE_IMPORT_PRELOAD_ENV, "1")
+    monkeypatch.setattr(
+        source_skew,
+        "_import_best_effort",
+        lambda name: pytest.fail(f"imported {name} despite the kill switch"),
+    )
+
+    assert preload_host_completion_modules() == 0
 
 
 def test_preload_survives_a_broken_module_in_the_walk(

@@ -31,6 +31,11 @@ from .runner_failure_facts import capture_failure_facts
 #: Returns a description of the live code-swap writer, or ``None``.
 CodeSwapWriterProbe = Callable[[], str | None]
 
+#: Exit status of a routine (lumberjack) that stopped because a code swap
+#: completed under it. Its supervisor respawns it at once on the new code;
+#: this is a clean restart, not a failure (``EX_TEMPFAIL``).
+ROUTINE_SWAP_RESTART_EXIT_CODE = 75
+
 _SIGBUS_EXIT = -int(signal.SIGBUS)
 
 
@@ -158,6 +163,7 @@ def _last_swap_overlap_text(started_at: datetime, finished_at: datetime) -> str 
 
 
 __all__ = [
+    "ROUTINE_SWAP_RESTART_EXIT_CODE",
     "CodeSwapWriterProbe",
     "code_swap_writer_holder",
     "missing_script_grace_reason",

@@ -143,3 +143,71 @@ def test_run_logs_canonical_routine_start_and_stop(
     assert "Routine 'checks' stopped" in rendered
     assert "Lumberjack 'checks' started" not in rendered
     assert "chops:" not in rendered
+
+
+def test_tick_holds_job_starts_while_a_code_swap_is_live(
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._swap_guard = lambda: True
+    monkeypatch.setattr("sase.axe.lumberjack.code_swap_writer_live", lambda: True)
+    monkeypatch.setattr(
+        lumberjack,
+        "_recover_pending_batches",
+        lambda: pytest.fail("a held tick must not start any work"),
+    )
+
+    lumberjack._run_tick()
+    lumberjack._run_tick()
+
+    assert lumberjack._running is True
+    assert lumberjack.swap_restart_requested is False
+
+
+def test_tick_after_a_completed_swap_stops_the_routine_for_a_restart(
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._swap_guard = lambda: True
+    monkeypatch.setattr("sase.axe.lumberjack.code_swap_writer_live", lambda: False)
+    monkeypatch.setattr(
+        lumberjack,
+        "_recover_pending_batches",
+        lambda: pytest.fail("a stopping routine must not start any work"),
+    )
+
+    lumberjack._run_tick()
+
+    assert lumberjack._running is False
+    assert lumberjack.swap_restart_requested is True
+
+
+def test_real_swap_guard_stops_the_routine_after_a_real_swap(
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.code_swap_epoch import long_lived_swap_guard
+    from sase.dev_update.code_swap_lock import code_swap_writer_lock
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "swap-home"))
+    monkeypatch.delenv("SASE_DISABLE_CODE_SWAP_LOCK", raising=False)
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._swap_guard = long_lived_swap_guard()
+    assert lumberjack._held_for_code_swap() is False
+
+    with code_swap_writer_lock() as lock:
+        assert lock.acquired
+        assert lumberjack._held_for_code_swap() is True
+        assert lumberjack.swap_restart_requested is False
+
+    assert lumberjack._held_for_code_swap() is True
+    assert lumberjack.swap_restart_requested is True

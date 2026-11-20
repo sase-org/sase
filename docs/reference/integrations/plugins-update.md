@@ -210,11 +210,13 @@ matters:
   approved epic launch. The proc phase reads `Waiting for <holder> to finish`. After the
   timeout they defer with nothing changed.
 
-  A direct `sase bead work` started while a swap is already in progress exits non-zero
-  without starting any work, rather than importing a torn tree. The host-owned launcher
-  used after an approved epic is the deliberate exception: a package-free bootstrap
-  waits for the swap to finish before importing SASE, then hands its shared lock to
-  `sase bead work` for launch orchestration. It prints
+  A direct `sase bead work` started while a swap is already in progress starts no work
+  on the tree it imported. It releases the lock, waits for the swap to finish, then
+  reruns itself once in a fresh process (see
+  [Launches across a swap](#launches-across-a-swap)). The host-owned launcher used after
+  an approved epic goes further: a package-free bootstrap waits for the swap to finish
+  before importing SASE, then hands its shared lock to `sase bead work` for launch
+  orchestration. It prints
   `sase: waiting for the source-tree swap to finish before launching` while queued.
 
 - **Advisory readers.** A long-lived agent runner registers as advisory for the lifetime
@@ -225,13 +227,14 @@ matters:
   — so you can decide whether to wait. A runner is deliberately not allowed to block an
   update indefinitely.
 
-Direct readers and `sase update` stay fail-fast. The TUI writer polls with a bound from
-a background worker, so it never stalls the UI and never holds the lock while waiting.
-The approved-epic bootstrap can wait safely because it has not imported the editable
-package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirely (both
-the barrier and the warning). Direct readers still have one accepted residual race: one
-that starts while a swap is already underway can import torn modules before it reaches
-the lock. The guarded approved-epic path closes that race for its own launch.
+`sase update` stays fail-fast. The TUI writer polls with a bound from a background
+worker, so it never stalls the UI and never holds the lock while waiting. The
+approved-epic bootstrap can wait safely because it has not imported the editable package
+yet, and a direct `sase bead work` waits only after giving up the lock and before doing
+any work. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirely (both the
+barrier and the warning). A reader that starts while a swap is already underway can
+import torn modules before it reaches the lock. `sase bead work` closes that race by
+rerunning when a swap completed after it started.
 
 Every writer records `~/.sase/locks/code-swap-last.json` as it releases the lock, even
 when its swap failed. The record holds the writer's `op`, `started_at`, `completed_at`,
@@ -239,6 +242,30 @@ and a `generation` that grows by one per swap. A missing or corrupt record reads
 recent swap. Scheduler jobs use it to
 [defer instead of fail](../automation/scheduler-jobs.md#job-run-history) when a swap
 overlaps them.
+
+#### Launches across a swap
+
+Launches use the same record to wait out a swap instead of failing on it:
+
+- **`sase run` and `sase bead work`** note the swap generation as they start. If a
+  writer is live, or a swap completed after the command started, the command waits for
+  the writer and reruns itself once in a fresh process before it records or reserves
+  anything. A `sase run` launch that still fails with swap fallout (a missing
+  `sase_core_rs`, a `cannot import name` error, or a stale-wire error) retries once the
+  same way. It retries only while a swap is in progress, completed after the launch
+  started, or completed within the last 120 seconds. While it waits, the command prints
+  `sase: waiting for the code swap to finish before retrying (<reason>)`. Then it prints
+  `sase: retrying in a fresh process after a code swap (<reason>)`. A command reruns at
+  most once. A swap that outlasts 30 minutes, or a failure after the rerun, is reported
+  as it would have been without the retry.
+- **Agent runners** that start while a writer is live wait for it, then restart the same
+  way before they read their prompt or claim anything.
+- **Scheduler routines** hold job starts while a writer is live. Once the swap
+  completes, each routine exits and the scheduler restarts it on the new code at once,
+  without counting the exit as a failure.
+- **Turn completion** in agent runners and `sase monitor` supervisors imports the
+  finalizers and the `sase_core_rs` binding up front. A turn that spans a swap therefore
+  finishes on the code it started with, rather than meeting a missing binding.
 
 ### Install mode switching
 

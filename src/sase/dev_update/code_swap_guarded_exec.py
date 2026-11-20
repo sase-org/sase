@@ -1,8 +1,9 @@
 """Wait for the code-swap shared lock, then exec a command while holding it.
 
 This file is executed by filename, not with ``python -m``. That keeps the
-editable ``sase`` package out of the waiting process. Direct ``sase bead
-work`` stays fail-fast; only the host-owned epic launcher uses this path.
+editable ``sase`` package out of the waiting process. Only the host-owned
+epic launcher uses this path; direct ``sase bead work`` waits and re-execs
+itself instead (``sase.agent.launch_swap_retry``).
 
 The bootstrap owns the lock while waiting. Immediately before exec it
 publishes the held descriptor through ``SASE_CODE_SWAP_LOCK_FD`` for exactly

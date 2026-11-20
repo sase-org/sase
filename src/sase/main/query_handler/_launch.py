@@ -6,6 +6,11 @@ import sys
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from sase.agent.launch_swap_retry import (
+    defer_launch_for_code_swap,
+    retry_launch_after_code_swap,
+    sase_cli_argv,
+)
 from sase.agent.launcher import launch_agents_from_cwd
 from sase.history.prompt_store import PromptOrigin
 
@@ -88,7 +93,13 @@ def launch_query(query: str) -> None:
 
     For multi-prompt queries (containing ``---`` separators), all segments
     are launched sequentially before this function returns.
+
+    A launch that starts during a code swap, or that already outlived one,
+    waits for the swap and reruns in a fresh process before it records or
+    reserves anything. A launch that then fails with swap-skew fallout
+    retries once the same way (see :mod:`sase.agent.launch_swap_retry`).
     """
+    defer_launch_for_code_swap(sase_cli_argv())
     from sase.ops.cli import load_request
     from sase.ops.names import RUN_LAUNCH
 
@@ -370,9 +381,13 @@ def launch_query(query: str) -> None:
             )
             _emit_failed_launch_result(message)
             sys.exit(1)
+        if not force_reuse_applied:
+            retry_launch_after_code_swap(e, sase_cli_argv())
         _emit_failed_launch_result(str(e))
         sys.exit(1)
     except Exception as e:
+        if not force_reuse_applied:
+            retry_launch_after_code_swap(e, sase_cli_argv())
         _emit_failed_launch_result(_exception_summary(e))
         raise
 

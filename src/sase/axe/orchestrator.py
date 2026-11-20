@@ -35,6 +35,7 @@ from sase.supervision import (
 )
 
 from . import state as axe_state
+from .chop_swap_guard import ROUTINE_SWAP_RESTART_EXIT_CODE
 from .config import AxeConfig
 from .lifecycle_journal import append_lifecycle_event
 from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
@@ -194,6 +195,19 @@ class Orchestrator:
 
         return state.backoff_seconds
 
+    def _restart_after_code_swap(self, name: str, *, now: float) -> None:
+        """Respawn a routine that stopped to pick up swapped code.
+
+        It exited on purpose once a code swap completed under it, so this is a
+        clean restart: no backoff, no failure record, no crash-loop count.
+        """
+        print(
+            f"Routine '{name}' stopped after a code swap; restarting it on the "
+            "new code",
+            file=sys.stderr,
+        )
+        self._restart_state(name).restart_at = now
+
     def _surface_crash_loop(
         self,
         name: str,
@@ -279,6 +293,9 @@ class Orchestrator:
         if proc is not None and state.restart_at is None:
             ret = proc.poll()
             if ret is None:
+                return
+            if ret == ROUTINE_SWAP_RESTART_EXIT_CODE:
+                self._restart_after_code_swap(name, now=now)
                 return
             self._schedule_lumberjack_restart(
                 name,

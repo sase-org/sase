@@ -35,6 +35,7 @@ def _main(hit: CliHit) -> NoReturn:
     from sase.legacy_xprompt_syntax import normalize_legacy_root_args
 
     normalize_legacy_root_args()
+    _arm_launch_swap_retry(sys.argv)
 
     if len(sys.argv) >= 2 and sys.argv[1] == "bead":
         from .bead_fast_path import try_handle_bead_fast_path
@@ -121,6 +122,18 @@ def _main(hit: CliHit) -> NoReturn:
     dispatch_remaining_commands(args)
     print(f"Unknown command: {args.command}")
     sys.exit(1)
+
+
+def _arm_launch_swap_retry(argv: list[str]) -> None:
+    """Let launch commands defer and retry once across a code swap.
+
+    Runs before any launch code is imported so the recorded boot swap
+    generation predates every module the launch will use.
+    """
+    if argv[1:2] == ["run"] or argv[1:3] == ["bead", "work"]:
+        from sase.agent.launch_swap_retry import arm_code_swap_retry
+
+        arm_code_swap_retry()
 
 
 def _bead_feature_path(argv: list[str]) -> list[str]:

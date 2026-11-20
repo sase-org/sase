@@ -204,6 +204,33 @@ def test_lumberjack_restart_backoff_resets_after_healthy_run(
     assert state.alert_sent is False
 
 
+def test_routine_stopped_by_a_code_swap_respawns_at_once_without_a_failure(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    from sase.axe.chop_swap_guard import ROUTINE_SWAP_RESTART_EXIT_CODE
+
+    orch = Orchestrator(axe_config)
+    proc = MagicMock()
+    proc.poll.return_value = ROUTINE_SWAP_RESTART_EXIT_CODE
+    orch._record_lumberjack_started("hooks", proc, now=0)
+
+    orch._poll_lumberjack("hooks", now=5)
+    state = orch._restart_state("hooks")
+    assert state.restart_at == 5
+    assert state.consecutive_failures == 0
+    assert list(state.recent_failures) == []
+    assert state.backoff_seconds == 0
+
+    restarted = MagicMock()
+    restarted.poll.return_value = None
+    with patch.object(orch, "_spawn_lumberjack", return_value=restarted) as spawn:
+        orch._poll_lumberjack("hooks", now=5)
+    spawn.assert_called_once_with("hooks")
+    assert orch._children["hooks"] is restarted
+    assert state.restart_at is None
+
+
 def test_crash_loop_writes_error_and_notification_once(
     temp_state_dir: Path,
     axe_config: AxeConfig,

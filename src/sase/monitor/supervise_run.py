@@ -18,6 +18,7 @@ from typing import Any
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.axe.source_skew import preload_host_completion_modules
 from sase.bead.epic_launch_handoff import MONITOR_ARTIFACTS_ENV
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -85,6 +86,10 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             close_drain_seconds=0.5,
         )
         _write_start_acknowledgement(artifacts_dir, meta)
+        # Settlement runs host completion finalizers after the command exits,
+        # possibly after a code swap. Import that surface and the native
+        # binding now so settlement never lazily imports a torn tree.
+        preload_host_completion_modules()
         barrier_error = wait_for_launch_barrier(artifacts_dir, termination)
         if barrier_error is not None:
             error = barrier_error

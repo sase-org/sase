@@ -19,6 +19,7 @@ import schedule
 from rich.console import Console
 
 from sase.ace.query import parse_query
+from sase.core.code_swap_epoch import code_swap_writer_live, long_lived_swap_guard
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone
 from sase.project_display_names import humanize_cl_names_in_text
@@ -113,6 +114,10 @@ class Lumberjack:
         self._state_dir = ensure_lumberjack_dirs(name)
         self._start_time = datetime.now(get_timezone())
         self._running = True
+        # Set by run(): turns true once this routine outlived a code swap.
+        self._swap_guard: Callable[[], bool] | None = None
+        self._swap_hold_logged = False
+        self.swap_restart_requested = False
         self._stop_signal = ChopStopSignal()
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
@@ -145,8 +150,37 @@ class Lumberjack:
             temp_max_age_seconds=(self.axe_config.lumberjack_log_temp_max_age_seconds),
         )
 
+    def _held_for_code_swap(self) -> bool:
+        """Whether this tick must start nothing because of a code swap.
+
+        A routine that outlived a swap would mix pre-swap modules it already
+        imported with post-swap modules it imports lazily from here on. While
+        the writer is live, ticks are held. Once the swap completed, the
+        routine stops so its supervisor restarts it on the new code.
+        """
+        guard = self._swap_guard
+        if guard is None or not guard():
+            self._swap_hold_logged = False
+            return False
+        if code_swap_writer_live():
+            if not self._swap_hold_logged:
+                self._swap_hold_logged = True
+                self._log(
+                    "A code swap is in progress; holding job starts until it finishes",
+                    style="yellow",
+                )
+            return True
+        self._log(
+            "A code swap completed under this routine; restarting it on the new code"
+        )
+        self.swap_restart_requested = True
+        self._running = False
+        return True
+
     def _run_tick(self) -> None:
         """Execute one tick: refresh patches, serialize context, invoke chop scripts."""
+        if self._held_for_code_swap():
+            return
         from sase.project_display_names import refresh_project_display_snapshot
 
         try:
@@ -598,6 +632,7 @@ class Lumberjack:
 
         # Lumberjacks are long-lived, so flush their local deltas periodically.
         init_telemetry(start_flusher=True, source=f"lumberjack:{self.name}")
+        self._swap_guard = long_lived_swap_guard()
 
         # Schedule the tick at the configured interval
         self.scheduler.every(self.config.interval).seconds.do(self._run_tick)

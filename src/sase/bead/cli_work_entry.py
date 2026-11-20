@@ -32,25 +32,36 @@ def handle_bead_work(
     _wait_spec_from_args(args)
     capacity = _capacity_from_args(args)
     args.capacity = capacity
+    from sase.agent.launch_swap_retry import reexec_after_code_swap, sase_cli_argv
+    from sase.core.code_swap_epoch import code_swap_since_boot
     from sase.dev_update.code_swap_lock import code_swap_reader_lock
 
     with code_swap_reader_lock(op="bead.work", command=sys.argv) as lock:
-        if not lock.acquired:
-            _exit_code_swap_lock_error(
-                _code_swap_lock_error(lock.blocked_by),
-                target=first_target,
-                json_output=json_output,
-            )
-        for index, target in enumerate(targets, start=1):
-            _handle_bead_work_locked(
-                args,
-                timer_factory=timer_factory,
-                json_output=json_output,
-                target=target,
-                target_index=index,
-                target_count=len(targets),
-                correlation_id=correlation_id,
-            )
+        # A swap that completed between this process booting and taking the
+        # lock may have torn modules it already imported: start over too.
+        if lock.acquired and not code_swap_since_boot():
+            for index, target in enumerate(targets, start=1):
+                _handle_bead_work_locked(
+                    args,
+                    timer_factory=timer_factory,
+                    json_output=json_output,
+                    target=target,
+                    target_index=index,
+                    target_count=len(targets),
+                    correlation_id=correlation_id,
+                )
+            return
+        swapped_since_start = lock.acquired
+        blocked_by = lock.blocked_by
+    # The lock is released before waiting, so the retry never blocks the swap.
+    if swapped_since_start:
+        reason = "a code swap completed after this command started"
+        message = _code_swap_since_start_error()
+    else:
+        reason = "a code swap is in progress"
+        message = _code_swap_lock_error(blocked_by)
+    reexec_after_code_swap(sase_cli_argv(), reason=reason)
+    _exit_code_swap_lock_error(message, target=first_target, json_output=json_output)
 
 
 def _normalize_targets(args: argparse.Namespace) -> list[str]:
@@ -505,6 +516,14 @@ def _code_swap_lock_error(blocked_by: str | None) -> str:
         "sase dev update is swapping the installed source tree"
         f"{detail}. No work was started. Re-run this command once the update "
         "finishes."
+    )
+
+
+def _code_swap_since_start_error() -> str:
+    return (
+        "a code swap completed while this command was starting, so modules it "
+        "had already loaded may be stale. No work was started. Re-run this "
+        "command."
     )
 
 

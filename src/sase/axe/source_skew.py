@@ -36,11 +36,19 @@ DISABLE_IMPORT_PRELOAD_ENV = "SASE_DISABLE_IMPORT_PRELOAD"
 
 # Packages walked in full. Walking beats an allowlist here: there is no list to
 # keep in sync, and the deferred SDD/bead imports that the accepted-plan and
-# commit paths reach are covered by construction.
-_PRELOAD_PACKAGES = ("sase.sdd", "sase.bead")
+# commit paths reach are covered by construction. ``sase.finalizers`` is the
+# host completion surface a turn ends through, so a swap during the turn
+# cannot tear a finalizer's deferred import.
+_HOST_COMPLETION_PACKAGES = ("sase.finalizers",)
+_PRELOAD_PACKAGES = ("sase.sdd", "sase.bead", *_HOST_COMPLETION_PACKAGES)
 
 # Modules outside those packages that post-gate paths import lazily.
+# ``sase_core_rs`` is the native binding: once imported, a swap that deletes or
+# is still copying the extension cannot take it away from this process, so a
+# finalizer never meets a missing binding mid-swap.
+_NATIVE_BINDING_MODULES = ("sase_core_rs",)
 _PRELOAD_MODULES = (
+    *_NATIVE_BINDING_MODULES,
     "sase.agents_sync.prompt_archive",
     "sase.notifications.senders",
     "sase.vcs_provider.plugins._git_commit_dispatch",
@@ -200,18 +208,45 @@ def preload_post_gate_modules() -> int:
     raised. Set ``SASE_DISABLE_IMPORT_PRELOAD=1`` to skip the preload entirely.
     Returns the number of modules successfully imported.
     """
+    return _preload(
+        _PRELOAD_PACKAGES, _PRELOAD_MODULES, include_entry_point_groups=True
+    )
+
+
+def preload_host_completion_modules() -> int:
+    """Import the host completion finalizers and the native binding up front.
+
+    For a long-lived process that settles a turn through host completion
+    after work that may span a code swap (a monitor supervisor). It is much
+    narrower than :func:`preload_post_gate_modules`, and the same kill switch
+    applies. Returns the number of modules successfully imported.
+    """
+    return _preload(
+        _HOST_COMPLETION_PACKAGES,
+        _NATIVE_BINDING_MODULES,
+        include_entry_point_groups=False,
+    )
+
+
+def _preload(
+    packages: tuple[str, ...],
+    modules: tuple[str, ...],
+    *,
+    include_entry_point_groups: bool,
+) -> int:
     if os.environ.get(DISABLE_IMPORT_PRELOAD_ENV) == "1":
         logger.debug("Import preload disabled by %s", DISABLE_IMPORT_PRELOAD_ENV)
         return 0
 
     started = time.monotonic()
     names: list[str] = []
-    for package_name in _PRELOAD_PACKAGES:
+    for package_name in packages:
         names.extend(_walk_package(package_name))
-    names.extend(_PRELOAD_MODULES)
+    names.extend(modules)
 
     loaded = sum(1 for name in names if _import_best_effort(name))
-    loaded += _preload_entry_point_groups()
+    if include_entry_point_groups:
+        loaded += _preload_entry_point_groups()
 
     elapsed_ms = (time.monotonic() - started) * 1000
     logger.debug(

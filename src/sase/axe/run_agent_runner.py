@@ -71,6 +71,10 @@ from sase.axe.runner_lifecycle_phase import boot_code_identity
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
 from sase.agent._user_kill_intent import has_user_kill_intent
+from sase.agent.launch_swap_retry import (
+    arm_code_swap_retry,
+    defer_launch_for_code_swap,
+)
 from sase.axe.source_skew import snapshot_source_revision
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -336,8 +340,21 @@ def _silence_notification_for_pending_recovery(state: RunnerRunState) -> None:
         pass
 
 
+def _defer_start_across_code_swap() -> None:
+    """Restart this runner fresh when it starts while a code swap is live.
+
+    Its module imports may already be torn. This runs before the runner reads
+    its prompt, claims anything, or writes a marker, so re-exec'ing the same
+    argv once the writer finishes is a clean restart, not a duplicate launch.
+    A swap that lands later is the auto-restart healer's job.
+    """
+    arm_code_swap_retry()
+    defer_launch_for_code_swap([sys.executable, *sys.argv])
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    _defer_start_across_code_swap()
     # Entry-owned: an import-time install replaces SIGTERM in every importer.
     install_sigterm_handler("agent", soft=True)
     _stamp_host_path_snapshot()
