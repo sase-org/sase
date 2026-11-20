@@ -25,13 +25,17 @@ schema_version: 1
 providers:
   agy:
     # Exact stable slugs reported by `agy models`; families appear in CLI
-    # order, with effort levels descending within a family. Hydrogen is
-    # available on every plan, and Argon needs Pro or Ultra: keep tier
-    # defaults on Gemini 3.8 Flash, the long-established all-plans model
-    # (3.7 Flash and older are Enterprise-only). Argon is reachable by
-    # name. Do not catalog the bare `gemini-4-hydrogen` slug, because its
+    # order, with effort levels descending within a family. Every Gemini 4
+    # family is plan-gated, so keep tier defaults on Gemini 3.8 Flash, the
+    # long-established all-plans model (3.7 Flash and older are
+    # Enterprise-only). Gemini 4 models are reachable by name. Do not
+    # catalog bare family slugs such as `gemini-4-hydrogen`, because their
     # effort level floats with the CLI default.
     models:
+      - gemini-4-neon-xhigh
+      - gemini-4-neon-high
+      - gemini-4-neon-medium
+      - gemini-4-neon-low
       - gemini-4-argon-high
       - gemini-4-argon-medium
       - gemini-4-argon-low
@@ -57,6 +61,10 @@ providers:
       - claude-opus-4-6-thinking
       - gpt-oss-120b-medium
     short_aliases:
+      gemini-4-neon-xhigh: neon4x
+      gemini-4-neon-high: neon4h
+      gemini-4-neon-medium: neon4m
+      gemini-4-neon-low: neon4l
       gemini-4-argon-high: argon4h
       gemini-4-argon-medium: argon4m
       gemini-4-argon-low: argon4l
@@ -85,6 +93,38 @@ providers:
       large: gemini-3.8-flash-high
       small: gemini-3.8-flash-low
     advisories:
+      gemini-4-neon-xhigh:
+        severity: info
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Neon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
+      gemini-4-neon-high:
+        severity: info
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Neon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
+      gemini-4-neon-medium:
+        severity: info
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Neon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
+      gemini-4-neon-low:
+        severity: info
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Neon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
       gemini-4-argon-high:
         severity: info
         label: needs Google AI Pro or Ultra
@@ -109,6 +149,38 @@ providers:
           Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
           exits with an error when the signed-in account cannot use it. Run
           `agy models` to check access.
+      gemini-4-hydrogen-xhigh:
+        severity: info
+        label: needs paid Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Hydrogen on non-trial Google AI
+          Pro subscriptions, Google AI Ultra, and Gemini Enterprise (not
+          Free, AI Plus, or Pro trials), and `agy` exits with an error when
+          the signed-in account cannot use it. Run `agy models` to check
+          access.
+      gemini-4-hydrogen-high:
+        severity: info
+        label: needs paid Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Hydrogen on non-trial Google AI
+          Pro subscriptions, Google AI Ultra, and Gemini Enterprise (not
+          Free, AI Plus, or Pro trials), and `agy` exits with an error when
+          the signed-in account cannot use it. Run `agy models` to check
+          access.
+      gemini-4-hydrogen-medium:
+        severity: info
+        label: needs paid Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Hydrogen on non-trial Google AI
+          Pro subscriptions, Google AI Ultra, and Gemini Enterprise (not
+          Free, AI Plus, or Pro trials), and `agy` exits with an error when
+          the signed-in account cannot use it. Run `agy models` to check
+          access.
+      gemini-4-hydrogen-low:
+        severity: info
+        label: needs paid Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Hydrogen on non-trial Google AI
+          Pro subscriptions, Google AI Ultra, and Gemini Enterprise (not
+          Free, AI Plus, or Pro trials), and `agy` exits with an error when
+          the signed-in account cannot use it. Run `agy models` to check
+          access.
   claude:
     models:
       - opus

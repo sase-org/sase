@@ -34,6 +34,12 @@ _ARGON_SLUGS = (
     "gemini-4-argon-medium",
     "gemini-4-argon-low",
 )
+_NEON_SLUGS = (
+    "gemini-4-neon-xhigh",
+    "gemini-4-neon-high",
+    "gemini-4-neon-medium",
+    "gemini-4-neon-low",
+)
 _HYDROGEN_SLUGS = (
     "gemini-4-hydrogen-xhigh",
     "gemini-4-hydrogen-high",
@@ -175,9 +181,22 @@ def test_agy_flags_argon_as_pro_gated(slug: str) -> None:
     assert "Google AI Pro" in advisories[slug]["detail"]
 
 
+@pytest.mark.parametrize("slug", _NEON_SLUGS)
+def test_agy_flags_neon_as_pro_gated(slug: str) -> None:
+    advisories = model_advisory_map()
+
+    assert advisories[slug]["severity"] == "info"
+    assert advisories[slug]["label"] == "needs Google AI Pro or Ultra"
+    assert "Google AI Pro" in advisories[slug]["detail"]
+
+
 @pytest.mark.parametrize("slug", _HYDROGEN_SLUGS)
-def test_agy_hydrogen_models_carry_no_advisory(slug: str) -> None:
-    assert model_advisory_for(slug) is None
+def test_agy_flags_hydrogen_as_paid_pro_gated(slug: str) -> None:
+    advisories = model_advisory_map()
+
+    assert advisories[slug]["severity"] == "info"
+    assert advisories[slug]["label"] == "needs paid Google AI Pro or Ultra"
+    assert "Google AI Pro" in advisories[slug]["detail"]
 
 
 @pytest.mark.parametrize("slug", _FLASH_SLUGS)

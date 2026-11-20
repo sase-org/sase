@@ -18,6 +18,10 @@ from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.types import LLMInvocationError
 
 _AGY_MODELS = [
+    "gemini-4-neon-xhigh",
+    "gemini-4-neon-high",
+    "gemini-4-neon-medium",
+    "gemini-4-neon-low",
     "gemini-4-argon-high",
     "gemini-4-argon-medium",
     "gemini-4-argon-low",
@@ -71,6 +75,10 @@ def test_agy_provider_metadata_hooks() -> None:
     assert provider.llm_known_model_names() == _AGY_MODELS
     aliases = provider.llm_model_short_aliases()
     assert aliases == {
+        "gemini-4-neon-xhigh": "neon4x",
+        "gemini-4-neon-high": "neon4h",
+        "gemini-4-neon-medium": "neon4m",
+        "gemini-4-neon-low": "neon4l",
         "gemini-4-argon-high": "argon4h",
         "gemini-4-argon-medium": "argon4m",
         "gemini-4-argon-low": "argon4l",

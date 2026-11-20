@@ -13,6 +13,7 @@ def short_model_name(model: str) -> str:
     for keyword in (
         "wonder-full",
         "wonder",
+        "neon",
         "argon",
         "hydrogen",
         "flash",

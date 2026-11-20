@@ -82,6 +82,12 @@ aliases, and provider/model directives such as `%m:agy/gemini-4-hydrogen-high`. 
 a shipped size alias currently routes to an Antigravity member is visible in the
 generated [shipped size-alias defaults](models.md#implicit-role-aliases).
 
+Gemini 4 Neon is catalogued as `gemini-4-neon-xhigh`, `gemini-4-neon-high`,
+`gemini-4-neon-medium`, and `gemini-4-neon-low`; effort is chosen by the slug variant.
+Antigravity serves it to Google AI Pro (paid plans, or on trial with eligible premium
+devices), Google AI Ultra, and eligible Gemini Enterprise accounts, and `agy` fails the
+run when the signed-in account lacks access.
+
 Gemini 4 Argon is catalogued as `gemini-4-argon-high`, `gemini-4-argon-medium`, and
 `gemini-4-argon-low`; effort is chosen by the slug variant. Antigravity serves it to
 Google AI Pro (paid plans, or on trial with eligible premium devices), Google AI Ultra,
@@ -90,11 +96,14 @@ account lacks access.
 
 Gemini 4 Hydrogen is catalogued as `gemini-4-hydrogen-xhigh`, `gemini-4-hydrogen-high`,
 `gemini-4-hydrogen-medium`, and `gemini-4-hydrogen-low`; effort is chosen by the slug
-variant. It is available on every plan, and `-xhigh` is the only agy xhigh rung.
+variant. Antigravity serves it to non-trial Google AI Pro subscriptions, Google AI
+Ultra, and eligible Gemini Enterprise accounts (not Free, AI Plus, or Pro trials), and
+`agy` fails the run when the signed-in account lacks access. Neon and Hydrogen are the
+only agy families with an `-xhigh` rung.
 
 For that reason the agy tier defaults stay on Gemini 3.8 Flash — the long-established
 model available on every plan (Gemini 3.7 Flash and older are now Enterprise-only) — and
-no shipped size alias routes to Argon.
+no shipped size alias routes to a Gemini 4 model.
 
 ### Environment Variables {#environment-variables-1}
 
