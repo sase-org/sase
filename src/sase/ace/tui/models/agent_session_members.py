@@ -53,6 +53,24 @@ def monitor_row_is_settled(row: Agent) -> bool:
     return monitor_state_is_terminal(row.monitor_state) or row.stop_time is not None
 
 
+def monitor_row_is_settle_candidate(row: Agent) -> bool:
+    """Return whether a monitor row may still be settling its continuation.
+
+    The supervisor persists a terminal ``monitor_state`` as soon as the
+    command exits, then resolves outcome policy and launches any follow-up,
+    and only then stamps ``stopped_at``. A terminal row with no stop time and
+    a recorded supervisor pid is therefore a candidate; the loader decides
+    whether it is actually settling with a bounded liveness probe and stamps
+    :attr:`Agent.monitor_settling`. Pure: performs no I/O.
+    """
+    return (
+        row.is_monitor
+        and monitor_state_is_terminal(row.monitor_state)
+        and row.stop_time is None
+        and row.pid is not None
+    )
+
+
 def gate_row_is_settled(row: Agent) -> bool:
     """Return whether one gate row belongs in the settled (grey) lane."""
     return gate_state_is_terminal(row.gate_state) or row.stop_time is not None
@@ -453,7 +471,10 @@ def monitor_row_lane_bucket(row: Agent) -> str:
 
     The row keeps its own bucket for its own display; aggregates read a
     settled monitor only as the current state of its lane via
-    :func:`monitor_lane_status_bucket`.
+    :func:`monitor_lane_status_bucket`. A row the loader stamped as
+    :attr:`Agent.monitor_settling` (terminal command, live supervisor still
+    deciding the continuation) reads as an in-progress lane rather than as
+    its command's failure.
     """
     own = agent_status_bucket(row)
     if not (row.is_monitor and monitor_row_is_settled(row)):
@@ -465,6 +486,7 @@ def monitor_row_lane_bucket(row: Agent) -> str:
         followup_error=row.monitor_followup_error,
         next_action=row.monitor_next_action,
         host_completion_status=row.monitor_host_completion_status,
+        settling=row.monitor_settling,
     )
 
 
@@ -613,6 +635,7 @@ __all__ = [
     "agent_session_running_monitor_row",
     "gate_row_is_settled",
     "is_sequential_agent_session_container",
+    "monitor_row_is_settle_candidate",
     "monitor_row_is_settled",
     "monitor_row_lane_bucket",
     "panel_turn_lane_counts",

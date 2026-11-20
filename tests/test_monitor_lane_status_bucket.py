@@ -92,6 +92,53 @@ from sase.monitor_state import monitor_lane_status_bucket
             {"monitor_state": "failed", "own_bucket": "Failed"},
             "Failed",
         ),
+        (
+            {"monitor_state": "failed", "own_bucket": "Failed", "settling": False},
+            "Failed",
+        ),
+        # A live supervisor still settling has not decided the continuation.
+        (
+            {"monitor_state": "failed", "own_bucket": "Failed", "settling": True},
+            "Running",
+        ),
+        (
+            {"monitor_state": "completed", "own_bucket": "Done", "settling": True},
+            "Running",
+        ),
+        # A recorded follow-up error outranks settling.
+        (
+            {
+                "monitor_state": "failed",
+                "own_bucket": "Failed",
+                "settling": True,
+                "followup_error": "boom",
+            },
+            "Failed",
+        ),
+        # A recorded non-handoff disposition outranks settling.
+        (
+            {
+                "monitor_state": "failed",
+                "own_bucket": "Failed",
+                "settling": True,
+                "followup_outcome": "not-launchable",
+            },
+            "Failed",
+        ),
+        # Lost and stopped monitors never hand off, settling or not.
+        (
+            {"monitor_state": "lost", "own_bucket": "Failed", "settling": True},
+            "Failed",
+        ),
+        (
+            {"monitor_state": "stopped", "own_bucket": "Done", "settling": True},
+            "Done",
+        ),
+        # A non-terminal monitor keeps its own bucket.
+        (
+            {"monitor_state": "running", "own_bucket": "Running", "settling": True},
+            "Running",
+        ),
     ],
 )
 def test_monitor_lane_status_bucket_rules(kwargs: dict, expected: str) -> None:

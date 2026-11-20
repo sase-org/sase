@@ -190,3 +190,69 @@ def test_failed_check_with_followup_error_reports_failure() -> None:
     assert clan_member_counts(container).failed == 1
     assert sase_agent_status_counts(projected, ()).failed == 1
     assert agent_panel_counts(projected, set()).failed == 1
+
+
+def _build_settle_window(*, settling: bool) -> tuple[list[Agent], Agent, Agent]:
+    """Clan sase-1tz.3.1 screenshot: ``.5`` mid-settle beside a running ``.6``.
+
+    The supervisor has persisted ``monitor_state: failed`` but not yet
+    ``stopped_at``, a follow-up outcome, or ``done.json``, so the monitor row
+    still reads the raw ``RUNNING`` with its command's ``Failed`` bucket.
+    """
+    root5 = _member(
+        f"{_CLAN}.5", "DONE", start_offset=0, status_bucket="Done", session=f"{_CLAN}.5"
+    )
+    monitor5 = _member(
+        f"{_CLAN}.5--mon",
+        "RUNNING",
+        start_offset=3,
+        status_bucket="Failed",
+        role="monitor",
+        parent_timestamp=root5.raw_suffix,
+        session=root5.agent_session,
+    )
+    monitor5.monitor_id = f"m-{_CLAN}.5--mon"
+    monitor5.monitor_state = "failed"
+    monitor5.monitor_start_status = "TESTING"
+    monitor5.monitor_stop_status = "TESTED"
+    monitor5.monitor_label = "just check"
+    monitor5.monitor_command = "just check"
+    monitor5.monitor_exit_code = 1
+    monitor5.pid = 4242
+    monitor5.monitor_settling = settling
+    root5.runtime_children = [monitor5]
+
+    sibling = _member(
+        f"{_CLAN}.6",
+        "RUNNING",
+        start_offset=1,
+        status_bucket="Running",
+        session=f"{_CLAN}.6",
+    )
+    return [root5, monitor5, sibling], root5, monitor5
+
+
+def test_settling_failed_monitor_keeps_clan_in_progress() -> None:
+    rows, root5, monitor5 = _build_settle_window(settling=True)
+    projected = _project(rows)
+    container = next(row for row in projected if row.is_clan_container)
+
+    assert agent_status_bucket(root5) == "Running"
+    assert container.status != "FAILED"
+    assert clan_member_counts(container).failed == 0
+    assert sase_agent_status_counts(projected, ()).failed == 0
+    assert agent_panel_counts(projected, set()).failed == 0
+    # The monitor row stays truthful about its own command.
+    assert agent_status_bucket(monitor5) == "Failed"
+
+
+def test_unverified_settle_window_monitor_still_reports_failure() -> None:
+    rows, root5, monitor5 = _build_settle_window(settling=False)
+    projected = _project(rows)
+    container = next(row for row in projected if row.is_clan_container)
+
+    assert agent_status_bucket(root5) == "Failed"
+    assert clan_member_counts(container).failed == 1
+    assert sase_agent_status_counts(projected, ()).failed == 1
+    assert agent_panel_counts(projected, set()).failed == 1
+    assert agent_status_bucket(monitor5) == "Failed"

@@ -20,7 +20,10 @@ from ._dedup import (
 )
 from .agent import Agent
 from ._agent_session_turn_membership import attach_unparented_agent_session_turns
-from .agent_session_members import row_is_agent_session_turn
+from .agent_session_members import (
+    monitor_row_is_settle_candidate,
+    row_is_agent_session_turn,
+)
 
 
 _LIVE_PLAN_AGENT_BUCKETS = frozenset(
@@ -112,6 +115,39 @@ def _deduplicate(agents: list[Agent]) -> list[Agent]:
     return dedup_by_pid(agents)
 
 
+def _mark_settling_monitor_turns(
+    agents: list[Agent],
+    *,
+    is_process_running: Callable[[int], bool],
+) -> None:
+    """Stamp ``monitor_settling`` on monitor turns whose supervisor is settling.
+
+    A monitor's supervisor persists the terminal ``monitor_state`` before it
+    decides and launches the continuation, and stamps ``stopped_at`` only
+    after that. While its process is provably alive the lane is still in
+    progress; a dead or unverifiable supervisor keeps the command's own
+    bucket so a lane stranded mid-settle still surfaces.
+
+    Bounded: at most one ``kill(0)`` plus one identity read per distinct pid
+    of an unsettled terminal monitor (usually zero or one row). Runs on the
+    loader path, never on a render, keystroke, or UI-thread path. Every other
+    row is reset so a reloaded row never keeps a stale ``True``.
+    """
+    liveness_by_pid: dict[int, bool] = {}
+    for agent in agents:
+        pid = agent.pid
+        if pid is None or not monitor_row_is_settle_candidate(agent):
+            agent.monitor_settling = False
+            continue
+        live = liveness_by_pid.get(pid)
+        if live is None:
+            live = is_process_running(pid)
+            liveness_by_pid[pid] = live
+        agent.monitor_settling = live and process_identity_matches(
+            pid, agent.process_identity
+        )
+
+
 def normalize_loaded_agents(
     agents: list[Agent],
     workflow_agent_steps: list[Agent],
@@ -123,6 +159,7 @@ def normalize_loaded_agents(
 
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
+    _mark_settling_monitor_turns(agents, is_process_running=is_process_running)
     agents = materialize_imported_agent_session_containers(agents)
     attach_unparented_agent_session_turns(agents)
     # Persisted diff-badge classification reads every referenced diff file and
@@ -165,6 +202,7 @@ def normalize_live_plan_agents(
 
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
+    _mark_settling_monitor_turns(agents, is_process_running=is_process_running)
     apply_status_overrides(agents, classify_diff_badges=False)
     return [agent for agent in agents if _agent_is_live_plan_candidate(agent)]
 

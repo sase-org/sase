@@ -55,6 +55,13 @@ class AgentStateOperationsFields:
     monitor_host_completion_status: str | None = None
     monitor_host_completion_message: str | None = None
     monitor_host_completion_reason: str | None = None
+    # Load-time derived fact: this monitor's command is terminal, its
+    # supervisor has not stamped a stop time yet, and a bounded liveness
+    # probe proved the supervisor process is still alive (it is still
+    # deciding the continuation). Set only by loader normalization; never
+    # persisted. Defaults to ``False`` so rows from any other path (fleet or
+    # remote rows, restores, tests) keep the unsettled-failure reading.
+    monitor_settling: bool = field(default=False, compare=False, repr=False)
 
     # Gate-member projection. Gate rows are ordinary agent-session members whose
     # work is a durable human decision rather than an LLM turn.

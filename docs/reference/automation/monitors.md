@@ -534,7 +534,10 @@ A monitor is terminal only after it is settled: the command has exited or been
 reconciled, the log has been finalized, the workspace claim has been released or
 transferred, and the follow-up has launched or its disposition has been recorded.
 Polling commands such as `sase monitor show --follow` and `%wait` continue waiting while
-a monitor is stopped but not yet settled.
+a monitor is stopped but not yet settled. While a live supervisor is still settling, the
+Agents tab keeps the owning session and clan rows in progress instead of counting the
+command's failure against them; the failure surfaces there only if the settled monitor
+launches no follow-up or its supervisor dies before settling.
 
 A failing `just check` shows up as a Failed member with its exit code visible, and the
 follow-up agent still launches so it can fix what broke. A timed-out command is killed

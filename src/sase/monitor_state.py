@@ -38,6 +38,8 @@ MONITOR_HANDOFF_FOLLOWUP_OUTCOMES = frozenset({"launched", "launched-degraded"})
 MONITOR_HOST_COMPLETED_OUTCOME = "host-completed"
 #: Host-completion status recorded when the host completes a monitor's follow-up.
 MONITOR_HOST_COMPLETED_STATUS = "completed_by_host"
+#: Terminal states that never hand their lane to a continuation.
+_NO_CONTINUATION_MONITOR_STATES = frozenset({"lost", "stopped"})
 _MONITOR_STATE_CONFIG = TurnStateConfig(
     agent_session_role=MONITOR_AGENT_SESSION_ROLE,
     buckets=MONITOR_STATE_BUCKETS,
@@ -73,6 +75,7 @@ def monitor_lane_status_bucket(
     followup_error: str | None = None,
     next_action: str | None = None,
     host_completion_status: str | None = None,
+    settling: bool = False,
 ) -> str:
     """Return the agent-level lane bucket for one settled monitor row.
 
@@ -81,9 +84,16 @@ def monitor_lane_status_bucket(
 
     - A continuation that was launched or is pending keeps the lane in
       progress (``Running``).
+    - A monitor whose supervisor is still settling (continuation not yet
+      decided) keeps the lane in progress (``Running``).
     - A continuation that failed to launch, or no continuation at all, leaves
       the monitor's own bucket standing as a real, actionable failure.
     - Host completion settles the lane as ``Done``.
+
+    ``settling`` is a caller-proven fact: the command reached a terminal
+    state, the supervisor has not yet stamped a stop time, and its process is
+    still alive. Callers that cannot prove liveness pass ``False`` so a
+    supervisor that died mid-settle still surfaces its failure.
     """
     if not monitor_state_is_terminal(monitor_state):
         return own_bucket
@@ -97,7 +107,13 @@ def monitor_lane_status_bucket(
     if followup_outcome in MONITOR_HANDOFF_FOLLOWUP_OUTCOMES:
         return "Running"
     if (
-        monitor_state not in {"lost", "stopped"}
+        settling
+        and followup_outcome is None
+        and monitor_state not in _NO_CONTINUATION_MONITOR_STATES
+    ):
+        return "Running"
+    if (
+        monitor_state not in _NO_CONTINUATION_MONITOR_STATES
         and followup_outcome is None
         and isinstance(next_action, str)
         and next_action.strip()
