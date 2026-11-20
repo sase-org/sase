@@ -13,6 +13,14 @@ The phone is only a client: it pairs with the host, stores a bearer token, calls
 product-shaped SASE APIs, and subscribes to server-sent events. The gateway never
 exposes a generic file, shell, or RPC surface.
 
+Fleet reads mark a cached snapshot stale after 60 seconds. For up to five minutes of
+snapshot age, ordinary reads return that snapshot immediately while one background
+rebuild runs. Its freshness reason is `revalidating`; clients should display the stale
+data and its `refreshed_at_unix` time without treating that reason as a feed error.
+Older cached snapshots use the bounded refresh wait before a stale fallback. A cold
+cache keeps the existing bounded wait, and explicit reconcile calls still wait for a
+fresh snapshot.
+
 The implementation is split across repos:
 
 - `sase` owns user configuration, CLI startup, and lifecycle glue through

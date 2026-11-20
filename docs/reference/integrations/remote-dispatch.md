@@ -247,8 +247,11 @@ matches).
   names the alias and error (for example `apollo: feed invalid: … (cached 5m ago)`, or
   `2 machines with feed errors`), its **by machine** banner adds `feed invalid` or
   `stale · cached 5m ago`, its rows add a `feed invalid` or `stale` marker, and the
-  detail panel shows a `Feed error:` line. A remote `WAS RUNNING` row also carries a
-  `last seen … ago` label.
+  detail panel shows a `Feed error:` line. An owner snapshot marked stale with the
+  `revalidating` reason remains visible as stale data without a feed-error line while
+  the owner rebuilds it. Owners serve that snapshot immediately for up to five minutes
+  of snapshot age; older snapshots use the bounded refresh wait before stale fallback. A
+  remote `WAS RUNNING` row also carries a `last seen … ago` label.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted
   compatibility zero-capacity record. Their load is never added to the `cap` chip in

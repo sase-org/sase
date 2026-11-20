@@ -17,6 +17,7 @@ from ._fleet_agents_hosts import (
     combine_freshness,
     host_alias,
     host_diagnostic,
+    host_feed_error_code,
     host_feed_issues,
     viewer_observed_freshness,
 )
@@ -89,7 +90,7 @@ def rows_from_response(
             host.get("status"),
         )
         host_status_raw = optional_str(host.get("status"))
-        host_feed_error = optional_str(host_freshness_wire.get("error"))
+        host_feed_error = host_feed_error_code(host_freshness_wire)
         host_cache_age_seconds = (
             float_or_none(host.get("age_seconds")) if host.get("cached") else None
         )

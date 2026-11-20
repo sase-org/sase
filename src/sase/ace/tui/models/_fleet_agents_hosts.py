@@ -40,7 +40,7 @@ def host_feed_issues(response: Mapping[str, Any] | None) -> tuple[HostFeedIssue,
     for host_index, host in enumerate(host_payloads(response)):
         status = optional_str(host.get("status"))
         freshness_wire = mapping(host.get("freshness"))
-        error = optional_str(freshness_wire.get("error"))
+        error = host_feed_error_code(freshness_wire)
         if status != "invalid" and not error:
             continue
         cache_age_seconds = (
@@ -83,13 +83,19 @@ def host_diagnostic(
             if not isinstance(item, Mapping):
                 continue
             message = optional_str(item.get("message"), item.get("code"))
-            if message:
+            if message and message != "revalidating":
                 return message
     # A rejected envelope (e.g. ``invalid_federation_host``) often carries
     # no per-host diagnostics entry at all -- its only explanation is the
     # freshness error code -- so fall back to that rather than surfacing
     # nothing.
-    return optional_str(freshness_wire.get("error"))
+    return host_feed_error_code(freshness_wire)
+
+
+def host_feed_error_code(freshness_wire: Mapping[str, Any]) -> str | None:
+    """Return a feed error, excluding the expected stale-refresh reason."""
+    error = optional_str(freshness_wire.get("error"))
+    return None if error == "revalidating" else error
 
 
 _FRESHNESS_RANK: dict[str, int] = {"fresh": 0, "aging": 1, "stale": 2, "unknown": 3}

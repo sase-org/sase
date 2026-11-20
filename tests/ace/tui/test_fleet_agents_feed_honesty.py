@@ -98,6 +98,38 @@ def test_cached_stale_snapshot_carries_staleness_on_every_row() -> None:
     assert agent.fleet_host_cache_age_seconds == 18_000.0
 
 
+def test_revalidating_snapshot_is_stale_data_not_a_feed_error() -> None:
+    installation_id = fleet_installation_id()
+    summary = fleet_summary(
+        installation_id=installation_id,
+        agent_id="agent-a",
+        run_id="run-a",
+        status="running",
+    )
+    response = fleet_host_response(
+        alias="apollo",
+        installation_id=installation_id,
+        summaries=(summary,),
+        freshness="stale",
+        connection_health="online",
+    )
+    host = response["hosts"][0]
+    # This is a live federation fetch of the owner's stale-while-revalidate
+    # snapshot, not a stale copy cached by this viewer.
+    host["cached"] = False
+    host["payload"]["freshness"]["error"] = "revalidating"
+
+    projection = project_fleet_agents(summary_response=response)
+
+    assert len(projection.fleet_rows) == 1
+    agent = projection.fleet_rows[0]
+    assert agent.fleet_freshness == "stale"
+    assert agent.fleet_host_feed_error is None
+    assert agent.fleet_diagnostic is None
+    assert projection.host_feed_issues == ()
+    assert host_feed_issue_text(projection) == ""
+
+
 def test_host_feed_issue_text_reports_invalid_host_with_cache_age() -> None:
     response = fleet_invalid_host_response(
         alias="apollo",
