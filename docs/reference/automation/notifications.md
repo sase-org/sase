@@ -29,18 +29,24 @@ authorized remote question or gate becomes a durable unread notification in the
 opens the same answer/approve modal as the corresponding remote Agents row and submits
 the decision through the durable `sase machine attention` operation.
 
-The inbox reconciles requests by origin installation, request ID, and revision. Read and
-dismissed are local browsing state, never an answer to the remote request: re-polling
-the same revision refreshes the row's content but keeps your read or dismissed choice,
-along with existing mute and snooze choices. A new revision creates a fresh unread row
-that needs renewed review, and sase's TUI dismisses the superseded revision. When a
-fresh, complete host inventory no longer contains a request, sase's TUI dismisses the
-stale row. Only rows sase's TUI dismissed itself come back, unread, if that same
-revision is reported pending again. A failed, unavailable, cached, stale, partial, or
-paged (more results pending) host inventory does not settle missing requests, so a
-transient outage cannot silently remove a pending decision. If the owning alias is later
-removed or quarantined, submission stops with a diagnostic instead of routing the answer
-elsewhere.
+The inbox keeps one row per remote request, keyed on its origin installation and request
+ID. Read and dismissed are local browsing state, never an answer to the remote request:
+re-polling the same revision refreshes the row's content but keeps your read or
+dismissed choice, along with existing mute and snooze choices, and an unchanged request
+writes nothing to the store. A new revision updates that same row and brings it back
+unread and undismissed, sorted as new activity, because the changed request needs
+renewed review; your mute and snooze choices carry over. So a dismissal sticks only for
+the revision you dismissed. When a fresh, complete host inventory no longer contains a
+request, sase's TUI dismisses the stale row. Rows sase's TUI dismissed itself come back,
+unread, if that same revision is reported pending again. A failed, unavailable, cached,
+stale, partial, or paged (more results pending) host inventory does not settle missing
+requests, so a transient outage cannot silently remove a pending decision.
+
+Inboxes written before this layout held one row per revision. The first refresh that
+sees such a request pending moves it to the single row: the old per-revision rows are
+dismissed, and a revision you had already read or dismissed stays read or dismissed on
+the new row. If the owning alias is later removed or quarantined, submission stops with
+a diagnostic instead of routing the answer elsewhere.
 
 ## Viewing Notifications
 

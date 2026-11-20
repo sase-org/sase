@@ -1,8 +1,10 @@
 """Project remote fleet attention inventory into the durable notification inbox.
 
-Dismissal and read are local browsing state, never an answer to the remote
-request. A new revision is a new row and needs renewed review; only the
-reconciler's own auto-dismissals are reversible.
+Each remote request owns one row, keyed on its origin installation and request
+id. Dismissal and read are local browsing state, never an answer to the remote
+request: a user dismissal sticks for the revision it was made on, and a new
+revision updates the same row and resurfaces it for renewed review. Only the
+reconciler's own auto-dismissals are reversible within a revision.
 """
 
 from __future__ import annotations
@@ -86,11 +88,14 @@ class _InventoryEntry:
         return (self.origin_installation_id, self.request_id)
 
     @property
+    def identity(self) -> tuple[str, str, str]:
+        return (self.origin_installation_id, self.request_id, self.revision)
+
+    @property
     def dedup_key(self) -> str:
         return _dedup_key(
             origin_installation_id=self.origin_installation_id,
             request_id=self.request_id,
-            revision=self.revision,
         )
 
 
@@ -142,23 +147,31 @@ def reconcile_remote_attention_inbox(
 ) -> _AttentionInboxReconcileOutcome:
     """Make durable notification rows match one global attention inventory.
 
-    Dismissal and read are local browsing state, never an answer to the remote
-    request. A same-revision re-poll never resurfaces a user-dismissed row; a
-    new revision arrives as a new row needing renewed review. Only rows the
-    reconciler auto-dismissed itself (marked with
-    REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) are reversible.
+    One row per (origin, request_id). Dismissal and read are local browsing
+    state, never an answer to the remote request. A same-revision re-poll
+    never resurfaces a user-dismissed row and writes nothing when nothing
+    changed; a new revision updates the one row and resurfaces it, unread,
+    for renewed review. Rows the reconciler auto-dismissed itself (marked
+    with REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) also come back when
+    their revision is reported pending again.
+
+    Rows written before the stable key (one per revision) migrate on the
+    first pass that sees their request pending: they are auto-dismissed with
+    the reversible marker, and the new row inherits the browsing state of
+    the legacy row with the same revision, so a user dismissal survives.
     """
     entries, covered_hosts = _inventory_entries(response)
     if not entries and not covered_hosts:
         return _AttentionInboxReconcileOutcome()
 
     now = time.time() if now_unix is None else now_unix
-    rows = load_notifications(include_dismissed=True)
-    rows_by_dedup = {
-        row.dedup_key: row
-        for row in rows
-        if row.sender == REMOTE_ATTENTION_NOTIFICATION_SENDER and row.dedup_key
-    }
+    rows = [
+        row
+        for row in load_notifications(include_dismissed=True)
+        if row.sender == REMOTE_ATTENTION_NOTIFICATION_SENDER
+    ]
+    rows_by_dedup = {row.dedup_key: row for row in rows if row.dedup_key}
+    legacy_rows = _legacy_rows_by_identity(rows)
     # Delta write: only rows this call created, refreshed, or auto-dismissed
     # are handed to the field-scoped core write. Rows absent from its input
     # are untouched, so every other row (including completion notifications
@@ -174,6 +187,9 @@ def reconcile_remote_attention_inbox(
         notification = _notification_for_entry(entry, now_unix=now)
         existing = rows_by_dedup.get(entry.dedup_key)
         if existing is None:
+            notification = _inherit_legacy_browsing_state(
+                notification, legacy_rows.get(entry.identity, ())
+            )
             changed_rows.append(notification)
             rows_by_dedup[entry.dedup_key] = notification
             continue
@@ -186,8 +202,6 @@ def reconcile_remote_attention_inbox(
 
     for row in rows:
         current = rows_by_dedup.get(row.dedup_key, row) if row.dedup_key else row
-        if current.sender != REMOTE_ATTENTION_NOTIFICATION_SENDER:
-            continue
         if current.dedup_key in pending_dedup_keys:
             continue
         row_identity = _notification_identity(current)
@@ -195,6 +209,13 @@ def reconcile_remote_attention_inbox(
             continue
         origin, request_id, _revision = row_identity
         if (origin, request_id) in pending_base_keys:
+            # Legacy migration: a stable-keyed row for a pending request is
+            # in `pending_dedup_keys`, so only per-revision rows written
+            # before the stable key reach here. Fold each into the stable
+            # row by auto-dismissing it once; dismissed legacy rows are
+            # never written again and age out through compaction. Delete
+            # this branch and `_legacy_rows_by_identity` once no host can
+            # still hold an undismissed per-revision row.
             if not current.dismissed:
                 auto_dismissed = dataclasses.replace(
                     current,
@@ -226,6 +247,7 @@ def reconcile_remote_attention_inbox(
     core_outcome = reconcile_notification_rows(
         changed_rows,
         reversible_dismiss_marker_key=REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY,
+        resurface_on_change_key=REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY,
     )
     return _AttentionInboxReconcileOutcome(
         pending=len(entries),
@@ -403,9 +425,11 @@ def _refresh_existing_notification(
 
     The reconciler owns only icon, color, notes, tags, action, action_data
     (from ``incoming``, which carries no auto-dismiss marker), and
-    ``silent=False``. ``read``/``dismissed`` stay local: a user dismissal of a
-    still-pending same-revision row sticks. Only a row the reconciler itself
-    auto-dismissed (marked with
+    ``silent=False``. A new revision resurfaces the row: it becomes unread
+    and undismissed, with ``resurfaced_at`` set to the poll's observation
+    time so it sorts and announces as new activity. Within one revision
+    ``read``/``dismissed`` stay local: a user dismissal of a still-pending
+    row sticks. Only a row the reconciler itself auto-dismissed (marked with
     REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) resurfaces when that same
     revision comes back pending; the marker drops because action_data comes
     from ``incoming``. Dismissed rows without the marker (including legacy
@@ -414,6 +438,23 @@ def _refresh_existing_notification(
     ``snooze_until`` are preserved as today.
     """
     existing_data = existing.action_data or {}
+    incoming_data = incoming.action_data or {}
+    if existing_data.get(REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY) != (
+        incoming_data.get(REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY)
+    ):
+        return dataclasses.replace(
+            existing,
+            icon=incoming.icon,
+            color=incoming.color,
+            notes=incoming.notes,
+            tags=incoming.tags,
+            action=incoming.action,
+            action_data=incoming.action_data,
+            read=False,
+            dismissed=False,
+            silent=False,
+            resurfaced_at=incoming.timestamp,
+        )
     if existing.dismissed and (
         existing_data.get(REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) == "true"
     ):
@@ -441,6 +482,54 @@ def _refresh_existing_notification(
         dismissed=existing.dismissed,
         silent=False,
     )
+
+
+def _legacy_rows_by_identity(
+    rows: Iterable[Notification],
+) -> dict[tuple[str, str, str], list[Notification]]:
+    """Index per-revision rows written before the stable request key."""
+    legacy: dict[tuple[str, str, str], list[Notification]] = {}
+    for row in rows:
+        identity = _notification_identity(row)
+        if identity is None:
+            continue
+        origin, request_id, _revision = identity
+        stable_key = _dedup_key(origin_installation_id=origin, request_id=request_id)
+        if row.dedup_key == stable_key:
+            continue
+        legacy.setdefault(identity, []).append(row)
+    return legacy
+
+
+def _inherit_legacy_browsing_state(
+    notification: Notification,
+    legacy_rows: Iterable[Notification],
+) -> Notification:
+    """Carry a same-revision legacy row's local browsing state to a new row.
+
+    Rows the reconciler auto-dismissed itself would resurface for a pending
+    revision anyway, so they contribute nothing. Any other legacy row of the
+    same revision passes on its read, mute, snooze, and send time, and a
+    user dismissal on any of them keeps the new row dismissed.
+    """
+    candidates = [row for row in legacy_rows if not _has_auto_dismissed_marker(row)]
+    if not candidates:
+        return notification
+    source = next((row for row in candidates if row.dismissed), candidates[0])
+    return dataclasses.replace(
+        notification,
+        timestamp=source.timestamp,
+        resurfaced_at=source.resurfaced_at,
+        read=any(row.read for row in candidates),
+        dismissed=source.dismissed,
+        muted=source.muted,
+        snooze_until=source.snooze_until,
+    )
+
+
+def _has_auto_dismissed_marker(row: Notification) -> bool:
+    data = row.action_data or {}
+    return data.get(REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) == "true"
 
 
 def _with_auto_dismissed_marker(row: Notification) -> dict[str, Any]:
@@ -556,9 +645,8 @@ def _dedup_key(
     *,
     origin_installation_id: str,
     request_id: str,
-    revision: str,
 ) -> str:
-    return f"remote-attention:{origin_installation_id}:{request_id}:{revision}"
+    return f"remote-attention:{origin_installation_id}:{request_id}"
 
 
 def _string(value: object) -> str:

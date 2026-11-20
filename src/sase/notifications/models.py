@@ -38,7 +38,8 @@ class Notification:
     silent: bool = False
     muted: bool = False
     snooze_until: str | None = None  # ISO-8601 with timezone, or None
-    resurfaced_at: str | None = None  # Durable activity time after snooze expiry
+    # Durable activity time after snooze expiry or a resurfacing revision
+    resurfaced_at: str | None = None
     plus_ones: list[NotificationPlusOne] = field(default_factory=list)
     plus_ones_dropped: int = 0
     dedup_key: str | None = None

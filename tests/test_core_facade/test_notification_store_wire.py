@@ -5,6 +5,7 @@ from __future__ import annotations
 from sase.core.notification_store_wire import (
     _NotificationCountsWire,
     NotificationAgentKeyWire,
+    NotificationReconcileRequestWire,
     NotificationStateUpdateWire,
     _NotificationStoreStatsWire,
     _notification_from_dict,
@@ -19,6 +20,25 @@ def test_update_wire_serializes_tagged_shape() -> None:
         "kind": "mark_snoozed",
         "id": "n1",
         "until": "soon",
+    }
+
+
+def test_reconcile_request_wire_omits_unset_optional_keys() -> None:
+    assert notification_store_wire_to_json_dict(NotificationReconcileRequestWire()) == {
+        "notifications": []
+    }
+
+    request = NotificationReconcileRequestWire(
+        reversible_dismiss_marker_key="marker",
+        resurface_on_change_key="revision",
+        refresh_files=True,
+    )
+
+    assert notification_store_wire_to_json_dict(request) == {
+        "notifications": [],
+        "reversible_dismiss_marker_key": "marker",
+        "resurface_on_change_key": "revision",
+        "refresh_files": True,
     }
 
 

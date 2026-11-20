@@ -257,10 +257,10 @@ matches).
   pending question/gate actions appear only when the selected row advertises the
   matching capability.
 - Pending remote questions and gates are reconciled through the durable notification
-  inbox rather than inferred from row-follow state. Dismissing one locally sticks for
-  that revision, a new revision arrives as a fresh unread row, and a host outage does
-  not dismiss them. `Enter` on a remote row with a pending request opens the same
-  answer/approve flow; see
+  inbox rather than inferred from row-follow state, one row per request. Dismissing one
+  locally sticks for that revision, a new revision brings the same row back unread, and
+  a host outage does not dismiss them. `Enter` on a remote row with a pending request
+  opens the same answer/approve flow; see
   [Remote Attention](../automation/notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A

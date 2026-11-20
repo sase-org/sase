@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,12 @@ import pytest
 
 from sase.dispatch import attention_inbox
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
-from sase.notifications.store import load_notifications, rewrite_notifications
+from sase.notifications.models import Notification
+from sase.notifications.store import (
+    load_notifications,
+    read_unread_completion_index,
+    rewrite_notifications,
+)
 
 _INSTALLATION_ID = "sase_inst_v1_" + "a" * 64
 _OBSERVED_AT = 1_800_000_000.0
@@ -149,7 +155,13 @@ def test_attention_inventory_creates_durable_remote_attention_notification(
     assert notification.read is False
     assert notification.dismissed is False
     assert notification.dedup_key == (
-        f"remote-attention:{_INSTALLATION_ID}:gate-00000001:1"
+        f"remote-attention:{_INSTALLATION_ID}:gate-00000001"
+    )
+    assert (
+        notification.action_data[
+            attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY
+        ]
+        == "1"
     )
 
     decoded = attention_inbox.remote_attention_from_notification(notification)
@@ -221,7 +233,7 @@ def test_attention_inventory_cached_repeat_never_resurfaces_user_dismissal(
     assert dismissed.read is True
 
 
-def test_attention_inventory_new_revision_creates_visible_row(
+def test_attention_inventory_new_revision_resurfaces_user_dismissed_row(
     notification_store_file: Path,
 ) -> None:
     del notification_store_file
@@ -230,27 +242,106 @@ def test_attention_inventory_new_revision_creates_visible_row(
         now_unix=_OBSERVED_AT,
     )
     [old] = load_notifications()
-    rewrite_notifications([dataclasses.replace(old, read=True, dismissed=True)])
+    rewrite_notifications(
+        [dataclasses.replace(old, read=True, dismissed=True, muted=True)]
+    )
 
+    revised = _response([_entry(revision=2)])
+    revised["hosts"][0]["payload"]["observed_at_unix"] = _OBSERVED_AT + 60.0
     outcome = attention_inbox.reconcile_remote_attention_inbox(
+        revised,
+        now_unix=_OBSERVED_AT + 60.0,
+    )
+
+    assert outcome.created == 0
+    assert outcome.updated == 1
+    assert outcome.dismissed == 0
+    [row] = load_notifications(include_dismissed=True)
+    assert row.id == old.id
+    assert row.dedup_key == old.dedup_key
+    assert (
+        row.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
+        == "2"
+    )
+    assert row.dismissed is False
+    assert row.read is False
+    # Local mute survives; the row's activity time moves to the new revision.
+    assert row.muted is True
+    assert row.timestamp == old.timestamp
+    assert row.resurfaced_at is not None
+    assert row.resurfaced_at > old.timestamp
+
+
+def test_attention_inventory_dismissal_sticks_for_its_revision(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+    attention_inbox.reconcile_remote_attention_inbox(
         _response([_entry(revision=2)]),
         now_unix=_OBSERVED_AT,
     )
+    [row] = load_notifications()
+    rewrite_notifications([dataclasses.replace(row, read=True, dismissed=True)])
 
-    assert outcome.created == 1
+    for _ in range(3):
+        outcome = attention_inbox.reconcile_remote_attention_inbox(
+            _response([_entry(revision=2)]),
+            now_unix=_OBSERVED_AT,
+        )
+        assert outcome.changed is False
+
+    assert load_notifications() == []
+    [dismissed] = load_notifications(include_dismissed=True)
+    assert dismissed.dismissed is True
+    assert dismissed.read is True
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=3)]),
+        now_unix=_OBSERVED_AT,
+    )
+    assert outcome.updated == 1
     [active] = load_notifications()
-    assert (
-        active.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
-        == "2"
+    assert active.id == row.id
+    assert active.read is False
+
+
+def test_attention_inventory_same_revision_re_emission_writes_nothing(
+    notification_store_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
     )
-    assert active.dismissed is False
-    rows = load_notifications(include_dismissed=True)
-    assert len(rows) == 2
-    [stale] = [row for row in rows if row.id == old.id]
-    assert stale.dismissed is True
-    assert attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY not in (
-        stale.action_data or {}
+    [row] = load_notifications()
+    rewrite_notifications([dataclasses.replace(row, read=True, dismissed=True)])
+    before = notification_store_file.read_bytes()
+    generation_before = read_unread_completion_index().generation
+
+    reconcile_calls: list[list[Any]] = []
+    real_reconcile = attention_inbox.reconcile_notification_rows
+
+    def _spying_reconcile(rows, **kwargs):  # type: ignore[no-untyped-def]
+        reconcile_calls.append(list(rows))
+        return real_reconcile(rows, **kwargs)
+
+    monkeypatch.setattr(
+        attention_inbox, "reconcile_notification_rows", _spying_reconcile
     )
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT + 60.0,
+    )
+
+    assert outcome.changed is False
+    assert reconcile_calls == []
+    assert notification_store_file.read_bytes() == before
+    assert read_unread_completion_index().generation == generation_before
 
 
 def test_attention_inventory_resurfaces_own_auto_dismissal(
@@ -291,35 +382,24 @@ def test_attention_inventory_resurfaces_own_auto_dismissal(
     )
 
 
-def test_attention_inventory_superseded_revision_marks_auto_dismissal(
+def test_attention_inventory_new_revision_keeps_one_row_per_request(
     notification_store_file: Path,
 ) -> None:
     del notification_store_file
-    attention_inbox.reconcile_remote_attention_inbox(
-        _response([_entry(revision=1)]),
-        now_unix=_OBSERVED_AT,
-    )
-
-    attention_inbox.reconcile_remote_attention_inbox(
-        _response([_entry(revision=2)]),
-        now_unix=_OBSERVED_AT,
-    )
-
-    rows = load_notifications(include_dismissed=True)
-    [stale] = [
-        row
-        for row in rows
-        if row.action_data.get(
-            attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY
+    for revision in (1, 2, 3):
+        attention_inbox.reconcile_remote_attention_inbox(
+            _response([_entry(revision=revision)]),
+            now_unix=_OBSERVED_AT,
         )
-        == "1"
-    ]
-    assert stale.dismissed is True
+
+    [row] = load_notifications(include_dismissed=True)
+    assert row.dismissed is False
     assert (
-        stale.action_data[
-            attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY
-        ]
-        == "true"
+        row.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
+        == "3"
+    )
+    assert attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY not in (
+        row.action_data or {}
     )
 
 
@@ -356,16 +436,16 @@ def test_attention_inventory_new_revision_supersedes_old_decision(
         now_unix=_OBSERVED_AT,
     )
 
-    assert outcome.created == 1
-    assert outcome.dismissed == 1
+    assert outcome.created == 0
+    assert outcome.updated == 1
+    assert outcome.dismissed == 0
     [active] = load_notifications()
     assert (
         active.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
         == "2"
     )
     all_rows = load_notifications(include_dismissed=True)
-    assert len(all_rows) == 2
-    assert sum(1 for row in all_rows if row.dismissed) == 1
+    assert len(all_rows) == 1
 
 
 def test_attention_inventory_absence_from_fresh_host_dismisses_stale_request(
@@ -466,7 +546,7 @@ def test_reconcile_delta_write_preserves_concurrent_completion_dismissal(
         now_unix=_OBSERVED_AT,
     )
 
-    assert outcome.created == 1
+    assert outcome.updated == 1
     [dismissed] = [
         row
         for row in notification_store.load_notifications(include_dismissed=True)
@@ -574,3 +654,170 @@ def test_remote_attention_payload_is_string_encoded(
     ]
     assert isinstance(raw_entry, str)
     assert json.loads(raw_entry)["kind"] == "question"
+
+
+def _seed_legacy_row(
+    *,
+    revision: int,
+    request_id: str = "gate-00000001",
+    read: bool = False,
+    dismissed: bool = False,
+    auto_dismissed: bool = False,
+    muted: bool = False,
+    timestamp: str = "2026-05-01T00:00:00+00:00",
+) -> Notification:
+    """Build a per-revision row the way the reconciler wrote it before the
+    stable request key."""
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=revision, request_id=request_id)]),
+        now_unix=_OBSERVED_AT,
+    )
+    stable = next(
+        row
+        for row in load_notifications(include_dismissed=True)
+        if row.action_data.get(
+            attention_inbox.REMOTE_ATTENTION_REQUEST_ID_ACTION_DATA_KEY
+        )
+        == request_id
+    )
+    legacy_key = f"remote-attention:{_INSTALLATION_ID}:{request_id}:{revision}"
+    action_data = dict(stable.action_data)
+    if auto_dismissed:
+        action_data[attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY] = (
+            "true"
+        )
+    legacy = dataclasses.replace(
+        stable,
+        id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"sase:{legacy_key}")),
+        dedup_key=legacy_key,
+        timestamp=timestamp,
+        read=read,
+        dismissed=dismissed,
+        muted=muted,
+        action_data=action_data,
+    )
+    others = [
+        row for row in load_notifications(include_dismissed=True) if row != stable
+    ]
+    _replace_store([*others, legacy])
+    return legacy
+
+
+def _replace_store(rows: list[Notification]) -> None:
+    from sase.notifications import store as notification_store
+
+    Path(notification_store.NOTIFICATIONS_FILE).unlink()
+    rewrite_notifications(rows)
+
+
+def _stable_row(request_id: str = "gate-00000001") -> Notification:
+    stable_key = f"remote-attention:{_INSTALLATION_ID}:{request_id}"
+    [row] = [
+        row
+        for row in load_notifications(include_dismissed=True)
+        if row.dedup_key == stable_key
+    ]
+    return row
+
+
+def test_legacy_user_dismissal_carries_to_the_stable_row(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    legacy = _seed_legacy_row(revision=1, read=True, dismissed=True, muted=True)
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    assert outcome.dismissed == 0
+    assert load_notifications() == []
+    stable = _stable_row()
+    assert stable.id != legacy.id
+    assert stable.dismissed is True
+    assert stable.read is True
+    assert stable.muted is True
+    assert stable.timestamp == legacy.timestamp
+    [untouched] = [
+        row for row in load_notifications(include_dismissed=True) if row.id == legacy.id
+    ]
+    assert untouched == legacy
+
+    # The migration happens once: the next pass writes nothing.
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+    assert outcome.changed is False
+
+
+def test_legacy_undismissed_row_folds_into_the_stable_row(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    legacy = _seed_legacy_row(revision=1, read=True)
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    assert outcome.dismissed == 1
+    [active] = load_notifications()
+    assert active.dedup_key == f"remote-attention:{_INSTALLATION_ID}:gate-00000001"
+    assert active.read is True
+    [folded] = [
+        row for row in load_notifications(include_dismissed=True) if row.id == legacy.id
+    ]
+    assert folded.dismissed is True
+    assert (
+        folded.action_data[
+            attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY
+        ]
+        == "true"
+    )
+
+
+def test_legacy_dismissal_of_an_older_revision_does_not_hide_a_new_one(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    older = _seed_legacy_row(revision=1, read=True, dismissed=True)
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=2)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    assert outcome.dismissed == 0
+    [active] = load_notifications()
+    assert active.read is False
+    assert (
+        active.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
+        == "2"
+    )
+    [kept] = [
+        row for row in load_notifications(include_dismissed=True) if row.id == older.id
+    ]
+    assert kept == older
+
+
+def test_legacy_auto_dismissal_does_not_carry_to_the_stable_row(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    _seed_legacy_row(revision=1, read=True, dismissed=True, auto_dismissed=True)
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    [active] = load_notifications()
+    assert active.read is False
+    assert active.dismissed is False
