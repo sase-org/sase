@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,6 +14,7 @@ from sase.core.wait_dependency_resolution import (
     read_json_dict as _read_json_dict,
 )
 from sase.agent.auto_restart.forward import recovery_in_flight
+from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.core.wait_dependency_resolution._epic_follow import EpicFollowDecision
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
 from sase.core.stranded_work_facade import StrandedWorkVerdict
@@ -133,63 +133,63 @@ def terminal_blockers(
     return tuple(blockers)
 
 
-def upsert_terminal_blocked_wait_notification(
-    waiting_marker: WaitingMarker,
-    waiting_data: Mapping[str, Any],
-    blocker: TerminalBlocker,
-) -> None:
-    waiter_dir = waiting_marker.waiting_path.parent
-    waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
-    timestamp = datetime.now(get_timezone()).isoformat()
-    recovery = _monitor_not_launchable_recovery(blocker.artifact_dir)
-    if blocker.blocker_name and blocker.blocker_name != blocker.dependency:
-        blocked_line = (
-            f"Blocked on {blocker.dependency} ({blocker.blocker_name}): "
-            f"{blocker.artifact_dir} ({blocker.outcome})"
-        )
-    else:
-        blocked_line = (
-            f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
-            f"({blocker.outcome})"
-        )
-    notes = [
-        "Wait dependency can never self-resolve",
-        f"Waiter: {waiter_name}",
-        blocked_line,
-        (
-            "Kill and relaunch the waiter, or intentionally clear the wait "
-            "once the dependency state is understood."
-        ),
-    ]
-    files = [str(waiter_dir), blocker.artifact_dir]
-    # `action_data` stays empty: every producer value already lives in
-    # `notes` (waiter, dependency, outcome, recovery instructions) or
-    # `files` (waiter/blocking dirs, recovery diff) for display and search.
-    # No consumer reads `wait_checks` action keys to drive an action.
-    if recovery.resume_command:
-        notes.append(f"Monitor recovery: `{recovery.resume_command}`")
-    if recovery.snapshot_path:
-        notes.append(f"Worktree recovery diff: {recovery.snapshot_path}")
-        files.append(recovery.snapshot_path)
-    notification = Notification(
-        id=str(uuid4()),
-        timestamp=timestamp,
-        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
-        icon="!",
-        color="#D14343",
-        notes=notes,
-        files=files,
-        tags=normalize_notification_tags(["wait", "blocked", "terminal-dependency"]),
-        dedup_key=f"wait_checks:terminal-blocked:{waiter_dir}",
-    )
-    upsert_notification(
-        notification,
-        plus_one_note=(
-            f"Still blocked on {blocker.dependency}: {blocker.artifact_dir} "
-            f"({blocker.outcome})"
-        ),
-        plus_one_timestamp=timestamp,
-    )
+def pending_upstream_dirs(
+    dependency_index: WaitDependencyIndex,
+    waiting_for: list[object],
+    wait_for_artifacts: list[object],
+    wait_for_hoods: list[object],
+    blocked_on: tuple[str, ...],
+    *,
+    self_artifact_dir: Path,
+) -> frozenset[str]:
+    """Return keys of not-yet-finished members that block this waiter.
+
+    Mirrors :func:`terminal_blockers` label for label, but returns the
+    members that may still run instead of failed ones. A live waiter among
+    them blocks this waiter for as long as it stays parked, which is how a
+    waiter inherits its upstream waiter's root terminal blocker.
+    """
+    blocked_labels = frozenset(blocked_on)
+    keys: set[str] = set()
+    identity_names: set[str] = set()
+
+    for dependency in wait_for_artifacts:
+        if not isinstance(dependency, Mapping):
+            continue
+        name = dependency.get("name")
+        if isinstance(name, str) and name:
+            identity_names.add(name)
+        if _dependency_label(dependency) not in blocked_labels:
+            continue
+        candidate = _artifact_candidate_for_identity(dependency_index, dependency)
+        if candidate is not None and not candidate.has_done_marker:
+            keys.add(artifact_dir_key(candidate.artifact_dir))
+
+    waiter_launch_cutoff = self_artifact_dir.name
+    for hood in wait_for_hoods:
+        if not isinstance(hood, str) or f"hood={hood}" not in blocked_labels:
+            continue
+        for candidate in dependency_index.pending_blocking_members_for_hood(
+            hood,
+            exclude_artifact_dir=self_artifact_dir,
+            launched_at_or_before=waiter_launch_cutoff,
+        ):
+            keys.add(artifact_dir_key(candidate.artifact_dir))
+
+    for name in waiting_for:
+        if not isinstance(name, str) or name in identity_names:
+            continue
+        if name not in blocked_labels:
+            continue
+        for candidate in dependency_index.pending_blocking_members_for_name(
+            name,
+            exclude_artifact_dir=self_artifact_dir,
+            newer_than=waiter_launch_cutoff if name.startswith("@") else None,
+        ):
+            keys.add(artifact_dir_key(candidate.artifact_dir))
+
+    keys.discard(artifact_dir_key(str(self_artifact_dir)))
+    return frozenset(keys)
 
 
 def stranded_bead_wait_dedup_key(project: str, bead_id: str) -> str:
@@ -299,58 +299,34 @@ def upsert_stranded_bead_wait_notification(
     )
 
 
-@dataclass(frozen=True)
-class _MonitorRecovery:
-    resume_command: str | None = None
-    snapshot_path: str | None = None
+def waiter_display_name(
+    waiter_dir: Path,
+    meta: Mapping[str, Any] | None = None,
+    *,
+    meta_known: bool = False,
+) -> str:
+    """Return the waiter's agent name, falling back to its directory name.
 
-
-def _monitor_not_launchable_recovery(artifact_dir: str) -> _MonitorRecovery:
-    done = _read_json_dict(Path(artifact_dir) / "done.json")
-    if done is None or done.get("monitor_followup_outcome") != "not-launchable":
-        return _MonitorRecovery()
-    meta = _read_json_dict(Path(artifact_dir) / "agent_meta.json") or {}
-    monitor_id = _string_value(done.get("monitor_id")) or _string_value(
-        meta.get("monitor_id")
-    )
-    snapshot_path = _string_value(
-        done.get("monitor_worktree_recovery_diff_path")
-    ) or _string_value(meta.get("monitor_worktree_recovery_diff_path"))
-    return _MonitorRecovery(
-        resume_command=f"sase monitor resume {monitor_id}" if monitor_id else None,
-        snapshot_path=snapshot_path,
-    )
-
-
-def _string_value(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _waiting_agent_name(waiter_dir: Path) -> str | None:
-    """Return the waiter's agent name from its ``agent_meta.json``.
-
-    Returns ``None`` when the file is missing, unreadable, or carries no
-    non-empty string ``name``. Never returns ``cl_name`` or any other
-    project directory key: the meta ``name`` is the agent identity, while
-    ``cl_name`` is the project key for ordinary ``ace(run)`` agents.
+    Reads ``agent_meta.json`` unless ``meta_known`` says ``meta`` already
+    holds that file's parsed contents (``None`` when missing or invalid).
+    Never returns ``cl_name`` or any other project directory key: the meta
+    ``name`` is the agent identity, while ``cl_name`` is the project key
+    for ordinary ``ace(run)`` agents.
     """
-    try:
-        data = _read_json_dict(waiter_dir / "agent_meta.json")
-    except Exception:
-        return None
-    if not isinstance(data, dict):
-        return None
-    name = data.get("name")
-    if isinstance(name, str) and name.strip():
-        return name.strip()
-    return None
+    if not meta_known:
+        try:
+            meta = _read_json_dict(waiter_dir / "agent_meta.json")
+        except Exception:
+            meta = None
+    if isinstance(meta, Mapping):
+        name = meta.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    return waiter_dir.name
 
 
 def _waiting_agent_label(waiting_data: Mapping[str, Any], waiter_dir: Path) -> str:
-    name = _waiting_agent_name(waiter_dir)
-    if name:
-        return name
-    return waiter_dir.name
+    return waiter_display_name(waiter_dir)
 
 
 def _artifact_candidate_for_identity(
@@ -628,10 +604,11 @@ __all__ = [
     "reconcile_epic_follow_notifications",
     "reconcile_stranded_bead_wait_notifications",
     "stranded_bead_wait_dedup_key",
+    "pending_upstream_dirs",
     "terminal_blockers",
     "upsert_epic_follow_blocked_notification",
     "upsert_epic_follow_land_failed_notification",
     "upsert_epic_follow_launching_notification",
-    "upsert_terminal_blocked_wait_notification",
     "upsert_stranded_bead_wait_notification",
+    "waiter_display_name",
 ]

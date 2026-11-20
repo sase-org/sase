@@ -110,12 +110,15 @@ agent. Failed, killed, crashed, still-running, malformed, or missing `done.json`
 artifacts do not satisfy the wait; the dependent agent stays parked until a later
 successful run of the same dependency name appears. When the dependency has already
 ended unsuccessfully, AXE's `wait_checks` job posts one red `wait_checks` notification
-("Wait dependency can never self-resolve") that names the waiter and the blocking
-artifact and attaches both directories; later passes add `+1` evidence to the same row
-instead of new notifications. If the blocker is a monitor whose follow-up could not
-launch, the notification also names the `sase monitor resume <id>` command and any saved
-worktree recovery diff. The waiter itself stays parked: kill and relaunch it, clear the
-wait, or let a later successful run release it.
+per failed blocker ("Wait dependency can never self-resolve"). It names the blocking
+artifact and every waiter parked behind it, directly or through another parked waiter,
+and attaches their directories. Later passes change the row only when its waiter set
+changes, and never add `+1` evidence; see
+[blocked wait notifications](../automation/notification-types.md#blocked-wait-and-hold-notifications).
+If the blocker is a monitor whose follow-up could not launch, the notification also names
+the `sase monitor resume <id>` command and any saved worktree recovery diff. The waiter
+itself stays parked: kill and relaunch it, clear the wait, or let a later successful run
+release it.
 
 A bare session target makes one exception for retried turns. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer

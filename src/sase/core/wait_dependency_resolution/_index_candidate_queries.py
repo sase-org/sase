@@ -15,7 +15,7 @@ from ._hijack_follow import (
     follow_hijack_successor_chain,
     hijack_follow_is_parked,
 )
-from ._index_entities import WaitDependencyEntityQueries
+from ._index_entities import WaitDependencyEntityQueries, WaitEntity
 from ._index_fork_queries import WaitDependencyForkQueries
 from ._index_identity_queries import WaitDependencyIdentityQueries
 from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
@@ -529,16 +529,53 @@ class WaitDependencyCandidateQueries(
         exclude_artifact_dir: str | Path | None = None,
         newer_than: str | None = None,
     ) -> tuple[ArtifactCandidate, ...]:
-        if name.startswith("@"):
+        entity = self._unresolved_entity_for_name(
+            name, exclude_artifact_dir=exclude_artifact_dir, newer_than=newer_than
+        )
+        if entity is None:
             return ()
+        return _terminal_blocker_members(entity.members)
+
+    def pending_blocking_members_for_name(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+        newer_than: str | None = None,
+    ) -> tuple[ArtifactCandidate, ...]:
+        """Return the members that may still run in the entity blocking *name*.
+
+        Selects the same unresolved entity as
+        :meth:`terminal_blocking_artifacts_for_name`, so a waiter parked in
+        that entity is exactly a member the name wait still needs. Members
+        of superseded generations never appear here.
+        """
+        entity = self._unresolved_entity_for_name(
+            name, exclude_artifact_dir=exclude_artifact_dir, newer_than=newer_than
+        )
+        if entity is None:
+            return ()
+        return tuple(
+            member for member in entity.members if _member_may_still_run(member)
+        )
+
+    def _unresolved_entity_for_name(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None,
+        newer_than: str | None,
+    ) -> WaitEntity | None:
+        if name.startswith("@"):
+            return None
 
         # Pending and expired hijacks stay parked: they are neither resolved
         # nor failed, even when no successor name was recorded.
         if self._hijack_parked_for_name(name):
-            return ()
+            return None
         followed = self._follow_hijack_successor(name)
         if followed is None:
-            return ()
+            return None
         name = followed
 
         entities = [
@@ -554,13 +591,13 @@ class WaitDependencyCandidateQueries(
             if entity is not None
         ]
         if not entities:
-            return ()
+            return None
         latest = max(entities, key=lambda entity: entity.timestamp)
         if newer_than is not None and latest.timestamp <= newer_than:
-            return ()
+            return None
         if latest.is_resolved and latest.is_done:
-            return ()
-        return _terminal_blocker_members(latest.members)
+            return None
+        return latest
 
     def terminal_blocking_artifacts_for_hood(
         self,
@@ -577,3 +614,22 @@ class WaitDependencyCandidateQueries(
         if entity is None or (entity.is_resolved and entity.is_done):
             return ()
         return _terminal_blocker_members(entity.members)
+
+    def pending_blocking_members_for_hood(
+        self,
+        hood: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+        launched_at_or_before: str | None = None,
+    ) -> tuple[ArtifactCandidate, ...]:
+        """Return the hood members that may still run while the hood blocks."""
+        entity = self._hood_entity(
+            hood,
+            launched_at_or_before=launched_at_or_before,
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+        if entity is None or (entity.is_resolved and entity.is_done):
+            return ()
+        return tuple(
+            member for member in entity.members if _member_may_still_run(member)
+        )

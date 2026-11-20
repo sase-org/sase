@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -34,15 +35,17 @@ from sase.scripts._chop_wait_checks_run_fs import (
     clone_empty_index,
     filesystem_dependency_rows,
 )
+from sase.scripts._chop_wait_checks_roots import UnresolvedWaiter
 from sase.scripts._chop_wait_checks_terminal import (
     epic_follow_blocked_dedup_key,
     epic_follow_land_failed_dedup_key,
     epic_follow_launching_dedup_key,
+    pending_upstream_dirs,
     terminal_blockers,
     upsert_epic_follow_blocked_notification,
     upsert_epic_follow_land_failed_notification,
     upsert_epic_follow_launching_notification,
-    upsert_terminal_blocked_wait_notification,
+    waiter_display_name,
 )
 
 MAX_TERMINAL_BLOCKER_LOGS = 10
@@ -100,6 +103,10 @@ class WaitChecksTick:
     stranded_bead_waiters_by_project: dict[
         str, dict[str, dict[str, StrandedBeadWaiter]]
     ] = field(default_factory=dict)
+    # Root-blocker grouping input: every waiter left parked this tick, and
+    # keys of live waiters whose release check did not complete.
+    unresolved_waiters: list[UnresolvedWaiter] = field(default_factory=list)
+    fail_open_dirs: set[str] = field(default_factory=set)
     view_ms: int = 0
     view_rows: int = 0
     scope_cache_used: bool = False
@@ -340,6 +347,9 @@ def process_one_waiter(
         )
     except Exception as exc:  # noqa: BLE001 - a failed release check must park.
         tick.deferred_unconfirmed += 1
+        tick.fail_open_dirs.add(
+            artifact_dir_key(str(waiting_marker.waiting_path.parent))
+        )
         tick.runtime.log(
             "[wait_checks] Deferred release for "
             f"{data.get('cl_name', 'unknown')}: could not confirm "
@@ -351,6 +361,9 @@ def process_one_waiter(
         tick.runtime.log(f"[wait_checks] {diagnostic}")
     if decision.confirmation_failed:
         tick.deferred_unconfirmed += 1
+        tick.fail_open_dirs.add(
+            artifact_dir_key(str(waiting_marker.waiting_path.parent))
+        )
         cl_name = data.get("cl_name", "unknown")
         if status.resolved:
             tick.runtime.log(
@@ -382,6 +395,10 @@ def process_one_waiter(
             )
         )
         tick.epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
+        # Terminal blockers are not evaluated on the patch pass.
+        tick.fail_open_dirs.add(
+            artifact_dir_key(str(waiting_marker.waiting_path.parent))
+        )
         tick.unresolved += 1
         return
     # Gate on the shared releasable verdict, not the pre-follow status:
@@ -457,14 +474,35 @@ def process_one_waiter(
                 name = dependency.get("name")
                 if isinstance(name, str) and name:
                     agent_names.add(name)
-        for blocker in found_blockers:
-            if blocker.dependency in bead_ids and blocker.dependency not in agent_names:
-                continue
-            upsert_terminal_blocked_wait_notification(
-                waiting_marker,
-                data,
-                blocker,
+        waiter_dir = waiting_marker.waiting_path.parent
+        reported = tuple(
+            blocker
+            for blocker in found_blockers
+            if blocker.dependency not in bead_ids or blocker.dependency in agent_names
+        )
+        meta_path = waiter_dir / "agent_meta.json"
+        tick.unresolved_waiters.append(
+            UnresolvedWaiter(
+                artifact_dir=str(waiter_dir),
+                name=waiter_display_name(
+                    waiter_dir,
+                    tick.meta_cache.get(meta_path),
+                    meta_known=meta_path in tick.meta_cache,
+                ),
+                project_name=waiting_marker.project_name,
+                blockers=reported,
+                upstream=partial(
+                    pending_upstream_dirs,
+                    waiter_index,
+                    waiting_for,
+                    wait_for_artifacts,
+                    wait_for_hoods,
+                    status.blocked_on,
+                    self_artifact_dir=waiter_dir,
+                ),
             )
+        )
+        for blocker in reported:
             if blocker.outcome not in KNOWN_DONE_OUTCOMES:
                 tick.unknown_outcome += 1
                 tick.runtime.log(

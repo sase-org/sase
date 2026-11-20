@@ -248,9 +248,16 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     assert len(notifications) == 1
     notification = notifications[0]
     assert notification.sender == "wait_checks"
-    assert notification.dedup_key == f"wait_checks:terminal-blocked:{waiter_dir}"
-    assert notification.plus_one_count == 1
-    assert notification.action_data == {}
+    # One notice per root blocker; the second pass saw the same waiter set
+    # and wrote nothing, so no +1 evidence accumulates.
+    assert notification.dedup_key == f"wait_checks:terminal-blocker:{dependency_dir}"
+    assert notification.plus_one_count == 0
+    assert notification.action_data["blocker_artifact_dir"] == str(dependency_dir)
+    assert notification.action_data["blocker_outcome"] == "failed"
+    assert notification.action_data["waiter_count"] == "1"
+    assert json.loads(notification.action_data["waiters"]) == [
+        {"artifact_dir": str(waiter_dir), "name": waiter_dir.name, "project": "proj"}
+    ]
     assert str(waiter_dir) in notification.files
     assert str(dependency_dir) in notification.files
     assert any("never self-resolve" in note for note in notification.notes)
@@ -263,9 +270,8 @@ def test_terminal_blocked_waiter_upserts_one_notification(
         for note in notification.notes
     )
     assert any("Kill and relaunch" in note for note in notification.notes)
-    assert plus_one_badge(notification.plus_one_count) == "+1"
-    assert len(notification.plus_ones) == 1
-    assert "Still blocked on foo" in notification.plus_ones[0].note
+    assert plus_one_badge(notification.plus_one_count) == ""
+    assert notification.plus_ones == []
     for query in (waiter_dir.name, "foo", "failed", str(dependency_dir)):
         assert list_notification_infos(query=query, include_dismissed=True)
 
@@ -440,7 +446,7 @@ def test_silent_waiter_mixed_agent_and_bead_notifies(
     monkeypatch,
 ) -> None:
     """F9: a failed session parks no waiter silently, even when bead half closed."""
-    _make_failed_session_pair(tmp_path)
+    _root_dir, mon_dir = _make_failed_session_pair(tmp_path)
     _point_closed_bead(monkeypatch, "sase-1ra.7")
     waiter_dir = make_waiting_agent(
         tmp_path,
@@ -459,7 +465,7 @@ def test_silent_waiter_mixed_agent_and_bead_notifies(
     notifications = load_notifications()
     assert len(notifications) == 1
     notification = notifications[0]
-    assert notification.dedup_key == f"wait_checks:terminal-blocked:{waiter_dir}"
+    assert notification.dedup_key == f"wait_checks:terminal-blocker:{mon_dir}"
     assert any("Waiter: sase-1ra.8" in note for note in notification.notes)
     assert any(
         "Blocked on sase-1ra.7 (sase-1ra.7--mon)" in note for note in notification.notes

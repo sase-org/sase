@@ -28,12 +28,17 @@ from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     marker_scope_keys,
 )
+from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
 from sase.scripts._chop_wait_checks_run_fs import (
     clone_empty_index,
     filesystem_dependency_rows,
 )
 from sase.scripts._chop_wait_checks_common import WaitingMarker
+from sase.scripts._chop_wait_checks_root_notice import (
+    reconcile_root_blocker_notifications,
+)
+from sase.scripts._chop_wait_checks_roots import group_by_root_blocker
 from sase.scripts._chop_wait_checks_stranded import collect_targeted_stranded_report
 from sase.scripts._chop_wait_checks_run_waiters import (
     MAX_TERMINAL_BLOCKER_LOGS,
@@ -225,6 +230,36 @@ def _process_stranded_bead_waits(tick: WaitChecksTick) -> None:
                 )
 
 
+def _process_root_blocker_notices(
+    tick: WaitChecksTick,
+    live_waiting_markers: list[WaitingMarker],
+) -> None:
+    """Group terminally blocked waiters by root and reconcile their notices."""
+    try:
+        groups = group_by_root_blocker(tick.unresolved_waiters)
+        outcome = reconcile_root_blocker_notifications(
+            groups,
+            fail_open_dirs=tick.fail_open_dirs,
+            live_waiter_dirs={
+                artifact_dir_key(str(marker.waiting_path.parent))
+                for marker in live_waiting_markers
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - notices never park waiters.
+        tick.runtime.log(
+            "[wait_checks] Root-blocker notification reconcile failed; "
+            f"leaving existing rows unchanged: {exc}"
+        )
+        return
+    if outcome.changed():
+        tick.runtime.log(
+            "[wait_checks] Root-blocker notices: "
+            f"created={outcome.created} updated={outcome.updated} "
+            f"resurfaced={outcome.resurfaced} settled={outcome.settled} "
+            f"legacy_settled={outcome.legacy_settled}"
+        )
+
+
 @builtin_chop("wait_checks")
 def _run(
     runtime: BuiltinChopRuntime,
@@ -327,10 +362,12 @@ def _run(
     scoped_waiters = 0
     full_view_waiters = 0
     skipped_invalid = 0
+    invalid_dirs: set[str] = set()
     for waiting_marker in live_waiting_markers:
         loaded = _load_live_waiter(waiting_marker)
         if loaded is None:
             skipped_invalid += 1
+            invalid_dirs.add(artifact_dir_key(str(waiting_marker.waiting_path.parent)))
             continue
         live_waiters.append(loaded)
         if loaded.scope_keys is None:
@@ -410,6 +447,7 @@ def _run(
         view_ms=view_ms,
         view_rows=view_rows,
         scope_cache_used=scope_cache_used,
+        fail_open_dirs=invalid_dirs,
     )
 
     resolve_started = time.monotonic()
@@ -422,11 +460,17 @@ def _run(
             waiter_index = scoped_index
         if waiter_index is None:
             waiter_errors += 1
+            tick.fail_open_dirs.add(
+                artifact_dir_key(str(waiting_marker.waiting_path.parent))
+            )
             continue
         try:
             process_one_waiter(waiter, waiter_index, tick)
         except Exception as exc:  # noqa: BLE001 - one bad waiter must not stall the tick.
             waiter_errors += 1
+            tick.fail_open_dirs.add(
+                artifact_dir_key(str(waiting_marker.waiting_path.parent))
+            )
             waiter_name = data.get("cl_name", "unknown")
             waiter_dir = waiting_marker.waiting_path.parent
             if waiter_error_logs < MAX_TERMINAL_BLOCKER_LOGS:
@@ -442,6 +486,7 @@ def _run(
             continue
 
     _process_stranded_bead_waits(tick)
+    _process_root_blocker_notices(tick, live_waiting_markers)
 
     resolve_ms = int((time.monotonic() - resolve_started) * 1000)
 

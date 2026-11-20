@@ -311,7 +311,8 @@ def test_terminal_not_launchable_monitor_notification_names_resume_and_snapshot(
     assert "sase monitor resume abc123def456" in notes
     assert str(snapshot_path) in notes
     assert str(snapshot_path) in notification.files
-    assert notification.action_data == {}
+    assert notification.action_data["blocker_artifact_dir"] == str(blocker_dir)
+    assert notification.action_data["waiter_count"] == "1"
     assert "Monitor recovery: `sase monitor resume abc123def456`" in notes
     assert f"Worktree recovery diff: {snapshot_path}" in notes
     assert plus_one_badge(notification.plus_one_count) == ""
