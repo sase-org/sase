@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.notification_store_wire import (
+    NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
     NotificationAckOutcomeWire,
+    NotificationAppendRequestWire,
+    NotificationCompactionOutcomeWire,
+    NotificationCompactionRequestWire,
     NotificationDeliveryWire,
     NotificationPlusOneOutcomeWire,
     NotificationPlusOneRequestWire,
@@ -59,6 +63,9 @@ class _NotificationStoreCompactionOutcome:
     live_bytes_after: int
     live_rows_after: int
     archived_count: int
+    externalized_count: int
+    broken_files_dropped: int
+    sidecars_deleted: int
     archive_path: str
 
 
@@ -110,33 +117,62 @@ def read_current_notifications_snapshot(
 
 def compact_notification_store(
     path: Path | str,
+    *,
+    externalize_limit_bytes: int | None = None,
 ) -> _NotificationStoreCompactionOutcome:
-    """Archive eligible dismissed rows out of the live store.
+    """Compact the store and optionally externalize oversized live values.
 
-    Bypasses the snapshot cache and calls the Rust reader with
-    ``include_dismissed=True`` so compact-on-read runs under the store lock.
-    Interactive paths must not call this; the hourly housekeeping lumberjack
-    owns the pass.
+    This explicit housekeeping operation archives eligible dismissed rows,
+    removes broken file references, and garbage-collects old unreferenced
+    sidecars. Interactive paths must not call it.
     """
     live = _normalize_store_path(path)
     archive = _notification_archive_path(live)
     live_exists = live.is_file()
     live_bytes_before = live.stat().st_size if live_exists else 0
-    archived_before = _jsonl_row_count(archive)
-    invalidate_notification_snapshot_cache()
+    request = NotificationCompactionRequestWire(
+        externalize_limit_bytes=externalize_limit_bytes
+    )
+    payload = _call_mutating_binding(
+        "compact_notification_store",
+        str(path),
+        notification_store_wire_to_json_dict(request),
+    )
+    compaction = NotificationCompactionOutcomeWire(**payload)
+    if compaction.schema_version != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            "notification store wire schema mismatch: "
+            f"got {compaction.schema_version}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
     snapshot = _read_snapshot_from_rust(path, include_dismissed=True, expire=False)
     live_bytes_after = live.stat().st_size if live.is_file() else 0
-    archived_after = _jsonl_row_count(archive)
-    archived_count = max(0, archived_after - archived_before)
     invalidate_notification_snapshot_cache()
     return _NotificationStoreCompactionOutcome(
         live_exists=live_exists,
         live_bytes_before=live_bytes_before,
         live_bytes_after=live_bytes_after,
         live_rows_after=int(snapshot.stats.loaded_rows),
-        archived_count=archived_count,
+        archived_count=compaction.archived_count,
+        externalized_count=compaction.externalized_count,
+        broken_files_dropped=compaction.broken_files_dropped,
+        sidecars_deleted=compaction.sidecars_deleted,
         archive_path=str(archive),
     )
+
+
+def resolve_notification_payloads(
+    path: Path | str,
+    values: Sequence[str],
+) -> list[str | None]:
+    """Resolve a batch of payload values; missing sidecars produce ``None``."""
+    binding = require_rust_binding("resolve_notification_payloads")
+    payload = binding(str(path), list(values))
+    if len(payload) != len(values):
+        raise ValueError(
+            f"resolved {len(payload)} notification payloads for {len(values)} values"
+        )
+    return [None if value is None else str(value) for value in payload]
 
 
 def classify_notification_tabs(
@@ -229,6 +265,29 @@ def append_notification_counts(
     return notification_update_outcome_from_dict(payload)
 
 
+def append_notification_with_options(
+    path: Path | str,
+    request: NotificationAppendRequestWire | dict[str, Any],
+    *,
+    counts_only: bool = False,
+) -> NotificationUpdateOutcomeWire:
+    """Append a row with the opt-in sidecar limit in the request."""
+    request_payload = notification_store_wire_to_json_dict(request)
+    if counts_only:
+        payload = _call_mutating_binding(
+            "append_notification_counts_with_options",
+            str(path),
+            request_payload,
+        )
+    else:
+        payload = _call_mutating_binding(
+            "append_notification_with_options",
+            str(path),
+            request_payload,
+        )
+    return notification_update_outcome_from_dict(payload)
+
+
 def rewrite_notifications(
     path: Path | str,
     notifications: list[Notification] | tuple[Notification, ...] | list[dict[str, Any]],
@@ -273,11 +332,19 @@ def upsert_notification(
     request: NotificationUpsertRequestWire | dict[str, Any],
 ) -> NotificationUpsertOutcomeWire:
     """Create a minted row, or +1 the matching ``dedup_key`` row, through Rust."""
-    payload = _call_mutating_binding(
-        "upsert_notification",
-        str(path),
-        notification_store_wire_to_json_dict(request),
-    )
+    request_payload = notification_store_wire_to_json_dict(request)
+    if request_payload.get("externalize_limit_bytes") is not None:
+        payload = _call_mutating_binding(
+            "upsert_notification_with_options",
+            str(path),
+            request_payload,
+        )
+    else:
+        payload = _call_mutating_binding(
+            "upsert_notification",
+            str(path),
+            request_payload,
+        )
     return notification_upsert_outcome_from_dict(payload)
 
 
@@ -292,11 +359,19 @@ def reconcile_notification_rows(
     dismissals committed after the caller's snapshot read — survives
     untouched.
     """
-    payload = _call_mutating_binding(
-        "reconcile_notification_rows",
-        str(path),
-        notification_store_wire_to_json_dict(request),
-    )
+    request_payload = notification_store_wire_to_json_dict(request)
+    if request_payload.get("externalize_limit_bytes") is not None:
+        payload = _call_mutating_binding(
+            "reconcile_notification_rows_with_options",
+            str(path),
+            request_payload,
+        )
+    else:
+        payload = _call_mutating_binding(
+            "reconcile_notification_rows",
+            str(path),
+            request_payload,
+        )
     return notification_reconcile_outcome_from_dict(payload)
 
 
@@ -447,17 +522,6 @@ def _call_mutating_binding(name: str, *args: Any) -> dict[str, Any]:
         invalidate_notification_snapshot_cache()
 
 
-def _jsonl_row_count(path: Path) -> int:
-    if not path.is_file():
-        return 0
-    count = 0
-    with path.open("rb") as handle:
-        for raw in handle:
-            if raw.strip():
-                count += 1
-    return count
-
-
 __all__ = [
     "NotificationAckOutcomeWire",
     "NotificationDeliveryWire",
@@ -471,6 +535,7 @@ __all__ = [
     "ack_agent_completions",
     "append_notification",
     "append_notification_counts",
+    "append_notification_with_options",
     "append_notification_plus_one",
     "apply_notification_state_update",
     "apply_notification_state_update_counts",
@@ -481,6 +546,7 @@ __all__ = [
     "read_notifications_snapshot",
     "read_unread_completion_index",
     "reconcile_notification_rows",
+    "resolve_notification_payloads",
     "resolve_notification_deliveries",
     "rewrite_notifications",
     "rewrite_notifications_counts",

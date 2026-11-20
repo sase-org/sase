@@ -84,9 +84,25 @@ def _clone_notifications(notifications: list[Notification]) -> list[Notification
     return [_clone_notification(n) for n in notifications]
 
 
-def _rust_append_notification(path: Path, notification: Notification) -> Any:
+def _rust_append_notification(
+    path: Path,
+    notification: Notification,
+    *,
+    externalize_limit_bytes: int | None = None,
+) -> Any:
     from sase.core import notification_store_facade
 
+    if externalize_limit_bytes is not None:
+        from sase.core.notification_store_wire import NotificationAppendRequestWire
+
+        return notification_store_facade.append_notification_with_options(
+            path,
+            NotificationAppendRequestWire(
+                notification=notification,
+                externalize_limit_bytes=externalize_limit_bytes,
+            ),
+            counts_only=True,
+        )
     return notification_store_facade.append_notification_counts(path, notification)
 
 
@@ -154,10 +170,18 @@ def _apply_state_update(update: Any, *, include_notifications: bool = False) -> 
     return outcome
 
 
-def append_notification(n: Notification) -> None:
+def append_notification(
+    n: Notification,
+    *,
+    externalize_limit_bytes: int | None = None,
+) -> None:
     """Append a notification as a JSON line through the Rust store."""
     _ensure_notifications_dir()
-    _rust_append_notification(_notifications_path(), n)
+    _rust_append_notification(
+        _notifications_path(),
+        n,
+        externalize_limit_bytes=externalize_limit_bytes,
+    )
     try:
         from sase.notifications.pending_actions import register_notification
 
@@ -209,6 +233,7 @@ def upsert_notification(
     supersedes: str | None = None,
     plus_one_dismissed: bool = False,
     coalesce_window_seconds: int | None = None,
+    externalize_limit_bytes: int | None = None,
 ) -> Any:
     """Create ``n``, or +1 the row matching ``(n.sender, n.dedup_key)``.
 
@@ -227,6 +252,7 @@ def upsert_notification(
         supersedes=supersedes,
         plus_one_dismissed=plus_one_dismissed,
         coalesce_window_seconds=coalesce_window_seconds,
+        externalize_limit_bytes=externalize_limit_bytes,
     )
     outcome = notification_store_facade.upsert_notification(
         _notifications_path(), request
@@ -340,6 +366,7 @@ def reconcile_notification_rows(
     reversible_dismiss_marker_key: str | None = None,
     resurface_on_change_key: str | None = None,
     refresh_files: bool = False,
+    externalize_limit_bytes: int | None = None,
 ) -> Any:
     """Create or refresh only ``notifications`` through the Rust store.
 
@@ -368,6 +395,7 @@ def reconcile_notification_rows(
         reversible_dismiss_marker_key=reversible_dismiss_marker_key,
         resurface_on_change_key=resurface_on_change_key,
         refresh_files=refresh_files,
+        externalize_limit_bytes=externalize_limit_bytes,
     )
     outcome = notification_store_facade.reconcile_notification_rows(
         _notifications_path(), request
@@ -377,7 +405,7 @@ def reconcile_notification_rows(
     return outcome
 
 
-def compact_notification_store() -> Any:
+def compact_notification_store(*, externalize_limit_bytes: int | None = None) -> Any:
     """Archive old dismissed rows out of the live store.
 
     Housekeeping only: the TUI refresh path must not invoke this. The Rust
@@ -389,7 +417,9 @@ def compact_notification_store() -> Any:
     )
 
     _ensure_notifications_dir()
-    outcome = compact_store(_notifications_path())
+    outcome = compact_store(
+        _notifications_path(), externalize_limit_bytes=externalize_limit_bytes
+    )
     _invalidate_load_cache()
     return outcome
 

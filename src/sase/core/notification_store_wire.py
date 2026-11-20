@@ -144,6 +144,31 @@ class NotificationPlusOneRequestWire:
 
 
 @dataclass(frozen=True)
+class NotificationAppendRequestWire:
+    """Append a row with optional sidecar storage for oversized values."""
+
+    notification: Notification
+    externalize_limit_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class NotificationCompactionRequestWire:
+    """Run compaction and optionally externalize existing oversized values."""
+
+    externalize_limit_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class NotificationCompactionOutcomeWire:
+    schema_version: int
+    archived_count: int = 0
+    externalized_count: int = 0
+    broken_files_dropped: int = 0
+    sidecars_deleted: int = 0
+    rewritten: bool = False
+
+
+@dataclass(frozen=True)
 class NotificationPlusOneOutcomeWire:
     schema_version: int
     action: str  # "applied" | "coalesced" | "skipped_dismissed" | "no_match"
@@ -163,6 +188,7 @@ class NotificationUpsertRequestWire:
     supersedes: str | None = None
     plus_one_dismissed: bool = False
     coalesce_window_seconds: int | None = None
+    externalize_limit_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +210,7 @@ class NotificationReconcileRequestWire:
     reversible_dismiss_marker_key: str | None = None
     resurface_on_change_key: str | None = None
     refresh_files: bool = False
+    externalize_limit_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -276,6 +303,8 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
             payload["resurface_on_change_key"] = record.resurface_on_change_key
         if record.refresh_files:
             payload["refresh_files"] = True
+        if record.externalize_limit_bytes is not None:
+            payload["externalize_limit_bytes"] = record.externalize_limit_bytes
         return payload
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
@@ -588,6 +617,9 @@ def notification_upsert_outcome_from_dict(
 __all__ = [
     "NOTIFICATION_STORE_WIRE_SCHEMA_VERSION",
     "NotificationAckOutcomeWire",
+    "NotificationAppendRequestWire",
+    "NotificationCompactionOutcomeWire",
+    "NotificationCompactionRequestWire",
     "NotificationAgentKeyWire",
     "NotificationDeliveryWire",
     "NotificationPlusOneOutcomeWire",

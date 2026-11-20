@@ -36,6 +36,27 @@ inbox UI's `include_dismissed` view is unchanged. Unread and still-actionable ro
 in the live file. `sase logs pack` reads the archive alongside the live file, so a
 window older than the retention period still packs complete.
 
+## Oversized payloads
+
+Notification writes keep `notes` and `action_data` inline unless the caller supplies an
+`externalize_limit_bytes` option. When enabled, each value longer than that byte limit
+is written atomically to `~/.sase/notifications/blobs/<sha256>`. Identical values share
+one file. The default is off, so existing rows and callers retain their inline JSONL
+representation.
+
+The stored value uses the Rust-defined reference form
+`sase-notification-blob:v1:<sha256>:<byte-length>`. A note keeps its first 80 characters
+as a preview, followed by `…` and the reference. The notification payload resolver
+passes ordinary values through unchanged, returns the full text for a valid reference,
+and returns `None` when a referenced sidecar is missing. Readers can keep showing the
+stored note preview when resolution reports a missing sidecar.
+
+The explicit compaction pass can opt in to externalizing existing live rows with the
+same byte limit. It also removes `files` entries whose paths no longer exist and reports
+how many it dropped. Sidecar garbage collection considers references in both the live
+JSONL and its archive, and removes only unreferenced sidecars older than one hour. Fresh
+files are left in place to protect writes that are still in flight.
+
 The Rust store also owns every temporal semantic: it validates and normalizes snooze
 deadlines, expires due rows atomically under the same lock as the read, stamps
 `resurfaced_at`, and reports both `expired_ids` and the earliest remaining

@@ -23,6 +23,13 @@ from sase.notifications.pending_actions import (
     remove_transport_action,
     upsert_transport_action,
 )
+from sase.notifications.payloads import (
+    resolve_notification_action_data,
+    resolve_notification_note,
+    resolve_notification_notes,
+    resolve_notification_value,
+    resolve_notification_values,
+)
 from sase.notifications.priority import is_error, is_priority
 from sase.notifications.question_summary import (
     AnswerState,
@@ -122,6 +129,11 @@ __all__ = [
     "question_answer_state",
     "read_unread_completion_index",
     "resolve_notification_ref",
+    "resolve_notification_action_data",
+    "resolve_notification_note",
+    "resolve_notification_notes",
+    "resolve_notification_value",
+    "resolve_notification_values",
     "remove_transport_action",
     "rewrite_notifications",
     "build_question_summary",
