@@ -28,8 +28,11 @@ extracted from `item.completed` events.
 When bundle preparation succeeds with `codex_explicit_instructions` enabled (the
 default), SASE adds `-c developer_instructions=<bundle>` to the command. The value
 contains the compiled root instructions and delivery marker, including the single-turn
-directive. The delivered text has a 32 KiB limit; an oversized bundle falls back to the
-single-turn directive instead of being truncated.
+directive. The delivered text has a 32 KiB limit. An oversized bundle is first compacted
+by dropping memory-web roster summaries (see
+[Provider size limits](../memory/instruction-bundles.md#provider-size-limits)); a bundle
+that still exceeds the limit falls back to the single-turn directive instead of being
+truncated.
 
 For a SASE-managed project, explicit delivery also adds `-c project_doc_max_bytes=0`.
 This disables native project-document loading for the invocation, including nested

@@ -143,6 +143,15 @@ missing or duplicate root markers, missing helper markers, root markers leaking 
 Claude helpers, and unexpected delivery fallbacks. `instructions.helpers` WARNs on
 accepted helper declarations or root calls denied by the helper guard.
 
+`instructions.bundle_size` compiles each enabled project's root bundle, from its primary
+checkout and your home memory, for every provider whose explicit root slot declares a
+byte cap (Codex and Grok by default). It reports `ERROR` when the delivered text still
+exceeds the cap after
+[compaction](../memory/instruction-bundles.md#provider-size-limits), because that launch
+falls back to native delivery. It WARNs when a bundle fits only after compaction, naming
+the step and the uncompacted size, or when a bundle fails to render. Like
+`sase instructions render`, it fills the instruction render cache.
+
 `instructions.coverage` samples the newest 10 runs per provider in the last 24 hours.
 When that sample contains manifests, it WARNs on bundle-render errors and uncovered
 sessions whose runs began after the earliest sampled manifest. With no manifests it

@@ -239,6 +239,23 @@ def provider_root_max_bytes(provider_name: str) -> int | None:
     return plan.root.max_bytes
 
 
+def capped_root_providers() -> dict[str, int]:
+    """Return ``{provider: max_bytes}`` for every capped explicit root slot.
+
+    Covers each registered execution provider whose root slot is explicit
+    under the current feature flags and declares ``max_bytes``, in name
+    order. Never raises.
+    """
+    from sase.instructions.facts import registered_names
+
+    caps: dict[str, int] = {}
+    for name in registered_names():
+        cap = provider_root_max_bytes(name)
+        if cap is not None:
+            caps[name] = cap
+    return caps
+
+
 def sase_owned_instruction_paths(cwd: str | Path | None = None) -> tuple[Path, ...]:
     """Return exact SASE-owned instruction file paths for native suppression.
 
@@ -498,6 +515,7 @@ __all__ = [
     "DeliveryPlan",
     "SlotPlan",
     "bind_instruction_delivery",
+    "capped_root_providers",
     "current_instruction_delivery",
     "delivered_text",
     "fallback_wire",

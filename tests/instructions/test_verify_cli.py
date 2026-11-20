@@ -513,6 +513,7 @@ def test_doctor_registry_includes_instructions_deep_checks(tmp_path: Path) -> No
         "instructions.helpers",
         "instructions.coverage",
         "instructions.conformance",
+        "instructions.bundle_size",
     } <= deep_ids
 
 

@@ -78,9 +78,10 @@ for `native_helper` is compiled at the boundary when the subagent slot is `expli
 `common_digest` is the sha256 of the canonical JSON array `[[id, sha256], …]` over
 included sections with `provider_specific == false`, in bundle order. Equal
 `common_digest` across providers means "same instructions except the provider section".
-Section budgets record bytes and `tokens_est` (`ceil(len/4)`) per section and per layer;
-the compiler does not truncate or reject a bundle for size. An adapter can separately
-limit the delivered text and fall back when that limit is exceeded.
+Section budgets record bytes and `tokens_est` (`ceil(len/4)`) per section and per layer.
+The compiler never truncates or rejects a bundle for size: a capped provider gets a
+compacted bundle instead, and delivery falls back only when compaction cannot fit the
+cap (see [Size caps and compaction](#size-caps-and-compaction)).
 
 ## Cache and store
 
@@ -88,13 +89,49 @@ The bundle bytes live once in a content-addressed store:
 `<sase home>/instructions/bundles/<sha[:2]>/<sha>.md` (mode 0444, written atomically,
 currently not pruned). The render cache (`<sase home>/instructions/cache/<key>.json`)
 holds the compiled section table keyed by the sha256 over the compiler version, the sase
-version, a per-process code fingerprint, the content-changing facts, the provider
-directive file, and the sorted content hashes of every input-file class (project and
-home memory, project configs, global config and overlays, resolved templates, the helper
-template, the project `AGENTS.md`, and the task-type plugin distributions). A missing or
-corrupt entry or blob is a miss. The hit path imports none of the heavy composition
-modules, which keeps warm renders within the 250 ms p95 budget; every manifest records
-`render_ms` and `cache` (`hit`, `miss`, or `bypass`).
+version, a per-process code fingerprint, the content-changing facts, the root-slot byte
+cap, the provider directive file, and the sorted content hashes of every input-file
+class (project and home memory, project configs, global config and overlays, resolved
+templates, the helper template, the project `AGENTS.md`, and the task-type plugin
+distributions). A missing or corrupt entry or blob is a miss. The hit path imports none
+of the heavy composition modules, which keeps warm renders within the 250 ms p95 budget;
+every manifest records `render_ms` and `cache` (`hit`, `miss`, or `bypass`).
+
+## Size caps and compaction
+
+A root slot may declare `max_bytes`, a cap on the delivered text (the bundle plus its
+marker line). The boundary passes an `explicit` root slot's cap to
+`compile_bundle(max_bytes=...)`. `sase instructions render` resolves the same cap for
+`sase_root`/`runtime` renders through
+`sase.llm_provider.instruction_delivery.provider_root_max_bytes`, so flag gating applies
+unchanged. When the delivered text would exceed the cap, `sase.instructions.compaction`
+runs a deterministic ladder and stops at the first step that fits:
+
+1. `superseded_summaries`: superseded entries in `roster: list` webs render as one line
+   (number, title, slug, and supersession marker) with no summary.
+2. `list_rosters`: whole `roster: list` rosters render one line per entry, largest web
+   first, one web at a time.
+
+A step replaces a section only with strictly fewer bytes, and each compacted web ends
+with one line pointing to `sase memory read <web>:<keyword>`. Compaction is a
+compile-time projection: descriptors and memory files on disk do not change, and a
+bundle that fits is byte-identical to an uncapped compile. When neither step fits,
+compile returns the most-compacted bundle and delivery falls back with `oversize`.
+
+The manifest records `bundle.compaction` (`step`, `max_bytes`, `uncompacted_bytes`) and
+a per-section `compaction` (`step`, `uncompacted_length`). Both are absent when no step
+changed any bytes. The cap is a render-cache key input, so a cached uncompacted bundle
+is never served to a capped provider.
+
+Two gates catch growth before launches have to compact or fall back:
+
+- `tests/instructions/test_sase_bundle_size_gate.py` is a `contract` test, so
+  `just check` runs it even for a memory-only edit. It fails when sase's own root
+  bundle, compiled with an empty home, needs compaction for any capped provider, and
+  names the largest sections.
+- The deep `instructions.bundle_size` doctor check compiles every enabled project's root
+  bundle with the real home for each capped provider. See
+  [Verifying instruction delivery](../reference/providers/agent-clis.md#verifying-instruction-delivery).
 
 ## Delivery
 
@@ -149,7 +186,7 @@ These switch the root slot to legacy delivery for that invocation:
 
 - render failure (`.error.json` gains `"delivery_fallback": "legacy"`)
 - invalid root bundle (`invalid_bundle`)
-- delivered text over the slot's `max_bytes` (`oversize`)
+- delivered text over the slot's `max_bytes` after compaction (`oversize`)
 - adapter materialization failure (`delivery_failed`)
 
 `render_failed`, `invalid_bundle`, `oversize`, and `delivery_failed` raise one

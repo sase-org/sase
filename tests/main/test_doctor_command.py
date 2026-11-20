@@ -256,6 +256,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "instructions.helpers",
         "instructions.coverage",
         "instructions.conformance",
+        "instructions.bundle_size",
         "config.skills.applied",
         "resources.chezmoi",
         "resources.ulimits",

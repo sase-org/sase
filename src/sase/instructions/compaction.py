@@ -74,7 +74,7 @@ class _BundleCompaction:
         }
 
 
-def _delivered_bytes(bundle_text: str) -> int:
+def delivered_bytes(bundle_text: str) -> int:
     """Return the UTF-8 size of *bundle_text* as delivered with its marker."""
     from sase.llm_provider.instruction_delivery import delivered_text
 
@@ -125,7 +125,7 @@ def compact_sections(
         return None
     cap: int = max_bytes
     uncompacted_text = _bundle_text(sections)
-    if _delivered_bytes(uncompacted_text) <= cap:
+    if delivered_bytes(uncompacted_text) <= cap:
         return None
 
     by_id = {section.id: section for section in sections if section.text is not None}
@@ -159,7 +159,7 @@ def compact_sections(
         return True
 
     def _fits() -> bool:
-        return _delivered_bytes(_bundle_text(sections)) <= cap
+        return delivered_bytes(_bundle_text(sections)) <= cap
 
     changed = False
     for item, section in candidates:
@@ -193,4 +193,5 @@ __all__ = [
     "STEP_SUPERSEDED_SUMMARIES",
     "CompactableWeb",
     "compact_sections",
+    "delivered_bytes",
 ]

@@ -112,6 +112,29 @@ parity table goes to stderr and the exit code is 1 on any gap; extra bundle sect
 output is raw bundle Markdown on stdout plus one summary line on stderr (sha256 and
 `common_digest` prefixes, section count, bytes, `tokens_est`, cache, and milliseconds).
 
+## Provider size limits
+
+Codex and Grok cap a root bundle's delivered text, which is the bundle plus its trailing
+marker line: 32 KiB for Codex and 120 KiB for Grok. Claude and Muse have no cap. When a
+bundle would exceed its provider's cap, SASE compacts it at compile time and stops at
+the first step that fits:
+
+1. Superseded entries in `roster: list` memory webs drop their summaries and keep their
+   number, title, slug, and supersession marker.
+2. Whole `roster: list` rosters drop entry summaries, largest web first.
+
+A compacted web ends with a note pointing to `sase memory read <web>:<keyword>` for the
+omitted summaries. Compaction changes only the delivered bundle: memory files stay as
+they are, and a bundle that already fits is unchanged. A bundle that still exceeds the
+cap after both steps falls back to the provider's native instructions with reason
+`oversize`.
+
+`sase instructions render -f provider=codex -j` applies the same cap to a root render,
+and the manifest's `bundle.compaction` names the step applied and the uncompacted size.
+`sase doctor -D -C instructions.bundle_size` checks every enabled project's root bundle
+against each capped provider; see
+[Verifying instruction delivery](../providers/agent-clis.md#verifying-instruction-delivery).
+
 ## Related
 
 - [Memory](index.md) — memory notes and history.

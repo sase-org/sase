@@ -423,8 +423,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # `collect_contract_files() == committed manifest`. The prior 90-entry
 # set measured 154.57 s; this 89-entry set is that run without the
 # unmarked file.
-_MANIFEST_ENTRY_BUDGET = 89
-_MEASURED_SERIAL_COST = "154.57 serial seconds across the prior 90-entry set; 89 after dropping the unmarked handoff file"
+#
+# Re-curated to 90 on 2026-11-20 (sase-1tz.3.1.10) for
+# `tests/instructions/test_sase_bundle_size_gate.py`, which asserts that
+# sase's own root instruction bundle fits every capped provider's
+# `max_bytes` without compaction. Admitted on the same value-per-second
+# basis as the `tools/` script guards: the bundle grows through
+# `sase/memory/**` Markdown edits, which contribute no import-graph seeds,
+# so `RULE_CONTRACT_SET_ONLY` fires and the contract set is the only
+# scoped-selection coverage that can catch that growth while it is being
+# authored. The file measured 0.92 s marginal call time (1 passed) under
+# the command above on this host, so the 90-entry set is the 89-entry
+# measurement plus about 1 s. The next candidate should displace an entry
+# rather than add one.
+_MANIFEST_ENTRY_BUDGET = 90
+_MEASURED_SERIAL_COST = "154.57 serial seconds across the prior 90-entry set; 89 after dropping the unmarked handoff file; 90 after adding the ~1 s bundle-size gate"
 
 
 def _load_refresh_tool() -> ModuleType:

@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
     """Return the deep-only ``instructions`` check group."""
+    from sase.doctor.checks_instructions_bundle_size import (
+        CHECK_ID as BUNDLE_SIZE_CHECK_ID,
+        CHECK_TITLE as BUNDLE_SIZE_CHECK_TITLE,
+        check_instructions_bundle_size,
+    )
+
     return (
         CheckSpec(
             id="instructions.delivery",
@@ -40,6 +46,15 @@ def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="instructions",
             title="Explicit instruction bundles conform to their manifests",
             runner=lambda: _check_instructions_conformance(context),
+            deep=True,
+        ),
+        # Compiles every enabled project's capped root bundles: about 4.5 s
+        # cold for 10 projects x 2 capped providers, 0.8 s on a warm cache.
+        CheckSpec(
+            id=BUNDLE_SIZE_CHECK_ID,
+            group="instructions",
+            title=BUNDLE_SIZE_CHECK_TITLE,
+            runner=lambda: check_instructions_bundle_size(context),
             deep=True,
         ),
     )
