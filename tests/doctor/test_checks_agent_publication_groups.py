@@ -74,6 +74,14 @@ def test_agent_publication_outbox_doctor_groups_one_cause_into_one_issue(
     assert timeout_group["total_attempts"] == 8
     assert timeout_group["first_time"] == now - 300
     assert timeout_group["last_time"] == now - 30
+    # The grouped issue line still names its reason and the newest member's
+    # actual error, so grouping never hides why a cause needs attention.
+    [timeout_detail] = [
+        detail for detail in first.details if "2 request(s) (quarantined)" in detail
+    ]
+    assert "; quarantined; last error: drain failed for run 0987654321fedcba" in (
+        timeout_detail
+    )
 
     # A later tick with bumped attempts but unchanged causes keeps the count.
     later_rows = [

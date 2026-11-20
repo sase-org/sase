@@ -27,6 +27,15 @@ from sase.core.project_lifecycle_wire import (
 
 REMEDIATION_COMMAND = PUBLICATION_RETRY_COMMAND
 RETIRED_REMEDIATION_COMMAND = PUBLICATION_DROP_COMMAND
+_GROUP_DETAIL_MAX_REASONS = 3
+_GROUP_DETAIL_MAX_ERROR_CHARS = 240
+
+
+def _truncate_detail(text: str) -> str:
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= _GROUP_DETAIL_MAX_ERROR_CHARS:
+        return collapsed
+    return collapsed[: _GROUP_DETAIL_MAX_ERROR_CHARS - 1] + "…"
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +174,7 @@ class SettledTerminal:
 
 
 @dataclass(frozen=True, slots=True)
-class OutboxGroup:
+class _OutboxGroup:
     """One doctor issue: every open row for one (project, signature) cause."""
 
     project_key: str
@@ -216,17 +225,46 @@ class OutboxGroup:
             return RETIRED_REMEDIATION_COMMAND
         return REMEDIATION_COMMAND
 
+    @property
+    def reasons(self) -> tuple[str, ...]:
+        reasons: list[str] = []
+        for problem in self.problems:
+            for reason in problem.reasons:
+                if reason not in reasons:
+                    reasons.append(reason)
+        return tuple(reasons)
+
+    @property
+    def sample_error(self) -> str | None:
+        """Return the newest member's last error, the cause a reader acts on."""
+
+        newest = max(
+            (problem for problem in self.problems if problem.item.last_error),
+            key=lambda problem: problem.item.updated_at,
+            default=None,
+        )
+        return newest.item.last_error if newest is not None else None
+
     def detail(self) -> str:
         first = (
             _format_duration(self.last_time - self.first_time)
             if self.first_time is not None and self.last_time is not None
             else "unknown"
         )
+        reasons = self.reasons
+        reason_text = "; ".join(reasons[:_GROUP_DETAIL_MAX_REASONS])
+        if len(reasons) > _GROUP_DETAIL_MAX_REASONS:
+            reason_text += f"; +{len(reasons) - _GROUP_DETAIL_MAX_REASONS} more"
+        sample = self.sample_error
+        error = (
+            f"; last error: {_truncate_detail(sample)}" if sample is not None else ""
+        )
         return (
             f"{self.project}: {self.count} request(s) "
             f"({', '.join(self.kinds) or 'attention'}) "
             f"under signature {self.signature[:16]}…, "
             f"{self.total_attempts} attempt(s) over {first}"
+            f"{f'; {reason_text}' if reason_text else ''}{error}"
         )
 
     def to_data(self, standing: dict[str, Any] | None = None) -> dict[str, object]:
@@ -269,7 +307,7 @@ def _outbox_signature_for(item: AgentPublicationOutboxItem) -> str:
 
 def group_outbox_problems(
     problems: tuple[OutboxProblem, ...] | list[OutboxProblem],
-) -> tuple[OutboxGroup, ...]:
+) -> tuple[_OutboxGroup, ...]:
     """Fold open problems into one group per (project, signature) cause.
 
     Groups keep first-seen order so unchanged state renders the same issue
@@ -281,7 +319,7 @@ def group_outbox_problems(
         key = (problem.project_key, _outbox_signature_for(problem.item))
         groups.setdefault(key, []).append(problem)
     return tuple(
-        OutboxGroup(
+        _OutboxGroup(
             project_key=key[0],
             project=members[0].project,
             signature=key[1],
@@ -428,7 +466,7 @@ def outbox_data(
     stale_requested_revision_count: int = 0,
     stale_requested_revisions: tuple[str, ...] = (),
     settled: tuple[SettledTerminal, ...] = (),
-    groups: tuple[OutboxGroup, ...] = (),
+    groups: tuple[_OutboxGroup, ...] = (),
     standing_alerts: tuple[dict[str, Any], ...] = (),
     standing_by_group: dict[tuple[str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:

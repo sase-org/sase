@@ -61,6 +61,15 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "rollback directories, never a local agent artifact directory."
         ),
     ),
+    "src/sase/agents_sync/publication_scratch.py:sweep_publication_scratch": DirOpReview(
+        exemption=(
+            "Removes only root-level .sase-v2-stage-*/.sase-v2-backup-* "
+            "publisher apply scratch left in an agents sidecar by an "
+            "interrupted v2 payload write, under the publisher lock after "
+            "tracked payload files are restored from git; never a local "
+            "agent artifact directory."
+        ),
+    ),
     "src/sase/agent/names/_wipe_execute.py:_remove_artifact_dirs": DirOpReview(
         batched_by=(
             BatchedCoverage(
