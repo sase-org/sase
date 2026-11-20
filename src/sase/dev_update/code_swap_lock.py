@@ -20,6 +20,10 @@ There is still a small residual race for unguarded readers: a process that
 starts while a swap is already in progress can import torn modules before it
 reaches this lock. The guarded epic-launch bootstrap is the re-exec path
 for that host-owned case.
+
+Releasing the writer records the durable last-swap stamp
+(:mod:`sase.dev_update.code_swap_stamp`) so work that overlapped or closely
+followed a swap can be told apart from a broken install after the fact.
 """
 
 from __future__ import annotations
@@ -40,6 +44,10 @@ from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
 from sase.core.paths import sase_subdir
+from sase.dev_update.code_swap_stamp import (
+    display_code_swap_op,
+    record_last_code_swap,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -51,6 +59,7 @@ _ENV_CODE_SWAP_LOCK_FD = "SASE_CODE_SWAP_LOCK_FD"
 _GUARDED_EXEC_SEPARATOR = "--"
 _GUARDED_EXEC_BOOTSTRAP = Path(__file__).with_name("code_swap_guarded_exec.py")
 CODE_SWAP_LOCK_FILENAME = "code-swap-v2.lock"
+_WRITER_OP = "dev.update"
 _LEGACY_LOCK_FILENAMES = ("code-swap.lock",)
 
 
@@ -217,12 +226,8 @@ def code_swap_writer_lock(
                 )
                 return
 
-            _write_writer_holder(fd, _holder(op="dev.update", command=sys.argv))
-            try:
+            with _held_writer(fd):
                 yield _CodeSwapLockResult(acquired=True)
-            finally:
-                _clear_writer_holder(fd)
-                _unlock(fd)
             return
 
         effective = (
@@ -250,12 +255,8 @@ def code_swap_writer_lock(
             if _try_lock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB):
                 legacy_blocked_by = _legacy_reader_blocked_by()
                 if legacy_blocked_by is None:
-                    _write_writer_holder(fd, _holder(op="dev.update", command=sys.argv))
-                    try:
+                    with _held_writer(fd):
                         yield _CodeSwapLockResult(acquired=True, waited=waited)
-                    finally:
-                        _clear_writer_holder(fd)
-                        _unlock(fd)
                     return
                 _unlock(fd)
                 waited = True
@@ -277,6 +278,23 @@ def code_swap_writer_lock(
             wait.sleep(wait.poll_seconds)
     finally:
         os.close(fd)
+
+
+@contextmanager
+def _held_writer(fd: int) -> Iterator[None]:
+    """Publish the writer holder for an acquired lock; stamp and clear on exit.
+
+    The last-swap stamp is written before the holder payload is cleared, so a
+    concurrent prober always sees either the live writer or the completed swap.
+    """
+    holder = _holder(op=_WRITER_OP, command=sys.argv)
+    _write_writer_holder(fd, holder)
+    try:
+        yield
+    finally:
+        record_last_code_swap(op=_WRITER_OP, started_at=str(holder["started_at"]))
+        _clear_writer_holder(fd)
+        _unlock(fd)
 
 
 def wait_for_code_swap_readers(
@@ -654,7 +672,7 @@ def _format_reader_holders(holders: tuple[dict[str, Any], ...]) -> str:
 
 
 def _format_holder(holder: dict[str, Any]) -> str:
-    op = _display_op(str(holder.get("op") or "sase process"))
+    op = display_code_swap_op(str(holder.get("op") or "sase process"))
     pid = holder.get("pid", "unknown")
     started = holder.get("started_at")
     command = _format_command(holder.get("command"))
@@ -664,16 +682,6 @@ def _format_holder(holder: dict[str, Any]) -> str:
     if started:
         pieces.append(f"started {started}")
     return "; ".join(pieces)
-
-
-def _display_op(op: str) -> str:
-    return {
-        "bead.work": "sase bead work",
-        "dev.update": "sase dev update",
-        "agent.runner": "agent runner",
-        "install.dev": "just install-dev",
-        "install.pypi": "just install",
-    }.get(op, op)
 
 
 def _format_command(raw: object) -> str:

@@ -36,6 +36,12 @@ from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
 from .chop_subprocess_diagnostics import capture_chop_subprocess_diagnostic
 from .chop_script_runner import discover_chop_script, stream_chop_script
+from .chop_swap_guard import (
+    missing_script_grace_reason,
+    missing_script_writer_reason,
+    probe_writer,
+    writer_live_reason,
+)
 from .chop_script_context import prepare_chop_run_context
 from .config import AxeConfig, ChopConfig
 from .state import (
@@ -50,18 +56,6 @@ from .state import (
     update_chop_run_pid,
     write_chop_run,
 )
-
-
-def _default_code_swap_writer_holder() -> str | None:
-    """Probe for a live code-swap writer, importing the lock module lazily.
-
-    ``sase.dev_update``'s package ``__init__`` pulls the update backend onto
-    the TUI first-paint path, so this edge stays a use-site import: it only
-    runs on the missing-script path, never at module import time.
-    """
-    from sase.dev_update.code_swap_lock import code_swap_writer_holder
-
-    return code_swap_writer_holder()
 
 
 def run_script_chop_once(
@@ -212,57 +206,30 @@ def run_script_chop_once(
 
     script_name = chop.script_name
     script = discover_chop_script_fn(script_name, axe_config.chop_script_dirs)
-    if script is None:
-        holder_fn = (
-            _default_code_swap_writer_holder
-            if code_swap_writer_holder_fn is None
-            else code_swap_writer_holder_fn
+    # Never start a job mid-swap: its script, modules, or binding may be torn.
+    swap_holder = probe_writer(code_swap_writer_holder_fn)
+    deferral: str | None = None
+    if swap_holder is not None:
+        deferral = (
+            writer_live_reason(chop.name, swap_holder)
+            if script is not None
+            else missing_script_writer_reason(script_name, swap_holder)
         )
-        try:
-            swap_holder: str | None = holder_fn()
-        except Exception:  # noqa: BLE001 - probe failure falls back to missing_script
-            swap_holder = None
-        if swap_holder is not None:
-            reason = (
-                f"job script {script_name} is unavailable while a code swap "
-                f"is in progress ({swap_holder}); retrying after the swap"
-            )
-            finished_at = datetime.now(get_timezone())
-            duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-            try:
-                write_chop_run(
-                    ChopRunEntry(
-                        run_id=run_id,
-                        lumberjack_name=lumberjack_name,
-                        chop_name=chop.name,
-                        started_at=started_at.isoformat(),
-                        finished_at=finished_at.isoformat(),
-                        duration_ms=duration_ms,
-                        status="skipped",
-                        source=source,
-                        started_by=started_by,
-                        reason=reason,
-                    ),
-                    output=reason,
-                )
-            except OSError:
-                pass
-            record_checkpoint_best_effort(
-                lumberjack_name,
-                chop.name,
-                preflight,
-                "action_failed",
-            )
-            return ChopRunOutcome(
-                lumberjack_name=lumberjack_name,
-                chop_name=chop.name,
-                status="skipped",
-                run_id=run_id,
-                reason=reason,
-                advances_cadence=False,
-                skip_reason="inhibited",
-                chop_verbose=chop_verbose,
-            )
+    elif script is None:
+        deferral = missing_script_grace_reason(script_name)
+    if deferral is not None:
+        return _record_swap_deferral(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            source=source,
+            started_by=started_by,
+            preflight=preflight,
+            reason=deferral,
+            chop_verbose=chop_verbose,
+        )
+    if script is None:
         error = RuntimeError(f"Job script not found: {script_name} (job: {chop.name})")
         finished_at = datetime.now(get_timezone())
         duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
@@ -509,6 +476,55 @@ def run_script_chop_once(
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
         pause_requested_fn=pause_requested_fn,
+        code_swap_writer_holder_fn=code_swap_writer_holder_fn,
+    )
+
+
+def _record_swap_deferral(
+    *,
+    lumberjack_name: str,
+    chop_name: str,
+    run_id: str,
+    started_at: datetime,
+    source: ChopRunSource,
+    started_by: str | None,
+    preflight: ChopPreflight,
+    reason: str,
+    chop_verbose: bool,
+) -> ChopRunOutcome:
+    """Record a job that a code swap kept from starting as an inhibited retry."""
+    finished_at = datetime.now(get_timezone())
+    duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
+    try:
+        write_chop_run(
+            ChopRunEntry(
+                run_id=run_id,
+                lumberjack_name=lumberjack_name,
+                chop_name=chop_name,
+                started_at=started_at.isoformat(),
+                finished_at=finished_at.isoformat(),
+                duration_ms=duration_ms,
+                status="skipped",
+                source=source,
+                started_by=started_by,
+                reason=reason,
+            ),
+            output=reason,
+        )
+    except OSError:
+        pass
+    record_checkpoint_best_effort(
+        lumberjack_name, chop_name, preflight, "action_failed"
+    )
+    return ChopRunOutcome(
+        lumberjack_name=lumberjack_name,
+        chop_name=chop_name,
+        status="skipped",
+        run_id=run_id,
+        reason=reason,
+        advances_cadence=False,
+        skip_reason="inhibited",
+        chop_verbose=chop_verbose,
     )
 
 

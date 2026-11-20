@@ -532,19 +532,33 @@ most relevant fields are `status`, `started_at`, `finished_at`, `duration_ms`,
 
 A run starts as `running`. Exit-code-only scripts end as `success`, `failure`,
 `timeout`, or `missing_script`. Policy rejections are `skipped`; structured healthy
-no-work and degraded probes are `no_op` and `check_error`. A script that is missing
-while a live code-swap writer (`sase dev update`, `just install`, `just install-dev`)
-holds the lock is recorded as `skipped` with a reason and retried after the swap,
-instead of `missing_script`. A result with accepted proposals moves to `launched`, then
-the housekeeping pass finalizes it as `action_succeeded` or `action_failed` from linked
-agent completion artifacts. `running` and `launched` are active states, so `finished_at`
-is `null` for both.
+no-work and degraded probes are `no_op` and `check_error`. A result with accepted
+proposals moves to `launched`, then the housekeeping pass finalizes it as
+`action_succeeded` or `action_failed` from linked agent completion artifacts. `running`
+and `launched` are active states, so `finished_at` is `null` for both.
 
 If a linked agent's process has stopped and its live `done.json` is absent, finalization
 looks for the top-level dismissed-agent archive entry with the same artifact timestamp.
 Workflow-child archive rows do not stand in for that top-level run. Only a `DONE`
 archive status counts as success; `FAILED`, `KILLED`, any other status, or a missing
 entry fails the action.
+
+A code swap (`sase dev update`, `just install`, `just install-dev`) deletes and
+recreates job scripts, Python modules, and the `sase_core_rs` binding while the
+scheduler keeps ticking. Jobs caught by one are recorded as `skipped` with a reason that
+names the swap. They retry on the next tick without advancing their cadence, and nothing
+reaches the error ring:
+
+- **During a swap.** No job starts while a live writer holds the
+  [code-swap lock](../integrations/plugins-update.md#the-code-swap-lock).
+- **Just after a swap.** A job script that is missing within 120 seconds of the last
+  swap's completion is treated as swap fallout. After that window it is
+  `missing_script`, as before.
+- **Overlapping a swap.** A run may die of SIGBUS (exit code `-7`) or with a swap-skew
+  import error such as `No module named 'sase_core_rs'` or `cannot import name`. It is
+  deferred if a writer was live when it exited, or if the last swap started before it
+  finished and completed after it started. The record keeps the exit code and output
+  excerpt. The same failure with no overlapping swap stays a `failure`.
 
 History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY`
 (10) terminal runs per job. Active `running` and `launched` entries are always kept

@@ -44,6 +44,10 @@ import _sase_install_ui as install_ui
 #: ``sase.dev_update.code_swap_lock.CODE_SWAP_LOCK_FILENAME``).
 LOCK_FILENAME = "code-swap-v2.lock"
 
+#: Filename of the last-swap stamp written on lock release (mirrors
+#: ``sase.dev_update.code_swap_stamp.CODE_SWAP_LAST_SWAP_FILENAME``).
+LAST_SWAP_FILENAME = "code-swap-last.json"
+
 #: How long the pipeline waits for the code-swap lock before giving up.
 LOCK_TIMEOUT_SECONDS = 120.0
 
@@ -113,13 +117,21 @@ class SwapLock:
 
     fd: int
     path: Path
+    op: str = ""
+    started_at: str = ""
     _released: bool = field(default=False, repr=False)
 
     def release(self) -> None:
-        """Clear the holder payload, unlock, and close the lock file."""
+        """Stamp the swap, clear the holder payload, unlock, and close."""
         if self._released:
             return
         self._released = True
+        if self.op:
+            record_last_swap(
+                self.path.with_name(LAST_SWAP_FILENAME),
+                op=self.op,
+                started_at=self.started_at,
+            )
         try:
             os.lseek(self.fd, 0, os.SEEK_SET)
             os.ftruncate(self.fd, 0)
@@ -144,6 +156,54 @@ class SwapLock:
 def lock_path_for(sase_home: str | Path) -> Path:
     """Return the code-swap lock path (mirrors ``sase``'s lock location)."""
     return Path(sase_home) / "locks" / LOCK_FILENAME
+
+
+def last_swap_path_for(sase_home: str | Path) -> Path:
+    """Return the last-swap stamp path (mirrors ``sase``'s stamp location)."""
+    return Path(sase_home) / "locks" / LAST_SWAP_FILENAME
+
+
+def record_last_swap(path: str | Path, *, op: str, started_at: str) -> None:
+    """Write the last-swap stamp atomically (mirrors ``record_last_code_swap``).
+
+    Best-effort: a stamp that cannot be written never blocks the release. The
+    generation increments the previous stamp's; a missing or corrupt stamp
+    restarts it at 1.
+    """
+    target = Path(path)
+    previous = 0
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+        candidate = raw.get("generation") if isinstance(raw, dict) else None
+        if isinstance(candidate, int) and not isinstance(candidate, bool):
+            previous = max(candidate, 0)
+    except (OSError, ValueError):
+        pass
+    payload = {
+        "op": op,
+        "pid": os.getpid(),
+        "started_at": started_at,
+        "completed_at": datetime.now(UTC).isoformat(),
+        "generation": previous + 1,
+    }
+    tmp_name: str | None = None
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent)
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True))
+        os.replace(tmp_name, target)
+        tmp_name = None
+    except OSError:
+        pass
+    finally:
+        if tmp_name is not None:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
 
 
 def holders_dir_for(sase_home: str | Path) -> Path:
@@ -335,8 +395,12 @@ def acquire_swap_lock(
             except OSError:
                 os.close(fd)
                 raise
-            _write_holder(fd, _holder_payload(op, command))
-            return SwapLock(fd=fd, path=path), None
+            holder = _holder_payload(op, command)
+            _write_holder(fd, holder)
+            return (
+                SwapLock(fd=fd, path=path, op=op, started_at=str(holder["started_at"])),
+                None,
+            )
     except BaseException:
         try:
             os.close(fd)
@@ -2129,12 +2193,14 @@ __all__ = [
     "format_holder",
     "holders_dir_for",
     "is_process_running",
+    "last_swap_path_for",
     "lock_path_for",
     "log_path_for",
     "managed_sase_exe",
     "missing_plugin_names",
     "quick_health_ok",
     "read_writer_holder",
+    "record_last_swap",
     "run_dev_pipeline",
     "run_pypi_pipeline",
     "scheduler_running",

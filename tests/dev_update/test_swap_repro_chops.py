@@ -2,10 +2,12 @@
 
 Every test drives the real chop runner (``run_configured_chop_once``) and a
 real job subprocess while the real code-swap writer lock is held on a sandbox
-lock file (see ``_swap_harness``). Modes that already behave are ordinary
-tests documenting existing coverage. Modes that still fail are strict xfails
-whose reason names the phase that flips them; ``raises=AssertionError`` keeps
-a broken harness from hiding behind an xfail.
+lock file (see ``_swap_harness``). The swap_chop_guards phase flipped every
+mode here from a strict xfail to a passing test: no job starts under a live
+writer, a script missing within the post-swap grace is a retry, and a run that
+overlapped a swap and died of SIGBUS or a swap-skew import error is a retry.
+The controls pin the other side: with no swap on record the same failures stay
+loud. Harness breakage raises ``HarnessError``, never ``AssertionError``.
 """
 
 from __future__ import annotations
@@ -35,12 +37,6 @@ from tests.dev_update._swap_harness import (
 )
 
 _MISSING_BINDING = "No module named 'sase_core_rs'"
-
-
-def _chop_guards(why: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(
-        strict=True, raises=AssertionError, reason=f"swap_chop_guards: {why}"
-    )
 
 
 @pytest.fixture
@@ -93,7 +89,6 @@ def test_script_vanishing_while_writer_is_live_is_an_inhibited_retry(
     assert "code swap" in outcome.reason
 
 
-@_chop_guards("a job must not start while a code-swap writer is live")
 def test_job_does_not_start_while_writer_is_live(sandbox: SwapSandbox) -> None:
     name = "sase_job_swaprepro_start"
     sandbox.write_job_script(name, "noop")
@@ -101,13 +96,13 @@ def test_job_does_not_start_while_writer_is_live(sandbox: SwapSandbox) -> None:
         outcome = ChopRun(sandbox, name).run_now()
 
     _assert_inhibited(outcome)
+    assert "did not start because a code swap is in progress" in (outcome.reason or "")
     assert not (sandbox.signals / "started").exists()
 
 
 # -- (b) a script is still missing just after the writer releases ---------
 
 
-@_chop_guards("a script missing within the post-swap grace is an inhibited retry")
 def test_script_missing_just_after_writer_releases_is_an_inhibited_retry(
     sandbox: SwapSandbox,
 ) -> None:
@@ -118,6 +113,7 @@ def test_script_missing_just_after_writer_releases_is_an_inhibited_retry(
     outcome = ChopRun(sandbox, name).run_now()
 
     _assert_inhibited(outcome)
+    assert "unavailable while a code swap settles" in (outcome.reason or "")
 
 
 def test_script_missing_with_no_swap_is_a_loud_missing_script(
@@ -138,7 +134,6 @@ def test_script_missing_with_no_swap_is_a_loud_missing_script(
     [True, False],
     ids=["writer-live-at-exit", "swap-completed-before-exit"],
 )
-@_chop_guards("a job that lost its binding to an overlapping swap is a retry")
 def test_job_losing_binding_mid_run_is_an_inhibited_retry(
     sandbox: SwapSandbox, writer_live_at_exit: bool
 ) -> None:
@@ -184,7 +179,6 @@ def test_job_missing_binding_without_a_swap_stays_a_failure(
 # -- SIGBUS: a mapped native file rewritten in place under a running job ----
 
 
-@_chop_guards("a SIGBUS exit that overlapped a swap is an inhibited retry")
 def test_job_sigbus_from_in_place_rewrite_during_swap_is_an_inhibited_retry(
     sandbox: SwapSandbox,
 ) -> None:
@@ -202,6 +196,8 @@ def test_job_sigbus_from_in_place_rewrite_during_swap_is_an_inhibited_retry(
     if "mapped v1" in _run_log(outcome):
         raise HarnessError("the job survived the truncation; SIGBUS did not reproduce")
     _assert_inhibited(outcome)
+    assert outcome.exit_code == -signal.SIGBUS
+    assert "SIGBUS" in (outcome.reason or "")
 
 
 def test_job_sigbus_without_a_swap_stays_a_failure(sandbox: SwapSandbox) -> None:

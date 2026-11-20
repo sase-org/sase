@@ -28,7 +28,9 @@ from .chop_runner_script_lifecycle import (
 from .chop_runner_script_result_launch import launch_accepted_script_chop_proposals
 from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
+from .chop_swap_guard import CodeSwapWriterProbe, overlapping_exit_reason
 from .config import ChopConfig
+from .state import append_chop_run_output
 
 
 class _ScriptResult(Protocol):
@@ -51,6 +53,7 @@ def process_script_chop_result(
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
     launch_agents_from_cwd_fn: Callable[..., Any] | None,
     pause_requested_fn: Callable[[], bool] | None = None,
+    code_swap_writer_holder_fn: CodeSwapWriterProbe | None = None,
 ) -> ChopRunOutcome:
     """Validate a script result, apply dedupe, and launch accepted proposals."""
     from .chop_runner_script_result_keys import release_unlaunched_once_per_keys
@@ -109,6 +112,27 @@ def process_script_chop_result(
             run_id=run_id,
             exit_code=result.returncode,
         )
+        swap_reason = overlapping_exit_reason(
+            chop_name=chop.name,
+            exit_code=result.returncode,
+            output=_diagnostic_output(subprocess_diagnostic),
+            started_at=started_at,
+            finished_at=datetime.now(started_at.tzinfo),
+            holder_fn=code_swap_writer_holder_fn,
+        )
+        if swap_reason is not None:
+            return _record_swap_overlap_retry(
+                lumberjack_name=lumberjack_name,
+                chop=chop,
+                run_id=run_id,
+                started_at=started_at,
+                result=result,
+                reason=swap_reason,
+                subprocess_diagnostic=subprocess_diagnostic,
+                dry_run=dry_run,
+                chop_verbose=chop_verbose,
+                preflight=preflight,
+            )
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -424,6 +448,65 @@ def process_script_chop_result(
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
         pause_requested_fn=pause_requested_fn,
+    )
+
+
+def _diagnostic_output(subprocess_diagnostic: dict[str, Any] | None) -> str | None:
+    if not isinstance(subprocess_diagnostic, dict):
+        return None
+    excerpt = subprocess_diagnostic.get("output_excerpt")
+    return excerpt if isinstance(excerpt, str) else None
+
+
+def _record_swap_overlap_retry(
+    *,
+    lumberjack_name: str,
+    chop: ChopConfig,
+    run_id: str,
+    started_at: datetime,
+    result: _ScriptResult,
+    reason: str,
+    subprocess_diagnostic: dict[str, Any] | None,
+    dry_run: bool,
+    chop_verbose: bool,
+    preflight: ChopPreflight,
+) -> ChopRunOutcome:
+    """Record a run killed by an overlapping code swap as an inhibited retry.
+
+    The exit code and output diagnostic stay on the run record for forensics,
+    but the run carries no error, so nothing reaches the error ring, and the
+    checkpoint sees a failed action so an on-success cursor is retried.
+    """
+    try:
+        append_chop_run_output(lumberjack_name, chop.name, run_id, f"\n{reason}\n")
+    except OSError:
+        pass
+    finalize_script_chop_run(
+        lumberjack_name=lumberjack_name,
+        chop_name=chop.name,
+        run_id=run_id,
+        started_at=started_at,
+        status="skipped",
+        exit_code=result.returncode,
+        subprocess_diagnostic=subprocess_diagnostic,
+        output_bytes=result.output_bytes,
+        dry_run=dry_run,
+        reason=reason,
+        preflight=preflight,
+        checkpoint_event="action_failed",
+    )
+    return ChopRunOutcome(
+        lumberjack_name=lumberjack_name,
+        chop_name=chop.name,
+        status="skipped",
+        run_id=run_id,
+        exit_code=result.returncode,
+        output_bytes=result.output_bytes,
+        dry_run=dry_run,
+        chop_verbose=chop_verbose,
+        reason=reason,
+        advances_cadence=False,
+        skip_reason="inhibited",
     )
 
 

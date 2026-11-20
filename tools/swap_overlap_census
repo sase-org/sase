@@ -40,7 +40,14 @@ SIGNATURES: dict[str, re.Pattern[str]] = {
     "missing_script": re.compile(r"Job script not found"),
     "cannot_import": re.compile(r"cannot import name"),
     "deferred_script": re.compile(r"unavailable while a code swap"),
+    "deferred_start": re.compile(r"did not start because a code swap"),
+    "deferred_exit": re.compile(r"after overlapping a code swap"),
 }
+
+#: Signatures a swap-deferred (``skipped``) run record can carry. Its retained
+#: exit code and output still show the SIGBUS or import error it deferred, so
+#: only its reason is scanned, and it counts as a deferral, not a failure.
+DEFERRAL_SIGNATURES = frozenset({"deferred_script", "deferred_start", "deferred_exit"})
 
 Event = tuple[str, datetime, str, str]  # (source, time, signature, label)
 Window = tuple[datetime, datetime, str]
@@ -135,6 +142,11 @@ def run_events(home: Path) -> Iterator[Event]:
             continue
         when = _parse_time(row.get("started_at"))
         if when is None:
+            continue
+        if row.get("status") == "skipped":
+            for signature in _signatures(str(row.get("reason") or "")):
+                if signature in DEFERRAL_SIGNATURES:
+                    yield ("runs", when, signature, str(row.get("chop_name") or "?"))
             continue
         diagnostic = row.get("subprocess_diagnostic")
         excerpt = (

@@ -189,8 +189,9 @@ reports per-root dev outcomes alongside the managed package outcomes.
 Fast-forwarding an editable checkout swaps the source tree out from under anything
 already importing from it. A process that has imported some modules and not yet imported
 others can end up mixing pre-swap and post-swap code. SASE guards that with an advisory
-lock at `~/.sase/locks/code-swap.lock`, with per-holder records under
-`~/.sase/locks/code-swap.holders/`. It has two kinds of holder, and the distinction
+lock at `~/.sase/locks/code-swap-v2.lock`, with per-holder records under
+`~/.sase/locks/code-swap.holders/`. Its writers are `sase update`'s editable swap,
+`just install`, and `just install-dev`. It has two kinds of reader, and the distinction
 matters:
 
 - **Blocking readers.** `sase bead work` takes a shared lock for its whole run. While it
@@ -231,6 +232,13 @@ package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirel
 the barrier and the warning). Direct readers still have one accepted residual race: one
 that starts while a swap is already underway can import torn modules before it reaches
 the lock. The guarded approved-epic path closes that race for its own launch.
+
+Every writer records `~/.sase/locks/code-swap-last.json` as it releases the lock, even
+when its swap failed. The record holds the writer's `op`, `started_at`, `completed_at`,
+and a `generation` that grows by one per swap. A missing or corrupt record reads as no
+recent swap. Scheduler jobs use it to
+[defer instead of fail](../automation/scheduler-jobs.md#job-run-history) when a swap
+overlaps them.
 
 ### Install mode switching
 
