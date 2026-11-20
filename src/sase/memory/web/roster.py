@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from sase.agents_sync.rendering_markdown import md_escape
 from sase.markdown_width import markdown_print_width
 from sase.markdown_wrap import wrap_markdown
@@ -18,6 +20,11 @@ from .supersession import (
 
 START_MARKER = "<!-- sase:strands -->"
 END_MARKER = "<!-- /sase:strands -->"
+
+#: Compile-time list-roster compaction styles. ``"superseded"`` renders
+#: superseded entries as one line with no summary; ``"all"`` renders every
+#: entry as number, title, and slug only. Inline rosters ignore compaction.
+RosterCompaction = Literal["superseded", "all"]
 
 
 def roster_region_error(body: str) -> str | None:
@@ -91,8 +98,39 @@ def _list_entry(
     return f"{prefix}\n{detail_lines}"
 
 
-def render_strand_roster(web: MemoryWeb) -> str:
-    """Render the managed roster payload for *web*."""
+def _compact_list_entry(
+    number: int, keyword: str, slug: str, marker: str | None, *, width: int
+) -> str:
+    entry = f"{number}. **{keyword}** (`{slug}`)"
+    if marker is not None:
+        entry = f"{entry} {marker}"
+    return wrap_markdown(entry, width=width)
+
+
+def _roster_compaction_note(web_slug: str, compaction: RosterCompaction) -> str:
+    """Return the one-line note ending a compacted list roster."""
+
+    omitted = (
+        "Summaries of superseded entries"
+        if compaction == "superseded"
+        else "Entry summaries"
+    )
+    return (
+        f"_{omitted} omitted to fit the provider budget; read one with "
+        f"`sase memory read {web_slug}:<keyword>`._"
+    )
+
+
+def render_strand_roster(
+    web: MemoryWeb, *, compaction: RosterCompaction | None = None
+) -> str:
+    """Render the managed roster payload for *web*.
+
+    *compaction* selects a compile-time compact list style (see
+    :data:`RosterCompaction`); it never reaches a descriptor on disk. A
+    compacted roster ends with a one-line omission note when at least
+    one entry was compacted, and is otherwise byte-identical to the default.
+    """
 
     strands = ordered_web_strands(web)
     if web.roster == "inline":
@@ -110,34 +148,61 @@ def render_strand_roster(web: MemoryWeb) -> str:
 
     width = markdown_print_width()
     lines: list[str] = []
+    compacted = False
     for number, strand in enumerate(strands, start=1):
         summary = strand.summary or ""
         supersession = parse_strand_supersession(strand)
-        if supersession is None:
-            detail = summary
-        else:
-            marker = format_roster_supersession_marker(supersession, web_slug=web.slug)
-            detail = f"{marker} {summary}"
+        marker = (
+            None
+            if supersession is None
+            else format_roster_supersession_marker(supersession, web_slug=web.slug)
+        )
+        if compaction == "all" or (
+            compaction == "superseded" and supersession is not None
+        ):
+            compacted = True
+            lines.append(
+                _compact_list_entry(
+                    number,
+                    strand.keyword,
+                    strand.slug,
+                    None if compaction == "all" else marker,
+                    width=width,
+                )
+            )
+            continue
+        detail = summary if marker is None else f"{marker} {summary}"
         lines.append(
             _list_entry(number, strand.keyword, strand.slug, detail, width=width)
         )
+    if compacted and compaction is not None:
+        lines.extend(("", _roster_compaction_note(web.slug, compaction)))
     return "\n".join(lines)
 
 
-def render_managed_roster_region(web: MemoryWeb) -> str:
+def render_managed_roster_region(
+    web: MemoryWeb, *, compaction: RosterCompaction | None = None
+) -> str:
     """Render the full managed roster region, including markers."""
 
-    return f"{START_MARKER}\n\n{render_strand_roster(web)}\n\n{END_MARKER}"
+    roster = render_strand_roster(web, compaction=compaction)
+    return f"{START_MARKER}\n\n{roster}\n\n{END_MARKER}"
 
 
-def render_web_body_with_roster(web: MemoryWeb) -> tuple[str | None, str | None]:
-    """Return the descriptor body with the managed roster inserted or replaced."""
+def render_web_body_with_roster(
+    web: MemoryWeb, *, compaction: RosterCompaction | None = None
+) -> tuple[str | None, str | None]:
+    """Return the descriptor body with the managed roster inserted or replaced.
+
+    *compaction* is the compile-time compact list style; descriptor writers
+    (:func:`render_web_descriptor_with_roster`) always use the default.
+    """
 
     marker_error = roster_region_error(web.body)
     if marker_error is not None:
         return None, marker_error
 
-    region = render_managed_roster_region(web)
+    region = render_managed_roster_region(web, compaction=compaction)
     start = web.body.find(START_MARKER)
     if start < 0:
         base = web.body.rstrip()
@@ -164,6 +229,7 @@ def render_web_descriptor_with_roster(web: MemoryWeb) -> tuple[str | None, str |
 __all__ = [
     "END_MARKER",
     "START_MARKER",
+    "RosterCompaction",
     "render_managed_roster_region",
     "render_strand_roster",
     "render_web_body_with_roster",

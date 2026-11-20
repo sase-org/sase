@@ -133,15 +133,20 @@ def reference_section(scope: str, unit: Any, root: Path) -> SectionBuilder:
     )
 
 
+def web_section_id(scope: str, stem: str) -> str:
+    """Return the section id for the *scope* memory web named *stem*."""
+    prefix = "home" if scope == "home" else "proj"
+    return f"{prefix}.web.{section_slug(stem)}"
+
+
 def web_section(scope: str, unit: Any, root: Path) -> SectionBuilder:
     """Return the included section for a memory-web unit."""
-    prefix = "home" if scope == "home" else "proj"
     sources = [_section_source_for_unit(scope, unit, root)]
     for strand in unit.strand_files:
         strand_path = Path(strand)
         sources.append(_unit_source(scope, "memory_strands", root, strand_path, ""))
     return SectionBuilder(
-        id=f"{prefix}.web.{section_slug(unit.stem)}",
+        id=web_section_id(scope, unit.stem),
         layer="home" if scope == "home" else "project",
         text=unit.block.strip("\n"),
         sources=sources,
@@ -193,4 +198,5 @@ __all__ = [
     "shadowed_section",
     "superseded_section",
     "web_section",
+    "web_section_id",
 ]

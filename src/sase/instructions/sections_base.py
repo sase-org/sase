@@ -39,6 +39,13 @@ class SectionBuilder:
     reason: str | None = None
     shadowed_by: str | None = None
     sources: list[dict[str, Any]] = field(default_factory=list)
+    #: ``{"step", "uncompacted_length"}`` when compile compacted this section.
+    compaction: dict[str, Any] | None = None
+
+
+def normalize_section_text(text: str) -> str:
+    """Return section bytes: stripped of trailing newlines plus two."""
+    return text.rstrip("\n") + "\n\n"
 
 
 def section_slug(text: str) -> str:
@@ -70,6 +77,8 @@ def section_wire_dict(section: SectionBuilder, *, offset: int | None) -> dict[st
             "tokens_est": tokens_estimate(section.text),
             "sources": section.sources,
         }
+        if section.compaction is not None:
+            wire["compaction"] = dict(section.compaction)
         return wire
     return {
         "id": section.id,
@@ -91,6 +100,7 @@ __all__ = [
     "HELPER_TEMPLATE_SOURCE_PATH",
     "PACKAGED_TEMPLATE_SOURCE_PATH",
     "SectionBuilder",
+    "normalize_section_text",
     "section_slug",
     "section_wire_dict",
     "tokens_estimate",

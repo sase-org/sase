@@ -24,6 +24,7 @@ from sase.amd.init import (
 from sase.memory.notes import GeneratedLongMemoryNote, GeneratedShortMemoryNote
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 from sase.memory.web import (
+    MemoryWeb,
     discover_memory_webs,
     render_web_body_with_roster,
     render_web_descriptor_with_roster,
@@ -91,6 +92,9 @@ class _MemoryWebRootPlan:
     web_note_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None
     blockers: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    #: Validated webs whose bodies fill ``web_note_bodies``; the instruction
+    #: compiler re-renders their list rosters when compacting a bundle.
+    webs: tuple[MemoryWeb, ...] = ()
 
 
 def _retired_note_paths(
@@ -322,6 +326,7 @@ def memory_web_root_plan(
         web_note_bodies=web_note_bodies,
         blockers=tuple(blockers),
         warnings=validation.warnings,
+        webs=tuple(discovery.webs),
     )
 
 

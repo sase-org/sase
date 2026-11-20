@@ -46,12 +46,21 @@ class CompiledBundle:
     store_path: str
     render_ms: float
     cache: str
+    #: ``bundle.compaction`` record when compile compacted to fit ``max_bytes``.
+    compaction: dict[str, Any] | None = None
 
 
 def _compile_uncached(
     facts: InstructionFacts, *, project_root: Path, home_root: Path
-) -> tuple[str, list[SectionBuilder]]:
-    """Compose bundle text and sections without touching the cache."""
+) -> tuple[str, list[SectionBuilder], list[Any]]:
+    """Compose bundle text and sections without touching the cache.
+
+    Also returns the :class:`~sase.instructions.compaction.CompactableWeb`
+    entries for every ``roster: list`` web, so a capped compile can re-render
+    their rosters without rediscovering memory.
+    """
+    from sase.instructions.compaction import CompactableWeb
+    from sase.instructions.sections_units import web_section_id
     from sase.amd._config import resolve_amd_h1_title
     from sase.amd.memory_units import (
         ContractInputs,
@@ -131,6 +140,7 @@ def _compile_uncached(
         if home_title_error is not None:
             raise InstructionCompileError(home_title_error)
 
+    compactable_webs: list[CompactableWeb] = []
     short_notes = generated_short_notes(template_body)
     # Generated project-only notes (sase_artifacts, sase_beads, sase_sizes) and
     # the generated task_types web belong to the project layer, mirroring
@@ -149,6 +159,7 @@ def _compile_uncached(
         entries: tuple[Any, ...],
         config_path: Path,
         *,
+        scope: str,
         include_project_memory: bool,
     ) -> MemoryRootUnits:
         try:
@@ -172,6 +183,15 @@ def _compile_uncached(
         )
         if web_plan.blockers:
             raise InstructionCompileError("; ".join(web_plan.blockers))
+        compactable_webs.extend(
+            CompactableWeb(
+                section_id=web_section_id(scope, Path(web.relative_path).stem),
+                relative_path=web.relative_path,
+                web=web,
+            )
+            for web in web_plan.webs
+            if web.roster == "list"
+        )
         excluded = retired_note_relative_paths(
             root, include_project_memory=include_project_memory
         )
@@ -197,6 +217,7 @@ def _compile_uncached(
         project_title,
         tuple(project_entries),
         project_config,
+        scope="project",
         include_project_memory=True,
     )
     if home_exists:
@@ -205,6 +226,7 @@ def _compile_uncached(
             home_title,
             tuple(home_entries),
             global_config,
+            scope="home",
             include_project_memory=False,
         )
     else:
@@ -220,7 +242,7 @@ def _compile_uncached(
             intros=project_units.intros,
         )
 
-    return assemble_sections(
+    bundle_text, builders = assemble_sections(
         facts,
         project_root=project_root,
         home_root=home_root,
@@ -232,6 +254,7 @@ def _compile_uncached(
         project_entries=tuple(project_entries),
         home_entries=tuple(home_entries),
     )
+    return bundle_text, builders, compactable_webs
 
 
 def compile_bundle(
@@ -240,6 +263,7 @@ def compile_bundle(
     project_root: Path | str,
     home_root: Path | str,
     use_cache: bool = True,
+    max_bytes: int | None = None,
 ) -> CompiledBundle:
     """Compile the instruction bundle for *facts* without side effects here.
 
@@ -248,6 +272,11 @@ def compile_bundle(
     the section table to the render cache (unless ``use_cache`` is false, in
     which case the cache is bypassed but the store is still filled). Writes
     nothing under either root.
+
+    ``max_bytes`` is the delivering provider's root-slot cap on the delivered
+    text. When the bundle would exceed it, the compaction ladder in
+    :mod:`sase.instructions.compaction` runs; a bundle that fits is
+    byte-identical to an uncapped compile.
     """
     parsed = facts if isinstance(facts, InstructionFacts) else parse_facts(facts)
     project_path = Path(project_root)
@@ -262,6 +291,7 @@ def compile_bundle(
         project=parsed.project,
         project_root=project_path,
         home_root=home_path,
+        max_bytes=max_bytes,
     )
     key = cache.compute_cache_key(key_inputs)
     if use_cache:
@@ -287,10 +317,25 @@ def compile_bundle(
                     store_path=str(store_path),
                     render_ms=render_ms,
                     cache="hit",
+                    compaction=(
+                        dict(entry["compaction"])
+                        if isinstance(entry.get("compaction"), dict)
+                        else None
+                    ),
                 )
-    bundle_text, builders = _compile_uncached(
+    bundle_text, builders, compactable_webs = _compile_uncached(
         parsed, project_root=project_path, home_root=home_path
     )
+    compaction: dict[str, Any] | None = None
+    if max_bytes is not None:
+        from sase.instructions.compaction import compact_sections
+
+        record = compact_sections(builders, compactable_webs, max_bytes=max_bytes)
+        if record is not None:
+            compaction = record.to_wire()
+            bundle_text = "".join(
+                builder.text for builder in builders if builder.text is not None
+            )
     digest = hashlib.sha256(bundle_text.encode("utf-8")).hexdigest()
     store_path = cache.write_store_blob(home_base, digest, bundle_text)
     wire_sections: list[dict[str, Any]] = []
@@ -325,6 +370,7 @@ def compile_bundle(
                 ),
                 "layers": layers,
                 "sections": wire_sections,
+                **({"compaction": compaction} if compaction is not None else {}),
             },
         )
     return CompiledBundle(
@@ -342,6 +388,7 @@ def compile_bundle(
         store_path=str(store_path),
         render_ms=render_ms,
         cache=cache_result,
+        compaction=compaction,
     )
 
 

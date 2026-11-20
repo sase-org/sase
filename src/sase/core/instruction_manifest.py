@@ -95,6 +95,10 @@ INSTRUCTION_MANIFEST_SUBAGENT_STATUSES = (
 #: Cache outcome vocabulary.
 INSTRUCTION_MANIFEST_CACHE_STATUSES = ("hit", "miss", "bypass")
 
+#: Ordered compile-time compaction ladder steps (``bundle.compaction.step``
+#: and ``sections[].compaction.step``).
+INSTRUCTION_MANIFEST_COMPACTION_STEPS = ("superseded_summaries", "list_rosters")
+
 #: Observation status vocabulary.
 INSTRUCTION_MANIFEST_OBSERVATION_STATUSES = (
     "unobserved",

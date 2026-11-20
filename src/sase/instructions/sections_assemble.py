@@ -23,6 +23,7 @@ from sase.instructions.sections_base import (
     HELPER_TEMPLATE_SOURCE_PATH,
     PACKAGED_TEMPLATE_SOURCE_PATH,
     SectionBuilder,
+    normalize_section_text,
 )
 from sase.instructions.sections_package import (
     repos_config_sources,
@@ -36,11 +37,6 @@ from sase.instructions.sections_units import (
     superseded_section,
     web_section,
 )
-
-
-def _normalize_section_text(text: str) -> str:
-    """Return section bytes: stripped of trailing newlines plus two."""
-    return text.rstrip("\n") + "\n\n"
 
 
 def _resolve_template_file(project_root: Path) -> Path | None:
@@ -310,7 +306,7 @@ def assemble_sections(
         included.append(frames["webs"])
     included.extend(webs)
     for section in included:
-        section.text = _normalize_section_text(section.text or "")
+        section.text = normalize_section_text(section.text or "")
     bundle_text = "".join(section.text or "" for section in included)
     wire_sections = list(included)
     wire_sections.extend(

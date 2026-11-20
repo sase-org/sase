@@ -220,6 +220,25 @@ def resolve_delivery_plan(provider: Any) -> DeliveryPlan:
     return parsed if parsed is not None else LEGACY_PLAN
 
 
+def provider_root_max_bytes(provider_name: str) -> int | None:
+    """Return registered *provider_name*'s explicit root-slot byte cap.
+
+    Resolves the provider's delivery plan the way a launch does, so flag
+    gating applies unchanged: a legacy, flag-disabled, uncapped, or unknown
+    provider returns ``None``. Never raises.
+    """
+    try:
+        from sase.llm_provider._registry_plugins import create_provider
+
+        provider = create_provider(provider_name)
+    except Exception:  # noqa: BLE001 - unknown providers carry no cap.
+        return None
+    plan = resolve_delivery_plan(provider)
+    if plan.root.status != "explicit":
+        return None
+    return plan.root.max_bytes
+
+
 def sase_owned_instruction_paths(cwd: str | Path | None = None) -> tuple[Path, ...]:
     """Return exact SASE-owned instruction file paths for native suppression.
 
@@ -487,6 +506,7 @@ __all__ = [
     "notify_instruction_fallback",
     "probe_provider_cli_version",
     "reset_instruction_delivery",
+    "provider_root_max_bytes",
     "resolve_delivery_plan",
     "root_bundle_is_valid",
     "sase_owned_instruction_paths",

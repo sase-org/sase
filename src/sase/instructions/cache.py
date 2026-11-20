@@ -80,6 +80,8 @@ class _CacheKeyInputs:
     files: tuple[tuple[str, str], ...]
     distributions: tuple[tuple[str, str], ...]
     code: tuple[tuple[str, str], ...]
+    #: Provider root-slot cap; ``None`` keeps uncapped keys unchanged.
+    max_bytes: int | None = None
 
 
 def instructions_home() -> Path:
@@ -297,6 +299,7 @@ def collect_key_inputs(
     project: str | None,
     project_root: Path,
     home_root: Path,
+    max_bytes: int | None = None,
 ) -> _CacheKeyInputs:
     """Enumerate every key input class for one render (no heavy imports)."""
     files: list[tuple[str, str]] = []
@@ -351,27 +354,35 @@ def collect_key_inputs(
         files=tuple(sorted(files)),
         distributions=_task_type_distributions(),
         code=_code_fingerprint(),
+        max_bytes=max_bytes,
     )
 
 
 def compute_cache_key(inputs: _CacheKeyInputs) -> str:
-    """Return the sha256 cache key for resolved *inputs*."""
-    canonical = json.dumps(
-        {
-            "cache_entry": CACHE_ENTRY_VERSION,
-            "code": [list(part) for part in inputs.code],
-            "compiler": inputs.compiler_version,
-            "directive": [inputs.directive_file, inputs.directive_sha256],
-            "dists": [list(part) for part in inputs.distributions],
-            "facts": {
-                "actor": inputs.actor,
-                "mode": inputs.mode,
-                "project": inputs.project or "",
-                "provider": inputs.provider,
-            },
-            "files": [list(part) for part in inputs.files],
-            "sase": inputs.sase_version,
+    """Return the sha256 cache key for resolved *inputs*.
+
+    A capped render hashes its ``max_bytes`` so a cached uncompacted bundle
+    is never served to a capped provider; uncapped keys omit it.
+    """
+    payload: dict[str, Any] = {
+        "cache_entry": CACHE_ENTRY_VERSION,
+        "code": [list(part) for part in inputs.code],
+        "compiler": inputs.compiler_version,
+        "directive": [inputs.directive_file, inputs.directive_sha256],
+        "dists": [list(part) for part in inputs.distributions],
+        "facts": {
+            "actor": inputs.actor,
+            "mode": inputs.mode,
+            "project": inputs.project or "",
+            "provider": inputs.provider,
         },
+        "files": [list(part) for part in inputs.files],
+        "sase": inputs.sase_version,
+    }
+    if inputs.max_bytes is not None:
+        payload["max_bytes"] = inputs.max_bytes
+    canonical = json.dumps(
+        payload,
         sort_keys=True,
         separators=(",", ":"),
     )

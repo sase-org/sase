@@ -353,7 +353,10 @@ def _prepare_delivery(
         project_root = _resolve_project_root()
         facts = default_facts(project_root, provider=raw_label, purpose=purpose)
         compiled = compile_bundle(
-            facts, project_root=project_root, home_root=Path.home()
+            facts,
+            project_root=project_root,
+            home_root=Path.home(),
+            max_bytes=(plan.root.max_bytes if plan.root.status == "explicit" else None),
         )
         invocation_id = str(uuid.uuid4())
         cli_version = probe_provider_cli_version(provider)

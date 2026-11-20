@@ -188,6 +188,15 @@ def _changed_section_ids(
     return changed
 
 
+def _root_max_bytes(facts: Any) -> int | None:
+    """Return the root-slot cap a launch of *facts* would compile against."""
+    if facts.actor != "sase_root" or facts.mode != "runtime":
+        return None
+    from sase.llm_provider.instruction_delivery import provider_root_max_bytes
+
+    return provider_root_max_bytes(facts.provider)
+
+
 def _run_instructions_render(args: argparse.Namespace) -> int:
     """Render the memory-built bundle preview and return the exit code."""
     import sys as _sys
@@ -212,16 +221,18 @@ def _run_instructions_render(args: argparse.Namespace) -> int:
         overrides = _parse_fact_overrides(list(getattr(args, "fact", []) or ()))
         merged = {**base_facts, **overrides}
         want_no_cache = bool(getattr(args, "no_cache", False))
+        parsed_facts = parse_facts(merged)
         compiled = compile_bundle(
-            merged,
+            parsed_facts,
             project_root=project_root,
             home_root=home_root,
             use_cache=not want_no_cache,
+            max_bytes=_root_max_bytes(parsed_facts),
         )
         rendered_at = datetime.now(tz=UTC).isoformat()
         manifest = build_manifest(
             compiled,
-            parse_facts(merged),
+            parsed_facts,
             preview_delivery(rendered_at=rendered_at),
         )
     except (_RenderError, InstructionFactsError) as exc:
@@ -242,6 +253,14 @@ def _run_instructions_render(args: argparse.Namespace) -> int:
         f"{compiled.render_ms:.1f}ms",
         file=_sys.stderr,
     )
+    if compiled.compaction is not None:
+        compaction = compiled.compaction
+        print(
+            f"compacted step={compaction['step']} "
+            f"uncompacted_bytes={compaction['uncompacted_bytes']} "
+            f"max_bytes={compaction['max_bytes']}",
+            file=_sys.stderr,
+        )
     if agent is not None:
         recorded_sha = ""
         if recorded is not None:
@@ -294,7 +313,12 @@ def render_sections_table(compiled: Any) -> None:
     table = Table("id", "layer", "status", "lifecycle", "bytes", "tokens_est", "source")
     for section in compiled.sections:
         if section["status"] == "included":
-            status = "included"
+            compaction = section.get("compaction")
+            status = (
+                f"compacted ({compaction.get('step')})"
+                if isinstance(compaction, dict)
+                else "included"
+            )
             size = str(section.get("length", 0))
             tokens = str(section.get("tokens_est", 0))
         else:

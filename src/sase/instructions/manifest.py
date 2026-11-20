@@ -106,6 +106,16 @@ def build_manifest(
     subagent = delivery.get("subagent")
     if subagent is not None:
         delivery_wire["subagent"] = subagent
+    bundle_wire: dict[str, Any] = {
+        "sha256": compiled.sha256,
+        "common_digest": None,
+        "bytes": compiled.total_bytes,
+        "lines": compiled.total_lines,
+        "tokens_est": compiled.tokens_est,
+        "store_path": compiled.store_path,
+    }
+    if compiled.compaction is not None:
+        bundle_wire["compaction"] = dict(compiled.compaction)
     manifest: dict[str, Any] = {
         "schema_version": INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION,
         "compiler": {
@@ -114,14 +124,7 @@ def build_manifest(
             "sase_version": str(sase_version),
         },
         "facts": parsed.to_dict(),
-        "bundle": {
-            "sha256": compiled.sha256,
-            "common_digest": None,
-            "bytes": compiled.total_bytes,
-            "lines": compiled.total_lines,
-            "tokens_est": compiled.tokens_est,
-            "store_path": compiled.store_path,
-        },
+        "bundle": bundle_wire,
         "budget": {
             "by_layer": {
                 layer: {
