@@ -6,7 +6,7 @@ import dataclasses
 import json
 import time
 
-from sase.agents_sync.publication_job import _publication_is_ready
+from sase.agents_sync._publication_job_shared import publication_is_ready
 from sase.agents_sync.publication_outbox import (
     PUBLICATION_OUTBOX_SCHEMA_VERSION,
     AgentPublicationOutboxItem,
@@ -182,16 +182,20 @@ def test_parked_due_checks_interval_rules_and_missing_metadata() -> None:
 def test_publication_is_ready_excludes_parked_until_due() -> None:
     now = time.time()
     parked = _parked_item(parked_checked_at=now - 10, parked_rules_version=2)
-    assert not _publication_is_ready(parked, now=now)
+    assert not publication_is_ready(parked, now=now)
     due = _parked_item(parked_checked_at=now - 7200, parked_rules_version=2)
-    assert _publication_is_ready(due, now=now)
+    assert publication_is_ready(due, now=now)
 
 
 def test_parked_only_project_does_not_ring_until_due(tmp_path, monkeypatch) -> None:
     from types import SimpleNamespace
     from pathlib import Path
 
-    from sase.agents_sync import publication_job
+    from sase.agents_sync import (
+        _publication_job_run as job_run,
+        _publication_job_shared as job_shared,
+        publication_job,
+    )
     from tests._conftest_environment import redirect_sase_home
 
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -204,7 +208,7 @@ def test_parked_only_project_does_not_ring_until_due(tmp_path, monkeypatch) -> N
         remote_url="https://example.invalid/agents.git",
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_args, **_kwargs: [
             SimpleNamespace(
@@ -215,23 +219,21 @@ def test_parked_only_project_does_not_ring_until_due(tmp_path, monkeypatch) -> N
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(targets=(target,), outcomes=()),
     )
     now = time.time()
     parked = _parked_item(parked_checked_at=now - 10, parked_rules_version=2)
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: (parked,))
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: (parked,)
-    )
-    monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )

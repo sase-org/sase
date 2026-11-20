@@ -7,7 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agents_sync import publication_job
+from sase.agents_sync import (
+    _publication_job_run as job_run,
+    publication_job,
+)
 from tests._conftest_environment import redirect_sase_home
 from tests.agents_sync._publication_job_helpers import (
     configure_single_project_job,
@@ -75,7 +78,7 @@ def test_publisher_converts_fenced_referenced_by_requests_without_sidecar_refres
     )
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )
@@ -168,7 +171,7 @@ def test_fenced_conversion_failure_quarantines_without_re_ring(
     )
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )

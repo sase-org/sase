@@ -12,7 +12,14 @@ from types import SimpleNamespace
 import pytest
 
 from sase.agents_sync import _commit_publication_queue as publication_queue
-from sase.agents_sync import publication_doorbell, publication_job, publication_standing
+from sase.agents_sync import (
+    _publication_job_drain as job_drain,
+    _publication_job_run as job_run,
+    _publication_job_shared as job_shared,
+    publication_doorbell,
+    publication_job,
+    publication_standing,
+)
 from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from sase.notifications.store import load_notifications
 from sase.agents_sync.git_sync_ops import bounded_agents_lock
@@ -39,12 +46,12 @@ def test_new_publication_waits_for_done_marker_or_ten_minute_grace(
         artifacts_dir=artifacts_dir,
     )
 
-    assert not publication_job._publication_is_ready(item, now=1_599)
-    assert publication_job._publication_is_ready(item, now=1_600)
+    assert not job_shared.publication_is_ready(item, now=1_599)
+    assert job_shared.publication_is_ready(item, now=1_600)
 
     artifacts_dir.mkdir()
     (artifacts_dir / "done.json").write_text("{}", encoding="utf-8")
-    assert publication_job._publication_is_ready(item, now=1_001)
+    assert job_shared.publication_is_ready(item, now=1_001)
 
 
 def test_publication_job_leaves_young_request_queued_until_done_marker(
@@ -63,10 +70,10 @@ def test_publication_job_leaves_young_request_queued_until_done_marker(
     )
     queue = [item]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
@@ -76,7 +83,7 @@ def test_publication_job_leaves_young_request_queued_until_done_marker(
         lambda *_args, **_kwargs: pytest.fail("young request must stay queued"),
     )
 
-    outcome = publication_job._drain_project(
+    outcome = job_drain.drain_project(
         publication_target(tmp_path),
         deadline=time.monotonic() + 10,
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
@@ -95,13 +102,11 @@ def test_busy_agents_lock_opens_standing_alert_without_ringing(
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
     queue = [item]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
+    monkeypatch.setattr(job_shared, "list_referenced_by_requests", lambda *_a, **_k: ())
     monkeypatch.setattr(
-        publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
-    )
-    monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_a, **_k: [
             SimpleNamespace(
@@ -111,13 +116,13 @@ def test_busy_agents_lock_opens_standing_alert_without_ringing(
     )
     target = publication_target(tmp_path)
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(targets=(target,), outcomes=()),
     )
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, hint=None: bells.append(key),
     )
@@ -165,11 +170,9 @@ def test_budget_defers_projects_without_starting_a_drain(
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: (item,))
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: (item,)
-    )
-    monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_a, **_k: [
             SimpleNamespace(
@@ -178,7 +181,7 @@ def test_budget_defers_projects_without_starting_a_drain(
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(
             targets=(publication_target(tmp_path),), outcomes=()
@@ -186,13 +189,13 @@ def test_budget_defers_projects_without_starting_a_drain(
     )
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, hint=None: bells.append(key),
     )
     monkeypatch.setattr(
-        publication_job,
-        "_drain_project",
+        job_run,
+        "drain_project",
         lambda *_a, **_k: pytest.fail("drain must not start after the budget expires"),
     )
 
@@ -206,7 +209,7 @@ def test_budget_defers_projects_without_starting_a_drain(
 def _hold_publication_locks(
     ready: multiprocessing.synchronize.Event, path: str
 ) -> None:
-    with publication_job._publisher_job_lock() as job_acquired:
+    with job_run._publisher_job_lock() as job_acquired:
         with bounded_agents_lock(Path(path), 2, operation="test-publisher") as acquired:
             if job_acquired and acquired:
                 ready.set()
@@ -237,7 +240,7 @@ def test_sigkilled_publisher_leaves_request_active_and_releases_locks(
         [remaining] = list_agent_publications("proj", include_quarantined=False)
         assert remaining.logical_key == ("alice.athena.worker", "a" * 40)
         assert remaining.attempts == 0
-        with publication_job._publisher_job_lock() as acquired:
+        with job_run._publisher_job_lock() as acquired:
             assert acquired
         with bounded_agents_lock(
             lock_path, 0.5, operation="test-reacquire"

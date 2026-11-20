@@ -7,7 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agents_sync import publication_job
+from sase.agents_sync import (
+    _publication_job_run as job_run,
+    _publication_job_shared as job_shared,
+    publication_job,
+)
 from sase.agents_sync.models import ProjectTarget, SyncOutcome
 from tests._conftest_environment import redirect_sase_home
 from tests.agents_sync._publication_job_helpers import publication_item
@@ -18,7 +22,7 @@ def _configure_missing_target_job(
     outcome: SyncOutcome,
 ) -> None:
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_args, **_kwargs: [
             SimpleNamespace(
@@ -29,7 +33,7 @@ def _configure_missing_target_job(
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(targets=(), outcomes=(outcome,)),
     )
@@ -54,14 +58,14 @@ def test_skipped_target_with_no_rows_is_silent_and_never_rings(
             skip_reason="agents sidecar is disabled or unavailable",
         ),
     )
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: ())
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: pytest.fail("a skipped target must never ring"),
     )
@@ -89,16 +93,14 @@ def test_skipped_target_with_queued_row_counts_one_error_and_stays_visible(
         ),
     )
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: (item,))
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: (item,)
-    )
-    monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: pytest.fail("a skipped target must never ring"),
     )
@@ -126,14 +128,14 @@ def test_error_outcome_is_counted_once_without_a_second_diagnostic(
         monkeypatch,
         SyncOutcome("proj", "Project", error="boom"),
     )
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: ())
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: pytest.fail("a missing target must never ring"),
     )
@@ -160,7 +162,7 @@ def test_sibling_project_with_valid_target_still_drains(
         remote_url="https://example.invalid/agents2.git",
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_args, **_kwargs: [
             SimpleNamespace(
@@ -176,7 +178,7 @@ def test_sibling_project_with_valid_target_still_drains(
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(
             targets=(target,),
@@ -189,14 +191,14 @@ def test_sibling_project_with_valid_target_still_drains(
             ),
         ),
     )
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: ())
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: pytest.fail("nothing here needs a ring"),
     )

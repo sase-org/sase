@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agents_sync import publication_job
+from sase.agents_sync import _publication_job_run as job_run
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 
@@ -49,7 +49,7 @@ def configure_single_project_job(
     target: ProjectTarget,
 ) -> None:
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_args, **_kwargs: [
             SimpleNamespace(
@@ -60,7 +60,7 @@ def configure_single_project_job(
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(targets=(target,), outcomes=()),
     )

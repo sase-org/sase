@@ -9,6 +9,9 @@ import pytest
 
 from sase.agents_sync import _commit_publication_queue as publication_queue
 from sase.agents_sync import (
+    _publication_job_drain as job_drain,
+    _publication_job_run as job_run,
+    _publication_job_shared as job_shared,
     publication_doorbell,
     publication_job,
     publication_standing,
@@ -26,14 +29,12 @@ from tests.agents_sync._publication_job_helpers import (
 
 def _freeze_clock(monkeypatch: pytest.MonkeyPatch, start: float = 1_000_000.0):
     clock = [start]
-    monkeypatch.setattr(publication_job.time, "time", lambda: clock[0])
+    monkeypatch.setattr(job_run.time, "time", lambda: clock[0])
     return clock
 
 
 def _quiet_refby(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
-    )
+    monkeypatch.setattr(job_shared, "list_referenced_by_requests", lambda *_a, **_k: ())
 
 
 def _run_one_project(
@@ -46,7 +47,7 @@ def _run_one_project(
     target = publication_target(tmp_path)
     configure_single_project_job(monkeypatch, target)
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue_items)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue_items)
     )
     _quiet_refby(monkeypatch)
     if drain is not None:
@@ -71,7 +72,7 @@ def test_twenty_ticks_of_one_failure_report_once_with_true_attempts(
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )
@@ -127,7 +128,7 @@ def test_backoff_skips_drain_and_doorbell_until_due(
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )
@@ -228,7 +229,7 @@ def test_clean_pass_clears_without_a_new_unread_row(
         publication_queue, "drain_selected_agent_publications", draining_drain
     )
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
 
     first = publication_job.run_publication_job(work_budget_seconds=10)
@@ -255,7 +256,7 @@ def test_escalates_once_after_24h_then_stays_silent(
     clock = _freeze_clock(monkeypatch)
     item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: None,
     )
@@ -289,7 +290,7 @@ def _selection_job(monkeypatch: pytest.MonkeyPatch, outcome: SyncOutcome) -> Non
     from types import SimpleNamespace
 
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_a, **_k: [
             SimpleNamespace(
@@ -299,14 +300,12 @@ def _selection_job(monkeypatch: pytest.MonkeyPatch, outcome: SyncOutcome) -> Non
     )
     target = publication_target(Path("/tmp/standing-kind"))
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys: SimpleNamespace(targets=(target,), outcomes=(outcome,)),
     )
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _k: ())
-    monkeypatch.setattr(
-        publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
-    )
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: ())
+    monkeypatch.setattr(job_shared, "list_referenced_by_requests", lambda *_a, **_k: ())
 
 
 @pytest.mark.parametrize(
@@ -332,7 +331,7 @@ def test_each_failure_kind_opens_its_own_standing_alert(
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     _freeze_clock(monkeypatch)
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: None,
     )
@@ -343,7 +342,7 @@ def test_each_failure_kind_opens_its_own_standing_alert(
         )
     elif scenario == "target_unavailable":
         monkeypatch.setattr(
-            publication_job,
+            job_run,
             "list_project_records",
             lambda *_a, **_k: [
                 SimpleNamespace(
@@ -352,7 +351,7 @@ def test_each_failure_kind_opens_its_own_standing_alert(
             ],
         )
         monkeypatch.setattr(
-            publication_job,
+            job_run,
             "resolve_sync_targets",
             lambda _keys: SimpleNamespace(
                 targets=(),
@@ -366,21 +365,19 @@ def test_each_failure_kind_opens_its_own_standing_alert(
             ),
         )
         item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
+        monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: (item,))
         monkeypatch.setattr(
-            publication_job, "active_agent_publications", lambda _k: (item,)
-        )
-        monkeypatch.setattr(
-            publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
+            job_shared, "list_referenced_by_requests", lambda *_a, **_k: ()
         )
     elif scenario == "heartbeat_write":
         target = publication_target(tmp_path)
         configure_single_project_job(monkeypatch, target)
-        monkeypatch.setattr(publication_job, "active_agent_publications", lambda _k: ())
+        monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: ())
         monkeypatch.setattr(
-            publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
+            job_shared, "list_referenced_by_requests", lambda *_a, **_k: ()
         )
         monkeypatch.setattr(
-            publication_job,
+            job_run,
             "write_publication_heartbeat",
             lambda _stats: (_ for _ in ()).throw(RuntimeError("disk full")),
         )
@@ -388,11 +385,9 @@ def test_each_failure_kind_opens_its_own_standing_alert(
         item = publication_item("alice.athena.worker", "a" * 40, created_at=1)
         target = publication_target(tmp_path)
         configure_single_project_job(monkeypatch, target)
+        monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: (item,))
         monkeypatch.setattr(
-            publication_job, "active_agent_publications", lambda _k: (item,)
-        )
-        monkeypatch.setattr(
-            publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
+            job_shared, "list_referenced_by_requests", lambda *_a, **_k: ()
         )
         if scenario == "drain_timeout":
 
@@ -422,9 +417,7 @@ def test_each_failure_kind_opens_its_own_standing_alert(
                 publication_queue, "drain_selected_agent_publications", drain
             )
         elif scenario == "artifact_link":
-            monkeypatch.setattr(
-                publication_job, "active_agent_publications", lambda _k: ()
-            )
+            monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: ())
             hint = {
                 "local_agent": "worker",
                 "global_agent": "alice.athena.worker",
@@ -434,7 +427,7 @@ def test_each_failure_kind_opens_its_own_standing_alert(
             }
             publication_doorbell.ring_publication_doorbell("proj", hint)
             monkeypatch.setattr(
-                publication_job,
+                job_drain,
                 "resolve_machine_artifact_link_store",
                 lambda *_a, **_k: object(),
             )
@@ -442,20 +435,14 @@ def test_each_failure_kind_opens_its_own_standing_alert(
             def drain_links(**_kwargs):
                 raise RuntimeError("link store unavailable")
 
-            monkeypatch.setattr(
-                publication_job, "drain_artifact_link_outbox", drain_links
-            )
+            monkeypatch.setattr(job_drain, "drain_artifact_link_outbox", drain_links)
         elif scenario == "referenced_by":
-            monkeypatch.setattr(
-                publication_job, "active_agent_publications", lambda _k: ()
-            )
+            monkeypatch.setattr(job_shared, "active_agent_publications", lambda _k: ())
 
             def refby_items(_key, **_kwargs):
                 return [object()]
 
-            monkeypatch.setattr(
-                publication_job, "list_referenced_by_requests", refby_items
-            )
+            monkeypatch.setattr(job_shared, "list_referenced_by_requests", refby_items)
             import sase.agents_sync.referenced_by_publication as refby_pub
 
             def drain_refby(_target, **_kwargs):

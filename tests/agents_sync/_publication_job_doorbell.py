@@ -9,7 +9,13 @@ from types import SimpleNamespace
 import pytest
 
 from sase.agents_sync import _commit_publication_queue as publication_queue
-from sase.agents_sync import publication_doorbell, publication_job
+from sase.agents_sync import (
+    _publication_job_drain as job_drain,
+    _publication_job_run as job_run,
+    _publication_job_shared as job_shared,
+    publication_doorbell,
+    publication_job,
+)
 from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from tests._conftest_environment import redirect_sase_home
 from tests.agents_sync._publication_job_helpers import (
@@ -98,10 +104,10 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
         publication_item("alice.athena.hinted", "b" * 40, created_at=2),
     ]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
     monkeypatch.setattr(
-        publication_job, "list_referenced_by_requests", lambda *_args, **_kwargs: ()
+        job_shared, "list_referenced_by_requests", lambda *_args, **_kwargs: ()
     )
     calls: list[tuple[tuple[str, str], ...]] = []
     hinted_key = ("alice.athena.hinted", "b" * 40)
@@ -119,7 +125,7 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
         "proj", publication_hint("alice.athena.hinted", "b" * 40)
     )
 
-    outcome = publication_job._drain_project(
+    outcome = job_drain.drain_project(
         publication_target(tmp_path),
         deadline=time.monotonic() + 10,
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
@@ -134,16 +140,16 @@ def test_item_error_does_not_starve_unhinted_ready_requests(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    monkeypatch.setattr(job_drain, "_HOOD_BATCH_LIMIT", 1)
     hinted = publication_item("alice.athena.hinted", "b" * 40, created_at=2)
     oldest = publication_item("alice.athena.oldest", "a" * 40, created_at=1)
     newer = publication_item("alice.athena.newer", "c" * 40, created_at=3)
     queue = [newer, hinted, oldest]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
@@ -165,7 +171,7 @@ def test_item_error_does_not_starve_unhinted_ready_requests(
         "proj", publication_hint("alice.athena.hinted", "b" * 40)
     )
 
-    outcome = publication_job._drain_project(
+    outcome = job_drain.drain_project(
         publication_target(tmp_path),
         deadline=time.monotonic() + 10,
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
@@ -181,15 +187,15 @@ def test_repository_failure_stops_and_retains_only_unattempted_hints(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    monkeypatch.setattr(job_drain, "_HOOD_BATCH_LIMIT", 1)
     first = publication_item("alice.athena.first", "a" * 40, created_at=1)
     second = publication_item("alice.athena.second", "b" * 40, created_at=2)
     queue = [first, second]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
@@ -211,7 +217,7 @@ def test_repository_failure_stops_and_retains_only_unattempted_hints(
         "proj", publication_hint("alice.athena.second", "b" * 40)
     )
 
-    outcome = publication_job._drain_project(
+    outcome = job_drain.drain_project(
         publication_target(tmp_path),
         deadline=time.monotonic() + 10,
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
@@ -255,20 +261,20 @@ def test_deadline_retains_unattempted_hinted_requests(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    monkeypatch.setattr(job_drain, "_HOOD_BATCH_LIMIT", 1)
     first = publication_item("alice.athena.first", "a" * 40, created_at=1)
     second = publication_item("alice.athena.second", "b" * 40, created_at=2)
     queue = [first, second]
     monkeypatch.setattr(
-        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+        job_shared, "active_agent_publications", lambda _key: tuple(queue)
     )
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
     now = [0.0]
-    monkeypatch.setattr(publication_job.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(job_drain.time, "monotonic", lambda: now[0])
     calls: list[tuple[str, str]] = []
 
     def drain_one(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
@@ -287,7 +293,7 @@ def test_deadline_retains_unattempted_hinted_requests(
         "proj", publication_hint("alice.athena.second", "b" * 40)
     )
 
-    outcome = publication_job._drain_project(
+    outcome = job_drain.drain_project(
         publication_target(tmp_path),
         deadline=5.0,
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
@@ -310,9 +316,9 @@ def test_retained_link_rows_finish_the_hint_without_ringing_again(
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     target = publication_target(tmp_path)
     configure_single_project_job(monkeypatch, target)
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: ())
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
@@ -321,17 +327,17 @@ def test_retained_link_rows_finish_the_hint_without_ringing_again(
     hint["link_outbox_agent_name"] = link_agent
     publication_doorbell.ring_publication_doorbell("proj", hint)
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda *_args, **_kwargs: pytest.fail("retained link rows must not re-ring"),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_drain,
         "resolve_machine_artifact_link_store",
         lambda *_args, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_drain,
         "drain_artifact_link_outbox",
         lambda **_kwargs: SimpleNamespace(
             drained=1,
@@ -358,9 +364,9 @@ def test_deferred_or_raised_link_drain_keeps_hint_and_rings_again(
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     target = publication_target(tmp_path)
     configure_single_project_job(monkeypatch, target)
-    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(job_shared, "active_agent_publications", lambda _key: ())
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "list_referenced_by_requests",
         lambda *_args, **_kwargs: (),
     )
@@ -370,12 +376,12 @@ def test_deferred_or_raised_link_drain_keeps_hint_and_rings_again(
     publication_doorbell.ring_publication_doorbell("proj", hint)
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, _hint=None: bells.append(key),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_drain,
         "resolve_machine_artifact_link_store",
         lambda *_args, **_kwargs: object(),
     )
@@ -385,7 +391,7 @@ def test_deferred_or_raised_link_drain_keeps_hint_and_rings_again(
             raise RuntimeError("link store unavailable")
         return SimpleNamespace(drained=0, selected_retained=0, deferred=True)
 
-    monkeypatch.setattr(publication_job, "drain_artifact_link_outbox", drain_links)
+    monkeypatch.setattr(job_drain, "drain_artifact_link_outbox", drain_links)
 
     summary = publication_job.run_publication_job(work_budget_seconds=10)
 

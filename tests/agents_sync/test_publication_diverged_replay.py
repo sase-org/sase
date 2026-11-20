@@ -7,7 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agents_sync import git_sync, publication_job
+from sase.agents_sync import (
+    _publication_job_run as job_run,
+    _publication_job_shared as job_shared,
+    git_sync,
+    publication_job,
+)
 from sase.agents_sync.git import run_git
 from sase.agents_sync.publication_diverged_replay import (
     PUBLICATION_REBASE_FAILURE_STAGE,
@@ -117,7 +122,7 @@ def test_owner_content_conflict_is_parked_not_retried_and_notifies_once(
 
     bells: list[str] = []
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "list_project_records",
         lambda *_args, **_kwargs: [
             SimpleNamespace(
@@ -126,20 +131,18 @@ def test_owner_content_conflict_is_parked_not_retried_and_notifies_once(
         ],
     )
     monkeypatch.setattr(
-        publication_job,
+        job_run,
         "resolve_sync_targets",
         lambda _keys, **_kwargs: SimpleNamespace(targets=(sync_target,), outcomes=()),
     )
     monkeypatch.setattr(
-        publication_job,
+        job_shared,
         "active_agent_publications",
         lambda _key: (publication_item("alice.athena.worker", "a" * 40, created_at=1),),
     )
+    monkeypatch.setattr(job_shared, "list_referenced_by_requests", lambda *_a, **_k: ())
     monkeypatch.setattr(
-        publication_job, "list_referenced_by_requests", lambda *_a, **_k: ()
-    )
-    monkeypatch.setattr(
-        publication_job,
+        job_run,
         "ring_publication_doorbell",
         lambda key, hint=None: bells.append(key),
     )
