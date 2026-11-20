@@ -14,7 +14,7 @@ from sase.bead.flag_fields import flag_fields, is_flag_task_bead
 from sase.bead.model import Issue, IssueType, Status
 from sase.core import bead_read_facade as rust_beads
 
-STATE_SCHEMA_VERSION = 3
+STATE_SCHEMA_VERSION = 4
 
 _GATEABLE_STORE_STATUSES = (Status.OPEN, Status.READY, Status.SNOOZED)
 _GATEABLE_TASK_STATUSES = (Status.READY, Status.SNOOZED)
@@ -26,6 +26,7 @@ class ProjectState:
     generations: dict[str, int] = field(default_factory=dict)
     fingerprints: dict[str, str] = field(default_factory=dict)
     kinds: dict[str, str] = field(default_factory=dict)
+    dismissed: dict[str, str] = field(default_factory=dict)
 
 
 def read_state(
@@ -95,12 +96,25 @@ def read_state(
             if isinstance(raw_kinds, dict)
             else {}
         )
-        if gates or generations or fingerprints:
+        raw_dismissed = raw_project.get("dismissed")
+        dismissed = (
+            {
+                bead_id: kind
+                for bead_id, kind in raw_dismissed.items()
+                if isinstance(bead_id, str)
+                and isinstance(kind, str)
+                and kind in gate_kinds
+            }
+            if isinstance(raw_dismissed, dict)
+            else {}
+        )
+        if gates or generations or fingerprints or dismissed:
             projects[project_name] = ProjectState(
                 gates=gates,
                 generations=generations,
                 fingerprints=fingerprints,
                 kinds=kinds,
+                dismissed=dismissed,
             )
     return projects
 
@@ -115,9 +129,13 @@ def write_state(path: Path, projects: dict[str, ProjectState]) -> None:
                 "generations": dict(sorted(project.generations.items())),
                 "fingerprints": dict(sorted(project.fingerprints.items())),
                 "kinds": dict(sorted(project.kinds.items())),
+                "dismissed": dict(sorted(project.dismissed.items())),
             }
             for project_name, project in sorted(projects.items())
-            if project.gates or project.generations or project.fingerprints
+            if project.gates
+            or project.generations
+            or project.fingerprints
+            or project.dismissed
         },
     }
     fd, temporary_path = tempfile.mkstemp(

@@ -16,10 +16,16 @@ from sase.bead.model import Issue, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND
 from sase.bead.task_gate import TASK_TRIAGE_KIND
 from sase.core.time import get_timezone
-from sase.notification_gates.durability import read_json_object
+from sase.notification_gates.durability import file_lock, read_json_object
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.models import GateError
-from sase.notification_gates.paths import bundle_paths
+from sase.notification_gates.paths import (
+    CANCELLATION_FILENAME,
+    RESPONSE_FILENAME,
+    assert_owned_bundle,
+    bundle_paths,
+    interaction_requests_dir,
+)
 from sase.notification_gates.poller import poll_gate
 
 GateState = Literal["pending", "terminal", "missing"]
@@ -229,11 +235,17 @@ def _parse_instant(value: str | None) -> datetime | None:
 
 @dataclass
 class NotificationIndex:
-    """The snooze state and presented gate of every live row, read at most once."""
+    """The snooze and dismissal state of every row, read at most once.
 
-    _rows: dict[str, tuple[bool, str | None, str | None]] | None = None
+    Dismissed rows are included so orphan reconciliation can see a user
+    dismissal: the store read uses ``include_dismissed=True``.
+    """
 
-    def _row(self, notification_id: str) -> tuple[bool, str | None, str | None] | None:
+    _rows: dict[str, tuple[bool, str | None, str | None, bool]] | None = None
+
+    def _row(
+        self, notification_id: str
+    ) -> tuple[bool, str | None, str | None, bool] | None:
         if self._rows is None:
             from sase.notifications.store import load_notifications
 
@@ -242,8 +254,9 @@ class NotificationIndex:
                     notification.muted,
                     notification.snooze_until,
                     notification.action_data.get("request_id"),
+                    notification.dismissed,
                 )
-                for notification in load_notifications()
+                for notification in load_notifications(include_dismissed=True)
             }
         return self._rows.get(notification_id)
 
@@ -255,6 +268,15 @@ class NotificationIndex:
         """Return the gate request a live row currently presents, if any."""
         row = self._row(notification_id)
         return None if row is None else row[2]
+
+    def is_dismissed(self, notification_id: str) -> bool | None:
+        """Return dismissal state, or ``None`` when the row is gone.
+
+        A missing row means the notification was archived or deleted, which
+        is not a user dismissal: callers treat ``None`` as not dismissed.
+        """
+        row = self._row(notification_id)
+        return None if row is None else bool(row[3])
 
     def forget(self, notification_id: str) -> None:
         """Drop one row so a later pass re-reads what this chop just wrote."""
@@ -379,3 +401,89 @@ def create_gate(
     if issue.snooze is None:
         raise ValueError(f"snoozed task {bead_id} has no snooze record")
     return snooze_gate_factory(snooze=issue.snooze, **common)
+
+
+def reap_settled_bundles(
+    kinds: tuple[str, ...],
+    *,
+    retention_days: int,
+    cap: int,
+    now: float | None = None,
+) -> tuple[int, bool]:
+    """Delete settled automation-owned bundles older than the horizon.
+
+    Only bundles with ``response.json`` or ``cancellation.json`` whose newest
+    settlement mtime is at least ``retention_days`` old are removed. Pending
+    bundles are always kept. Deletion is root-confined without following
+    symlinks (via :func:`assert_owned_bundle`) and runs under the bundle's
+    creation lock, so a concurrent creation retry cannot interleave. At most
+    ``cap`` bundles are removed per call; the second return value reports
+    whether the cap stopped the sweep early.
+
+    sase-core's stats readers (``agent_stats/gate_bundles.rs``) only scan
+    ``plan``, ``epic_plan``, and ``question`` bundles, so reaping triage,
+    snooze, and flag bundles does not change those aggregates.
+    """
+    import shutil
+    import time
+
+    current = time.time() if now is None else now
+    cutoff = current - max(1, int(retention_days)) * 86400.0
+    reaped = 0
+    capped = False
+    for kind in sorted(set(kinds)):
+        if reaped >= cap:
+            capped = True
+            break
+        try:
+            kind_dir = interaction_requests_dir() / kind
+            entries = sorted(kind_dir.iterdir(), key=lambda path: path.name)
+        except OSError:
+            continue
+        for bundle_dir in entries:
+            if reaped >= cap:
+                capped = True
+                break
+            if not bundle_dir.is_dir() or bundle_dir.is_symlink():
+                continue
+            request_id = bundle_dir.name
+            try:
+                paths = bundle_paths(kind, request_id)
+            except GateError:
+                continue
+            try:
+                owned = assert_owned_bundle(paths.root)
+            except GateError:
+                continue
+            if owned != paths.root.expanduser().resolve(strict=False):
+                continue
+            stamps: list[float] = []
+            for name in (RESPONSE_FILENAME, CANCELLATION_FILENAME):
+                try:
+                    stamps.append((paths.root / name).stat().st_mtime)
+                except OSError:
+                    continue
+            if not stamps:
+                continue
+            if max(stamps) >= cutoff:
+                continue
+            lock_path = (
+                interaction_requests_dir() / ".locks" / kind / f"{request_id}.lock"
+            )
+            try:
+                with file_lock(lock_path, timeout=5.0):
+                    fresh: list[float] = []
+                    for name in (RESPONSE_FILENAME, CANCELLATION_FILENAME):
+                        try:
+                            fresh.append((paths.root / name).stat().st_mtime)
+                        except OSError:
+                            continue
+                    if not fresh or max(fresh) >= cutoff:
+                        continue
+                    if not paths.root.is_dir() or paths.root.is_symlink():
+                        continue
+                    shutil.rmtree(paths.root)
+            except (GateError, OSError):
+                continue
+            reaped += 1
+    return reaped, capped

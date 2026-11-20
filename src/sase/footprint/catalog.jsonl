@@ -1,4 +1,4 @@
-{"count": 3713, "rev": "77f5291f8808", "schema": "sase.footprint.catalog/1"}
+{"count": 3715, "rev": "f7610e9842c4", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2753,6 +2753,8 @@
 {"area": "config.bead", "id": "config:bead.push_after_commit", "kind": "config", "label": "Push after commit", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.bead", "id": "config:bead.show.images", "kind": "config", "label": "Images", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.bead", "id": "config:bead.task_triage.min_plus_ones", "kind": "config", "label": "Min plus ones", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.bead", "id": "config:bead.task_triage.settled_bundle_reap_cap", "kind": "config", "label": "Settled bundle reap cap", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.bead", "id": "config:bead.task_triage.settled_bundle_retention_days", "kind": "config", "label": "Settled bundle retention days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.bead", "id": "config:bead.task_triage.stale_after_days", "kind": "config", "label": "Stale after days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.bead", "id": "config:bead.task_triage.stale_cleanup_min_beads", "kind": "config", "label": "Stale cleanup min beads", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.chat_install", "id": "config:chat_install.restart_attempts", "kind": "config", "label": "Restart attempts", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

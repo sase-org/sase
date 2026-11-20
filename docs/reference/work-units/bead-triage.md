@@ -352,6 +352,16 @@ the row unread, and a dismissal or notification snooze survives it. A new unread
 appears only when the gate kind changes (a snooze or a wake) or the bead re-enters
 `ready`.
 
+Dismissing a pending triage, snooze, or flag gate's notification cancels that gate with
+reason `notification_dismissed` instead of refreshing it. The cancellation sticks: the
+chop records the bead and does not raise a new gate for it until the gate kind changes
+or the bead leaves and re-enters a gateable state. A dismissal never undismisses a row.
+Settled triage, snooze, and flag bundles older than
+[`bead.task_triage.settled_bundle_retention_days`](../config/automation-behavior.md#bead)
+(default 30 days, by settlement time) are reaped under the bundle creation lock, up to
+[`bead.task_triage.settled_bundle_reap_cap`](../config/automation-behavior.md#bead) per
+pass. Pending bundles are always kept; other gate kinds are only counted.
+
 The hourly `bead_stale_cleanup` job is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once
 at least

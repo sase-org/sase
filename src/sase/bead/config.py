@@ -14,6 +14,8 @@ DEFAULT_BIG_EPIC_PHASE_THRESHOLD = 5
 DEFAULT_TASK_TRIAGE_MIN_PLUS_ONES = 1
 DEFAULT_TASK_TRIAGE_STALE_AFTER_DAYS = 7
 DEFAULT_TASK_TRIAGE_STALE_CLEANUP_MIN_BEADS = 10
+DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_RETENTION_DAYS = 30
+DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_REAP_CAP = 100
 
 
 def get_big_epic_phase_threshold() -> int:
@@ -282,6 +284,35 @@ def get_task_triage_stale_cleanup_min_beads() -> int:
     )
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         return DEFAULT_TASK_TRIAGE_STALE_CLEANUP_MIN_BEADS
+    return value
+
+
+def get_task_triage_settled_bundle_retention_days() -> int:
+    """Return the age, in days, after which a settled triage bundle is reaped.
+
+    Missing or malformed values fall back to the shipped default. Booleans are
+    rejected explicitly because ``bool`` is a subclass of ``int`` in Python.
+    """
+    value = _task_triage_config().get(
+        "settled_bundle_retention_days",
+        DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_RETENTION_DAYS,
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_RETENTION_DAYS
+    return value
+
+
+def get_task_triage_settled_bundle_reap_cap() -> int:
+    """Return the per-pass cap on settled triage bundles the reaper removes.
+
+    Missing or malformed values fall back to the shipped default. Booleans are
+    rejected explicitly because ``bool`` is a subclass of ``int`` in Python.
+    """
+    value = _task_triage_config().get(
+        "settled_bundle_reap_cap", DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_REAP_CAP
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_TASK_TRIAGE_SETTLED_BUNDLE_REAP_CAP
     return value
 
 

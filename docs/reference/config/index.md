@@ -21,7 +21,7 @@ Exact configuration keys generated from the schema and bundled defaults.
 | [Agents and runners](agents.md)                     | Agent launch, completion, capacity, restart, and process-scope settings.                 | 59           |
 | [Repositories and version control](repositories.md) | Repository relationships, VCS providers, dispatch, commits, and workspace configuration. | 242          |
 | [Prompts and tools](prompts.md)                     | Macros, named tools, plugins, hooks, and mentor selection.                               | 110          |
-| [Automation and work tracking](automation.md)       | Beads, goals, gates, SDD, and related automation policy.                                 | 71           |
+| [Automation and work tracking](automation.md)       | Beads, goals, gates, SDD, and related automation policy.                                 | 73           |
 | [Runtime and stored data](runtime.md)               | Process history, service hosting, artifacts, disk use, and reading surfaces.             | 106          |
 | [Integrations and telemetry](integrations.md)       | Chat, mobile access, and local telemetry settings.                                       | 53           |
 

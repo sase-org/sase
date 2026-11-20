@@ -38,6 +38,17 @@ cancelled without settling that row. When sase's TUI opens the notification moda
 also repairs live gate rows whose bundles became terminal without a corresponding
 dismissal.
 
+Dismissing a pending task-triage, bead-snooze, or flag-triage notification cancels the
+gate with reason `notification_dismissed` on the next `bead_task_triage` pass. The chop
+does not recreate the gate for that bead until the gate kind changes or the bead leaves
+and re-enters a gateable state, and a dismissal never undismisses a row. Settled bundles
+of those kinds older than `bead.task_triage.settled_bundle_retention_days` (default 30
+days, by `response.json`/`cancellation.json` mtime) are deleted root-confined under the
+bundle creation lock, up to `bead.task_triage.settled_bundle_reap_cap` per pass. Pending
+bundles are always kept. Other gate kinds are counted but never cancelled or reaped
+here. Reaping triage bundles does not change `agent_stats` aggregates, which only scan
+`plan`, `epic_plan`, and `question` bundles.
+
 sase's TUI, Telegram, and mobile derive gate-kind capabilities from the shared adapter
 registry and render branches in query order from the same normalized envelope structure.
 Registering a new branch-actionable kind therefore makes it actionable on every surface

@@ -209,7 +209,11 @@ def _patch_notification_store(
 ) -> None:
     import sase.notifications.store as notification_store
 
-    monkeypatch.setattr(notification_store, "load_notifications", lambda: list(rows))
+    monkeypatch.setattr(
+        notification_store,
+        "load_notifications",
+        lambda *args, **kwargs: list(rows),
+    )
     monkeypatch.setattr(
         notification_store,
         "mark_snoozed",
@@ -364,6 +368,12 @@ def test_a_pending_triage_gate_never_touches_the_notification_store(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """A current pending triage gate skips recreation with one dismissal check.
+
+    gate_reconcile checks the gate's notification dismissal before the
+    fingerprint shortcut, so the hot path performs one lazy dismissal lookup
+    and no recreation. The lookup must find no dismissal here.
+    """
     task = make_task()
     patch_project(monkeypatch, tmp_path, [task])
     request_id = task_triage._request_id(
@@ -381,11 +391,7 @@ def test_a_pending_triage_gate_never_touches_the_notification_store(
         },
     )
     monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
-    monkeypatch.setattr(
-        task_triage,
-        "_gate_notification_id",
-        lambda *_args: pytest.fail("a triage gate read the notification store"),
-    )
+    monkeypatch.setattr(task_triage, "_gate_notification_id", lambda _kind, _id: None)
 
     result = task_triage._run(make_runtime(tmp_path))
 

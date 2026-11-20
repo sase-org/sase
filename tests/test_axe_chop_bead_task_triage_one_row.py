@@ -99,6 +99,13 @@ def test_rendered_changes_refresh_one_row_in_place(
 def test_a_user_dismissal_survives_a_rerender(
     gate_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A dismissed pending triage gate is cancelled, not re-presented.
+
+    gate_reconcile: the dismissal sticks. The next pass cancels the pending
+    gate with ``notification_dismissed`` and does not recreate it, so the
+    row stays dismissed on its original generation. A dismissal never
+    undismisses the row.
+    """
     task = make_task(_BEAD)
     patch_project(monkeypatch, gate_home, [task])
     _run(gate_home)
@@ -106,12 +113,22 @@ def test_a_user_dismissal_survives_a_rerender(
     mark_dismissed(first.id)
 
     _add_plus_one(task, "Still failing.")
-    _run(gate_home)
+    result = _run(gate_home)
 
+    assert result.counters["canceled"] == 1
     (row,) = _rows()
     assert row.id == first.id
     assert row.dismissed is True
-    assert row.action_data["request_id"] == _request_id(2)
+    assert row.action_data["request_id"] == _request_id(1)
+    assert _cancel_reason(_request_id(1)) == "notification_dismissed"
+    # Sticky: a further pass still does not recreate while the bead stays ready.
+    _add_plus_one(task, "Still failing again.")
+    again = _run(gate_home)
+    assert again.counters.get("gated", 0) == 0
+    (row,) = _rows()
+    assert row.id == first.id
+    assert row.dismissed is True
+    assert row.action_data["request_id"] == _request_id(1)
 
 
 def test_a_kind_change_raises_a_new_row(

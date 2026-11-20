@@ -2277,6 +2277,13 @@ bead:
     # Stale beads required before bead_stale_cleanup raises its gate. Below
     # this count the job does nothing.
     stale_cleanup_min_beads: 10
+    # Days a settled task-triage or bead-snooze bundle is kept before the
+    # bead_task_triage chop reaps it. Uses the bundle's settlement time
+    # (response.json or cancellation.json mtime). Flag-triage bundles share
+    # the same horizon.
+    settled_bundle_retention_days: 30
+    # Maximum settled bundles the bead_task_triage chop removes per pass.
+    settled_bundle_reap_cap: 100
   # Controls the post-commit `git push` after `sase bead work` successfully
   # commits the sdd/beads bead-state mutation (canonical events plus
   # compatibility projections). Accepts:
