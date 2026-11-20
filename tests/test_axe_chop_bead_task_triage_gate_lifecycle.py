@@ -10,6 +10,7 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.bead.gate_lookup import _PendingBeadGate
+from sase.notification_gates.models import GateError
 
 from tests._axe_chop_bead_task_triage_helpers import (
     _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
@@ -187,6 +188,104 @@ def test_terminal_gate_for_still_ready_task_is_regenerated(
     }
     assert created[0].endswith("-g1")
     assert created[1].endswith("-g2")
+
+
+def test_request_id_conflict_cancels_stale_gate_and_retries_updated_spec(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ready = [make_task()]
+    patch_project(monkeypatch, tmp_path, ready)
+    attempts: list[tuple[str, str]] = []
+    canceled: list[tuple[str, str, str]] = []
+
+    def create_gate(
+        _kind: str,
+        *,
+        request_id: str,
+        issue: Any,
+        **_kwargs: Any,
+    ) -> None:
+        attempts.append((request_id, issue.title))
+        if len(attempts) == 1:
+            issue.title = "Updated cache invalidation follow-up"
+            raise GateError(
+                "request_id_conflict",
+                request_id,
+                "request id already belongs to a different gate specification",
+            )
+
+    monkeypatch.setattr(task_triage, "_create_gate", create_gate)
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda kind, request_id, *, reason: (
+            canceled.append((kind, request_id, reason)) or True
+        ),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters["gated"] == 1
+    assert attempts[0][0].endswith("-g1")
+    assert attempts[1][0].endswith("-g2")
+    assert attempts[0][1] == "Follow up on cache invalidation"
+    assert attempts[1][1] == "Updated cache invalidation follow-up"
+    assert canceled == [
+        (task_triage.TASK_TRIAGE_KIND, attempts[0][0], "request_id_conflict")
+    ]
+    state = task_triage._read_state(tmp_path / task_triage._STATE_FILENAME)
+    assert state["sase"].gates["sase-task.1"] == attempts[1][0]
+    assert state["sase"].generations["sase-task.1"] == 2
+
+
+def test_non_conflict_create_failure_keeps_deterministic_request_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()])
+    attempted: list[str] = []
+
+    def fail_create(_kind: str, *, request_id: str, **_kwargs: Any) -> None:
+        attempted.append(request_id)
+        raise OSError("temporary gate store failure")
+
+    monkeypatch.setattr(task_triage, "_create_gate", fail_create)
+
+    task_triage._run(make_runtime(tmp_path))
+    task_triage._run(make_runtime(tmp_path))
+
+    assert len(attempted) == 2
+    assert attempted[0] == attempted[1]
+    assert attempted[0].endswith("-g1")
+
+
+def test_repeated_request_id_conflicts_advance_once_and_persist_for_next_pass(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()])
+    attempted: list[str] = []
+
+    def conflict(_kind: str, *, request_id: str, **_kwargs: Any) -> None:
+        attempted.append(request_id)
+        raise GateError("request_id_conflict", request_id, "conflict")
+
+    monkeypatch.setattr(task_triage, "_create_gate", conflict)
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda *_args, **_kwargs: False,
+    )
+
+    task_triage._run(make_runtime(tmp_path))
+
+    assert [request_id.rsplit("-g", maxsplit=1)[1] for request_id in attempted] == [
+        "1",
+        "2",
+    ]
+    state = task_triage._read_state(tmp_path / task_triage._STATE_FILENAME)
+    assert state["sase"].generations["sase-task.1"] == 2
 
 
 def test_pending_gate_produced_by_chop_but_missing_from_state_is_canceled(

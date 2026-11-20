@@ -36,6 +36,7 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import time as core_time
 from sase.notification_gates.durability import file_lock
+from sase.notification_gates.models import GateError
 from sase.scripts._chop_incremental_index import chop_scan_full_walk
 from sase.scripts._bead_task_triage_gates import (
     REQUEST_ID_PREFIXES as _REQUEST_ID_PREFIXES,
@@ -515,6 +516,61 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     project_name=project_name,
                     issue=issue,
                 )
+            except GateError as exc:
+                if exc.code != "request_id_conflict":
+                    runtime.log.warning(
+                        f"[bead_task_triage] Failed to create gate for "
+                        f"{project_name}:{bead_id}: {exc}"
+                    )
+                    continue
+
+                # A conflicting id belongs to an earlier gate specification.
+                # Retire it when it is still pending, then record a fresh
+                # generation that survives even if the bounded retry fails.
+                try:
+                    _cancel_pending_gate(kind, request_id, reason="request_id_conflict")
+                except GateError as cancel_exc:
+                    if cancel_exc.code not in {
+                        "already_answered",
+                        "already_canceled",
+                        "not_pending",
+                    }:
+                        runtime.log.warning(
+                            f"[bead_task_triage] Failed to cancel conflicting "
+                            f"gate {request_id}: {cancel_exc}"
+                        )
+                except Exception as cancel_exc:  # noqa: BLE001 - keep generation durable.
+                    runtime.log.warning(
+                        f"[bead_task_triage] Failed to cancel conflicting "
+                        f"gate {request_id}: {cancel_exc}"
+                    )
+
+                retry_generation = generation + 1
+                retry_request_id = _request_id(
+                    project_name, bead_id, retry_generation, kind
+                )
+                project_state.generations[bead_id] = retry_generation
+                state_changed = True
+                runtime.log.warning(
+                    f"[bead_task_triage] request_id_conflict for {request_id}; "
+                    f"retrying with {retry_request_id}"
+                )
+                try:
+                    _create_gate(
+                        kind,
+                        request_id=retry_request_id,
+                        bead_id=bead_id,
+                        project_name=project_name,
+                        issue=issue,
+                    )
+                except Exception as retry_exc:  # noqa: BLE001 - retry next pass.
+                    runtime.log.warning(
+                        f"[bead_task_triage] Failed to create gate for "
+                        f"{project_name}:{bead_id}: {retry_exc}"
+                    )
+                    continue
+                request_id = retry_request_id
+                generation = retry_generation
             except Exception as exc:  # noqa: BLE001 - retry deterministically.
                 runtime.log.warning(
                     f"[bead_task_triage] Failed to create gate for "
