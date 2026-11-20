@@ -202,7 +202,8 @@ def _handle_publish_preview(args: argparse.Namespace) -> int:
     )
     plan = plan_ace_run_retention(policy, protections=protections)
     try:
-        outcome = publish_run_prune_preview(plan)
+        # A human asked for this preview, so the hourly notify floor is off.
+        outcome = publish_run_prune_preview(plan, apply_notify_floor=False)
     except Exception as exc:  # noqa: BLE001 - surface publish failures as exit 1.
         message = f"publish-preview failed: {exc}"
         emit_artifact_prune_runs_preview_result(

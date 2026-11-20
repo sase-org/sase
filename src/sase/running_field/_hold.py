@@ -23,7 +23,8 @@ def hold_workspace_claim(
     The matching RUNNING row is rewritten in place under one ProjectSpec lock
     so readers can never observe the workspace as available. Existing claim
     ownership metadata, including the PID, is preserved. When ``expected_pid``
-    is set, a mismatched or replaced claim is a no-op.
+    is set, a mismatched or replaced claim is a no-op. A claim that is
+    already pinned succeeds without a write or a claim-ledger row.
     """
     if not os.path.exists(project_file):
         return ClaimResult(
@@ -68,19 +69,9 @@ def hold_workspace_claim(
                 )
                 return ClaimResult(success=False, error=str(reason))
             if not bool(plan.get("changed")):
-                record_running_field_mutation(
-                    operation="hold",
-                    project_file=project_file,
-                    workspace_num=workspace_num,
-                    success=True,
-                    before_content=content,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    artifacts_timestamp=artifacts_timestamp,
-                    claim_pid=claim_pid_int,
-                    error="already pinned (no-op)",
-                    caller_tag=caller_tag,
-                )
+                # Already pinned: nothing mutated, so the ledger gets no row.
+                # Retention re-holds every pinned claim on each pass, and a
+                # no-op row per pass drowned the real mutations.
                 return ClaimResult(success=True)
 
             new_content = str(plan["content"])

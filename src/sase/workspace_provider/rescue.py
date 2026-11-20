@@ -12,11 +12,13 @@ from sase.workspace_provider._rescue_git_worktree import (
 from sase.workspace_provider._rescue_store import (
     RESCUE_ENTRY_RETENTION_DAYS,
     RESCUE_MANIFEST_NAME,
+    RESCUE_NOTIFICATION_SENDER,
     RESCUE_QUARANTINE_DIRNAME,
     RESCUE_QUARANTINE_RETENTION_DAYS,
     RESCUE_SCHEMA_VERSION,
     RescueRecord,
     quarantine_directory,
+    rescue_dedup_key,
 )
 from sase.workspace_provider.snapshot import (
     PreservationError,
@@ -31,6 +33,7 @@ __all__ = [
     "RESCUE_ENTRY_RETENTION_DAYS",
     "RESCUE_GIT_TIMEOUT_SECONDS",
     "RESCUE_MANIFEST_NAME",
+    "RESCUE_NOTIFICATION_SENDER",
     "RESCUE_PATCH_MAX_BYTES",
     "RESCUE_PATCH_NAME",
     "RESCUE_QUARANTINE_DIRNAME",
@@ -39,6 +42,7 @@ __all__ = [
     "RescueRecord",
     "SnapshotRecord",
     "quarantine_directory",
+    "rescue_dedup_key",
     "rescue_git_repo",
     "restore_git_snapshot",
     "snapshot_git_repo",

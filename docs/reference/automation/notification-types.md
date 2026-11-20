@@ -28,7 +28,8 @@ The following events generate notifications:
 | `axe`                          | Hourly grouped error digest with true totals, one line per cause, and coverage interval                                                                                                              |
 | `agent-publication`            | A repeated publication failure opened, changed, or escalated its standing alert, or a conflicted publication replay was parked; one row per alert, cleared quietly                                   |
 | `service`                      | A desired-running service proc entered crash-loop or the restart policy gave up on it; the notes name the reason, restart count, log path, and the reviving `sase service proc start <name>` command |
-| `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                                                                             |
+| `file-hooks`                   | A configured per-file hook failed (one row per hook and failure signature; repeats add a `+1`), or a producer-side dispatch failure before a command ran. Successes refresh one silent row per hook  |
+| `workspace-rescue`             | Workspace healing or eviction rescued leftover repository state, or could not rescue sidecar commits; one row per rescued workspace and cause, and repeats add a `+1` naming each rescue dir         |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                             |
 | `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy its waiters (one row per failed blocker, with an ExpireWaiters action), or a live waiter is blocked on a stranded bead         |
 | `gate`                         | A gate turn's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                       |
@@ -466,6 +467,10 @@ local inspection commands such as `sase notify list`.
 Agent completion and failure events from hidden background agents still write a
 notification row, but with the silent flag set. This keeps the JSONL audit trail
 complete while keeping the inbox focused on user-facing agent work.
+
+File-hook successes are silent too. Each hook keeps one silent `file-hooks` row that
+every success refreshes in place with the latest file, duration, and run log. That row
+never gains `+1`s or affects the unread count. Failures stay visible.
 
 ### Plan decision `%auto` receipts
 

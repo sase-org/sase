@@ -40,6 +40,16 @@ RESCUE_QUARANTINE_RETENTION_DAYS = 7
 
 _LABEL_SAFE_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
+RESCUE_NOTIFICATION_SENDER = "workspace-rescue"
+
+_RESCUE_DEDUP_PREFIX = f"{RESCUE_NOTIFICATION_SENDER}:"
+
+# Run numbers, commit and ref ids, and counts are the only parts of a rescue
+# reason that measured repeats disagree on.
+_CAUSE_HEX_ID_RE = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{7,}\b")
+
+_CAUSE_NUMBER_RE = re.compile(r"\d+")
+
 
 @dataclass(frozen=True)
 class RescueRecord:
@@ -137,7 +147,7 @@ def _quarantine_directory(
         manifest_path=manifest_path,
         quarantined_path=destination,
     )
-    notify_rescue(record, label=safe_label, reason=reason)
+    notify_rescue(record, label=safe_label, reason=reason, workspace_dir=workspace_dir)
     reap_rescue_store()
     return record
 
@@ -271,7 +281,38 @@ def sanitize_label(label: str) -> str:
     return cleaned[:64] or "sidecar"
 
 
-def notify_rescue(record: RescueRecord, *, label: str, reason: str) -> None:
+def _rescue_cause(reason: str) -> str:
+    """Return the stable cause behind a free-text rescue *reason*.
+
+    Repeats of one cause differ only in ids and counts (``failed finalization
+    for host run 27``), so those collapse to ``N``.
+    """
+    cause = _CAUSE_HEX_ID_RE.sub("N", reason.strip().lower())
+    cause = _CAUSE_NUMBER_RE.sub("N", cause)
+    return " ".join(cause.split())
+
+
+def rescue_dedup_key(subject: str | Path, reason: str) -> str:
+    """Return the notification dedup key for one rescued subject and cause.
+
+    *subject* is the rescued workspace (or, for the lost-commits fallback,
+    the repo that could not be rescued). Repeated rescues of one subject for
+    one cause share a single inbox row.
+    """
+    normalized_subject = os.path.normpath(os.path.expanduser(str(subject)))
+    digest = hashlib.sha1(
+        f"{normalized_subject}|{_rescue_cause(reason)}".encode()
+    ).hexdigest()[:16]
+    return f"{_RESCUE_DEDUP_PREFIX}{digest}"
+
+
+def notify_rescue(
+    record: RescueRecord,
+    *,
+    label: str,
+    reason: str,
+    workspace_dir: str | Path,
+) -> None:
     try:
         from sase.notifications import notify_workflow_complete
 
@@ -284,21 +325,25 @@ def notify_rescue(record: RescueRecord, *, label: str, reason: str) -> None:
             rescued.append("the full clone directory")
         if record.note is not None:
             rescued.append(record.note)
+        summary = ", ".join(rescued) or "repository state"
         notes = [
-            f"Rescued leftover state from {label} before workspace healing: "
-            f"{', '.join(rescued) or 'repository state'}.",
+            f"Rescued leftover state from {label} before workspace healing: {summary}.",
             f"Reason: {reason}",
             f"Rescue dir: {record.rescue_dir}",
             "Restore with the commands in manifest.json "
             "(git fetch the bundle, git apply the patch).",
         ]
         notify_workflow_complete(
-            "workspace-rescue",
+            RESCUE_NOTIFICATION_SENDER,
             os.environ.get("SASE_AGENT_CL_NAME", ""),
             True,
             notes,
             extra_files=[str(record.rescue_dir)],
             tags=["sidecar"],
+            dedup_key=rescue_dedup_key(workspace_dir, reason),
+            plus_one_note=(
+                f"Rescued {label} again: {summary}. Rescue dir: {record.rescue_dir}"
+            ),
         )
     except Exception:  # noqa: BLE001 - notification failure must not break rescue.
         logger.debug("Failed to report workspace rescue", exc_info=True)

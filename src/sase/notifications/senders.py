@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from sase.core.time import get_timezone
@@ -18,6 +18,25 @@ if TYPE_CHECKING:
     from sase.llm_provider.usage_limit_config import UsageLimitDetection
 
 
+def upsert_notification_or_reopen(n: Notification, *, plus_one_note: str) -> Any:
+    """Upsert ``n`` by its dedup key, opening a fresh row after a dismissal.
+
+    The newest row for ``(n.sender, n.dedup_key)`` gets a +1 with
+    ``plus_one_note`` instead of a new row, so repeats share one inbox row and
+    identical repeats coalesce through the store guard. The guard never +1s a
+    dismissed row; for these callers a dismissal acknowledges the episode, so
+    the next occurrence appends ``n`` as a fresh row instead of vanishing.
+    """
+    outcome = upsert_notification(
+        n,
+        plus_one_note=plus_one_note,
+        plus_one_timestamp=n.timestamp,
+    )
+    if getattr(outcome, "action", None) == "skipped_dismissed":
+        append_notification(n)
+    return outcome
+
+
 def notify_workflow_complete(
     sender: str,
     cl_name: str | None,
@@ -29,8 +48,16 @@ def notify_workflow_complete(
     silent: bool = False,
     tags: list[str] | None = None,
     notification_id: str | None = None,
+    dedup_key: str | None = None,
+    plus_one_note: str | None = None,
 ) -> None:
-    """Send a notification when a workflow finishes."""
+    """Send a notification when a workflow finishes.
+
+    Without ``dedup_key`` every call appends a new row. With one, repeats
+    upsert onto the live row for ``(sender, dedup_key)`` as a +1 carrying
+    ``plus_one_note`` (default: the first note); see
+    :func:`upsert_notification_or_reopen`.
+    """
     files = list(extra_files or [])
     n = Notification(
         id=notification_id or str(uuid4()),
@@ -42,7 +69,14 @@ def notify_workflow_complete(
         action_data=action_data or {},
         silent=silent,
         tags=normalize_notification_tags(tags),
+        dedup_key=dedup_key or None,
     )
+    if n.dedup_key:
+        upsert_notification_or_reopen(
+            n,
+            plus_one_note=plus_one_note or (notes[0] if notes else sender),
+        )
+        return
     append_notification(n)
 
 

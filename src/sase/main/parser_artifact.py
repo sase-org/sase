@@ -431,8 +431,10 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "Re-check protections and publish the result as the inbox prune "
-            "preview, exactly like the hourly housekeeping job (does not "
-            "purge trash)."
+            "preview like the hourly housekeeping job, but for any selection "
+            "size (the job skips selections below "
+            "artifacts.retention.run_prune_notify_min_bytes unless the disk is "
+            "under pressure). Does not purge trash."
         ),
     )
     prune_runs_parser.add_argument(

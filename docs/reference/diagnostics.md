@@ -273,9 +273,10 @@ every project's RUNNING field and each checkout's occupant record, then reports
 duplicate workspace-number claims, a live claim whose occupant names a different live
 pid, and occupant records with no matching claim. Conflicts include the last
 workspace-claim ledger mutation and caller tag when one exists; the check never
-auto-repairs. `config.macro_directives` locates macro and workflow definition files that
-still use retired directive syntax, such as a `%wait(priority=...)` that has moved to
-`%queue`. `agent_holds.stale` warns about
+auto-repairs. The ledger records only real mutations: a hold that finds its claim
+already pinned changes nothing and writes no row. `config.macro_directives` locates
+macro and workflow definition files that still use retired directive syntax, such as a
+`%wait(priority=...)` that has moved to `%queue`. `agent_holds.stale` warns about
 [agent holds](agents/agent-holds.md#sase-agent-hold) whose armer has died or whose TTL
 has passed; like `sase agent hold list`, it reconciles the hold store as it reads it, so
 the stale records it reports are also pruned. Apart from that reconciliation, default

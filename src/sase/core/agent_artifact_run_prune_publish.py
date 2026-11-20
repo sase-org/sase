@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from collections.abc import Iterator
@@ -14,7 +15,14 @@ from typing import Literal
 from uuid import uuid4
 
 from sase.chops import ChopReport
-from sase.config import get_artifact_retention_trash_grace_days
+from sase.config import (
+    get_artifact_retention_run_prune_notify_min_bytes,
+    get_artifact_retention_trash_grace_days,
+)
+from sase.core.disk_pressure import (
+    classify_disk_pressure,
+    collect_filesystem_observations,
+)
 from sase.core.agent_artifact_run_prune_review import (
     build_review,
     encode_run_prune_review,
@@ -34,6 +42,8 @@ from sase.notifications.store import (
     upsert_notification,
 )
 from sase.project_display_names import load_project_ref_display_snapshot
+
+_LOG = logging.getLogger(__name__)
 
 PREVIEW_DEDUP_PREFIX = "artifact_run_prune:"
 _NOTIFICATION_SENDER = "axe"
@@ -59,11 +69,18 @@ class _RunPrunePublishOutcome:
     unavailable_sources: tuple[str, ...]
 
 
-def publish_run_prune_preview(plan: AceRunRetentionPlan) -> _RunPrunePublishOutcome:
-    """Publish an inbox preview for *plan*, or retire live rows if none remain."""
+def publish_run_prune_preview(
+    plan: AceRunRetentionPlan, *, apply_notify_floor: bool = True
+) -> _RunPrunePublishOutcome:
+    """Publish an inbox preview for *plan*, or retire live rows if none remain.
+
+    The unattended hourly job applies the selected-bytes notify floor; an
+    explicit ``--publish-preview`` passes ``apply_notify_floor=False`` because
+    a human asked for the preview.
+    """
 
     with _publish_lock():
-        return _publish_locked(plan)
+        return _publish_locked(plan, apply_notify_floor=apply_notify_floor)
 
 
 def end_run_prune_preview_episode() -> int:
@@ -73,9 +90,11 @@ def end_run_prune_preview_episode() -> int:
         return _end_episode_locked()
 
 
-def _publish_locked(plan: AceRunRetentionPlan) -> _RunPrunePublishOutcome:
+def _publish_locked(
+    plan: AceRunRetentionPlan, *, apply_notify_floor: bool = True
+) -> _RunPrunePublishOutcome:
     fingerprint = preview_fingerprint(plan)
-    if not _should_notify(plan):
+    if not _should_notify(plan, apply_notify_floor=apply_notify_floor):
         retired = _end_episode_locked()
         return _outcome(
             plan,
@@ -182,11 +201,50 @@ def _live_preview_rows() -> list[Notification]:
     ]
 
 
-def _should_notify(plan: AceRunRetentionPlan) -> bool:
+def _should_notify(plan: AceRunRetentionPlan, *, apply_notify_floor: bool) -> bool:
+    """Return whether *plan* deserves an inbox preview.
+
+    Unreadable protection sources and empty shards always notify. Under the
+    notify floor, a run selection notifies only when its bytes reach
+    ``artifacts.retention.run_prune_notify_min_bytes`` or the runs'
+    filesystem is under managed disk pressure, so a few hundred KiB of old
+    runs on a roomy disk stays out of the priority inbox.
+    """
     counts = plan.counts
-    return bool(
-        counts.selected or counts.empty_out_of_range_shards or plan.sources_unavailable
-    )
+    if plan.sources_unavailable or counts.empty_out_of_range_shards:
+        return True
+    if not counts.selected:
+        return False
+    if not apply_notify_floor:
+        return True
+    if plan.reclaimable_bytes >= get_artifact_retention_run_prune_notify_min_bytes():
+        return True
+    return _runs_filesystem_under_pressure(plan)
+
+
+def _runs_filesystem_under_pressure(plan: AceRunRetentionPlan) -> bool:
+    """Apply the managed disk-pressure classifier to the runs' filesystem.
+
+    A measurement failure counts as no pressure, which leaves the size floor
+    as the only trigger.
+    """
+    try:
+        observations = collect_filesystem_observations(
+            (
+                {
+                    "label": "ace_runs",
+                    "role": "owner",
+                    "path": str(plan.policy.normalized_projects_root()),
+                },
+            )
+        )
+        if not observations:
+            return False
+        classified = classify_disk_pressure(observations, top_owner_limit=0)
+    except Exception:  # noqa: BLE001 - fall back to the size floor alone.
+        _LOG.debug("ACE-run prune pressure check failed", exc_info=True)
+        return False
+    return bool(classified.get("pressure_active"))
 
 
 def _notification_notes(plan: AceRunRetentionPlan) -> list[str]:

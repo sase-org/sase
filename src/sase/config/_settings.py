@@ -30,6 +30,7 @@ from sase.config._settings_artifacts import (
     DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL,
     DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS,
     DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS,
+    DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES,
     DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS,
     get_artifact_capture_max_file_size_bytes,
     get_artifact_capture_max_history_scan,
@@ -40,6 +41,7 @@ from sase.config._settings_artifacts import (
     get_artifact_retention_keep_per_label,
     get_artifact_retention_keep_recent_run_months,
     get_artifact_retention_max_age_days,
+    get_artifact_retention_run_prune_notify_min_bytes,
     get_artifact_retention_trash_grace_days,
 )
 from sase.config._settings_display import (
@@ -177,6 +179,7 @@ __all__ = [
     "DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL",
     "DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS",
     "DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS",
+    "DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES",
     "DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS",
     "DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT",
     "DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES",
@@ -227,6 +230,7 @@ __all__ = [
     "get_artifact_retention_keep_per_label",
     "get_artifact_retention_keep_recent_run_months",
     "get_artifact_retention_max_age_days",
+    "get_artifact_retention_run_prune_notify_min_bytes",
     "get_artifact_retention_trash_grace_days",
     "get_agent_auto_restart_enabled",
     "get_agent_auto_restart_max_defer_seconds",

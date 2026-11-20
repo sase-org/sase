@@ -30,6 +30,7 @@ from sase.core.time import get_timezone
 
 __all__ = [
     "assert_configured_aware_timestamp",
+    "disable_run_prune_notify_floor",
     "isolate_chop_result_file",
     "retention_empty_shard",
     "retention_plan",
@@ -48,6 +49,22 @@ def isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def disable_run_prune_notify_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let tiny test selections publish, as a ``0`` notify floor does.
+
+    The episode-dedup tests below build KiB-sized plans; the floor itself is
+    covered by ``tests.test_artifact_run_prune_notify_floor``. Opt in by
+    importing this fixture's name, like ``isolate_chop_result_file``.
+    """
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_run_prune_publish."
+        "get_artifact_retention_run_prune_notify_min_bytes",
+        lambda: 0,
+    )
 
 
 @pytest.fixture(autouse=True)

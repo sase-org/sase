@@ -328,12 +328,16 @@ planning fails, every candidate is protected (`continuation_unavailable`) instea
 job crashing. The summary reports `candidates`, `selected` run directories,
 `empty_shards` outside sase's TUI startup watch window, reclaimable `bytes`,
 `protected`, and `unavailable` protection sources; any unavailable source turns the run
-into `check_error`. Whenever the preview finds candidates or protection problems, the
-job writes a review snapshot and upserts an actionable Axe `ViewReport` notification.
-The notification is episode-deduplicated: a repeat of the current preview adds a `+1`
-note; any change, including a return to an earlier fingerprint, starts a fresh row and
-retires older preview rows; a clean nothing-to-prune run retires them too. Enter opens
-the snapshot review. In a ready review, `y` quarantines the reviewed runs into
+into `check_error`. When the preview finds protection problems, empty shards, or a run
+selection worth a nudge, the job writes a review snapshot and upserts an actionable Axe
+`ViewReport` notification. A run selection is worth a nudge only when its reclaimable
+bytes reach `artifacts.retention.run_prune_notify_min_bytes` (default 1 GiB) or the
+runs' filesystem is under the same managed disk-pressure thresholds as the
+`disk_pressure` job; a smaller selection on a roomy disk retires any live preview
+instead. The notification is episode-deduplicated: a repeat of the current preview adds
+a `+1` note; any change, including a return to an earlier fingerprint, starts a fresh
+row and retires older preview rows; a clean nothing-to-prune run retires them too. Enter
+opens the snapshot review. In a ready review, `y` quarantines the reviewed runs into
 journaled, restorable trash (`sase artifact prune-runs --apply`, optionally restricted
 with `--snapshot`). When protections were unreadable or the snapshot is missing, `y`
 starts a durable re-check that republishes the preview

@@ -1,4 +1,4 @@
-{"count": 3719, "rev": "5ea2c3272bb8", "schema": "sase.footprint.catalog/1"}
+{"count": 3720, "rev": "1505e46ed81f", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2696,6 +2696,7 @@
 {"area": "config.artifacts", "id": "config:artifacts.retention.keep_per_label", "kind": "config", "label": "Keep per label", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.artifacts", "id": "config:artifacts.retention.keep_recent_run_months", "kind": "config", "label": "Keep recent run months", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.artifacts", "id": "config:artifacts.retention.max_age_days", "kind": "config", "label": "Max age days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.artifacts", "id": "config:artifacts.retention.run_prune_notify_min_bytes", "kind": "config", "label": "Run prune notify min bytes", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.artifacts", "id": "config:artifacts.retention.trash_grace_days", "kind": "config", "label": "Trash grace days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.autonomy", "id": "config:autonomy.roles.epic_land", "kind": "config", "label": "Epic land", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.autonomy", "id": "config:autonomy.roles.epic_phase", "kind": "config", "label": "Epic phase", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

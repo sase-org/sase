@@ -36,6 +36,7 @@ from sase.notifications.store import (
 
 from tests._axe_chop_output_contract_helpers import (
     assert_configured_aware_timestamp,
+    disable_run_prune_notify_floor,  # noqa: F401 (registers the notify-floor fixture)
     isolate_chop_result_file,  # noqa: F401 (registers the result-file isolation fixture)
     retention_empty_shard,
     retention_plan,

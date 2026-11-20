@@ -342,8 +342,12 @@ release tags in third-party clones produce no rescue entries. A tag whose commit
 else references is not rescued. Legacy rescue entries pin a `refs/sase/recovery/` ref
 inside the store's own repository, write a `manifest.json` with copy-pasteable restore
 commands (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
-`git apply --index <patch>`), and send one inbox notification naming the rescue dir.
-Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
+`git apply --index <patch>`), and send an inbox notification naming the rescue dir.
+Repeated rescues of one workspace for one cause add a `+1` naming each new rescue dir to
+a single `workspace-rescue` row instead of adding rows. Run numbers, commit ids, and
+counts in the reason do not split the cause. After you dismiss that row, the next rescue
+opens a fresh one. Entries older than 30 days (7 days for quarantined whole-clone
+copies) are reaped. See
 [Publication Verification](../work-units/bead-storage.md#publication-verification) for
 the invariant this protects and how to restore rescued commits by hand.
 

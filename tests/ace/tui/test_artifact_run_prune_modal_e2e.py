@@ -32,6 +32,7 @@ from sase.project_display_names import ProjectRefDisplaySnapshot
 from tests._axe_chop_output_contract_helpers import (
     _isolate_chop_result_file,  # noqa: F401 (registers the isolation fixture)
     _write_context,
+    disable_run_prune_notify_floor,  # noqa: F401 (registers the notify-floor fixture)
 )
 
 

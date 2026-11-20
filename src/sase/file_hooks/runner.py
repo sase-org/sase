@@ -3,23 +3,34 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import time
 from typing import Any
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 from sase.file_hooks.audit import FILE_HOOK_STATE_DIRS
 from sase.file_hooks.engine import BATCH_SCHEMA_VERSION
 from sase.notifications.models import Notification
-from sase.notifications.store import append_notification
+from sase.notifications.senders import upsert_notification_or_reopen
+from sase.notifications.store import reconcile_notification_rows
 
 _RETENTION_SECONDS = 30 * 24 * 60 * 60
+
+_NOTIFICATION_SENDER = "file-hooks"
+
+_SUCCESS_DEDUP_PREFIX = f"{_NOTIFICATION_SENDER}:ok:"
+
+_FAILURE_DEDUP_PREFIX = f"{_NOTIFICATION_SENDER}:failed:"
+
+_SIGNATURE_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -123,6 +134,49 @@ def _exported_hook_project(run: dict[str, Any]) -> str | None:
     return raw
 
 
+def _hook_identity(run: dict[str, Any]) -> str:
+    """Return the identity one hook's notification rows are keyed on.
+
+    Hook names are unique within the effective config, but a repo-local hook
+    is only unique within its repository, so local hooks add their project.
+    """
+    hook_name = str(run["hook_name"])
+    # ``.get`` so a batch written by an older sase still runs.
+    layer = str(run.get("source_layer") or "unknown")
+    if layer != "local":
+        return f"{layer}:{hook_name}"
+    scope = run.get("project") or run.get("repo_root") or "-"
+    return f"{layer}:{scope}:{hook_name}"
+
+
+def _failure_signature(exit_code: int | None, failure: str | None) -> str:
+    """Return the stable signature that repeats of one failure share."""
+    if failure is None:
+        return f"exit {exit_code}"
+    if failure.startswith("timeout after"):
+        return "timeout"
+    if failure.startswith("exit "):
+        return failure
+    return _SIGNATURE_NUMBER_RE.sub("N", failure)
+
+
+def _dedup_digest(*parts: str) -> str:
+    return hashlib.sha1("|".join(parts).encode()).hexdigest()[:16]
+
+
+def _success_dedup_key(run: dict[str, Any]) -> str:
+    """Return the dedup key of one hook's single silent success row."""
+    return f"{_SUCCESS_DEDUP_PREFIX}{_dedup_digest(_hook_identity(run))}"
+
+
+def _failure_dedup_key(
+    run: dict[str, Any], *, exit_code: int | None, failure: str | None
+) -> str:
+    """Return the dedup key shared by repeats of one hook failure."""
+    signature = _failure_signature(exit_code, failure)
+    return f"{_FAILURE_DEDUP_PREFIX}{_dedup_digest(_hook_identity(run), signature)}"
+
+
 def _notify_run(
     run: dict[str, Any],
     *,
@@ -135,6 +189,7 @@ def _notify_run(
     hook_name = str(run["hook_name"])
     basename = Path(str(run["rel_path"])).name
     failed = failure is not None or exit_code not in (0,)
+    timestamp = _now_iso()
     notes = [
         (
             f"❌ {hook_name} failed: {basename}"
@@ -154,18 +209,56 @@ def _notify_run(
         f"duration: {duration_seconds:.3f}s",
         f"exit code: {exit_code if exit_code is not None else failure}",
     ]
+    if not failed:
+        _refresh_success_row(run, notes=notes, timestamp=timestamp, log_path=log_path)
+        return
     notification = Notification(
         id=str(uuid4()),
-        timestamp=_now_iso(),
-        sender="file-hooks",
-        icon="❌" if failed else "✅",
+        timestamp=timestamp,
+        sender=_NOTIFICATION_SENDER,
+        icon="❌",
         notes=notes,
         files=[str(log_path)],
         tags=["file-hooks", hook_name],
-        action="ViewErrorReport" if failed else None,
-        action_data=({"error_report_path": str(log_path)} if failed else {}),
+        action="ViewErrorReport",
+        action_data={"error_report_path": str(log_path)},
+        dedup_key=_failure_dedup_key(run, exit_code=exit_code, failure=failure),
     )
-    append_notification(notification)
+    # Identical notes coalesce through the store guard, so a hook failing the
+    # same way on every save of one file adds one +1 per coalesce window.
+    upsert_notification_or_reopen(
+        notification,
+        plus_one_note=f"❌ {basename}: {failure or f'exit {exit_code}'}",
+    )
+
+
+def _refresh_success_row(
+    run: dict[str, Any],
+    *,
+    notes: list[str],
+    timestamp: str,
+    log_path: Path,
+) -> None:
+    """Create or refresh the hook's one silent success row in place.
+
+    A stable row id plus the field-scoped reconcile write refreshes the notes
+    and log link of the existing row: no new row, no +1 growth, no toast, and
+    no unread count. A user dismissal of the row stays as it is on disk.
+    """
+    hook_name = str(run["hook_name"])
+    dedup_key = _success_dedup_key(run)
+    notification = Notification(
+        id=str(uuid5(NAMESPACE_URL, f"sase:{dedup_key}")),
+        timestamp=timestamp,
+        sender=_NOTIFICATION_SENDER,
+        icon="✅",
+        notes=[*notes, f"last success: {timestamp}"],
+        files=[str(log_path)],
+        tags=["file-hooks", hook_name],
+        silent=True,
+        dedup_key=dedup_key,
+    )
+    reconcile_notification_rows([notification], refresh_files=True)
 
 
 def _local_run_blocked(run: dict[str, Any]) -> str | None:

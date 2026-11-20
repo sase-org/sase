@@ -218,7 +218,7 @@ def _rescue_git_repo_body(
         patch_path=patch_path,
         note=patch_note,
     )
-    notify_rescue(record, label=safe_label, reason=reason)
+    notify_rescue(record, label=safe_label, reason=reason, workspace_dir=workspace_dir)
     reap_rescue_store()
     return record
 

@@ -214,6 +214,7 @@ def _snapshot_git_repo(
         ),
         label=safe_label,
         reason=reason,
+        workspace_dir=workspace_dir,
     )
     reap_rescue_store()
     allocated.clear()

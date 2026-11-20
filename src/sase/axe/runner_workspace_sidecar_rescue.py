@@ -8,6 +8,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# One stable cause for the lost-commits fallback; the free-text detail varies
+# with each git error and stays in the notes.
+_UNRESCUED_CAUSE = "sidecar rescue failed; commits may be lost"
+
 
 def rescue_damaged_sidecar_repo(
     repo_root: Path,
@@ -163,6 +167,10 @@ def report_sidecar_may_be_lost(
     """
     try:
         from sase.notifications import notify_workflow_complete
+        from sase.workspace_provider.rescue import (
+            RESCUE_NOTIFICATION_SENDER,
+            rescue_dedup_key,
+        )
 
         notes = [
             f"Sidecar commits in {repo_root.name} could not be rescued "
@@ -172,12 +180,14 @@ def report_sidecar_may_be_lost(
         if remaining is not None:
             notes.insert(1, f"{remaining} commit(s) remained ahead of upstream.")
         notify_workflow_complete(
-            "workspace-rescue",
+            RESCUE_NOTIFICATION_SENDER,
             os.environ.get("SASE_AGENT_CL_NAME", ""),
             False,
             notes,
             extra_files=[str(repo_root)],
             tags=["sidecar"],
+            dedup_key=rescue_dedup_key(repo_root, _UNRESCUED_CAUSE),
+            plus_one_note=f"Still could not rescue {repo_root.name}: {detail}",
         )
     except Exception:
         logger.debug(

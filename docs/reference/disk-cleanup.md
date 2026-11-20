@@ -72,7 +72,11 @@ space stays below the recovery target. See
 trustworthy result, and `0` otherwise. The artifact-run step remains blocked under
 `--apply` because unattended run pruning is refused. Reviewed run cleanup uses
 [`sase artifact prune-runs`](artifact-references.md#run-directory-retention) to move
-runs into restorable trash.
+runs into restorable trash. The hourly `artifact_run_prune` job puts a prune preview in
+the inbox only when the selection reaches
+`artifacts.retention.run_prune_notify_min_bytes` (default 1 GiB) or the filesystem is
+under disk pressure; see
+[Scheduler housekeeping](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 Indexed artifact-file retention is a separate owner from ACE-run directory preview. The
 hourly `artifact_retention` housekeeping job enforces `artifacts.retention` against the

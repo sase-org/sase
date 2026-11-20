@@ -21,6 +21,7 @@ DEFAULT_ARTIFACT_RETENTION_ENABLED = False
 DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS = 2
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
+DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES = 1024 * 1024 * 1024
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 
 
@@ -135,6 +136,21 @@ def get_artifact_retention_max_age_days() -> int:
     return DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS
 
 
+def get_artifact_retention_run_prune_notify_min_bytes() -> int:
+    """Return the selected-bytes floor for the ACE-run prune inbox preview.
+
+    A run selection below this floor publishes no preview unless its
+    filesystem is under disk pressure. ``0`` notifies for any selection.
+    """
+    value = _artifact_retention_config().get(
+        "run_prune_notify_min_bytes",
+        DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES
+
+
 def get_artifact_retention_trash_grace_days() -> int:
     """Return the validated artifact trash grace period in days."""
     value = _artifact_retention_config().get(
@@ -156,6 +172,7 @@ __all__ = [
     "DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL",
     "DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS",
     "DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS",
+    "DEFAULT_ARTIFACT_RETENTION_RUN_PRUNE_NOTIFY_MIN_BYTES",
     "DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS",
     "get_artifact_capture_max_file_size_bytes",
     "get_artifact_capture_max_history_scan",
@@ -166,5 +183,6 @@ __all__ = [
     "get_artifact_retention_keep_per_label",
     "get_artifact_retention_keep_recent_run_months",
     "get_artifact_retention_max_age_days",
+    "get_artifact_retention_run_prune_notify_min_bytes",
     "get_artifact_retention_trash_grace_days",
 ]

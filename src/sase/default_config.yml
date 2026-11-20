@@ -337,6 +337,10 @@ artifacts:
     # Trash automatic captures created more than this many days ago.
     # 0 disables the age predicate.
     max_age_days: 90
+    # Selected bytes an ACE-run prune preview must reach before the hourly
+    # artifact_run_prune job puts it in the inbox; smaller selections notify only
+    # under disk pressure. 0 notifies for any selection.
+    run_prune_notify_min_bytes: 1073741824
     # Days a trashed artifact stays restorable before the hourly retention job purges it.
     trash_grace_days: 14
 

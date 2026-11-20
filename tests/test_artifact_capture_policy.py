@@ -477,6 +477,7 @@ def test_capture_config_default_and_schema() -> None:
         "keep_per_label": 3,
         "keep_recent_run_months": 2,
         "max_age_days": 90,
+        "run_prune_notify_min_bytes": 1073741824,
         "trash_grace_days": 14,
     }
     retention = schema["properties"]["artifacts"]["properties"]["retention"]
