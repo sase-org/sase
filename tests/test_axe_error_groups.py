@@ -14,24 +14,26 @@ from sase.axe.state import (
 )
 
 import sase.axe._state_scheduler as sched
+import sase.axe._state_scheduler_errors as sched_errors
+import sase.axe._state_scheduler_shared as sched_shared
 
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path):
     """Isolate axe state and reset in-process error accounting."""
     state_dir = tmp_path / ".sase" / "axe"
-    sched._pending_write_failures = 0
-    sched._pending_corrupt_files = 0
-    del sched._pending_increments[:]
-    sched._pending_overflow = 0
-    sched._logged_kinds.clear()
+    sched_shared.pending_write_failures = 0
+    sched_shared.pending_corrupt_files = 0
+    del sched_shared.pending_increments[:]
+    sched_shared.pending_overflow = 0
+    sched_shared.logged_kinds.clear()
     with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
-    sched._pending_write_failures = 0
-    sched._pending_corrupt_files = 0
-    del sched._pending_increments[:]
-    sched._pending_overflow = 0
-    sched._logged_kinds.clear()
+    sched_shared.pending_write_failures = 0
+    sched_shared.pending_corrupt_files = 0
+    del sched_shared.pending_increments[:]
+    sched_shared.pending_overflow = 0
+    sched_shared.logged_kinds.clear()
 
 
 def _error(job: str, text: str, routine: str = "axe") -> dict:
@@ -127,7 +129,7 @@ def test_forced_write_failure_is_counted_and_logged_once(
     temp_state_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     with patch.object(
-        sched, "write_json_value_atomic", side_effect=OSError("disk full")
+        sched_errors, "write_json_value_atomic", side_effect=OSError("disk full")
     ):
         with caplog.at_level("WARNING"):
             append_error(_error("agent_publication", "first failure"))
@@ -136,7 +138,7 @@ def test_forced_write_failure_is_counted_and_logged_once(
         record for record in caplog.records if "Failed to write" in record.message
     ]
     assert len(warnings) == 2  # one per failure kind: counter, then ring
-    assert sched._pending_write_failures == 4
+    assert sched_shared.pending_write_failures == 4
     append_error(_error("agent_publication", "third failure"))
     counter = read_error_counts()
     assert counter is not None

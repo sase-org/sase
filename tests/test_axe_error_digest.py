@@ -27,24 +27,26 @@ from sase.notifications.models import Notification
 from sase.notifications.senders import notify_axe_error_digest
 
 import sase.axe._state_scheduler as sched
+import sase.axe._state_scheduler_shared as sched_shared
+from sase.core.atomic_json import write_json_value_atomic
 
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path):
     """Isolate axe state and reset in-process error accounting."""
     state_dir = tmp_path / ".sase" / "axe"
-    sched._pending_write_failures = 0
-    sched._pending_corrupt_files = 0
-    del sched._pending_increments[:]
-    sched._pending_overflow = 0
-    sched._logged_kinds.clear()
+    sched_shared.pending_write_failures = 0
+    sched_shared.pending_corrupt_files = 0
+    del sched_shared.pending_increments[:]
+    sched_shared.pending_overflow = 0
+    sched_shared.logged_kinds.clear()
     with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
-    sched._pending_write_failures = 0
-    sched._pending_corrupt_files = 0
-    del sched._pending_increments[:]
-    sched._pending_overflow = 0
-    sched._logged_kinds.clear()
+    sched_shared.pending_write_failures = 0
+    sched_shared.pending_corrupt_files = 0
+    del sched_shared.pending_increments[:]
+    sched_shared.pending_overflow = 0
+    sched_shared.logged_kinds.clear()
 
 
 def _error(
@@ -110,8 +112,8 @@ def test_delayed_digest_covers_whole_interval(temp_state_dir: Path) -> None:
     counter = read_error_counts()
     assert counter is not None
     counter["interval_start"] = start.isoformat()
-    sched.write_json_value_atomic(counter_file, counter)
-    with patch.object(sched._state, "get_timestamp", return_value=later.isoformat()):
+    write_json_value_atomic(counter_file, counter)
+    with patch("sase.axe.state.get_timestamp", return_value=later.isoformat()):
         pending = rotate_error_interval()
     record = pending[0]
     assert record["total"] == 2
@@ -176,7 +178,7 @@ def test_write_failures_surface_as_gte_with_count(temp_state_dir: Path) -> None:
     assert counter is not None
     counter["write_failures"] = 3
     counter["corrupt_files"] = 1
-    sched.write_json_value_atomic(temp_state_dir / "error_counts.json", counter)
+    write_json_value_atomic(temp_state_dir / "error_counts.json", counter)
     pending = rotate_error_interval()
     body = render_error_digest(pending[0])
     assert "≥1 error from 1 cause" in body
