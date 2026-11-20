@@ -237,3 +237,45 @@ def test_plan_with_only_unmanaged_project_is_not_protection_unavailable(
     )
 
     assert plan.sources_unavailable == ()
+
+
+def test_collect_text_refs_prefilters_preserve_matches() -> None:
+    from sase.core.agent_artifact_run_protection import _collect_text_refs
+
+    dirs: set[str] = set()
+    agent_names: set[str] = set()
+    timestamps: set[str] = set()
+    _collect_text_refs(
+        "agent:keeper and ~/proj/artifacts/ace-run/20260501000000,",
+        dirs=dirs,
+        agent_names=agent_names,
+        timestamps=timestamps,
+    )
+    assert agent_names == {"keeper"}
+    assert timestamps == {"20260501000000"}
+
+    # Lookbehind still rejects xagent:foo and trailing punctuation is stripped.
+    dirs.clear()
+    agent_names.clear()
+    timestamps.clear()
+    _collect_text_refs(
+        "xagent:foo agent:bar.,",
+        dirs=dirs,
+        agent_names=agent_names,
+        timestamps=timestamps,
+    )
+    assert agent_names == {"bar"}
+
+    # No candidate tokens: nothing is collected.
+    dirs.clear()
+    agent_names.clear()
+    timestamps.clear()
+    _collect_text_refs(
+        "nothing to protect here",
+        dirs=dirs,
+        agent_names=agent_names,
+        timestamps=timestamps,
+    )
+    assert agent_names == set()
+    assert timestamps == set()
+    assert dirs == set()

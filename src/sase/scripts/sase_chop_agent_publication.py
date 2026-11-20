@@ -10,7 +10,7 @@ from sase.chops.sdk import ChopResultBuilder
 
 @builtin_chop("agent_publication")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    tick = run_publication_job()
+    tick = run_publication_job(progress=runtime.log.info)
     for diagnostic in tick.diagnostics:
         runtime.log.warning(f"[agent_publication] {diagnostic}")
     if tick.lock_busy:

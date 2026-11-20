@@ -21,7 +21,7 @@ def _reason_for(outcome: str) -> str | None:
 
 @builtin_chop("artifact_retention")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    result = enforce_artifact_retention()
+    result = enforce_artifact_retention(progress=runtime.log)
     if result.outcome == "enforced":
         runtime.log(
             (

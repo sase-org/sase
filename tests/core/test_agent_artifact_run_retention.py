@@ -258,7 +258,9 @@ def test_plan_degrades_to_continuation_unavailable_on_retention_value_error(
         Path(item.artifact_dir): set(item.reasons) for item in plan.protected
     }
     assert "continuation_unavailable" in reasons_by_path[old]
-    assert "continuation_unavailable" in reasons_by_path[recent]
+    # Recent-window dirs skip continuation planning entirely; they stay
+    # protected via recent_month.
+    assert "recent_month" in reasons_by_path[recent]
 
 
 def test_apply_refuses_when_continuation_closure_fails(
@@ -436,3 +438,90 @@ def test_binding_preserves_empty_referenced_run_during_empty_cleanup(
     assert referenced.exists()
     assert referenced.parent.exists()
     assert referenced.parent.parent.exists()
+
+
+def test_only_selected_dirs_are_sized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _run_dir(projects_root, "proj", "20260501000000")
+    recent = _run_dir(projects_root, "proj", "20260901000000")
+
+    sized: list[str] = []
+    real_tree_size = run_retention._tree_size
+
+    def counting_tree_size(path: Path) -> int:
+        sized.append(str(path))
+        return real_tree_size(path)
+
+    monkeypatch.setattr(run_retention, "_tree_size", counting_tree_size)
+    plan = plan_ace_run_retention(
+        AceRunRetentionPolicy(
+            now=datetime(2026, 9, 12, 12, 0, 0),
+            keep_recent_months=2,
+            projects_root=projects_root,
+        ),
+        protections=AceRunProtectionSnapshot(),
+    )
+
+    selected_dirs = {item.artifact_dir for item in plan.selected}
+    assert selected_dirs == {str(old)}
+    # Only the selected old run is sized; the recent-window run is never sized.
+    # _tree_size recurses, so accept child paths under the selected dir.
+    assert str(old) in sized
+    assert not any(
+        path == str(recent) or path.startswith(str(recent) + "/") for path in sized
+    )
+    assert plan.reclaimable_bytes == sum(item.size_bytes for item in plan.selected)
+    assert all(
+        item.size_bytes == real_tree_size(Path(item.artifact_dir))
+        for item in plan.selected
+    )
+
+
+def test_recent_window_short_circuit_skips_scans_but_stays_protected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _run_dir(projects_root, "proj", "20260501000000")
+    recent = _run_dir(projects_root, "proj", "20260901000000")
+
+    seen_scan_dirs: list[str] = []
+    real_scan = run_retention.scan_agent_artifact_dirs
+
+    def recording_scan(root: Path, dirs: tuple[Path, ...], options: object) -> object:
+        seen_scan_dirs.extend(str(path) for path in dirs)
+        return real_scan(root, dirs, options)
+
+    seen_continuation_dirs: list[str] = []
+    real_continuation = run_retention.plan_continuation_run_retention
+
+    def recording_continuation(dirs: object, **kwargs: object) -> dict[str, object]:
+        seen_continuation_dirs.extend(str(path) for path in dirs)  # type: ignore[arg-type]
+        return real_continuation(dirs, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(run_retention, "scan_agent_artifact_dirs", recording_scan)
+    monkeypatch.setattr(
+        run_retention, "plan_continuation_run_retention", recording_continuation
+    )
+
+    plan = plan_ace_run_retention(
+        AceRunRetentionPolicy(
+            now=datetime(2026, 9, 12, 12, 0, 0),
+            keep_recent_months=2,
+            projects_root=projects_root,
+        ),
+        protections=AceRunProtectionSnapshot(),
+    )
+
+    assert str(recent) not in seen_scan_dirs
+    assert str(recent) not in seen_continuation_dirs
+    assert str(old) in seen_scan_dirs
+    # Recent-window dirs are still counted and reported protected.
+    assert plan.counts.candidates == 2
+    assert {item.artifact_dir for item in plan.selected} == {str(old)}
+    reasons_by_path = {
+        Path(item.artifact_dir): set(item.reasons) for item in plan.protected
+    }
+    assert "recent_month" in reasons_by_path[recent]
+    assert plan.counts.protected == 1

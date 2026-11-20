@@ -217,7 +217,9 @@ def test_job_reports_lock_busy_without_stamping(
     monkeypatch.setattr(
         retention_chop,
         "enforce_artifact_retention",
-        lambda: _ArtifactRetentionPassResult(outcome="lock_busy", stamped=False),
+        lambda **_kwargs: _ArtifactRetentionPassResult(
+            outcome="lock_busy", stamped=False
+        ),
     )
     runtime = _Runtime()
 
@@ -237,7 +239,7 @@ def test_job_marks_failed_pass_check_error(
     monkeypatch.setattr(
         retention_chop,
         "enforce_artifact_retention",
-        lambda: _ArtifactRetentionPassResult(
+        lambda **_kwargs: _ArtifactRetentionPassResult(
             outcome="failed",
             stamped=True,
             error="boom",
@@ -250,3 +252,31 @@ def test_job_marks_failed_pass_check_error(
     assert runtime.reason == "failed"
     assert result.status == "check_error"
     assert any("boom" in message for message in runtime.log.messages)
+
+
+def test_job_emits_phase_progress_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, old, new, explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    runtime = _Runtime()
+
+    result = retention_chop._run(runtime)
+
+    assert result.status == "ok"
+    assert runtime.summary["outcome"] == "enforced"
+    phases = [message for message in runtime.log.messages if "phase" in message]
+    assert any("phase protections:" in message for message in phases)
+    assert any("phase plan:" in message for message in phases)
+    assert any("phase trash:" in message for message in phases)
+    assert any("phase purge:" in message for message in phases)

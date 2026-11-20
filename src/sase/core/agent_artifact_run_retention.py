@@ -93,7 +93,7 @@ def plan_ace_run_retention(
     if not projects_root.is_dir():
         return _empty_plan(policy, protection_snapshot)
     project_names = _project_names(projects_root, policy.project)
-    size_by_dir, sources_unavailable, result = _run_owner(
+    sources_unavailable, result = _run_owner(
         policy,
         protection_snapshot,
         projects_root=projects_root,
@@ -104,7 +104,6 @@ def plan_ace_run_retention(
         policy,
         protection_snapshot,
         result,
-        size_by_dir=size_by_dir,
         project_names=project_names,
         projects_root=projects_root,
         extra_sources_unavailable=sources_unavailable,
@@ -157,17 +156,20 @@ def _run_owner(
     projects_root: Path,
     project_names: tuple[str, ...],
     apply: bool,
-) -> tuple[dict[str, int], list[str], dict[str, Any]]:
+) -> tuple[list[str], dict[str, Any]]:
     """Scan candidates fresh and call the Rust run-retention owner.
 
-    Returns the per-dir size map (for reporting), the sources this scan
-    pass found unavailable, and the owner's raw result dict.
+    Returns the sources this scan pass found unavailable and the owner's
+    raw result dict. Directory sizes are measured later, only for selected
+    runs (see ``_plan_from_result``).
     """
 
-    candidates, size_by_dir, scan_unavailable = _collect_candidates(
+    candidates, scan_unavailable = _collect_candidates(
         protections,
         projects_root=projects_root,
         project_names=project_names,
+        now=policy.now,
+        keep_recent_months=policy.keep_recent_months,
     )
     empty_shard_roots, empty_shard_watched_paths = _shard_roots_and_watch_paths(
         project_names, projects_root=projects_root, now=policy.now
@@ -193,7 +195,7 @@ def _run_owner(
         "empty_shard_removal_budget": get_artifact_retention_empty_shard_removal_budget(),
     }
     result = _call_rust(request)
-    return size_by_dir, sources_unavailable, result
+    return sources_unavailable, result
 
 
 def _plan_from_result(
@@ -201,7 +203,6 @@ def _plan_from_result(
     protections: AceRunProtectionSnapshot,
     result: dict[str, Any],
     *,
-    size_by_dir: dict[str, int],
     project_names: tuple[str, ...],
     projects_root: Path,
     extra_sources_unavailable: Sequence[str],
@@ -212,7 +213,7 @@ def _plan_from_result(
         artifact_dir = str(item.get("artifact_dir") or "")
         outcome = item.get("outcome")
         if outcome == "selected":
-            size_bytes = size_by_dir.get(_normalized_path(artifact_dir), 0)
+            size_bytes = _tree_size(Path(artifact_dir))
             selected.append(
                 AceRunRetentionItem(
                     project=str(item.get("project") or ""),
@@ -319,11 +320,20 @@ def _collect_candidates(
     *,
     projects_root: Path,
     project_names: tuple[str, ...],
-) -> tuple[list[dict[str, Any]], dict[str, int], set[str]]:
-    """Scan artifact dirs into Rust-bound candidates, their sizes, and any
-    protection sources this scan pass itself found unavailable."""
+    now: datetime,
+    keep_recent_months: int,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    """Scan out-of-window artifact dirs into Rust-bound candidates.
+
+    Runs in the keep-recent window can never be selected (the Rust owner
+    adds ``recent_month`` itself), so they are passed through with empty
+    Python reasons and skip the record scan, continuation planning, and
+    per-candidate protection checks.
+    """
 
     unavailable: set[str] = set()
+    recent_months = _recent_month_names(now, keep_recent_months)
+    current_artifacts_dir = _normalized_path(os.getenv("SASE_ARTIFACTS_DIR") or "")
     project_dirs = {
         project: tuple(
             iter_agent_artifact_dirs(
@@ -335,16 +345,31 @@ def _collect_candidates(
         )
         for project in project_names
     }
-    all_dirs = tuple(
+    # Split recent-window dirs out before any expensive scan: they need no
+    # continuation planning, record scan, or protection reasons.
+    out_of_window_by_project: dict[str, list[Path]] = {p: [] for p in project_names}
+    is_recent: dict[str, bool] = {}
+    for project in project_names:
+        for artifact_dir in project_dirs[project]:
+            info = parse_agent_artifact_path(artifact_dir, projects_root=projects_root)
+            if info is None:
+                continue
+            key = str(artifact_dir)
+            if info.timestamp[:6] in recent_months:
+                is_recent[key] = True
+            else:
+                is_recent[key] = False
+                out_of_window_by_project[project].append(artifact_dir)
+    out_of_window_dirs = tuple(
         artifact_dir
-        for artifact_dirs in project_dirs.values()
-        for artifact_dir in artifact_dirs
+        for project in project_names
+        for artifact_dir in out_of_window_by_project[project]
     )
     continuation_reasons: dict[str, tuple[str, ...]] = {}
     continuation_unavailable = False
     try:
         continuation_plan = plan_continuation_run_retention(
-            all_dirs, projects_root=projects_root
+            out_of_window_dirs, projects_root=projects_root
         )
     except ValueError as exc:
         unavailable.add(f"continuation retention: {exc}")
@@ -358,29 +383,44 @@ def _collect_candidates(
         )
 
     candidates: list[dict[str, Any]] = []
-    size_by_dir: dict[str, int] = {}
+    records_by_project: dict[str, dict[str, AgentArtifactRecordWire]] = {}
+    scan_error_by_project: dict[str, bool] = {}
     for project in project_names:
-        artifact_dirs = project_dirs[project]
-        records, scan_error = _scan_records(projects_root, artifact_dirs)
+        old_dirs = tuple(out_of_window_by_project[project])
+        records, scan_error = _scan_records(projects_root, old_dirs)
         if scan_error is not None:
             unavailable.add(scan_error)
-        for artifact_dir in artifact_dirs:
+        records_by_project[project] = records
+        scan_error_by_project[project] = scan_error is not None
+    for project in project_names:
+        for artifact_dir in project_dirs[project]:
             info = parse_agent_artifact_path(artifact_dir, projects_root=projects_root)
             if info is None:
                 continue
+            if is_recent.get(str(artifact_dir), False):
+                candidates.append(
+                    {
+                        "artifact_dir": str(artifact_dir),
+                        "project": project,
+                        "timestamp": info.timestamp,
+                        "protected_reasons": [],
+                    }
+                )
+                continue
             normalized_dir = _normalized_path(artifact_dir)
-            record = records.get(normalized_dir)
+            record = records_by_project[project].get(normalized_dir)
             reasons = _protection_reasons(
                 project=project,
                 timestamp=info.timestamp,
                 artifact_dir=artifact_dir,
                 record=record,
                 protections=protections,
-                scan_unavailable=scan_error is not None,
+                scan_unavailable=scan_error_by_project[project],
                 continuation_unavailable=continuation_unavailable,
                 continuation_reasons=continuation_reasons.get(normalized_dir, ()),
+                normalized_dir=normalized_dir,
+                current_artifacts_dir=current_artifacts_dir,
             )
-            size_by_dir[normalized_dir] = _tree_size(artifact_dir)
             candidates.append(
                 {
                     "artifact_dir": str(artifact_dir),
@@ -389,7 +429,7 @@ def _collect_candidates(
                     "protected_reasons": reasons,
                 }
             )
-    return candidates, size_by_dir, unavailable
+    return candidates, unavailable
 
 
 def _shard_roots_and_watch_paths(
@@ -476,9 +516,14 @@ def _protection_reasons(
     scan_unavailable: bool,
     continuation_unavailable: bool = False,
     continuation_reasons: Sequence[str] = (),
+    normalized_dir: str | None = None,
+    current_artifacts_dir: str | None = None,
 ) -> list[str]:
     reasons: list[str] = []
-    normalized_dir = _normalized_path(artifact_dir)
+    if normalized_dir is None:
+        normalized_dir = _normalized_path(artifact_dir)
+    if current_artifacts_dir is None:
+        current_artifacts_dir = _normalized_path(os.getenv("SASE_ARTIFACTS_DIR") or "")
     if continuation_unavailable:
         reasons.append("continuation_unavailable")
     if continuation_reasons:
@@ -487,7 +532,7 @@ def _protection_reasons(
         reasons.append("referenced_dir")
     if timestamp in protections.protected_timestamps:
         reasons.append("referenced_timestamp")
-    if _normalized_path(os.getenv("SASE_ARTIFACTS_DIR") or "") == normalized_dir:
+    if current_artifacts_dir == normalized_dir:
         reasons.append("current_agent")
     if _is_symlink(artifact_dir):
         reasons.append("symlink")
@@ -584,6 +629,7 @@ def protection_reasons_for_dirs(
             continuation_plan
         )
     records, scan_error = _scan_records(root, dirs)
+    current_artifacts_dir = _normalized_path(os.getenv("SASE_ARTIFACTS_DIR") or "")
     reasons_by_dir: dict[str, list[str]] = {}
     for artifact_dir in dirs:
         normalized_dir = _normalized_path(artifact_dir)
@@ -600,6 +646,8 @@ def protection_reasons_for_dirs(
             scan_unavailable=scan_error is not None,
             continuation_unavailable=continuation_unavailable,
             continuation_reasons=continuation_reasons.get(normalized_dir, ()),
+            normalized_dir=normalized_dir,
+            current_artifacts_dir=current_artifacts_dir,
         )
         reasons_by_dir[normalized_dir] = _dedupe(item_reasons)
     return reasons_by_dir

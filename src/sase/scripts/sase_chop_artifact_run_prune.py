@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import time
+
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.config import get_artifact_retention_keep_recent_run_months
@@ -19,12 +21,17 @@ from sase.core.time import local_now
 
 @builtin_chop("artifact_run_prune")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
+    started = time.monotonic()
     policy = AceRunRetentionPolicy(
         now=local_now(),
         keep_recent_months=get_artifact_retention_keep_recent_run_months(),
     )
     protections = collect_ace_run_retention_protections(
         projects_root=policy.projects_root
+    )
+    runtime.log.info(
+        "artifact_run_prune progress: protections done in "
+        f"{time.monotonic() - started:.1f}s"
     )
 
     # The confirmation authorizes eventual reclamation. Purge expired trash on
@@ -52,8 +59,17 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         purge_failed = True
         runtime.log.warning(f"artifact_run_prune trash purge failed: {exc}")
         purge = None
+    runtime.log.info(
+        "artifact_run_prune progress: trash purge done in "
+        f"{time.monotonic() - started:.1f}s"
+    )
 
     plan = plan_ace_run_retention(policy, protections=protections)
+    runtime.log.info(
+        "artifact_run_prune progress: plan done in "
+        f"{time.monotonic() - started:.1f}s "
+        f"candidates={plan.counts.candidates} selected={plan.counts.selected}"
+    )
     if plan.counts.selected or plan.counts.empty_out_of_range_shards:
         runtime.log(
             "artifact_run_prune preview: "
@@ -68,6 +84,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
     if not (purge and purge.blocked_reason == "busy"):
         publish_run_prune_preview(plan)
+    runtime.log.info(
+        "artifact_run_prune progress: publish done in "
+        f"{time.monotonic() - started:.1f}s"
+    )
 
     reason = _reason_for(plan)
     if reason is None and purge and purge.blocked_reason == "busy":

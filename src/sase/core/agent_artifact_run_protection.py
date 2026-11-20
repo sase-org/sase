@@ -17,6 +17,7 @@ from sase.core.agent_artifact_run_retention_models import AceRunProtectionSnapsh
 from sase.core.artifact_file_explicit import read_artifact_file_index
 from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
 from sase.core._sidecar_protection_label import (
+    PROJECTS_TREE_SKIP_DIRS,
     sidecar_protection_not_applicable,
     unavailable_sidecar_label,
 )
@@ -72,7 +73,7 @@ def collect_ace_run_retention_protections(
         unavailable=unavailable,
         required=True,
         suffixes=frozenset({".sase"}),
-        skip_dir_names=frozenset({".git", "artifacts", "repos"}),
+        skip_dir_names=PROJECTS_TREE_SKIP_DIRS,
     )
 
     try:
@@ -287,19 +288,16 @@ def _scan_text_root(
             followlinks=False,
             onerror=walk_errors.append,
         ):
-            child_dirs[:] = [
-                name
-                for name in child_dirs
-                if name not in skip_dir_names
-                and not (Path(directory) / name).is_symlink()
-            ]
+            # os.walk with followlinks=False never descends into symlinked
+            # dirs, so no per-child is_symlink() check is needed here.
+            child_dirs[:] = [name for name in child_dirs if name not in skip_dir_names]
             for filename in filenames:
-                path = Path(directory) / filename
                 if (
-                    path.suffix.lower() not in suffixes
+                    os.path.splitext(filename)[1].lower() not in suffixes
                     and filename not in extra_filenames
                 ):
                     continue
+                path = Path(directory) / filename
                 if path.is_symlink():
                     continue
                 try:
@@ -437,15 +435,17 @@ def _collect_text_refs(
     agent_names: set[str],
     timestamps: set[str],
 ) -> None:
-    for match in _AGENT_REF_RE.finditer(text):
-        name = match.group("name").rstrip(_TRAILING_REF_PUNCTUATION)
-        if name:
-            agent_names.add(name)
-    for match in _ACE_RUN_REF_RE.finditer(text):
-        raw_path = _token_around_match(text, match.start(), match.end())
-        timestamps.add(match.group("timestamp"))
-        if raw_path.startswith(("~", "/")):
-            dirs.add(_normalized_path(raw_path))
+    if "agent:" in text:
+        for match in _AGENT_REF_RE.finditer(text):
+            name = match.group("name").rstrip(_TRAILING_REF_PUNCTUATION)
+            if name:
+                agent_names.add(name)
+    if "artifacts/ace-run/" in text:
+        for match in _ACE_RUN_REF_RE.finditer(text):
+            raw_path = _token_around_match(text, match.start(), match.end())
+            timestamps.add(match.group("timestamp"))
+            if raw_path.startswith(("~", "/")):
+                dirs.add(_normalized_path(raw_path))
 
 
 def _token_around_match(text: str, start: int, end: int) -> str:

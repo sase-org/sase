@@ -10,6 +10,7 @@ import re
 from sase._repo_inventory_models import RepoRecord
 from sase.core.artifact_consumption import default_artifact_consumption_log_path
 from sase.core._sidecar_protection_label import (
+    PROJECTS_TREE_SKIP_DIRS,
     sidecar_protection_not_applicable,
     unavailable_sidecar_label,
 )
@@ -18,8 +19,24 @@ from sase.core.paths import sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
 
 
-_ARTIFACT_ID_RE = re.compile(r"(?:file:)?(?P<id>(?:default|explicit):[0-9a-f]{24})")
+_ARTIFACT_ID_RE = re.compile(r"(?:default|explicit):[0-9a-f]{24}")
 _CONSUMED_FILE_REF_RE = re.compile(r"file:(?P<id>(?:default|explicit):[0-9a-f]{24})")
+
+
+def _extract_artifact_ids(text: str) -> tuple[str, ...]:
+    """Return artifact ids referenced in *text* with a cheap prefilter.
+
+    The old ``(?:file:)?`` prefix was non-capturing and never changed the
+    captured id, so the simpler ``(?:default|explicit)`` pattern returns
+    exactly the same set while letting the substring prefilter skip files
+    that name no candidate.
+    """
+
+    if "default:" not in text and "explicit:" not in text:
+        return ()
+    return tuple(_ARTIFACT_ID_RE.findall(text))
+
+
 _TEXT_SUFFIXES = frozenset({".json", ".md", ".sase", ".txt", ".yml"})
 _REQUIRED_SIDECAR_ROLES = ("beads", "plans")
 _OPPORTUNISTIC_SIDECAR_ROLES = ("research",)
@@ -70,6 +87,7 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
         unavailable=unavailable,
         required=True,
         suffixes=frozenset({".sase"}),
+        skip_dir_names=PROJECTS_TREE_SKIP_DIRS,
     )
 
     try:
@@ -209,7 +227,7 @@ def _collect_linked_ids(
             unavailable.add(f"{path}: {exc}")
             continue
         scanned.add(str(path))
-        ids.update(match.group("id") for match in _ARTIFACT_ID_RE.finditer(text))
+        ids.update(_extract_artifact_ids(text))
 
 
 def _bead_store_dirs(root: Path) -> tuple[Path, ...]:
@@ -263,7 +281,7 @@ def _collect_bead_store_ids(
         except OSError as exc:
             unavailable.add(f"{projection}: {exc}")
             continue
-        ids.update(match.group("id") for match in _ARTIFACT_ID_RE.finditer(text))
+        ids.update(_extract_artifact_ids(text))
 
 
 def _live_sidecar_root(
@@ -297,6 +315,7 @@ def _scan_root(
     required: bool,
     suffixes: frozenset[str],
     extra_filenames: frozenset[str] = frozenset(),
+    skip_dir_names: frozenset[str] = frozenset({".git"}),
 ) -> None:
     resolved = root.expanduser().resolve(strict=False)
     if not resolved.is_dir():
@@ -311,18 +330,16 @@ def _scan_root(
             followlinks=False,
             onerror=walk_errors.append,
         ):
-            child_dirs[:] = [
-                name
-                for name in child_dirs
-                if name != ".git" and not (Path(directory) / name).is_symlink()
-            ]
+            # os.walk with followlinks=False never descends into symlinked
+            # dirs, so no per-child is_symlink() check is needed here.
+            child_dirs[:] = [name for name in child_dirs if name not in skip_dir_names]
             for filename in filenames:
-                path = Path(directory) / filename
                 if (
-                    path.suffix.lower() not in suffixes
+                    os.path.splitext(filename)[1].lower() not in suffixes
                     and filename not in extra_filenames
                 ):
                     continue
+                path = Path(directory) / filename
                 if path.is_symlink():
                     continue
                 try:
@@ -331,9 +348,7 @@ def _scan_root(
                     if required:
                         unavailable.add(str(path))
                     continue
-                ids.update(
-                    match.group("id") for match in _ARTIFACT_ID_RE.finditer(text)
-                )
+                ids.update(_extract_artifact_ids(text))
     except OSError:
         if required:
             unavailable.add(str(resolved))

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 import fcntl
 import os
@@ -58,6 +58,10 @@ from sase.core.project_lifecycle_facade import list_project_records
 
 PUBLICATION_JOB_WORK_BUDGET_SECONDS = 240.0
 
+#: Slow-pass progress lines appear only after a pass has already used this
+#: long, so normal fast ticks stay quiet in lumberjack-publication.log.
+PUBLICATION_PROGRESS_THRESHOLD_SECONDS = 60.0
+
 # Machine-wide failures (project listing, target resolution, heartbeat write)
 # are keyed to a pseudo-project that can never collide with a real project.
 _PUBLISHER_STANDING_PROJECT = "*publisher*"
@@ -67,6 +71,7 @@ def run_publication_job(
     *,
     git_runner: GitRunner = run_git,
     work_budget_seconds: float = PUBLICATION_JOB_WORK_BUDGET_SECONDS,
+    progress: Callable[[str], None] | None = None,
 ) -> PublicationJobSummary:
     """Drain enabled projects, then write the publisher heartbeat."""
 
@@ -76,6 +81,7 @@ def run_publication_job(
         return _run_publication_job(
             git_runner=git_runner,
             work_budget_seconds=work_budget_seconds,
+            progress=progress,
         )
 
 
@@ -83,15 +89,27 @@ def _run_publication_job(
     *,
     git_runner: GitRunner,
     work_budget_seconds: float,
+    progress: Callable[[str], None] | None = None,
 ) -> PublicationJobSummary:
     """Execute one pass while the process-wide publisher lock is held."""
 
     summary = PublicationJobSummary()
     started = time.monotonic()
     deadline = started + max(0.0, work_budget_seconds)
+
+    def _maybe_progress(step: str, project_key: str | None = None) -> None:
+        if progress is None:
+            return
+        elapsed = time.monotonic() - started
+        if elapsed < PUBLICATION_PROGRESS_THRESHOLD_SECONDS:
+            return
+        suffix = f" project={project_key}" if project_key else ""
+        progress(f"agent_publication progress: {step} at {elapsed:.1f}s{suffix}")
+
     # Machine-wide failures fold into one standing apply after the heartbeat
     # write, so each reports only its transitions and a clean pass clears it.
     publisher_observations: list[tuple[str, str]] = []
+    _maybe_progress("project discovery")
     try:
         records = list_project_records(
             sase_projects_dir(),
@@ -117,6 +135,7 @@ def _run_publication_job(
     outcomes_by_key: dict[str, SyncOutcome] = {}
     selection_errors: dict[str, str] = {}
     if project_keys:
+        _maybe_progress("resolve_sync_targets")
         try:
             selection = resolve_sync_targets(project_keys)
             targets = {target.project_key: target for target in selection.targets}
@@ -259,6 +278,7 @@ def _run_publication_job(
                 **project_standing_stats(standing_alerts, project_key),
             }
             continue
+        _maybe_progress(f"drain_project({project_key})", project_key)
         try:
             result = drain_project(
                 target,
@@ -337,7 +357,9 @@ def _run_publication_job(
     # The heartbeat write is machine-wide too. Every publisher observation
     # folds into one apply, because a pass clears any publisher alert it did
     # not observe: a failure reports only its transition, a clean pass clears.
+    _maybe_progress("standing-alert apply")
     try:
+        _maybe_progress("heartbeat write")
         write_publication_heartbeat(summary.project_stats)
     except Exception as exc:  # noqa: BLE001 - the next pass retries heartbeat.
         publisher_observations.append(

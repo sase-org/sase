@@ -390,6 +390,40 @@ def test_artifact_run_prune_preview_uses_configured_grace_days(
     assert "14 days" not in serialized
 
 
+def test_artifact_run_prune_emits_phase_progress_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    result_path = tmp_path / "result.json"
+    context_path = write_output_contract_context(tmp_path, result_path)
+    plan = retention_plan()
+    monkeypatch.setattr(
+        script,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script,
+        "purge_ace_run_trash",
+        lambda *_args, **_kwargs: retention_purge_result(),
+    )
+    notifications = _capture_upsert(monkeypatch)
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "artifact_run_prune progress: protections done in" in out
+    assert "artifact_run_prune progress: trash purge done in" in out
+    assert "artifact_run_prune progress: plan done in" in out
+    assert "artifact_run_prune progress: publish done in" in out
+    assert notifications == []
+
+
 def test_artifact_run_prune_preview_uses_project_unavailable_label(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

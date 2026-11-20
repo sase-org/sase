@@ -8,13 +8,14 @@ daily. Overlapping passes are excluded with a non-blocking exclusive lock.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import errno
 import fcntl
 import json
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -101,7 +102,9 @@ def maybe_enforce_artifact_retention() -> _ArtifactRetentionPassResult:
     return enforce_artifact_retention()
 
 
-def enforce_artifact_retention() -> _ArtifactRetentionPassResult:
+def enforce_artifact_retention(
+    progress: Callable[[str], None] | None = None,
+) -> _ArtifactRetentionPassResult:
     """Run one retention pass under a non-blocking exclusive lock and stamp it.
 
     Skips because retention is disabled or a protection source is unavailable
@@ -111,10 +114,13 @@ def enforce_artifact_retention() -> _ArtifactRetentionPassResult:
     with _try_exclusive_lock() as acquired:
         if not acquired:
             return _ArtifactRetentionPassResult(outcome="lock_busy", stamped=False)
-        return _run_locked_pass()
+        return _run_locked_pass(progress=progress)
 
 
-def _run_locked_pass() -> _ArtifactRetentionPassResult:
+def _run_locked_pass(
+    progress: Callable[[str], None] | None = None,
+) -> _ArtifactRetentionPassResult:
+    started = time.monotonic()
     try:
         from sase.config import (
             get_artifact_retention_enabled,
@@ -146,6 +152,12 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
         now = datetime.now(UTC)
         completed_at = now.isoformat()
         protections = collect_protected_artifact_ids()
+        if progress is not None:
+            progress(
+                "artifact_retention phase protections: "
+                f"{time.monotonic() - started:.1f}s "
+                f"ids={len(protections.ids)}"
+            )
         if protections.sources_unavailable:
             sources = ", ".join(protections.sources_unavailable)
             print(
@@ -169,6 +181,12 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
             protected_ids=protections.ids,
         )
         plan = plan_artifact_file_retention(policy)
+        if progress is not None:
+            progress(
+                "artifact_retention phase plan: "
+                f"{time.monotonic() - started:.1f}s "
+                f"selected={len(plan.selected)}"
+            )
         rows_by_id = {row.id: row for row in read_artifact_file_index()}
         selected_rows = []
         missing_rows = 0
@@ -192,12 +210,24 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
             )
         except Exception as exc:  # noqa: BLE001
             trash_error = exc
+        if progress is not None:
+            progress(
+                "artifact_retention phase trash: "
+                f"{time.monotonic() - started:.1f}s "
+                f"trashed={trashed.rows_trashed if trashed is not None else 0}"
+            )
         try:
             purged = purge_trashed_artifact_files(before=purge_cutoff)
         except Exception as exc:  # noqa: BLE001
             if trash_error is not None:
                 raise RuntimeError(f"{trash_error}; purge also failed: {exc}") from exc
             raise
+        if progress is not None:
+            progress(
+                "artifact_retention phase purge: "
+                f"{time.monotonic() - started:.1f}s "
+                f"purged={len(purged.purged_entry_ids)}"
+            )
         if trash_error is not None:
             raise trash_error
         assert trashed is not None

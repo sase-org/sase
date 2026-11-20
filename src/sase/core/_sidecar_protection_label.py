@@ -45,4 +45,14 @@ def unavailable_sidecar_label(project: str, role: str, primary: RepoRecord) -> s
     return label
 
 
-__all__ = ["sidecar_protection_not_applicable", "unavailable_sidecar_label"]
+#: Directory names pruned from the whole-projects tree walk shared by the
+#: artifact-file and ACE-run protection scans. Sidecar roots keep their own
+#: narrower coverage; only the projects-tree walk uses this set.
+PROJECTS_TREE_SKIP_DIRS = frozenset({".git", "artifacts", "repos"})
+
+
+__all__ = [
+    "PROJECTS_TREE_SKIP_DIRS",
+    "sidecar_protection_not_applicable",
+    "unavailable_sidecar_label",
+]
