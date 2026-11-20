@@ -45,6 +45,7 @@ def drain_project(
     from sase.agents_sync._commit_publication_queue import (
         drain_selected_agent_publications,
     )
+    from sase.agents_sync.inventory_reuse import ProjectHoodInventoryReuse
     from sase.agents_sync.referenced_by_publication import drain_referenced_by_requests
 
     project_key = target.project_key
@@ -58,6 +59,12 @@ def drain_project(
     claim = claim_publication_hints(project_key)
     result = ProjectPass()
     try:
+        pass_hoods = frozenset(
+            item.local_hood
+            for item in active_items(project_key)
+            if publication_is_ready(item)
+        )
+        inventory_reuse = ProjectHoodInventoryReuse(pass_hoods)
         attempted: set[tuple[str, str]] = set()
         stop_for_repository_failure = False
         while time.monotonic() < deadline:
@@ -84,6 +91,7 @@ def drain_project(
                 project_key,
                 tuple(batch),
                 git_runner=git_runner,
+                inventory_reuse=inventory_reuse,
             )
             result.hood_drained += outcome.drained
             if outcome.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE:

@@ -9,6 +9,7 @@ import pytest
 
 from sase.axe import run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+from sase.macro.cmdsub_source import LAUNCH_AUTHORSHIP_ENV
 
 
 class _StopAfterPrompt(Exception):
@@ -59,11 +60,16 @@ def _run_bootstrap_until_directive_extraction(
     monkeypatch.delenv("SASE_LAUNCH_SWARM_MACROS", raising=False)
     monkeypatch.delenv("SASE_AGENT_RETRY_HANDOFF", raising=False)
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    # These cases model a human-authored launch even inside the SASE test agent.
+    monkeypatch.setenv(LAUNCH_AUTHORSHIP_ENV, "human")
     # This process-wide cache is otherwise shared by the separate bootstrap
     # scenarios, even though their cwd values differ.
     import sase.file_references as file_references
+    import sase.macro.loader as macro_loader
 
     monkeypatch.setattr(file_references, "_cmd_cache", {})
+    macro_loader.detect_project.cache_clear()
+    monkeypatch.setattr(macro_loader, "detect_project", lambda: None)
     if deferred:
         monkeypatch.setenv("SASE_AGENT_DEFERRED_WORKSPACE", "1")
     else:

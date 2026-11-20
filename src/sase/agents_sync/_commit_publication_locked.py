@@ -19,6 +19,7 @@ from sase.core.agent_publication_recovery import (
 )
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import build_project_hood_inventory
+from sase.agents_sync.inventory_reuse import ProjectHoodInventoryReuse
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
@@ -128,6 +129,7 @@ def publish_queued_locked(
     timer: DrainTiming | None = None,
     preferred_key: tuple[str, str] | None = None,
     selected_keys: tuple[tuple[str, str], ...] | None = None,
+    inventory_reuse: ProjectHoodInventoryReuse | None = None,
 ) -> DrainResult:
     from sase.agents_sync import git_sync
 
@@ -202,7 +204,11 @@ def publish_queued_locked(
             runner,
             requests,
             hooks=PublicationTransactionHooks(
-                build_inventory=build_project_hood_inventory,
+                build_inventory=(
+                    inventory_reuse.build_inventory
+                    if inventory_reuse is not None
+                    else build_project_hood_inventory
+                ),
                 publish_hood=publish_agent_hood,
                 update_publications=update_agent_publications,
                 acknowledge_publications=acknowledge_agent_publications,

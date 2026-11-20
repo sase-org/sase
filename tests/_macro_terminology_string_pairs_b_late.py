@@ -308,6 +308,14 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "tests/test_user_frontmatter.py",
         "'---\\nxprompts:\\n  badname: \"content\"\\n---\\nbody'",
     ),
+    (
+        "tests/turns/test_workspace_retention_agents_scratch.py",
+        '"""%xprompts_enabled:false',
+    ),
+    (
+        "tests/turns/test_workspace_retention_agents_scratch.py",
+        '%xprompts_enabled:true"""',
+    ),
     ("tests/test_validate_sase_core_rs_contracts_fleet_tool.py", '"xprompts"'),
     ("tests/test_validate_sase_core_rs_contracts_tool.py", '"package:xprompts/skills"'),
     ("tests/test_vcs_log_tags.py", '"xprompt"'),

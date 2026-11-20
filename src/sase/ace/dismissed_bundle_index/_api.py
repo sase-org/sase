@@ -105,6 +105,7 @@ def query_summaries(
     *,
     suffixes: set[str] | None = None,
     agent_names: set[str] | None = None,
+    identity_prefixes: set[str] | None = None,
     source_run_ids: set[str] | None = None,
     cl_name: str | None = None,
     project_name: str | None = None,
@@ -118,6 +119,9 @@ def query_summaries(
     request = {
         "suffixes": sorted(suffixes) if suffixes is not None else None,
         "agent_names": sorted(agent_names) if agent_names is not None else None,
+        "identity_prefixes": (
+            sorted(identity_prefixes) if identity_prefixes is not None else None
+        ),
         "source_run_ids": (
             sorted(source_run_ids) if source_run_ids is not None else None
         ),

@@ -8,7 +8,10 @@ from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
-from sase.agents_sync.publication_timing import DrainTiming
+from sase.agents_sync.publication_timing import (
+    DrainTiming,
+    inventory_build_deadline,
+)
 from sase.agents_sync._commit_publication_transaction_retry import (
     retry_rejected_publication,
 )
@@ -99,19 +102,21 @@ def publish_queued_transaction(
     with name_registry_load_session():
         if timer is not None:
             with timer.record_stage("inventory_build"):
+                with inventory_build_deadline(timer):
+                    inventory = hooks.build_inventory(
+                        target,
+                        identity,
+                        git_runner=git_runner,
+                        requested_hoods=requested_hoods,
+                    )
+        else:
+            with inventory_build_deadline(timer):
                 inventory = hooks.build_inventory(
                     target,
                     identity,
                     git_runner=git_runner,
                     requested_hoods=requested_hoods,
                 )
-        else:
-            inventory = hooks.build_inventory(
-                target,
-                identity,
-                git_runner=git_runner,
-                requested_hoods=requested_hoods,
-            )
     commit_parent = git_runner(
         target.sidecar_path,
         ["rev-parse", "HEAD"],

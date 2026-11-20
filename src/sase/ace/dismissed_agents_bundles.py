@@ -86,6 +86,8 @@ def load_dismissed_bundle_summaries(
     ctx: Any,
     *,
     suffixes: set[str] | None = None,
+    agent_names: set[str] | None = None,
+    identity_prefixes: set[str] | None = None,
     cl_name: str | None = None,
     project_name: str | None = None,
     top_level_only: bool = False,
@@ -100,6 +102,8 @@ def load_dismissed_bundle_summaries(
         summaries = query_summaries(
             bundles_dir,
             suffixes=suffixes,
+            agent_names=agent_names,
+            identity_prefixes=identity_prefixes,
             cl_name=cl_name,
             project_name=project_name,
             top_level_only=top_level_only,
@@ -116,6 +120,8 @@ def load_dismissed_bundle_summaries(
             query_summaries(
                 bundles_dir,
                 suffixes=suffixes,
+                agent_names=agent_names,
+                identity_prefixes=identity_prefixes,
                 cl_name=cl_name,
                 project_name=project_name,
                 top_level_only=top_level_only,

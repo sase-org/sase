@@ -14,6 +14,7 @@ from sase.agents_sync._commit_publication_outbox import (
 from sase.agents_sync import _commit_publication_support as publication_support
 from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.inventory_reuse import ProjectHoodInventoryReuse
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import (
     PUBLICATION_SCOPE_LINKED,
@@ -102,6 +103,7 @@ def drain_selected_agent_publications(
     selected_keys: tuple[tuple[str, str], ...],
     *,
     git_runner: GitRunner = run_git,
+    inventory_reuse: ProjectHoodInventoryReuse | None = None,
 ) -> CommitPublicationOutcome:
     """Drain only the supplied active requests through targeted publication."""
 
@@ -111,6 +113,7 @@ def drain_selected_agent_publications(
         project_key,
         git_runner=git_runner,
         selected_keys=selected_keys,
+        inventory_reuse=inventory_reuse,
     )
 
 

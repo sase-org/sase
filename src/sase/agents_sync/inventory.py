@@ -80,6 +80,25 @@ def _load_dismissed_records(
         return _dismissed_records(target)
 
 
+def _load_indexed_records(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    requested_hoods: frozenset[str] | None,
+) -> tuple[tuple[Any, ...], list[str]]:
+    """Load indexed records with a hood-scoped query when supported."""
+
+    try:
+        return _indexed_records(
+            target,
+            identity=identity,
+            requested_hoods=requested_hoods,
+        )
+    except TypeError:
+        # Preserve the established monkeypatch/support seam for legacy test
+        # loaders; the final Python membership check remains authoritative.
+        return _indexed_records(target)
+
+
 def build_project_hood_inventory(
     target: ProjectTarget,
     identity: AgentIdentitySnapshot,
@@ -114,7 +133,7 @@ def build_project_hood_inventory(
     if hoods is not None:
         history = filter_historical_associations(history, hoods, identity)
     primary_remote_url = _primary_remote_url(target, git_runner)
-    records, diagnostics = _indexed_records(target)
+    records, diagnostics = _load_indexed_records(target, identity, hoods)
     runs: list[InventoryRun] = []
     root_cache: dict[str, Path | None] = {}
     commit_cache: CommitRecordCache = {}

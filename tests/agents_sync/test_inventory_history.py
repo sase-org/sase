@@ -533,3 +533,103 @@ def test_historical_associations_builds_reserved_set_once(
         lane.local_name: lane.is_agent_session for lane in later.lane_commits
     }
     assert later_sessions["perf.other"] is True
+
+
+def test_history_cache_parses_only_commits_added_after_cached_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    target = make_target(tmp_path)
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+    old_head = "a" * 40
+    new_head = "b" * 40
+    old_log = git_log(("foo.old",))
+    new_log = (
+        f"{'c' * 40}\x002\x00new subject\x00new subject\n\n"
+        "SASE_AGENT=alice.athena.foo.new\x00"
+    )
+    log_calls: list[list[str]] = []
+    heads = [old_head, new_head, new_head]
+    parse_calls: list[str] = []
+    parse = inventory_history.parse_trailing_commit_tag_values
+
+    def parse_spy(message: str):
+        parse_calls.append(message)
+        return parse(message)
+
+    monkeypatch.setattr(
+        inventory_history, "parse_trailing_commit_tag_values", parse_spy
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, f"{heads.pop(0)}\n", "")
+        if args[:2] == ["merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if args[0] == "log":
+            log_calls.append(args)
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                old_log if len(log_calls) == 1 else new_log,
+                "",
+            )
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    first = inventory_history.historical_associations(target, identity, runner)
+    second = inventory_history.historical_associations(target, identity, runner)
+    third = inventory_history.historical_associations(target, identity, runner)
+
+    assert len(first.run_commits["foo.old"]) == 1
+    assert set(second.run_commits) == {"foo.old", "foo.new"}
+    assert second == third
+    assert log_calls == [
+        ["log", inventory_history._HISTORY_LOG_FORMAT],
+        ["log", inventory_history._HISTORY_LOG_FORMAT, f"{old_head}..{new_head}"],
+    ]
+    assert len(parse_calls) == 2
+
+
+def test_history_rewrite_falls_back_to_full_cache_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    target = make_target(tmp_path)
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+    heads = ["a" * 40, "b" * 40]
+    log_calls: list[list[str]] = []
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, f"{heads.pop(0)}\n", "")
+        if args[:2] == ["merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 1, "", "rewritten history")
+        if args[0] == "log":
+            log_calls.append(args)
+            return subprocess.CompletedProcess(args, 0, git_log(("foo.current",)), "")
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    inventory_history.historical_associations(target, identity, runner)
+    rebuilt = inventory_history.historical_associations(target, identity, runner)
+
+    assert set(rebuilt.run_commits) == {"foo.current"}
+    assert log_calls == [
+        ["log", inventory_history._HISTORY_LOG_FORMAT],
+        ["log", inventory_history._HISTORY_LOG_FORMAT],
+    ]

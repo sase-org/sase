@@ -24,6 +24,7 @@ from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
     list_agent_publications,
 )
+from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
 from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
@@ -300,20 +301,31 @@ def test_cleanup_after_success_does_not_resurrect(
     original_clean = git_sync.clean_publication_worktree
     calls = 0
 
-    def clean(repo, runner):
+    def clean(repo, runner, *, remaining_timeout=None):
         nonlocal calls
         calls += 1
         if calls == 1:
-            return original_clean(repo, runner)
+            return original_clean(
+                repo,
+                runner,
+                remaining_timeout=remaining_timeout,
+            )
         return "archive cleanup failed"
 
     monkeypatch.setattr(git_sync, "clean_publication_worktree", clean)
 
-    result = publication_locked.publish_queued_locked(target, owner, run_git)
+    timing = DrainTiming()
+    result = publication_locked.publish_queued_locked(
+        target,
+        owner,
+        run_git,
+        timer=timing,
+    )
 
     assert result.drained == 1
-    assert result.error is not None and "archive cleanup failed" in result.error
+    assert result.error is None
     assert result.error_keys == ()
+    assert timing.cleanup_result == "failed"
     assert list_agent_publications("proj") == ()
 
 

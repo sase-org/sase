@@ -40,6 +40,7 @@ from sase.agents_sync.repository_inspection import (
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_agent_name,
+    known_owner_roots,
 )
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -64,6 +65,8 @@ from sase.plan_chain import (
 
 def indexed_records(
     target: ProjectTarget,
+    identity: AgentIdentitySnapshot | None = None,
+    requested_hoods: AbstractSet[str] | None = None,
 ) -> tuple[tuple[AgentArtifactRecordWire, ...], list[str]]:
     """Select project artifacts from the persistent index or a direct scan."""
 
@@ -94,6 +97,11 @@ def indexed_records(
                     active_limit=None,
                     recent_completed_limit=None,
                     include_hidden=True,
+                    candidate_filter=(
+                        _hood_candidate_filter(requested_hoods, identity)
+                        if requested_hoods is not None and identity is not None
+                        else None
+                    ),
                 ),
                 options,
             )
@@ -112,6 +120,41 @@ def indexed_records(
             f"{snapshot.stats.os_errors} filesystem errors"
         )
     return tuple(snapshot.records), diagnostics
+
+
+def _hood_candidate_filter(
+    requested_hoods: AbstractSet[str],
+    identity: AgentIdentitySnapshot,
+) -> dict[str, object]:
+    """Push likely hood members into the Rust index query before hydration.
+
+    The final owner-aware membership check still runs in ``inventory.py``.
+    These exact and separator-bounded name candidates keep unrelated indexed
+    records out of the JSON decode and marker revalidation window.
+    """
+
+    filters: list[dict[str, object]] = []
+    roots = ("", *known_owner_roots(identity))
+    for hood in sorted(requested_hoods):
+        filters.append({"kind": "equals", "field": "cl", "value": hood})
+        for root in roots:
+            prefix = f"{root}.{hood}" if root else hood
+            filters.append({"kind": "equals", "field": "agent_name", "value": prefix})
+            filters.append(
+                {
+                    "kind": "contains",
+                    "field": "agent_name",
+                    "value": f"{prefix}.",
+                }
+            )
+            filters.append(
+                {
+                    "kind": "contains",
+                    "field": "agent_name",
+                    "value": f"{prefix}--",
+                }
+            )
+    return {"kind": "any", "filters": filters}
 
 
 def run_from_artifact(
@@ -218,10 +261,31 @@ def dismissed_records(
     """Load archived local runs which are no longer in the live index."""
 
     try:
-        summaries = load_dismissed_bundle_summaries(
-            project_name=target.project_key,
-            limit=None,
-        )
+        if requested_hoods is None:
+            summaries = load_dismissed_bundle_summaries(
+                project_name=target.project_key,
+                limit=None,
+            )
+        else:
+            # Push exact hood identities and separator-bounded descendant
+            # prefixes into the Rust index query before summary hydration.
+            # Python still applies the owner-aware membership check below.
+            roots = (
+                ("", *known_owner_roots(identity)) if identity is not None else ("",)
+            )
+            agent_names: set[str] = set()
+            identity_prefixes: set[str] = set()
+            for hood in requested_hoods:
+                for root in roots:
+                    name = f"{root}.{hood}" if root else hood
+                    agent_names.add(name)
+                    identity_prefixes.update((name, f"{name}.", f"{name}--"))
+            summaries = load_dismissed_bundle_summaries(
+                project_name=target.project_key,
+                agent_names=agent_names,
+                identity_prefixes=identity_prefixes,
+                limit=None,
+            )
     except PublicationDrainTimedOut:
         raise
     except (OSError, RuntimeError, ValueError, ImportError):

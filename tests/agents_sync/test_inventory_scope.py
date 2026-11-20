@@ -406,6 +406,7 @@ def test_dismissed_summaries_are_filtered_before_json_hydration(
         json.dumps({"agent_name": "other.dismissed", "raw_suffix": "2"})
     )
     reads: list[str] = []
+    queries: list[dict[str, object]] = []
     real = inventory_sources._read_json_object
 
     def spy(path: Path, required: bool = True) -> dict[str, object] | None:
@@ -416,20 +417,23 @@ def test_dismissed_summaries_are_filtered_before_json_hydration(
     monkeypatch.setattr(
         inventory_sources,
         "load_dismissed_bundle_summaries",
-        lambda **_kwargs: [
-            SimpleNamespace(
-                bundle_path=str(selected_path),
-                agent_name="foo.old",
-                cl_name="foo.old",
-                agent_session=None,
-            ),
-            SimpleNamespace(
-                bundle_path=str(unrelated_path),
-                agent_name="other.dismissed",
-                cl_name="other.dismissed",
-                agent_session=None,
-            ),
-        ],
+        lambda **kwargs: (
+            queries.append(kwargs)
+            or [
+                SimpleNamespace(
+                    bundle_path=str(selected_path),
+                    agent_name="foo.old",
+                    cl_name="foo.old",
+                    agent_session=None,
+                ),
+                SimpleNamespace(
+                    bundle_path=str(unrelated_path),
+                    agent_name="other.dismissed",
+                    cl_name="other.dismissed",
+                    agent_session=None,
+                ),
+            ]
+        ),
     )
     loaded = inventory_sources.dismissed_records(
         make_target(tmp_path),
@@ -438,8 +442,70 @@ def test_dismissed_summaries_are_filtered_before_json_hydration(
     )
 
     assert [source for _raw, source in loaded] == [str(selected_path)]
+    assert len(queries) == 1
+    query = queries[0]
+    assert query["project_name"] == "proj"
+    assert query["agent_names"] == {"foo", "athena.foo", "alice.athena.foo"}
+    assert query["identity_prefixes"] == {
+        "foo",
+        "foo.",
+        "foo--",
+        "athena.foo",
+        "athena.foo.",
+        "athena.foo--",
+        "alice.athena.foo",
+        "alice.athena.foo.",
+        "alice.athena.foo--",
+    }
+    assert query["limit"] is None
     assert str(selected_path) in reads
     assert str(unrelated_path) not in reads
+
+
+def test_artifact_index_query_pushes_requested_hood_candidates_before_hydration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = make_target(tmp_path)
+    index_path = tmp_path / "agent-artifacts.sqlite"
+    index_path.touch()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(inventory_sources, "sase_projects_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        inventory_sources,
+        "default_agent_artifact_index_path",
+        lambda: index_path,
+    )
+
+    def query(_index, _projects, query_wire, _options):
+        captured["query"] = query_wire
+        return SimpleNamespace(
+            records=(),
+            stats=SimpleNamespace(json_decode_errors=0, os_errors=0),
+        )
+
+    monkeypatch.setattr(inventory_sources, "query_agent_artifact_index", query)
+
+    records, diagnostics = inventory_sources.indexed_records(
+        target,
+        identity=_IDENTITY,
+        requested_hoods=frozenset({"foo"}),
+    )
+
+    assert records == ()
+    assert diagnostics == []
+    query_wire = captured["query"]
+    assert query_wire.candidate_filter == inventory_sources._hood_candidate_filter(
+        frozenset({"foo"}), _IDENTITY
+    )
+    filters = query_wire.candidate_filter["filters"]
+    assert {item["value"] for item in filters} >= {
+        "foo",
+        "foo.",
+        "foo--",
+        "athena.foo",
+        "alice.athena.foo",
+    }
 
 
 def test_publish_agent_hood_builds_inventory_for_that_hood_only(

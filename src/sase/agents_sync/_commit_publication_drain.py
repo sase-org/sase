@@ -27,6 +27,7 @@ from sase.core.agent_publication_recovery import (
     decide_publication_failure_accounting,
 )
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.inventory_reuse import ProjectHoodInventoryReuse
 from sase.agents_sync.git_sync_ops import lock_holder_diagnostic
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import (
@@ -34,7 +35,11 @@ from sase.agents_sync.publication_outbox import (
     list_agent_publications,
     update_agent_publications,
 )
-from sase.agents_sync.publication_timing import DrainTiming, emit_drain_timing
+from sase.agents_sync.publication_timing import (
+    DrainTiming,
+    InventoryBuildDeadlineExceeded,
+    emit_drain_timing,
+)
 from sase.agents_sync import _commit_publication_support as publication_support
 
 _DRAIN_TIMEOUT_ENV = "SASE_AGENTS_PUBLICATION_DRAIN_TIMEOUT"
@@ -137,6 +142,7 @@ def drain_agent_publications(
     git_runner: GitRunner = run_git,
     preferred_key: tuple[str, str] | None = None,
     selected_keys: tuple[tuple[str, str], ...] | None = None,
+    inventory_reuse: ProjectHoodInventoryReuse | None = None,
 ) -> CommitPublicationOutcome:
     """Drain active agent-hood requests for one project under its sidecar lock."""
 
@@ -232,7 +238,20 @@ def drain_agent_publications(
                     timer=timer,
                     preferred_key=preferred_key,
                     selected_keys=selected_keys,
+                    inventory_reuse=inventory_reuse,
                 )
+        except InventoryBuildDeadlineExceeded as exc:
+            timer.outcome = "inventory_build_deferred"
+            timer.error = str(exc)
+            timer.failure_scope = REPOSITORY_FAILURE_SCOPE
+            timer.failure_stage = "inventory_build"
+            emit_drain_timing(timer)
+            return CommitPublicationOutcome(
+                queued=True,
+                error=str(exc),
+                failure_scope=REPOSITORY_FAILURE_SCOPE,
+                failure_stage="inventory_build",
+            )
         except PublicationDrainTimedOut as exc:
             timer.alarm_fired = True
             if timer.alarm_stage is None:

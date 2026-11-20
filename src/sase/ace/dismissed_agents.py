@@ -229,6 +229,8 @@ def verify_dismissed_bundle_index() -> dict[str, int | bool]:
 def load_dismissed_bundle_summaries(
     *,
     suffixes: set[str] | None = None,
+    agent_names: set[str] | None = None,
+    identity_prefixes: set[str] | None = None,
     cl_name: str | None = None,
     project_name: str | None = None,
     top_level_only: bool = False,
@@ -238,6 +240,8 @@ def load_dismissed_bundle_summaries(
     return _load_dismissed_bundle_summaries_impl(
         _ctx(),
         suffixes=suffixes,
+        agent_names=agent_names,
+        identity_prefixes=identity_prefixes,
         cl_name=cl_name,
         project_name=project_name,
         top_level_only=top_level_only,

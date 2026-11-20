@@ -17,12 +17,87 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import signal
+import threading
 import time
 from typing import Any
+
+from sase._interruptions import PublicationDrainTimedOut
 
 DRAIN_LOG_FILENAME = "agent_publication_drains.jsonl"
 DRAIN_LOG_SCHEMA_VERSION = 1
 _DRAIN_LOG_MAX_BYTES = 1_000_000
+INVENTORY_BUILD_BUDGET_SECONDS = 30.0
+
+
+class InventoryBuildDeadlineExceeded(PublicationDrainTimedOut):
+    """An inventory build used its slice and can resume on the next tick."""
+
+
+@contextmanager
+def inventory_build_deadline(
+    timing: DrainTiming | None,
+    *,
+    seconds: float | None = None,
+) -> Iterator[None]:
+    """Give inventory construction a bounded slice within the larger drain."""
+
+    budget = max(
+        0.0,
+        INVENTORY_BUILD_BUDGET_SECONDS if seconds is None else seconds,
+    )
+    can_interrupt = (
+        budget > 0
+        and hasattr(signal, "SIGALRM")
+        and hasattr(signal, "setitimer")
+        and threading.current_thread() is threading.main_thread()
+    )
+    if not can_interrupt:
+        started = time.monotonic()
+        yield
+        if budget > 0 and time.monotonic() - started >= budget:
+            _mark_inventory_alarm(timing)
+            raise InventoryBuildDeadlineExceeded(
+                f"inventory_build did not complete within {budget:.0f}s"
+            )
+        return
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_delay, previous_interval = signal.getitimer(signal.ITIMER_REAL)
+    stage_budget = min(budget, previous_delay) if previous_delay > 0 else budget
+    signal.setitimer(signal.ITIMER_REAL, 0)
+
+    def _on_inventory_alarm(_signum: int, _frame: object) -> None:
+        _mark_inventory_alarm(timing)
+        raise InventoryBuildDeadlineExceeded(
+            f"inventory_build did not complete within {stage_budget:.0f}s"
+        )
+
+    signal.signal(signal.SIGALRM, _on_inventory_alarm)
+    started = time.monotonic()
+    signal.setitimer(signal.ITIMER_REAL, stage_budget)
+    try:
+        yield
+    finally:
+        elapsed = time.monotonic() - started
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_delay > 0:
+            remaining = previous_delay - elapsed
+            if remaining > 0:
+                signal.setitimer(
+                    signal.ITIMER_REAL,
+                    remaining,
+                    previous_interval,
+                )
+
+
+def _mark_inventory_alarm(timing: DrainTiming | None) -> None:
+    if timing is None:
+        return
+    timing.alarm_fired = True
+    timing.alarm_stage = "inventory_build"
+    timing.alarm_keys = tuple(timing.active_keys)
 
 
 def _drain_log_path(*, sase_home: Path | None = None) -> Path:

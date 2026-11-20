@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+import hashlib
+import json
+import os
 from pathlib import Path
+import threading
 from urllib.parse import unquote, urlsplit
 
 from sase._interruptions import PublicationDrainTimedOut
@@ -18,9 +22,11 @@ from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
+    known_owner_roots,
     parse_agent_session_name,
 )
 from sase.core.commit_footer_facade import CommitTagValue, LinkedCommitTagValue
+from sase.core.paths import sase_home
 from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_name
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
 
@@ -33,6 +39,30 @@ class HistoricalAssociations:
     lane_commits: tuple[InventoryLaneCommitHistory, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _HistoryTrailerCommit:
+    """The small parsed trailer projection needed to rebuild associations."""
+
+    sha: str
+    committed_at: int
+    subject: str
+    agent_label: str
+    agent_destination: str | None
+    machine_label: str | None
+
+    @property
+    def agent_value(self) -> CommitTagValue:
+        if self.agent_destination is None:
+            return self.agent_label
+        return LinkedCommitTagValue(self.agent_label, self.agent_destination)
+
+
+_HISTORY_CACHE_SCHEMA_VERSION = 1
+_HISTORY_CACHE_MAX_COMMITS = 50_000
+_HISTORY_CACHE_MAX_BYTES = 32 * 1024 * 1024
+_HISTORY_LOG_FORMAT = "--format=%H%x00%ct%x00%s%x00%B%x00"
+
+
 def historical_associations(
     target: ProjectTarget,
     identity: AgentIdentitySnapshot,
@@ -40,12 +70,8 @@ def historical_associations(
 ) -> HistoricalAssociations:
     """Associate tagged primary-repository commits with runs and sase agents."""
 
-    result = git_runner(
-        target.primary_checkout,
-        ["log", "--format=%H%x00%ct%x00%s%x00%B%x00"],
-        op="agents_sync.v2_history",
-    )
-    if result.returncode != 0:
+    trailers, head = _history_trailers(target, identity, git_runner)
+    if trailers is None:
         return HistoricalAssociations({}, ())
     # Resolve the reserved agent-session set once for the whole build. The
     # per-footer lookup below used to rebuild it from the full name registry
@@ -55,23 +81,13 @@ def historical_associations(
     exact_runs: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     lanes: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     agent_session_lanes: dict[str, bool] = {}
-    chunks = result.stdout.split("\x00")
-    for index in range(0, len(chunks) - 3, 4):
-        sha = chunks[index].lstrip("\r\n").strip().lower()
-        subject = chunks[index + 2].rstrip("\r\n")
-        try:
-            committed_at = int(chunks[index + 1].strip())
-            tags = parse_trailing_commit_tag_values(chunks[index + 3].rstrip("\r\n"))
-        except (ValueError, TypeError, RuntimeError):
-            continue
-        value = tags.get("AGENT")
-        raw_name = value.label if isinstance(value, LinkedCommitTagValue) else value
-        machine_value = tags.get("MACHINE")
-        footer_machine = (
-            machine_value.label
-            if isinstance(machine_value, LinkedCommitTagValue)
-            else machine_value
-        )
+    for trailer in trailers:
+        sha = trailer.sha
+        subject = trailer.subject
+        committed_at = trailer.committed_at
+        value = trailer.agent_value
+        raw_name = trailer.agent_label
+        footer_machine = trailer.machine_label
         if not raw_name or not _footer_is_current_owner(
             raw_name, footer_machine, identity
         ):
@@ -120,7 +136,7 @@ def historical_associations(
             continue
         current = run_rows.setdefault(history.local_name, {})
         current.update({commit.sha: commit for commit in history.commits})
-    return HistoricalAssociations(
+    associations = HistoricalAssociations(
         {
             name: tuple(
                 sorted(rows.values(), key=lambda item: (item.committed_at, item.sha))
@@ -129,6 +145,244 @@ def historical_associations(
         },
         lane_commits,
     )
+    # ``head`` is included here to make it explicit that the parsed trailer
+    # projection returned above is the complete ancestry at this revision.
+    del head
+    return associations
+
+
+def _history_trailers(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    git_runner: GitRunner,
+) -> tuple[tuple[_HistoryTrailerCommit, ...] | None, str | None]:
+    """Load parsed trailers, extending a valid cache only along descendants."""
+
+    head_result = git_runner(
+        target.primary_checkout,
+        ["rev-parse", "HEAD"],
+        op="agents_sync.v2_history_head",
+    )
+    head = head_result.stdout.strip() if head_result.returncode == 0 else ""
+    cache_path = _history_cache_path(target)
+    cache = _read_history_cache(cache_path, target, identity) if head else None
+
+    if cache is not None and cache[0] == head:
+        return cache[1], head
+
+    prior: tuple[_HistoryTrailerCommit, ...] = ()
+    range_start: str | None = None
+    if cache is not None and head:
+        cached_head, prior = cache
+        ancestor = git_runner(
+            target.primary_checkout,
+            ["merge-base", "--is-ancestor", cached_head, head],
+            op="agents_sync.v2_history_cache_ancestor",
+        )
+        if ancestor.returncode == 0:
+            range_start = cached_head
+
+    args = ["log", _HISTORY_LOG_FORMAT]
+    if range_start is not None:
+        args.append(f"{range_start}..{head}")
+    result = git_runner(
+        target.primary_checkout,
+        args,
+        op="agents_sync.v2_history",
+    )
+    if result.returncode != 0 and range_start is not None:
+        # A stale or unusual cache range must never make inventory incomplete.
+        result = git_runner(
+            target.primary_checkout,
+            ["log", _HISTORY_LOG_FORMAT],
+            op="agents_sync.v2_history",
+        )
+        prior = ()
+    if result.returncode != 0:
+        return None, head or None
+
+    parsed = _parse_history_trailers(result.stdout)
+    combined_by_sha = {item.sha: item for item in prior}
+    combined_by_sha.update({item.sha: item for item in parsed})
+    combined = tuple(combined_by_sha.values())
+    if head:
+        _write_history_cache(cache_path, target, identity, head, combined)
+    return combined, head or None
+
+
+def _parse_history_trailers(stdout: str) -> tuple[_HistoryTrailerCommit, ...]:
+    """Parse only commits carrying an AGENT trailer into the cache projection."""
+
+    rows: list[_HistoryTrailerCommit] = []
+    chunks = stdout.split("\x00")
+    for index in range(0, len(chunks) - 3, 4):
+        sha = chunks[index].lstrip("\r\n").strip().lower()
+        subject = chunks[index + 2].rstrip("\r\n")
+        try:
+            committed_at = int(chunks[index + 1].strip())
+            tags = parse_trailing_commit_tag_values(chunks[index + 3].rstrip("\r\n"))
+        except (ValueError, TypeError, RuntimeError):
+            continue
+        agent = tags.get("AGENT")
+        if isinstance(agent, LinkedCommitTagValue):
+            agent_label = agent.label
+            agent_destination = agent.destination
+        elif isinstance(agent, str):
+            agent_label = agent
+            agent_destination = None
+        else:
+            continue
+        machine = tags.get("MACHINE")
+        machine_label = (
+            machine.label if isinstance(machine, LinkedCommitTagValue) else machine
+        )
+        rows.append(
+            _HistoryTrailerCommit(
+                sha,
+                committed_at,
+                subject,
+                agent_label,
+                agent_destination,
+                machine_label if isinstance(machine_label, str) else None,
+            )
+        )
+    return tuple(rows)
+
+
+def _history_cache_path(target: ProjectTarget) -> Path:
+    identity = f"{target.project_key}\0{target.primary_checkout.resolve(strict=False)}"
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    return sase_home() / "cache" / "agent-publication-history" / f"{digest}.json"
+
+
+def _history_cache_identity(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+) -> dict[str, object]:
+    owner = identity.owner
+    return {
+        "project_key": target.project_key,
+        "primary_checkout": str(target.primary_checkout.resolve(strict=False)),
+        "owner": (
+            {"username": owner.username, "machine_name": owner.machine_name}
+            if owner is not None
+            else None
+        ),
+        "known_owner_roots": sorted(known_owner_roots(identity)),
+    }
+
+
+def _read_history_cache(
+    path: Path,
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+) -> tuple[str, tuple[_HistoryTrailerCommit, ...]] | None:
+    try:
+        if path.stat().st_size > _HISTORY_CACHE_MAX_BYTES:
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != _HISTORY_CACHE_SCHEMA_VERSION
+        or any(
+            payload.get(key) != value
+            for key, value in _history_cache_identity(target, identity).items()
+        )
+        or not isinstance(payload.get("head"), str)
+        or not isinstance(payload.get("commits"), list)
+    ):
+        return None
+    commits: list[_HistoryTrailerCommit] = []
+    for row in payload["commits"]:
+        if not isinstance(row, dict):
+            return None
+        sha = row.get("sha")
+        committed_at = row.get("committed_at")
+        subject = row.get("subject")
+        agent_label = row.get("agent_label")
+        destination = row.get("agent_destination")
+        machine_label = row.get("machine_label")
+        if (
+            not isinstance(sha, str)
+            or not isinstance(committed_at, int)
+            or not isinstance(subject, str)
+            or not isinstance(agent_label, str)
+            or (destination is not None and not isinstance(destination, str))
+            or (machine_label is not None and not isinstance(machine_label, str))
+        ):
+            return None
+        commits.append(
+            _HistoryTrailerCommit(
+                sha,
+                committed_at,
+                subject,
+                agent_label,
+                destination,
+                machine_label,
+            )
+        )
+    if len(commits) > _HISTORY_CACHE_MAX_COMMITS:
+        return None
+    return payload["head"], tuple(commits)
+
+
+def _write_history_cache(
+    path: Path,
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    head: str,
+    commits: tuple[_HistoryTrailerCommit, ...],
+) -> None:
+    """Persist a bounded cache; cache I/O never changes inventory results."""
+
+    if len(commits) > _HISTORY_CACHE_MAX_COMMITS:
+        _discard_history_cache(path)
+        return
+    payload = {
+        "schema_version": _HISTORY_CACHE_SCHEMA_VERSION,
+        **_history_cache_identity(target, identity),
+        "head": head,
+        "commits": [
+            {
+                "sha": row.sha,
+                "committed_at": row.committed_at,
+                "subject": row.subject,
+                "agent_label": row.agent_label,
+                "agent_destination": row.agent_destination,
+                "machine_label": row.machine_label,
+            }
+            for row in commits
+        ],
+    }
+    try:
+        encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        if len(encoded.encode("utf-8")) > _HISTORY_CACHE_MAX_BYTES:
+            _discard_history_cache(path)
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(
+            f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        try:
+            with temporary.open("w", encoding="utf-8") as output:
+                output.write(encoded)
+                output.write("\n")
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+    except (OSError, TypeError, ValueError):
+        return
+
+
+def _discard_history_cache(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
 
 
 def _reserved_agent_session_names_once() -> set[str] | None:

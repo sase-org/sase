@@ -15,7 +15,7 @@ from sase.macro.workflow_models import Workflow
 
 
 @dataclass(frozen=True)
-class LaunchPromptContext:
+class _LaunchPromptContext:
     """Prompt aliases and macro sources captured before workspace entry."""
 
     resolved_prompt: str
@@ -37,7 +37,7 @@ def preprocess_prompt_macros(
     prompt: str,
     artifacts_dir: str,
     *,
-    launch_context: LaunchPromptContext | None = None,
+    launch_context: _LaunchPromptContext | None = None,
 ) -> tuple[str, str | None, str]:
     """Resolve aliases, save raw, expand macro references.
 
@@ -112,7 +112,7 @@ def preprocess_prompt_macros(
     return prompt, vcs_tag, raw_resolved_prompt
 
 
-def capture_launch_prompt_context(prompt: str) -> LaunchPromptContext:
+def capture_launch_prompt_context(prompt: str) -> _LaunchPromptContext:
     """Snapshot launch aliases and macro definitions before workspace entry.
 
     Macro expansion runs after workspace entry so authored command
@@ -150,7 +150,7 @@ def capture_launch_prompt_context(prompt: str) -> LaunchPromptContext:
             if has_macro_refs:
                 raise
 
-    return LaunchPromptContext(
+    return _LaunchPromptContext(
         resolved_prompt=prompt,
         macros=macros,
         workflows=workflows,

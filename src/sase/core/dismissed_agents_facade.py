@@ -58,6 +58,8 @@ def dismissed_bundle_index_progress() -> Any:
 def load_dismissed_bundle_summaries(
     *,
     suffixes: set[str] | None = None,
+    agent_names: set[str] | None = None,
+    identity_prefixes: set[str] | None = None,
     cl_name: str | None = None,
     project_name: str | None = None,
     top_level_only: bool = False,
@@ -68,6 +70,8 @@ def load_dismissed_bundle_summaries(
 
     return dismissed_agents.load_dismissed_bundle_summaries(
         suffixes=suffixes,
+        agent_names=agent_names,
+        identity_prefixes=identity_prefixes,
         cl_name=cl_name,
         project_name=project_name,
         top_level_only=top_level_only,

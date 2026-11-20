@@ -21,10 +21,12 @@ from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir(exist_ok=True)
     return SimpleNamespace(
         cl_name="bootstrap-failure",
         project_file="/tmp/projects/sase/sase.sase",
-        workspace_dir=str(tmp_path / "workspace"),
+        workspace_dir=str(workspace_dir),
         output_path=str(tmp_path / "output.log"),
         workspace_num=7,
         workflow_name="ace(run)-260701_010202",

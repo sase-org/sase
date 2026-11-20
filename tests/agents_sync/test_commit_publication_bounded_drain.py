@@ -12,7 +12,9 @@ from sase.agents_sync import (
     _commit_publication_drain as publication_drain,
     _commit_publication_locked as publication_locked,
     _commit_publication_support as publication_support,
+    _publication_job_run as publication_job,
     git_sync,
+    publication_timing,
 )
 from sase.agents_sync import (
     _commit_publication_transaction_steps as transaction_steps,
@@ -22,7 +24,11 @@ from sase.agents_sync import (
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import TargetSelection
-from sase.agents_sync.publication_outbox import list_agent_publications
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    enqueue_agent_publication,
+    list_agent_publications,
+)
 from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
 from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
@@ -681,3 +687,46 @@ def test_timeout_leaves_enough_reserve_for_cleanup(
     cleanup_seconds = timings[-1].stage_durations.get("cleanup", 0.0)
     assert cleanup_seconds >= 1.0
     assert cleanup_seconds < 2.5
+
+
+@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires interval timers")
+def test_inventory_slice_defers_without_charging_and_maps_to_standing_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    _configure_target(monkeypatch, tmp_path, owner)
+    timings = []
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(publication_timing, "INVENTORY_BUILD_BUDGET_SECONDS", 0.2)
+    enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="foo--code",
+            global_agent="alice.athena.foo--code",
+            primary_revision="a" * 40,
+            local_hood="foo",
+        )
+    )
+
+    def slow_inventory(*_args, **_kwargs):
+        time.sleep(1.0)  # sase-test-wait: simulate inventory work exceeding its budget
+
+    monkeypatch.setattr(
+        publication_locked, "build_project_hood_inventory", slow_inventory
+    )
+    outcome = publication_drain.drain_agent_publications("proj")
+
+    [remaining] = list_agent_publications("proj", include_quarantined=False)
+    assert outcome.queued
+    assert outcome.failure_stage == "inventory_build"
+    assert outcome.error is not None and "inventory_build" in outcome.error
+    assert remaining.attempts == 0
+    assert timings[-1].alarm_stage == "inventory_build"
+    assert (
+        publication_job._standing_kind_for_result(
+            publication_job.ProjectPass(error=outcome.error)
+        )
+        == publication_job.STANDING_KIND_DRAIN_TIMEOUT
+    )
