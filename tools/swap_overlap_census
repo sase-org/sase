@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""Count update-overlap failures near recorded updates. Strictly read-only.
+
+Scans one machine's SASE home for the failure signatures of a code swap that
+overlapped running work (SIGBUS exit -7, a missing ``sase_core_rs`` binding, a
+missing job script, ``cannot import name``) and counts how many happened
+within ``--near`` seconds of a recorded update or install.
+
+Stdlib only, so it also runs on a host without this checkout::
+
+    ssh apollo 'python3 - --days 7' < tools/swap_overlap_census
+
+Sources (each counted separately; a failure can appear in several):
+
+* ``digests``   ``axe/error_digests/digest_*.txt`` (durable error record)
+* ``ring``      ``axe/recent_errors.json`` (errors not yet digested)
+* ``runs``      retained chop run records (the newest 10 terminal runs per job)
+* ``launches``  ``logs/launch_failures.jsonl``
+
+Update windows come from ``logs/dev_update.jsonl*`` (records that changed
+something), ``logs/install/install-*.log``, and ``logs/update/update-*.log``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from collections import Counter
+from collections.abc import Iterable, Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+SIGNATURES: dict[str, re.Pattern[str]] = {
+    "sigbus": re.compile(r"exit code -7\b|Exit Code:\s+-7\b"),
+    "missing_binding": re.compile(r"No module named '?sase_core_rs"),
+    "missing_script": re.compile(r"Job script not found"),
+    "cannot_import": re.compile(r"cannot import name"),
+    "deferred_script": re.compile(r"unavailable while a code swap"),
+}
+
+Event = tuple[str, datetime, str, str]  # (source, time, signature, label)
+Window = tuple[datetime, datetime, str]
+
+#: Zone for naive timestamps (``launch_failures.jsonl``). SASE writes them in
+#: its configured ``timezone``, which can differ from the host clock (apollo).
+_NAIVE_ZONE: ZoneInfo | None = None
+
+
+def _parse_time(raw: object) -> datetime | None:
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        for fmt in ("%y%m%d_%H%M%S", "%Y%m%dT%H%M%S"):
+            try:
+                parsed = datetime.strptime(raw, fmt)
+                break
+            except ValueError:
+                continue
+        else:
+            return None
+    if parsed.tzinfo is not None:
+        return parsed
+    return parsed.replace(tzinfo=_NAIVE_ZONE) if _NAIVE_ZONE else parsed.astimezone()
+
+
+def _signatures(text: str) -> list[str]:
+    return [name for name, pattern in SIGNATURES.items() if pattern.search(text)]
+
+
+def _read_json(path: Path) -> object:
+    try:
+        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+
+
+def _jsonl(paths: Iterable[Path]) -> Iterator[dict[str, object]]:
+    for path in paths:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                yield row
+
+
+def digest_events(home: Path) -> Iterator[Event]:
+    for path in sorted((home / "axe" / "error_digests").glob("digest_*.txt")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for block in re.split(r"^={20,}$", text, flags=re.MULTILINE):
+            time_match = re.search(r"^\s*Time:\s*(\S+)", block, re.MULTILINE)
+            job_match = re.search(r"^\s*Job:\s*(\S+)", block, re.MULTILINE)
+            when = _parse_time(time_match.group(1)) if time_match else None
+            if when is None:
+                continue
+            label = job_match.group(1) if job_match else "?"
+            for signature in _signatures(block):
+                yield ("digests", when, signature, label)
+
+
+def ring_events(home: Path) -> Iterator[Event]:
+    data = _read_json(home / "axe" / "recent_errors.json")
+    rows = data if isinstance(data, list) else []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        when = _parse_time(row.get("timestamp"))
+        if when is None:
+            continue
+        text = json.dumps(row)
+        for signature in _signatures(text):
+            yield ("ring", when, signature, str(row.get("job") or "?"))
+
+
+def run_events(home: Path) -> Iterator[Event]:
+    for path in (home / "axe" / "lumberjacks").glob("*/chops/*/runs/*.json"):
+        if path.name.endswith((".result.json", ".context.json")):
+            continue
+        row = _read_json(path)
+        if not isinstance(row, dict) or row.get("status") == "success":
+            continue
+        when = _parse_time(row.get("started_at"))
+        if when is None:
+            continue
+        diagnostic = row.get("subprocess_diagnostic")
+        excerpt = (
+            diagnostic.get("output_excerpt") if isinstance(diagnostic, dict) else ""
+        )
+        text = " ".join(
+            str(part or "")
+            for part in (
+                row.get("error"),
+                row.get("reason"),
+                row.get("traceback"),
+                excerpt,
+            )
+        )
+        if row.get("exit_code") == -7:
+            text += " exit code -7"
+        for signature in _signatures(text):
+            yield ("runs", when, signature, str(row.get("chop_name") or "?"))
+
+
+def launch_events(home: Path) -> Iterator[Event]:
+    for row in _jsonl([home / "logs" / "launch_failures.jsonl"]):
+        when = _parse_time(row.get("timestamp"))
+        if when is None:
+            continue
+        text = " ".join(
+            str(row.get(key) or "") for key in ("exc_message", "traceback", "output")
+        )
+        for signature in _signatures(text):
+            yield ("launches", when, signature, str(row.get("display_name") or "?"))
+
+
+def update_windows(home: Path) -> list[Window]:
+    windows: list[Window] = []
+    logs = home / "logs"
+    for row in _jsonl(sorted(logs.glob("dev_update.jsonl*"))):
+        result = row.get("result")
+        end = _parse_time(row.get("timestamp"))
+        if end is None or not isinstance(result, dict) or not result.get("changed"):
+            continue
+        duration = float(result.get("duration_seconds") or 0.0)
+        # The journal timestamp has whole-second precision; pad the end by 1 s.
+        windows.append(
+            (
+                end - timedelta(seconds=duration),
+                end + timedelta(seconds=1),
+                "dev_update",
+            )
+        )
+    for kind in ("install", "update"):
+        for path in sorted((logs / kind).glob(f"{kind}-*.log")):
+            match = re.match(rf"{kind}-(\d{{8}}T\d{{6}})Z-", path.name)
+            if match is None:
+                continue
+            start = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").replace(
+                tzinfo=UTC
+            )
+            try:
+                end = datetime.fromtimestamp(path.stat().st_mtime, UTC)
+            except OSError:
+                end = start
+            windows.append((start, max(start, end), kind))
+    return windows
+
+
+def _placement(when: datetime, windows: list[Window], slack: timedelta) -> str:
+    """Return ``during``, ``after``, ``before`` (within *slack*), or ``far``."""
+    if any(start <= when <= end for start, end, _ in windows):
+        return "during"
+    if any(end < when <= end + slack for _, end, _ in windows):
+        return "after"
+    if any(start - slack <= when < start for start, _, _ in windows):
+        return "before"
+    return "far"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--sase-home", default=os.environ.get("SASE_HOME", "~/.sase"))
+    parser.add_argument("--days", type=float, default=7.0)
+    parser.add_argument("--near", type=float, default=120.0, help="seconds")
+    parser.add_argument("--details", action="store_true", help="list each event")
+    parser.add_argument(
+        "--tz", help="IANA zone of naive timestamps (SASE's configured timezone)"
+    )
+    args = parser.parse_args(argv)
+    global _NAIVE_ZONE  # noqa: PLW0603 - one-shot CLI setting
+    _NAIVE_ZONE = ZoneInfo(args.tz) if args.tz else None
+
+    home = Path(args.sase_home).expanduser()
+    since = datetime.now(UTC) - timedelta(days=args.days)
+    slack = timedelta(seconds=args.near)
+    windows = [w for w in update_windows(home) if w[1] >= since - slack]
+    events = [
+        event
+        for source in (digest_events, ring_events, run_events, launch_events)
+        for event in source(home)
+        if event[1] >= since
+    ]
+
+    print(f"sase home: {home}")
+    print(f"since: {since.isoformat(timespec='seconds')}  near: {args.near:.0f}s")
+    kinds = Counter(kind for _, _, kind in windows)
+    print(f"update windows: {len(windows)} {json.dumps(kinds, sort_keys=True)}")
+    places = ("during", "after", "before")
+    print(f"{'source':9} {'signature':16} {'total':>5} {'near':>5}", *places)
+    counts: dict[tuple[str, str], Counter[str]] = {}
+    for source, when, signature, _ in events:
+        bucket = counts.setdefault((source, signature), Counter())
+        bucket["total"] += 1
+        bucket[_placement(when, windows, slack)] += 1
+    for (source, signature), bucket in sorted(counts.items()):
+        near = sum(bucket[place] for place in places)
+        cells = " ".join(f"{bucket[place]:>{len(place)}}" for place in places)
+        print(f"{source:9} {signature:16} {bucket['total']:>5} {near:>5} {cells}")
+    if args.details:
+        for source, when, signature, label in sorted(events, key=lambda e: e[1]):
+            place = _placement(when, windows, slack)
+            stamp = when.isoformat(timespec="seconds")
+            print(f"  {stamp} {place:6} {source:9} {signature:16} {label}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

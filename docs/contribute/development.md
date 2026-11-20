@@ -69,6 +69,24 @@ the human genuinely asked for a global reinstall, the agent proposes it through
 terminal, and the installer refuses any non-dry-run without one unless it gets `-y`.
 Agents never set the bypass on their own authority.
 
+### Measuring update-overlap failures
+
+A swap (`sase update`, `just install`, `just install-dev`) can break jobs and launches
+that are running through it. The symptoms are a SIGBUS exit (`-7`), a missing
+`sase_core_rs` binding or job script, or `cannot import name` from mixed module
+versions. `tools/swap_overlap_census` counts those failures on one machine, and how many
+fell during, just after, or just before a recorded update. It is read-only and
+stdlib-only, so it also runs on a host without a checkout:
+
+```bash
+tools/swap_overlap_census --days 7 --tz America/New_York --details
+ssh <host> 'python3 - --days 7 --tz America/New_York' < tools/swap_overlap_census
+```
+
+Pass `--tz` the `timezone` from your SASE config. Naive log timestamps use that zone,
+which can differ from the host clock. The reproducer for these modes is
+`tests/dev_update/test_swap_repro_*.py`.
+
 ## Verification Commands
 
 ```bash
