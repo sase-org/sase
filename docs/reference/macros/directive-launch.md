@@ -117,8 +117,9 @@ changes, and never add `+1` evidence; see
 [blocked wait notifications](../automation/notification-types.md#blocked-wait-and-hold-notifications).
 If the blocker is a monitor whose follow-up could not launch, the notification also names
 the `sase monitor resume <id>` command and any saved worktree recovery diff. The waiter
-itself stays parked: kill and relaunch it, clear the wait, or let a later successful run
-release it.
+itself stays parked until you expire it from the notice (`Enter` in sase's TUI), kill
+and relaunch it, clear the wait, or a later successful run of the dependency releases
+it. Nothing expires blocked waiters automatically.
 
 A bare session target makes one exception for retried turns. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer

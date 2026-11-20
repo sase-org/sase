@@ -265,6 +265,12 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     if action in {"TaskTriage", "BeadSnooze"}:
         return _bead_gate_toast(n)
 
+    if action == "ExpireWaiters":
+        count = n.action_data.get("waiter_count")
+        if count:
+            return (f"Waiters blocked: {_markup_safe(count)}", "warning")
+        return (_markup_safe(note) if note else "Waiters blocked", "warning")
+
     if action == "ViewErrorReport":
         if n.sender == "agent.auto-restart":
             return (_markup_safe(note) if note else "Auto-restart paused", "error")
@@ -357,6 +363,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "LaunchApproval": ("launch approval", "launch approvals"),
     "TaskTriage": ("task triage", "task triages"),
     "BeadSnooze": ("snoozed task", "snoozed tasks"),
+    "ExpireWaiters": ("blocked wait", "blocked waits"),
     "ViewErrorReport": ("axe error", "axe errors"),
     "ViewReport": ("report", "reports"),
     "JumpToPatch": ("sync", "syncs"),

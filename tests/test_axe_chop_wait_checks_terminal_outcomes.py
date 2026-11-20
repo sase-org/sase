@@ -252,9 +252,11 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     # and wrote nothing, so no +1 evidence accumulates.
     assert notification.dedup_key == f"wait_checks:terminal-blocker:{dependency_dir}"
     assert notification.plus_one_count == 0
+    assert notification.action == "ExpireWaiters"
     assert notification.action_data["blocker_artifact_dir"] == str(dependency_dir)
     assert notification.action_data["blocker_outcome"] == "failed"
     assert notification.action_data["waiter_count"] == "1"
+    assert (waiter_dir / "waiting.json").exists()
     assert json.loads(notification.action_data["waiters"]) == [
         {"artifact_dir": str(waiter_dir), "name": waiter_dir.name, "project": "proj"}
     ]
@@ -269,7 +271,9 @@ def test_terminal_blocked_waiter_upserts_one_notification(
         f"Blocked on foo: {dependency_dir} (failed)" in note
         for note in notification.notes
     )
-    assert any("Kill and relaunch" in note for note in notification.notes)
+    assert any(
+        "Enter expires every named waiter" in note for note in notification.notes
+    )
     assert plus_one_badge(notification.plus_one_count) == ""
     assert notification.plus_ones == []
     for query in (waiter_dir.name, "foo", "failed", str(dependency_dir)):

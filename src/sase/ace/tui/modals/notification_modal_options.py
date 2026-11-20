@@ -307,6 +307,8 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             notification.action_data,
         ):
             variant = "prune"
+        elif notification is not None and notification.action == "ExpireWaiters":
+            variant = "expire"
         elif notification is not None and notification.action == "UserQuestion":
             variant = "question"
         elif notification is not None and notification.action in _GATE_HINT_ACTIONS:

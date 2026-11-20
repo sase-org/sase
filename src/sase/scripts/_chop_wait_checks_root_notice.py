@@ -13,7 +13,8 @@ returning waiter resurfaces it unread. Legacy per-waiter rows
 marker when a root notice covers their waiter or the waiter is no longer
 live.
 
-``action_data`` contract (string values, read by the waiter-expire action):
+``action`` is ``ExpireWaiters``. ``action_data`` contract (string values,
+read by the waiter-expire action):
 
 - ``blocker_artifact_dir``, ``blocker_outcome``, ``blocker_dependency``, and
   ``blocker_name`` (empty when unknown) describe the root blocker.
@@ -52,6 +53,7 @@ WAIT_CHECKS_SENDER = "wait_checks"
 ROOT_BLOCKER_DEDUP_PREFIX = "wait_checks:terminal-blocker:"
 LEGACY_WAITER_DEDUP_PREFIX = "wait_checks:terminal-blocked:"
 AUTO_DISMISSED_ACTION_DATA_KEY = "wait_checks_auto_dismissed"
+EXPIRE_WAITERS_ACTION = "ExpireWaiters"
 
 #: Waiters named one per note line before the rest collapse into a count.
 MAX_WAITER_NOTE_LINES = 20
@@ -114,8 +116,8 @@ def _build_root_blocker_notification(
     if len(waiters) > MAX_WAITER_NOTE_LINES:
         notes.append(f"…and {len(waiters) - MAX_WAITER_NOTE_LINES} more waiter(s)")
     notes.append(
-        "Kill and relaunch the waiters, or intentionally clear their waits "
-        "once the dependency state is understood."
+        "Enter expires every named waiter without launching them, or kill "
+        "and relaunch them once the dependency state is understood."
     )
     files = [blocker.artifact_dir, *(waiter.artifact_dir for waiter in waiters)]
     resume_command, snapshot_path = _monitor_not_launchable_recovery(
@@ -135,6 +137,7 @@ def _build_root_blocker_notification(
         notes=notes,
         files=list(dict.fromkeys(files)),
         tags=normalize_notification_tags(["wait", "blocked", "terminal-dependency"]),
+        action=EXPIRE_WAITERS_ACTION,
         action_data={
             "blocker_artifact_dir": blocker.artifact_dir,
             "blocker_outcome": blocker.outcome,
@@ -313,6 +316,11 @@ def _waiter_payload(waiter: RootWaiter) -> dict[str, str]:
     return payload
 
 
+def waiters_from_root_notice(row: Notification) -> list[RootWaiter]:
+    """Return the waiters listed on a root-blocker notice."""
+    return _stored_waiters(row)
+
+
 def _stored_waiters(row: Notification) -> list[RootWaiter]:
     try:
         raw = json.loads(row.action_data.get("waiters", "[]"))
@@ -413,8 +421,10 @@ def _string_value(value: Any) -> str | None:
 
 __all__ = [
     "AUTO_DISMISSED_ACTION_DATA_KEY",
+    "EXPIRE_WAITERS_ACTION",
     "LEGACY_WAITER_DEDUP_PREFIX",
     "MAX_WAITER_NOTE_LINES",
     "ROOT_BLOCKER_DEDUP_PREFIX",
     "reconcile_root_blocker_notifications",
+    "waiters_from_root_notice",
 ]

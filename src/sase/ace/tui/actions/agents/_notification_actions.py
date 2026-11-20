@@ -3,6 +3,10 @@
 Re-exports from split submodules for backwards compatibility.
 """
 
+from ._notification_expire_waiters import (
+    EXPIRE_WAITERS_ACTION as EXPIRE_WAITERS_ACTION,
+    handle_expire_waiters as handle_expire_waiters,
+)
 from ._notification_handlers import (
     OPEN_TOOL_RUN_ACTION as OPEN_TOOL_RUN_ACTION,
     handle_jump_to_agent as handle_jump_to_agent,
@@ -48,12 +52,14 @@ __all__ = [
     "handle_gate_execution_failed",
     "handle_hitl",
     "handle_custom_gate",
+    "handle_expire_waiters",
     "handle_jump_to_agent",
     "handle_jump_to_patch",
     "handle_jump_to_mentor_review",
     "handle_launch_approval",
     "handle_open_launch_control",
     "handle_open_tool_run",
+    "EXPIRE_WAITERS_ACTION",
     "OPEN_TOOL_RUN_ACTION",
     "handle_plan_approval",
     "handle_remote_attention_notification",

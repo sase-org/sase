@@ -90,6 +90,24 @@ def kill_named_agent(
             status="not_found",
         )
 
+    return kill_located_agent(agent, retain_for_retry=retain_for_retry)
+
+
+def kill_located_agent(
+    agent: NamedAgent,
+    *,
+    retain_for_retry: bool = False,
+    reason: str | None = None,
+    source: str = "agents_kill",
+) -> _KillResult:
+    """Kill the agent at ``agent.artifacts_dir`` through the user-kill path.
+
+    This is the same terminal path ``kill_named_agent`` uses after name
+    lookup: SIGTERM plus verified death when a pid is live, otherwise stale
+    waiting/running marker cleanup. ``reason`` is recorded on the user-kill
+    intent when a live process is signalled.
+    """
+    name = agent.name
     stopped_monitors, monitor_error = _stop_live_monitors_for_named_agent(name, agent)
     if monitor_error is not None:
         return monitor_error
@@ -164,12 +182,21 @@ def kill_named_agent(
                 timestamp=timestamp,
             )
 
-    kill_result = request_user_kill(
-        pid,
-        artifacts_dir=artifacts_path,
-        source="agents_kill",
-        wait=True,
-    )
+    if reason:
+        kill_result = request_user_kill(
+            pid,
+            artifacts_dir=artifacts_path,
+            source=source,
+            reason=reason,
+            wait=True,
+        )
+    else:
+        kill_result = request_user_kill(
+            pid,
+            artifacts_dir=artifacts_path,
+            source=source,
+            wait=True,
+        )
     if not kill_result.success and kill_result.status == "permission_denied":
         return _KillResult(
             False,

@@ -26,6 +26,7 @@ ACTION_BADGES: dict[str | None, str] = {
     "ViewReport": "[report]",
     "OpenLaunchControl": "[models]",
     "OpenToolRun": "[tool-run]",
+    "ExpireWaiters": "[expire]",
 }
 
 # Gate actions intentionally have explicit defaults. A notification-provided
@@ -50,6 +51,7 @@ ACTION_ICONS: dict[str | None, str] = {
     "ViewReport": "📊",
     "OpenLaunchControl": "🎛️",
     "OpenToolRun": "⚒",
+    "ExpireWaiters": "⌛",
 }
 
 
@@ -214,12 +216,19 @@ PRUNE_HINT_FRAGMENTS = tuple(
     else fragment
     for fragment in DEFAULT_HINT_FRAGMENTS
 )
+EXPIRE_HINT_FRAGMENTS = tuple(
+    _NotificationHintFragment("Enter", "expire", fragment.priority)
+    if fragment.key == "Enter"
+    else fragment
+    for fragment in DEFAULT_HINT_FRAGMENTS
+)
 
 _HINT_VARIANT_FRAGMENTS: dict[str, tuple[_NotificationHintFragment, ...]] = {
     "default": DEFAULT_HINT_FRAGMENTS,
     "question": QUESTION_HINT_FRAGMENTS,
     "gate": GATE_HINT_FRAGMENTS,
     "prune": PRUNE_HINT_FRAGMENTS,
+    "expire": EXPIRE_HINT_FRAGMENTS,
 }
 
 _HINT_FRAGMENT_SEPARATOR = "  "

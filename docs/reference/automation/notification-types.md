@@ -30,7 +30,7 @@ The following events generate notifications:
 | `service`                      | A desired-running service proc entered crash-loop or the restart policy gave up on it; the notes name the reason, restart count, log path, and the reviving `sase service proc start <name>` command |
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                                                                             |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                             |
-| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy its waiters (one row per failed blocker), or a live waiter is blocked on a stranded bead                                       |
+| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy its waiters (one row per failed blocker, with an ExpireWaiters action), or a live waiter is blocked on a stranded bead         |
 | `gate`                         | A gate turn's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                       |
 | `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                                                                                  |
 | `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                                                                        |
@@ -191,9 +191,10 @@ the next five-minute checks tick.
 
 ### Blocked Wait and Hold Notifications
 
-These informational rows have no action, so they carry nothing to approve. Each one is
-deduplicated. Except for terminally blocked waits, a repeat occurrence appends `+1`
-evidence to the existing row instead of creating a new one.
+These rows are informational except for terminally blocked waits, which carry an
+`ExpireWaiters` action. Each one is deduplicated. Except for terminally blocked waits, a
+repeat occurrence appends `+1` evidence to the existing row instead of creating a new
+one.
 
 - **Terminally blocked waits.** The `wait_checks` job raises one row per failed root
   blocker: a `%wait` dependency that already ended with an outcome that can never
@@ -201,13 +202,16 @@ evidence to the existing row instead of creating a new one.
   on that blocker, both directly and through another parked waiter (shown as
   `Waiter: <name> (via <upstream>)`), with a count. Waiters whose runner is provably
   dead are skipped and never listed. The notes name the blocker, its artifact directory,
-  and its outcome, and suggest killing and relaunching the waiters or deliberately
-  clearing their waits. The row attaches the blocker and waiter directories, carries the
-  `wait`, `blocked`, and `terminal-dependency` tags, and stores the waiter list in
-  `action_data`. Repeat checks with the same waiter set write nothing and never append
-  `+1` evidence. A changed waiter set updates the row in place, and the row turns unread
-  again only when a waiter joins. When every waiter is gone, the job dismisses the row
-  itself, and it resurfaces unread if a waiter returns. A row you dismiss stays
+  and its outcome. Selecting the row in sase's TUI offers `ExpireWaiters`: one key
+  confirms, then expires every named waiter through the same cancel path a manual kill
+  of a waiting agent uses, records the blocker as the reason, and settles the row.
+  Waiters that already started or settled are skipped, and nothing launches a waiter or
+  expires one without that action. The row attaches the blocker and waiter directories,
+  carries the `wait`, `blocked`, and `terminal-dependency` tags, and stores the waiter
+  list in `action_data`. Repeat checks with the same waiter set write nothing and never
+  append `+1` evidence. A changed waiter set updates the row in place, and the row turns
+  unread again only when a waiter joins. When every waiter is gone, the job dismisses
+  the row itself, and it resurfaces unread if a waiter returns. A row you dismiss stays
   dismissed. Rows from older versions, which had one row per waiter, are dismissed once
   when a per-blocker row covers their waiter or the waiter is no longer parked.
 - **Stranded-bead waits.** A live waiter blocked on an unclosed stranded bead raises one

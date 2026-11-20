@@ -42,8 +42,10 @@ def open_notification_action(app: Any, notification: Notification) -> bool:
     )
 
     from ._notification_actions import (
+        EXPIRE_WAITERS_ACTION,
         REMOTE_ATTENTION_NOTIFICATION_ACTION,
         handle_custom_gate,
+        handle_expire_waiters,
         handle_gate_execution_failed,
         handle_hitl,
         handle_jump_to_agent,
@@ -100,6 +102,8 @@ def open_notification_action(app: Any, notification: Notification) -> bool:
         handle_open_launch_control(app, notification)
     elif notification.action == "OpenToolRun":
         handle_open_tool_run(app, notification)
+    elif notification.action == EXPIRE_WAITERS_ACTION:
+        handle_expire_waiters(app, notification)
     elif notification.action and notification.action.strip():
         app.notify(
             f"Unsupported notification action: {notification.action}",

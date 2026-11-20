@@ -75,9 +75,11 @@ def test_many_waiters_on_one_failed_blocker_share_one_row(
     assert len(rows) == 1
     row = rows[0]
     assert row.dedup_key == f"wait_checks:terminal-blocker:{blocker_dir}"
+    assert row.action == "ExpireWaiters"
     assert row.action_data["waiter_count"] == "3"
     assert _listed(row) == {"waiter-0": None, "waiter-1": None, "waiter-2": None}
     assert "Waiters blocked: 3" in row.notes
+    assert any("Enter expires every named waiter" in note for note in row.notes)
     assert row.files[0] == str(blocker_dir)
     assert row.plus_one_count == 0
 

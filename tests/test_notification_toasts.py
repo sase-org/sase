@@ -278,6 +278,25 @@ class TestFormatNotificationToast:
         assert msg == "HITL waiting for input"
         assert sev == "warning"
 
+    def test_expire_waiters_uses_waiter_count(self) -> None:
+        n = _make(
+            action="ExpireWaiters",
+            notes=["Wait dependency can never self-resolve"],
+            action_data={"waiter_count": "3"},
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Waiters blocked: 3"
+        assert sev == "warning"
+
+    def test_expire_waiters_falls_back_to_note(self) -> None:
+        n = _make(
+            action="ExpireWaiters",
+            notes=["Wait dependency can never self-resolve"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Wait dependency can never self-resolve"
+        assert sev == "warning"
+
     def test_view_error_report(self) -> None:
         n = _make(
             action="ViewErrorReport",
