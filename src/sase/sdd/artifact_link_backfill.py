@@ -23,6 +23,9 @@ from sase.artifact_links.derive import (
 from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
 from sase.sdd._artifact_link_store_support import is_projected_row, kind_of_ref
 from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
+from sase.sdd._artifact_link_store_reconcile import (
+    AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
+)
 from sase.sdd.artifact_link_derivation import (
     ArtifactLinkDerivationInputs,
     artifact_link_derivation_inputs,
@@ -287,7 +290,10 @@ def reconcile_and_repair_artifact_links(
     if progress is not None:
         progress("aggregate")
     reconciled = store.reconcile_aggregate(deadline=deadline)
-    if deadline is not None and time.monotonic() >= deadline:
+    write_deferred = AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC in (
+        str(item) for item in reconciled.get("skip_diagnostics", ())
+    )
+    if write_deferred or (deadline is not None and time.monotonic() >= deadline):
         skip_diagnostics = tuple(
             dict.fromkeys(
                 (

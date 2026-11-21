@@ -5,6 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.sdd._artifact_link_store_reconcile import (
+    AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
+)
 from sase.sdd.artifact_link_backfill import reconcile_and_repair_artifact_links
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
@@ -269,3 +272,35 @@ def test_progress_includes_commit_only_when_changed(
     reconcile_and_repair_artifact_links(store, progress=stages.append)
 
     assert stages == ["aggregate", "dangling_scan", "repair", "commit"]
+
+
+def test_deferred_aggregate_write_skips_dangling_scan_and_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    # The deadline has not passed, so only the write deferral can end the pass.
+    monkeypatch.setattr("sase.sdd.artifact_link_backfill.time.monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "reconcile_aggregate",
+        lambda _store, **_kwargs: {
+            "skip_diagnostics": (AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,)
+        },
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
+        lambda _store, **_kwargs: pytest.fail("repair must be skipped"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
+        lambda *_args, **_kwargs: pytest.fail("repair must be skipped"),
+    )
+
+    report = reconcile_and_repair_artifact_links(store, deadline=100.0)
+
+    assert report.repaired_renames == 0
+    assert report.deferred_refs == 0
+    assert report.skip_diagnostics == (
+        AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
+        "reconcile deadline expired; deferred dangling-ref repair",
+    )

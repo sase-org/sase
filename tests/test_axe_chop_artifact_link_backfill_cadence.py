@@ -247,3 +247,32 @@ def test_cut_short_reconcile_keeps_its_estimate_and_defers_the_project(
         )
     )
     assert cursor["next_project"] == "p1"
+
+
+def test_drain_phase_line_prints_publish_sub_phases_after_publish() -> None:
+    report = SimpleNamespace(
+        phase_seconds=(
+            ("read", 0.1),
+            ("publish", 9.0),
+            ("publish.admission", 1.0),
+            ("publish.aggregate", 7.5),
+            ("rewrite", 0.2),
+        )
+    )
+
+    line = backfill_jobs._drain_phase_line("p1", report, catalog_built_before=False)
+
+    assert line.endswith(
+        "read=0.10s evidence=skipped eligibility=skipped catalog=skipped "
+        "publish=9.00s publish.admission=1.00s publish.aggregate=7.50s "
+        "rewrite=0.20s"
+    )
+
+
+def test_drain_phase_line_without_a_publish_has_no_sub_phases() -> None:
+    line = backfill_jobs._drain_phase_line(
+        "p1", SimpleNamespace(phase_seconds=()), catalog_built_before=False
+    )
+
+    assert "publish.admission" not in line
+    assert "publish=skipped rewrite=skipped" in line

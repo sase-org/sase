@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +11,13 @@ import pytest
 import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
 import sase.scripts._artifact_link_backfill_state as backfill_state
 import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
+from sase.scripts._artifact_link_backfill_schedule import (
+    SCHEDULE_FILENAME,
+    read_backfill_schedule,
+)
+from sase.sdd._artifact_link_store_reconcile import (
+    AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
+)
 from sase.sdd.artifact_link_backfill import (
     _ArtifactLinkBackfillReport,
     _ArtifactLinkReconcileReport,
@@ -309,3 +317,53 @@ def test_deferred_drain_skips_reconcile_and_counts_the_project(
     assert result.counters["projects"] == 1
     assert result.counters["deferred_projects"] == 1
     assert "deferred past job budget" in stderr.getvalue()
+
+
+def test_deferred_aggregate_write_defers_the_project_and_records_no_estimate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects = [_project(tmp_path, name=name) for name in ("p1", "p2")]
+    monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: projects)
+    monkeypatch.setattr(
+        backfill_jobs,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout, **_kwargs: SimpleNamespace(
+            project_key=project_key
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(
+            skip_diagnostics=(AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,)
+            if store.project_key == "p1"
+            else ()
+        ),
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    result = backfill_chop._run(runtime)
+
+    assert result.counters["projects"] == 2
+    assert f"p1: {AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC}" in stderr.getvalue()
+    schedule = read_backfill_schedule(tmp_path / "state" / SCHEDULE_FILENAME)
+    assert "p1" not in schedule.reconcile_seconds
+    assert "p2" in schedule.reconcile_seconds
+    cursor = json.loads(
+        (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert cursor["next_project"] == "p1"

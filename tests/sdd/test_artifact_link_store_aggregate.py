@@ -14,6 +14,9 @@ from typing import Any
 
 import pytest
 
+from sase.sdd._artifact_link_store_aggregate import (
+    ArtifactLinkAggregateWriteDeferred,
+)
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from tests.sdd._artifact_link_store_helpers import (
@@ -368,3 +371,156 @@ def test_stale_preview_is_rejected_and_retried_rather_than_clobbering(
         ("plan:202608/a.md", "plan:202608/b.md"),
         ("plan:202608/e.md", "plan:202608/f.md"),
     }
+
+
+class _FakeClock:
+    """A monotonic clock the tests advance by hand."""
+
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _patch_clock(monkeypatch: pytest.MonkeyPatch, clock: _FakeClock) -> None:
+    monkeypatch.setattr("sase.sdd._artifact_link_store_aggregate.time.monotonic", clock)
+
+
+def _stub_cas(
+    monkeypatch: pytest.MonkeyPatch,
+    store: ArtifactLinkStore,
+    *,
+    losses: int,
+) -> list[bool]:
+    """Lose the first *losses* CAS writes, honouring ``force`` like the real one."""
+
+    forced: list[bool] = []
+
+    def write_if_current(
+        _self: ArtifactLinkStore, document: Mapping[str, Any], *, force: bool = False
+    ) -> dict[str, Any] | None:
+        forced.append(force)
+        if len(forced) <= losses and not force:
+            return None
+        return {"schema_version": 2, "generation": len(forced), "rows": []}
+
+    monkeypatch.setattr(type(store), "_write_aggregate_if_current", write_if_current)
+    return forced
+
+
+def test_lost_cas_without_budget_for_another_preview_raises_deferral(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock()
+    _patch_clock(monkeypatch, clock)
+    _stub_cas(monkeypatch, store, losses=5)
+    computes: list[int] = []
+
+    def compute_preview() -> dict[str, Any]:
+        computes.append(1)
+        clock.now += 6.0  # one preview costs 6s, and 6s + 6s overruns the 10s budget
+        return {"generation": 0, "rows": []}
+
+    with pytest.raises(ArtifactLinkAggregateWriteDeferred) as excinfo:
+        store._write_merged_aggregate(  # noqa: SLF001
+            compute_preview, deadline=10.0
+        )
+
+    assert computes == [1]
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.last_compute_seconds == pytest.approx(6.0)
+
+
+def test_lost_cas_with_budget_for_another_preview_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock()
+    _patch_clock(monkeypatch, clock)
+    forced = _stub_cas(monkeypatch, store, losses=2)
+    computes: list[int] = []
+
+    def compute_preview() -> dict[str, Any]:
+        computes.append(1)
+        clock.now += 1.0
+        return {"generation": 0, "rows": []}
+
+    written = store._write_merged_aggregate(  # noqa: SLF001
+        compute_preview, deadline=100.0
+    )
+
+    assert len(computes) == 3
+    assert forced == [False, False, False]
+    assert written["generation"] == 3
+
+
+def test_already_expired_deadline_raises_before_computing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock(now=5.0)
+    _patch_clock(monkeypatch, clock)
+    forced = _stub_cas(monkeypatch, store, losses=0)
+
+    def compute_preview() -> dict[str, Any]:
+        raise AssertionError("an expired deadline must not start a preview")
+
+    with pytest.raises(ArtifactLinkAggregateWriteDeferred) as excinfo:
+        store._write_merged_aggregate(  # noqa: SLF001
+            compute_preview, deadline=5.0
+        )
+
+    assert excinfo.value.attempts == 0
+    assert excinfo.value.last_compute_seconds == 0.0
+    assert forced == []
+
+
+def test_no_deadline_keeps_five_attempts_with_a_forced_last_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock()
+    _patch_clock(monkeypatch, clock)
+    forced = _stub_cas(monkeypatch, store, losses=99)
+    computes: list[int] = []
+
+    def compute_preview() -> dict[str, Any]:
+        computes.append(1)
+        clock.now += 1_000.0  # slow previews never defer without a deadline
+        return {"generation": 0, "rows": []}
+
+    written = store._write_merged_aggregate(compute_preview)  # noqa: SLF001
+
+    assert len(computes) == 5
+    assert forced == [False, False, False, False, True]
+    assert written["generation"] == 5
+
+
+def test_deadline_bearing_caller_still_forces_the_last_in_budget_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock()
+    _patch_clock(monkeypatch, clock)
+    forced = _stub_cas(monkeypatch, store, losses=99)
+
+    def compute_preview() -> dict[str, Any]:
+        clock.now += 1.0
+        return {"generation": 0, "rows": []}
+
+    store._write_merged_aggregate(compute_preview, deadline=1_000.0)  # noqa: SLF001
+
+    assert forced == [False, False, False, False, True]
+
+
+def test_rebuild_aggregate_forwards_its_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    clock = _FakeClock(now=50.0)
+    _patch_clock(monkeypatch, clock)
+
+    with pytest.raises(ArtifactLinkAggregateWriteDeferred):
+        store.rebuild_aggregate(deadline=10.0)

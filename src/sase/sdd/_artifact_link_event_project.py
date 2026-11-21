@@ -606,6 +606,8 @@ def _git_root_for(path: Path) -> Path | None:
 def apply_events_to_aggregate(
     store: ArtifactLinkStore,
     objects: Sequence[_ArtifactLinkEventObject],
+    *,
+    deadline: float | None = None,
 ) -> tuple[dict[str, Any], ...]:
     if not objects:
         return ()
@@ -613,6 +615,7 @@ def apply_events_to_aggregate(
         return ()
     aggregate = store.rebuild_aggregate(
         exclude_pending_event_ids=(str(item.event["operation_id"]) for item in objects),
+        deadline=deadline,
     )
     return tuple(
         dict(row) for row in aggregate.get("rows", ()) if isinstance(row, dict)

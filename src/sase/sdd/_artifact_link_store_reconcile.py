@@ -14,6 +14,9 @@ from sase.sdd._artifact_link_event_store import (
     ArtifactLinkEventSnapshot,
     reduce_artifact_link_event_inputs,
 )
+from sase.sdd._artifact_link_store_aggregate import (
+    ArtifactLinkAggregateWriteDeferred,
+)
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
@@ -29,6 +32,11 @@ if TYPE_CHECKING:
     from sase.sdd._artifact_link_store_impl import ArtifactLinkStore
 
 
+AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC = (
+    "reconcile deadline expired; aggregate write deferred after a concurrent writer"
+)
+
+
 class ArtifactLinkStoreReconcileMixin:
     """Reconciles the project aggregate against every known workspace clone."""
 
@@ -36,8 +44,8 @@ class ArtifactLinkStoreReconcileMixin:
     sidecar_roots: Mapping[str, Path]
     beads_dir: Path | None
     load_aggregate: Callable[[], dict[str, Any]]
-    rebuild_aggregate: Callable[[], dict[str, Any]]
-    _write_merged_aggregate: Callable[[Callable[[], dict[str, Any]]], dict[str, Any]]
+    rebuild_aggregate: Callable[..., dict[str, Any]]
+    _write_merged_aggregate: Callable[..., dict[str, Any]]
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
     _load_store_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
@@ -150,7 +158,13 @@ class ArtifactLinkStoreReconcileMixin:
         }
 
     def reconcile_aggregate(self, *, deadline: float | None = None) -> dict[str, Any]:
-        """Reconcile the aggregate with all visible workspace sidecar rows."""
+        """Reconcile the aggregate with all visible workspace sidecar rows.
+
+        When *deadline* leaves no room to retry after a lost write race, the
+        write is deferred rather than overrunning the caller's budget: the
+        on-disk aggregate comes back untouched and ``skip_diagnostics`` carries
+        :data:`AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC`.
+        """
 
         captured: list[str] = []
 
@@ -159,7 +173,14 @@ class ArtifactLinkStoreReconcileMixin:
             captured[:] = [str(item) for item in preview.pop("skip_diagnostics", ())]
             return preview
 
-        written = self._write_merged_aggregate(compute_preview)
+        try:
+            written = self._write_merged_aggregate(compute_preview, deadline=deadline)
+        except ArtifactLinkAggregateWriteDeferred:
+            deferred = self.load_aggregate()
+            deferred["skip_diagnostics"] = tuple(
+                dict.fromkeys((*captured, AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC))
+            )
+            return deferred
         if captured:
             written["skip_diagnostics"] = tuple(captured)
         return written

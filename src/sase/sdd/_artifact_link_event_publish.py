@@ -46,10 +46,17 @@ from sase.sdd._artifact_link_event_publish_state import (
     required_roots as _required_roots,
 )
 from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
+from sase.sdd._artifact_link_store_aggregate import (
+    ArtifactLinkAggregateWriteDeferred,
+)
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
 if TYPE_CHECKING:
     from sase.sdd._artifact_link_event_quarantine import ArtifactLinkQuarantineFinding
+
+AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC = (
+    "artifact-link aggregate projection deferred past deadline"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +101,7 @@ class _ArtifactLinkEventPublishReport:
     skip_diagnostics: tuple[str, ...] = ()
     deferred: bool = False
     bead_projection_failed: bool = False
+    phase_seconds: tuple[tuple[str, float], ...] = ()
 
 
 @artifact_link_snapshot_memo()
@@ -157,6 +165,8 @@ def _publish_event_objects_locked(
             skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
             deferred=True,
         )
+    phases: list[tuple[str, float]] = []
+    phase_started = time.monotonic()
     admission = _admit_incoming_event_objects(
         store,
         objects,
@@ -165,6 +175,7 @@ def _publish_event_objects_locked(
         push_after_commit=push_after_commit,
         artifacts_dir=artifacts_dir,
     )
+    phases.append(("admission", time.monotonic() - phase_started))
     accepted_objects = admission.accepted_objects
     quarantine = admission.quarantine
     if not accepted_objects:
@@ -180,8 +191,10 @@ def _publish_event_objects_locked(
             quarantine_paths=quarantine.paths,
             publication_error="\n".join(quarantine.publication_errors) or None,
             skip_diagnostics=tuple(dict.fromkeys(quarantine_diagnostics)),
+            phase_seconds=tuple(phases),
         )
 
+    phase_started = time.monotonic()
     states = _operation_states(
         store,
         accepted_objects,
@@ -194,7 +207,9 @@ def _publish_event_objects_locked(
     diagnostics.extend(finding.render() for finding in quarantine.findings)
     publication_errors: list[str] = list(quarantine.publication_errors)
     committed = quarantine.committed
+    phases.append(("states", time.monotonic() - phase_started))
 
+    phase_started = time.monotonic()
     for root, root_objects in grouped.items():
         outcome = _publish_root_events(
             store,
@@ -217,7 +232,9 @@ def _publish_event_objects_locked(
                     if state.item.digest == digest:
                         state.durable_roots.add(root)
                         break
+    phases.append(("roots", time.monotonic() - phase_started))
 
+    phase_started = time.monotonic()
     local_created = _install_local_receipt_events(store, states.values())
     committed = committed or local_created
     for state in states.values():
@@ -228,7 +245,9 @@ def _publish_event_objects_locked(
             )
             event_paths.append(path)
             durable_paths.append(path)
+    phases.append(("local_receipts", time.monotonic() - phase_started))
 
+    phase_started = time.monotonic()
     bead_objects = [
         state.item
         for state in states.values()
@@ -258,6 +277,7 @@ def _publish_event_objects_locked(
         diagnostics.append(
             f"artifact-link bead event publication failed: {bead_result.diagnostic}"
         )
+    phases.append(("beads", time.monotonic() - phase_started))
 
     receipts = _published_operation_ids(
         states.values(),
@@ -272,12 +292,23 @@ def _publish_event_objects_locked(
     ]
     aggregate_rows: tuple[dict[str, Any], ...] = ()
     aggregate_ready = True
+    aggregate_deferred = False
+    phase_started = time.monotonic()
     if ready_objects:
         try:
-            aggregate_rows = _apply_events_to_aggregate(store, ready_objects)
+            aggregate_rows = _apply_events_to_aggregate(
+                store, ready_objects, deadline=deadline
+            )
+        except ArtifactLinkAggregateWriteDeferred:
+            # The durable events are already written, so the retained outbox
+            # rows replay idempotently on the next drain.
+            aggregate_ready = False
+            aggregate_deferred = True
+            diagnostics.append(AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC)
         except Exception as exc:  # noqa: BLE001 - durable events replay idempotently.
             aggregate_ready = False
             diagnostics.append(f"artifact-link aggregate projection failed: {exc}")
+    phases.append(("aggregate", time.monotonic() - phase_started))
 
     if not aggregate_ready:
         published_ids = ()
@@ -307,8 +338,9 @@ def _publish_event_objects_locked(
         aggregate_rows=aggregate_rows,
         publication_error="\n".join(publication_errors) or None,
         skip_diagnostics=tuple(dict.fromkeys(diagnostics)),
-        deferred=bead_result.deferred,
+        deferred=bead_result.deferred or aggregate_deferred,
         bead_projection_failed=bool(bead_result.failed),
+        phase_seconds=tuple(phases),
     )
 
 

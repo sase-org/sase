@@ -240,6 +240,8 @@ def drain_artifact_link_outbox(
     ]
     parked_new = _append_parked_entries(link_store.project_key, parked_records)
     phases["publish"] = time.monotonic() - phase_started
+    for name, seconds in event_report.phase_seconds:
+        phases[f"publish.{name}"] = seconds
     event_skip_diagnostics = event_report.skip_diagnostics
     settled_event_keys = (
         published_event_keys | parked_event_keys | quarantined_event_keys

@@ -32,6 +32,7 @@ from sase.sdd.artifact_link_store import (
 CHOP_NAME = "artifact_link_backfill"
 _SWEEP_BATCH_SIZE = 500
 _DRAIN_PHASES = ("read", "evidence", "eligibility", "catalog", "publish", "rewrite")
+_PUBLISH_PHASE_PREFIX = "publish."
 _RECONCILE_CUT_SHORT_DIAGNOSTIC = "reconcile deadline expired"
 
 
@@ -101,6 +102,15 @@ def _drain_phase_line(
         else:
             rendered = f"{value:.2f}s"
         parts.append(f"{name}={rendered}")
+        if name == "publish":
+            # Publish sub-phases only exist when a publish ran, so they never
+            # print ``skipped``; they sit right after their parent in
+            # the order the publisher recorded them.
+            parts.extend(
+                f"{key}={seconds:.2f}s"
+                for key, seconds in phases.items()
+                if key.startswith(_PUBLISH_PHASE_PREFIX)
+            )
     return f"[{CHOP_NAME}] {project_key}: drain phases: " + " ".join(parts)
 
 

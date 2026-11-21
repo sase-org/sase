@@ -76,6 +76,7 @@ class ArtifactLinkStoreRowsMixin:
             self,
             *,
             exclude_pending_event_ids: Iterable[str] = (),
+            deadline: float | None = None,
         ) -> dict[str, Any]: ...
 
     def upsert_row(

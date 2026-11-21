@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 import fcntl
+import time
 from typing import TYPE_CHECKING, Any
 
 from sase.agents_sync.io import atomic_write_json
@@ -25,6 +26,18 @@ if TYPE_CHECKING:
 # both finish scanning around the same moment, and a loser must merge against
 # the generation the winner just wrote rather than clobber it.
 _MAX_AGGREGATE_WRITE_ATTEMPTS = 5
+
+
+class ArtifactLinkAggregateWriteDeferred(Exception):
+    """A deadline-bearing aggregate write gave up instead of overrunning."""
+
+    def __init__(self, *, attempts: int, last_compute_seconds: float) -> None:
+        super().__init__(
+            "artifact-link aggregate write deferred past deadline after "
+            f"{attempts} attempt(s); last preview took {last_compute_seconds:.2f}s"
+        )
+        self.attempts = attempts
+        self.last_compute_seconds = last_compute_seconds
 
 
 class ArtifactLinkStoreAggregateMixin:
@@ -97,17 +110,26 @@ class ArtifactLinkStoreAggregateMixin:
         self,
         *,
         exclude_pending_event_ids: Iterable[str] = (),
+        deadline: float | None = None,
     ) -> dict[str, Any]:
-        """Rebuild ``artifact-links.json`` from sidecar JSON plus bead events."""
+        """Rebuild ``artifact-links.json`` from sidecar JSON plus bead events.
+
+        ``deadline`` is a ``time.monotonic()`` timestamp; see
+        :meth:`_write_merged_aggregate` for how it gates the write retries.
+        """
 
         return self._write_merged_aggregate(
             lambda: self.preview_aggregate(
                 exclude_pending_event_ids=exclude_pending_event_ids,
-            )
+            ),
+            deadline=deadline,
         )
 
     def _write_merged_aggregate(
-        self, compute_preview: Callable[[], dict[str, Any]]
+        self,
+        compute_preview: Callable[[], dict[str, Any]],
+        *,
+        deadline: float | None = None,
     ) -> dict[str, Any]:
         """Write a freshly computed preview, retrying if it lost a race.
 
@@ -120,14 +142,36 @@ class ArtifactLinkStoreAggregateMixin:
         Bounded so a pathologically hot file cannot loop forever; the last
         attempt writes regardless, against whatever generation is current at
         that point.
+
+        ``deadline`` is a ``time.monotonic()`` timestamp. A preview costs
+        tens of seconds on a large project, so a caller with a budget must
+        not start a retry it cannot finish: after a lost race this raises
+        :class:`ArtifactLinkAggregateWriteDeferred` when the last preview's
+        duration no longer fits before the deadline, and it raises before
+        the first preview when the deadline has already passed. Callers
+        without a deadline keep the full bounded loop.
         """
 
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ArtifactLinkAggregateWriteDeferred(
+                attempts=0, last_compute_seconds=0.0
+            )
         for attempt in range(_MAX_AGGREGATE_WRITE_ATTEMPTS):
+            started = time.monotonic()
             document = compute_preview()
+            last_compute_seconds = time.monotonic() - started
             force = attempt == _MAX_AGGREGATE_WRITE_ATTEMPTS - 1
             written = self._write_aggregate_if_current(document, force=force)
             if written is not None:
                 return written
+            if (
+                deadline is not None
+                and time.monotonic() + last_compute_seconds >= deadline
+            ):
+                raise ArtifactLinkAggregateWriteDeferred(
+                    attempts=attempt + 1,
+                    last_compute_seconds=last_compute_seconds,
+                )
         raise AssertionError("unreachable: the last attempt always forces the write")
 
     def _write_aggregate_if_current(

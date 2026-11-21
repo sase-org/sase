@@ -347,3 +347,71 @@ def test_drain_still_rewrites_a_queue_with_duplicate_ids(
     assert report.queued == 2
     assert "rewrite" in dict(report.phase_seconds)
     assert outbox_path.read_text(encoding="utf-8").splitlines() == [line]
+
+
+def test_drain_report_carries_the_publish_sub_phases_after_publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = _store(tmp_path)
+    _queue_read(PROJECT_KEY, agent="reader", run_id="run-1")
+    record_artifact_link_release_evidence(
+        project_key=PROJECT_KEY,
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=("/tmp/plans",),
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    names = [name for name, _seconds in report.phase_seconds]
+    publish_at = names.index("publish")
+    assert names[publish_at + 1 : publish_at + 7] == [
+        "publish.admission",
+        "publish.states",
+        "publish.roots",
+        "publish.local_receipts",
+        "publish.beads",
+        "publish.aggregate",
+    ]
+
+
+def test_drain_defers_and_keeps_rows_queued_when_the_aggregate_defers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._artifact_link_store_aggregate import (
+        ArtifactLinkAggregateWriteDeferred,
+    )
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = _store(tmp_path)
+    _queue_read(PROJECT_KEY, agent="reader", run_id="run-1")
+    record_artifact_link_release_evidence(
+        project_key=PROJECT_KEY,
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=("/tmp/plans",),
+    )
+
+    def deferred_rebuild(_store: object, **_kwargs: object) -> object:
+        raise ArtifactLinkAggregateWriteDeferred(attempts=1, last_compute_seconds=60.0)
+
+    monkeypatch.setattr(ArtifactLinkStore, "rebuild_aggregate", deferred_rebuild)
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        drop_stale_terminal=False,
+        push_after_commit=False,
+        deadline=time.monotonic() + 600.0,
+    )
+
+    assert report.deferred is True
+    assert report.drained == 0
+    assert report.retained == 1
+    assert len(read_artifact_link_outbox_entries(PROJECT_KEY)) == 1

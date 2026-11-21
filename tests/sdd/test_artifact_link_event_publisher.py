@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import json
 from pathlib import Path
+import time
 
 import pytest
 
@@ -14,6 +15,12 @@ from sase.sdd._artifact_link_event_canonical import (
     canonical_artifact_link_event_object,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
+from sase.sdd._artifact_link_event_publish import (
+    AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC,
+)
+from sase.sdd._artifact_link_store_aggregate import (
+    ArtifactLinkAggregateWriteDeferred,
+)
 from sase.sdd.artifact_link_event_publisher import (
     active_operation_ids_for_row,
     edge_remove_event,
@@ -543,3 +550,95 @@ def test_publish_bead_owner_without_bead_store_stays_pending(
     assert report.event_paths
     assert any("bead store is unavailable" in item for item in report.skip_diagnostics)
     assert store.load_aggregate().get("rows", ()) == []
+
+
+_PUBLISH_PHASES = (
+    "admission",
+    "states",
+    "roots",
+    "local_receipts",
+    "beads",
+    "aggregate",
+)
+
+
+def _ownerless_event(operation_id: str) -> dict[str, object]:
+    return observation_or_put_event_from_row(
+        _row(
+            source="agent:reader",
+            relation="related",
+            target="agent:planner",
+            origin="manual",
+        ),
+        project_key="gh_sase-org__sase",
+        operation_id=operation_id,
+    )
+
+
+def test_publish_report_lists_every_publish_sub_phase_in_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+
+    report = publish_artifact_link_events(
+        store,
+        (_ownerless_event("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    assert report.published == 1
+    assert tuple(name for name, _seconds in report.phase_seconds) == _PUBLISH_PHASES
+    assert all(seconds >= 0.0 for _name, seconds in report.phase_seconds)
+
+
+def test_aggregate_deferral_retains_the_rows_and_marks_the_report_deferred(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """publish_deferral = retain: a deferred rebuild settles nothing."""
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    seen_deadlines: list[float | None] = []
+
+    def deferred_rebuild(
+        _store: ArtifactLinkStore, *, deadline: float | None = None, **_kwargs: object
+    ) -> dict[str, object]:
+        seen_deadlines.append(deadline)
+        raise ArtifactLinkAggregateWriteDeferred(attempts=1, last_compute_seconds=60.0)
+
+    with monkeypatch.context() as deferred:
+        deferred.setattr(ArtifactLinkStore, "rebuild_aggregate", deferred_rebuild)
+        report = publish_artifact_link_events(
+            store,
+            (_ownerless_event("ffffffffffffffffffffffffffffffff"),),
+            push_after_commit=False,
+            mutation_origin="machine",
+            deadline=time.monotonic() + 600.0,
+        )
+
+    assert seen_deadlines and seen_deadlines[0] is not None
+    assert report.deferred is True
+    assert report.published == 0
+    assert report.published_operation_ids == ()
+    assert report.published_event_keys == ()
+    assert report.aggregate_rows == ()
+    assert AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC in report.skip_diagnostics
+    assert tuple(name for name, _seconds in report.phase_seconds) == _PUBLISH_PHASES
+
+    # The durable event already landed, so the retained row republishes
+    # idempotently once the aggregate rebuild fits its budget.
+    replay = publish_artifact_link_events(
+        store,
+        (_ownerless_event("ffffffffffffffffffffffffffffffff"),),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+    assert replay.published == 1
+    assert replay.deferred is False
+    assert len(store.load_aggregate()["rows"]) == 1
