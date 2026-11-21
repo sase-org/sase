@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import sase.axe.state as _state
+from sase.axe.spawn_rate import prune_spawn_samples, spawn_rate_per_minute
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
@@ -69,6 +70,16 @@ class LumberjackMetrics:
     last_tick_at: str | None = None
     spawn_rate_per_minute: float = 0.0
     no_op_ratio: float = 0.0
+    #: ``[epoch_seconds, spawns]`` for each tick inside the rolling window that
+    #: spawned at least one job. Readers recompute ``spawn_rate_per_minute``
+    #: from these, so the rate decays between ticks.
+    spawn_samples: list[list[float]] = field(default_factory=list)
+    #: Rolling window length; ``0`` marks a legacy writer whose stored rate is
+    #: shown as-is.
+    spawn_window_seconds: float = 0.0
+    #: Epoch seconds the observed span starts at (routine start minus one
+    #: interval, because the first tick runs at start).
+    spawn_rate_since: float | None = None
 
     def record_skips(self, reason: str, count: int = 1) -> None:
         """Increment one skip-reason bucket. Unknown reasons are still counted."""
@@ -137,7 +148,56 @@ def _coerce_lumberjack_metrics(metrics: LumberjackMetrics) -> LumberjackMetrics:
             setattr(metrics, attr, 0)
     if metrics.last_tick_at is not None and not isinstance(metrics.last_tick_at, str):
         metrics.last_tick_at = None
+    _coerce_spawn_window(metrics)
     return metrics
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _coerce_spawn_window(metrics: LumberjackMetrics) -> None:
+    raw_samples = metrics.spawn_samples
+    samples: list[list[float]] = []
+    if isinstance(raw_samples, list):
+        for sample in raw_samples:
+            if (
+                isinstance(sample, list | tuple)
+                and len(sample) == 2
+                and _is_number(sample[0])
+                and _is_number(sample[1])
+                and sample[1] > 0
+            ):
+                samples.append([float(sample[0]), sample[1]])
+    metrics.spawn_samples = samples
+    window = metrics.spawn_window_seconds
+    metrics.spawn_window_seconds = (
+        float(window) if _is_number(window) and window > 0 else 0.0
+    )
+    since = metrics.spawn_rate_since
+    metrics.spawn_rate_since = (
+        float(since)
+        if isinstance(since, int | float) and not isinstance(since, bool)
+        else None
+    )
+
+
+def refresh_spawn_rate(metrics: LumberjackMetrics, *, now: float | None = None) -> None:
+    """Prune *metrics*' spawn samples and recompute its rate at *now*.
+
+    Metrics from a legacy writer (no window) keep their stored rate.
+    """
+    window = metrics.spawn_window_seconds
+    since = metrics.spawn_rate_since
+    if window <= 0 or since is None:
+        return
+    current = time.time() if now is None else now
+    metrics.spawn_samples = prune_spawn_samples(
+        metrics.spawn_samples, now=current, window_seconds=window
+    )
+    metrics.spawn_rate_per_minute = spawn_rate_per_minute(
+        metrics.spawn_samples, now=current, window_seconds=window, since=since
+    )
 
 
 def _coerce_lumberjack_status(status: LumberjackStatus) -> LumberjackStatus:
@@ -279,11 +339,17 @@ def write_lumberjack_metrics(name: str, metrics: LumberjackMetrics) -> None:
     _state.atomic_write_json(lumberjack_dir / "metrics.json", asdict(metrics))
 
 
-def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
+def read_lumberjack_metrics(
+    name: str, *, now: float | None = None
+) -> LumberjackMetrics | None:
     """Read lumberjack metrics from disk.
+
+    The spawn rate is recomputed from the persisted rolling window at *now*
+    (default: the current time), so it decays between the routine's writes.
 
     Args:
         name: Lumberjack name.
+        now: Epoch seconds to evaluate the spawn rate at.
 
     Returns:
         LumberjackMetrics, or None if not available.
@@ -295,7 +361,9 @@ def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
     metrics = _dataclass_from_mapping(LumberjackMetrics, data)
     if metrics is None:
         return None
-    return _coerce_lumberjack_metrics(metrics)
+    metrics = _coerce_lumberjack_metrics(metrics)
+    refresh_spawn_rate(metrics, now=now)
+    return metrics
 
 
 def write_chop_timestamps(name: str, timestamps: dict[str, str]) -> None:

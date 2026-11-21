@@ -18,6 +18,7 @@ from .state import (
     ChopRunEntry,
     ChopRunSource,
     append_chop_run_output,
+    coalesce_scheduled_skip,
     write_chop_run,
 )
 
@@ -71,7 +72,13 @@ def record_preflight_outcome(
     preflight: ChopPreflight,
     chop_verbose: bool,
 ) -> ChopRunOutcome:
-    """Write and return a terminal skip or check-error preflight outcome."""
+    """Write and return a terminal skip or check-error preflight outcome.
+
+    A scheduled skip that repeats the newest record's skip reason is folded
+    into that record (see :func:`coalesce_scheduled_skip`) instead of writing
+    a new run-history entry, so an idle lane stops rewriting history on
+    every tick.
+    """
     finished_at = datetime.now(get_timezone())
     duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
     status: Literal["skipped", "check_error"] = (
@@ -82,6 +89,28 @@ def record_preflight_outcome(
     output = f"{label}: {preflight.reason}\n"
     provider = (preflight.decision or {}).get("provider")
     advances_cadence = not (status == "skipped" and provider not in _TRIGGER_PROVIDERS)
+    if status == "skipped" and source == "scheduled":
+        try:
+            folded_run_id = coalesce_scheduled_skip(
+                lumberjack_name,
+                chop_name,
+                reason=preflight.reason,
+                now=finished_at,
+            )
+        except OSError:
+            folded_run_id = None
+        if folded_run_id is not None:
+            return ChopRunOutcome(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop_name,
+                status=status,
+                run_id=folded_run_id,
+                chop_verbose=chop_verbose,
+                reason=preflight.reason,
+                advances_cadence=advances_cadence,
+                skip_reason=_skip_reason_for_preflight(preflight),
+                skip_coalesced=True,
+            )
     try:
         write_chop_run(
             ChopRunEntry(

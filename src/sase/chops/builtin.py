@@ -47,15 +47,30 @@ class BuiltinChopRuntime:
     @property
     def all_patches(self) -> list[Patch]:
         if self._all_patches is None:
-            self._all_patches = load_patches_from_file(self.context.all_patches_file)
+            if self.context.all_patches_file:
+                self._all_patches = load_patches_from_file(
+                    self.context.all_patches_file
+                )
+            else:
+                # The routine serializes Patches only for jobs known to read
+                # them; any other job parses on demand, as the routine would.
+                from sase.ace.patch import find_all_patches
+                from sase.axe.patch_filtering import filter_axe_candidate_patches
+
+                self._all_patches = filter_axe_candidate_patches(find_all_patches())
         return self._all_patches
 
     @property
     def filtered_patches(self) -> list[Patch]:
         if self._filtered_patches is None:
-            self._filtered_patches = load_patches_from_file(
-                self.context.filtered_patches_file
-            )
+            if self.context.filtered_patches_file:
+                self._filtered_patches = load_patches_from_file(
+                    self.context.filtered_patches_file
+                )
+            else:
+                self._filtered_patches = self.check_cycle_runner.get_filtered_patches(
+                    self.all_patches
+                )
         return self._filtered_patches
 
     @property

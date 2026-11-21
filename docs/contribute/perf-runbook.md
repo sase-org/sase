@@ -227,12 +227,15 @@ Deterministic regression floors live in tests, not wall-clock CI:
 ### Five-minute diagnosis
 
 ```bash
-# 1. Fleet spawn rate and no-op ratio (reads routine metrics.json)
+# 1. Fleet spawn rate and no-op ratio (reads routine metrics.json). spawns/min is a
+#    rolling-window average that decays between ticks and sums across routines; see
+#    docs/reference/automation/scheduler.md#routine-ticks
 sase axe routine status
 
 # 2. Confirm the human overlay matches on-disk counters
+#    (the persisted spawn_rate_per_minute is as of the routine's last 30s write)
 jq '{chops_spawned, chops_no_op, chops_skipped, last_tick_spawns, last_tick_skipped,
-     spawn_rate_per_minute, no_op_ratio}' \
+     spawn_rate_per_minute, spawn_window_seconds, no_op_ratio}' \
   ~/.sase/axe/lumberjacks/*/metrics.json
 
 # 3. Process CPU over a quiet minute (/proc deltas)

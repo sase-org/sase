@@ -8,6 +8,7 @@ time so home-directory redirection applies to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001
+import threading
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,11 @@ from sase.core.time import get_timezone
 #: Maximum number of run-history entries retained per chop. Older runs are
 #: pruned (both metadata and log) when a new run is recorded.
 MAX_CHOP_RUN_HISTORY = 10
+
+#: Consecutive identical scheduled skips fold into the newest skip record
+#: instead of each writing a new entry. The record's ``finished_at`` and
+#: ``skip_count`` are refreshed at most once per this many seconds.
+SKIP_COALESCE_SECONDS = 60
 
 ChopRunStatus = Literal[
     "running",
@@ -78,6 +84,9 @@ class ChopRunEntry:
     #: which ``duration_ms`` stops representing once a launched run is
     #: finalized against its agents' lifetime.
     script_duration_ms: int | None = None
+    #: Consecutive identical scheduled skips folded into this skip record;
+    #: ``None`` means one. ``finished_at`` is then the latest folded skip.
+    skip_count: int | None = None
 
 
 def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
@@ -233,6 +242,90 @@ def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:
     _state.atomic_write_json(index_path, ordered)
 
     _prune_chop_run_history(lumberjack_name, chop_name)
+
+
+@dataclass
+class _SkipStreak:
+    run_id: str
+    reason: str | None
+    flushed_at: datetime
+    pending: int = 0
+
+
+_SKIP_STREAKS: dict[tuple[str, str], _SkipStreak] = {}
+_SKIP_STREAKS_LOCK = threading.Lock()
+
+
+def coalesce_scheduled_skip(
+    lumberjack_name: str,
+    chop_name: str,
+    *,
+    reason: str | None,
+    now: datetime,
+) -> str | None:
+    """Fold a repeat scheduled skip into the newest run record.
+
+    Returns the run id the skip was folded into, or ``None`` when the newest
+    record is not a scheduled skip with the same reason and the caller must
+    write a fresh record. A folded skip costs one index read; the record is
+    rewritten at most once per :data:`SKIP_COALESCE_SECONDS`, and the index is
+    never rewritten or pruned.
+    """
+    index = read_chop_run_index(lumberjack_name, chop_name)
+    if not index:
+        return None
+    head_id = index[0]
+    key = (lumberjack_name, chop_name)
+    with _SKIP_STREAKS_LOCK:
+        streak = _SKIP_STREAKS.get(key)
+        if streak is None or streak.run_id != head_id:
+            streak = _adopt_skip_streak(lumberjack_name, chop_name, head_id, now)
+            if streak is None:
+                _SKIP_STREAKS.pop(key, None)
+                return None
+            _SKIP_STREAKS[key] = streak
+        if streak.reason != reason:
+            return None
+        streak.pending += 1
+        if (now - streak.flushed_at).total_seconds() < SKIP_COALESCE_SECONDS:
+            return head_id
+        if not _flush_skip_streak(lumberjack_name, chop_name, streak, now):
+            _SKIP_STREAKS.pop(key, None)
+            return None
+    return head_id
+
+
+def _adopt_skip_streak(
+    lumberjack_name: str, chop_name: str, run_id: str, now: datetime
+) -> _SkipStreak | None:
+    head = read_chop_run(lumberjack_name, chop_name, run_id)
+    if head is None or head.status != "skipped" or head.source != "scheduled":
+        return None
+    try:
+        flushed_at = datetime.fromisoformat(head.finished_at or "")
+    except ValueError:
+        flushed_at = now
+    if flushed_at.tzinfo is None:
+        flushed_at = flushed_at.replace(tzinfo=now.tzinfo)
+    return _SkipStreak(run_id=run_id, reason=head.reason, flushed_at=flushed_at)
+
+
+def _flush_skip_streak(
+    lumberjack_name: str, chop_name: str, streak: _SkipStreak, now: datetime
+) -> bool:
+    """Persist the streak's pending skips; False when its record is gone."""
+    entry = read_chop_run(lumberjack_name, chop_name, streak.run_id)
+    if entry is None:
+        return False
+    meta_path = chop_run_meta_path(lumberjack_name, chop_name, streak.run_id)
+    if not best_effort_test_state_write_allowed(meta_path, category="axe-chop-state"):
+        return True
+    entry.skip_count = (entry.skip_count or 1) + streak.pending
+    entry.finished_at = now.isoformat()
+    _state.atomic_write_json(meta_path, asdict(entry))
+    streak.pending = 0
+    streak.flushed_at = now
+    return True
 
 
 def start_chop_run(entry: ChopRunEntry) -> Path:

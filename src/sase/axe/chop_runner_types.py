@@ -52,6 +52,9 @@ class ChopRunOutcome:
     paused: bool = False
     advances_cadence: bool = True
     skip_reason: Literal["trigger", "run_every", "inhibited"] | None = None
+    #: True when a repeat scheduled skip was folded into the newest skip record
+    #: (``run_id``) instead of writing a new run-history entry.
+    skip_coalesced: bool = False
 
 
 class ChopNotFoundError(LookupError):

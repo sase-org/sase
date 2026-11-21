@@ -410,8 +410,13 @@ def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
         metrics = read_lumberjack_metrics(name)
         load = ""
         if metrics is not None:
+            window = (
+                f" ({metrics.spawn_window_seconds / 60:.0f}m avg)"
+                if metrics.spawn_window_seconds > 0
+                else ""
+            )
             load = (
-                f", spawns/min={metrics.spawn_rate_per_minute:.1f}"
+                f", spawns/min={metrics.spawn_rate_per_minute:.1f}{window}"
                 f", no-op={format_no_op_ratio(metrics)}"
                 f", last tick={metrics.last_tick_spawns} spawned"
                 f"/{metrics.last_tick_skipped} skipped"

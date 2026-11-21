@@ -34,17 +34,19 @@ Axe runs script jobs as:
 
 The context file contains the effective runner limits, zombie timeout, query, routine
 name, routine state directory, paths to serialized `all_changespecs.json` and
-`filtered_changespecs.json` files, the current `target`, configured `vars`, the run
-source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local
-result path. The result path is also exported as `SASE_JOB_RESULT_FILE`; the source and
-dry-run flag are mirrored as `SASE_JOB_SOURCE` and `SASE_JOB_DRY_RUN` (`1` for true, `0`
-for false). `SASE_JOB_VERBOSE` enables opt-in debug output. Target fields are exported
-as `SASE_JOB_TARGET_<FIELD>` along with `SASE_JOB_TARGET_KEY`. Each of these variables
-is also mirrored under its `SASE_CHOP_*` spelling for older scripts; configuring both
-spellings with different values is rejected. Scripts with direct side effects must honor
-`dry_run` before mutating external state; runner-level dry-run only previews launch
-proposals. Scheduled script jobs within one routine tick run concurrently; use `timeout`
-or `job_timeout` to keep a slow script from blocking later ticks indefinitely.
+`filtered_changespecs.json` files
+([empty unless a job reads them](scheduler.md#routine-ticks)), the current `target`,
+configured `vars`, the run source (`scheduled`, `manual`, or `oneshot`), the `dry_run`
+flag, and the run-local result path. The result path is also exported as
+`SASE_JOB_RESULT_FILE`; the source and dry-run flag are mirrored as `SASE_JOB_SOURCE`
+and `SASE_JOB_DRY_RUN` (`1` for true, `0` for false). `SASE_JOB_VERBOSE` enables opt-in
+debug output. Target fields are exported as `SASE_JOB_TARGET_<FIELD>` along with
+`SASE_JOB_TARGET_KEY`. Each of these variables is also mirrored under its `SASE_CHOP_*`
+spelling for older scripts; configuring both spellings with different values is
+rejected. Scripts with direct side effects must honor `dry_run` before mutating external
+state; runner-level dry-run only previews launch proposals. Scheduled script jobs within
+one routine tick run concurrently; use `timeout` or `job_timeout` to keep a slow script
+from blocking later ticks indefinitely.
 
 Script job stdout and stderr are streamed to the job's per-run log file while the
 subprocess is still alive (see [Job Run History](#job-run-history) below). The
@@ -509,7 +511,8 @@ a glance why a run started.
 ## Job Run History
 
 Every job execution — whether kicked off by a scheduled routine tick or by
-`sase axe job run …` — is recorded as a separate run under
+`sase axe job run …` — is recorded as a separate run
+([repeated scheduled skips fold](scheduler.md#routine-ticks)) under
 `~/.sase/axe/lumberjacks/<routine>/chops/<job>/`. Each run is assigned a sortable,
 microsecond- precision `run_id`. `index.json` (kept next to `runs/`) lists the job's run
 IDs newest-first:

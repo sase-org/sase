@@ -160,6 +160,30 @@ Use these related commands according to intent:
 - `sase axe routine status` remains the compatibility/debugging process view for
   individual routines.
 
+## Routine Ticks {#routine-ticks}
+
+Each tick, a routine writes a shared job context under `tick/` and runs its eligible
+jobs concurrently. Ticks are kept cheap:
+
+- **Patch files only where read.** A routine serializes `all_changespecs.json` and
+  `filtered_changespecs.json` only when an enabled job reads them: a job with a `patch`
+  `inhibit_if` guard, a builtin Patch-lifecycle job (the hooks lane today), or any
+  script outside the `sase_job_*`/`sase_chop_*` namespace. Elsewhere both context paths
+  are empty strings, and the builtin job runtime parses Patches itself the first time a
+  job asks for them.
+- **No unchanged work.** A Patch-serializing routine re-parses only when a ProjectSpec
+  file's mtime, size, or inode changed, and no routine rewrites a tick file whose
+  content would not change.
+- **Folded skips.** A scheduled skip whose reason matches the job's newest run record,
+  itself a scheduled skip, adds no run. It folds into that record, which counts the
+  skips in `skip_count` and moves `finished_at` to the latest one at most once a minute.
+  Routine metrics still count every skip, and the routine log shows the first skip of a
+  streak. A new reason, a manual run, or a real run starts a fresh record.
+- **Honest spawn rate.** `spawns/min` in `sase axe routine status` is a rolling average:
+  the spawns inside a window of `max(5 min, one interval)` divided by the window's
+  observed duration. Readers recompute it from the `spawn_samples` in `metrics.json`, so
+  it decays between ticks and sums across routines to the real spawn rate.
+
 ## Maintenance Mode
 
 Maintenance mode is a lightweight pause switch for scheduled work.
@@ -238,7 +262,7 @@ next step.
 │   └── {name}/                     # Per-routine state
 │       ├── pid                     # Routine PID
 │       ├── status.json             # Current status (updated every 5s)
-│       ├── metrics.json            # Cumulative metrics (updated every 30s)
+│       ├── metrics.json            # Cumulative metrics + spawn window (every 30s)
 │       ├── chop_timestamps.json    # Last successful run_every timestamp per job
 │       ├── agent_chops.json        # Durable registry of agents launched by this routine's jobs
 │       ├── chops/                  # Per-job run history
@@ -249,8 +273,8 @@ next step.
 │       │           └── {run_id}.log    # Streamed stdout+stderr
 │       ├── tick/
 │       │   ├── context.json        # Context passed to script jobs
-│       │   ├── all_changespecs.json
-│       │   └── filtered_changespecs.json
+│       │   ├── all_changespecs.json       # Only where a job reads Patches
+│       │   └── filtered_changespecs.json  # Only where a job reads Patches
 │       └── logs/
 │           └── output.log          # Routine output log
 ├── shared/

@@ -34,14 +34,12 @@ from .chop_runner import (
     run_configured_chop_once,
 )
 from .chop_stop_signal import ChopStopSignal
-from .chop_script_context import (
-    ChopScriptContext,
-    serialize_patches,
-    write_chop_context,
-)
+from .chop_script_context import ChopScriptContext
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .maintenance import clear_stale_maintenance, read_maintenance
 from .patch_filtering import filter_axe_candidate_patches
+from .spawn_rate import spawn_rate_window_seconds
+from .tick_context import TickContextWriter, routine_reads_tick_patches
 from .state import (
     AxeMetrics,
     LumberjackMetrics,
@@ -52,6 +50,7 @@ from .state import (
     get_timestamp,
     read_chop_run_log_tail,
     read_chop_timestamps,
+    refresh_spawn_rate,
     remove_lumberjack_pid,
     write_chop_timestamps,
     write_lumberjack_metrics,
@@ -122,8 +121,19 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(axe_config.query or None, self._log)
-        # Rolling (monotonic_ts, spawn_count) samples for spawn_rate_per_minute.
-        self._tick_spawn_window: list[tuple[float, int]] = []
+        self._tick_context = TickContextWriter(
+            self._state_dir / "tick",
+            load_all_patches=lambda: filter_axe_candidate_patches(
+                self._check_runner.get_all_patches()
+            ),
+            filter_patches=lambda patches: self._check_runner.get_filtered_patches(
+                patches
+            ),
+        )
+        # The first tick runs at start, so the observed span begins an interval
+        # earlier (see sase.axe.spawn_rate).
+        self._metrics.spawn_window_seconds = spawn_rate_window_seconds(config.interval)
+        self._metrics.spawn_rate_since = time.time() - config.interval
         # Load persisted chop last-run timestamps for time-based run_every
         self._chop_timestamps: dict[str, datetime] = {}
         for chop_name, ts_str in read_chop_timestamps(name).items():
@@ -237,38 +247,17 @@ class Lumberjack:
             AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
             return
 
-        all_patches = filter_axe_candidate_patches(self._check_runner.get_all_patches())
-        filtered_patches = self._check_runner.get_filtered_patches(all_patches)
-
-        # Serialize patches and context to disk for chop scripts
+        # Serialize the job context, plus Patches only when a job reads them.
         tick_dir = self._state_dir / "tick"
         if not best_effort_test_state_write_allowed(
             tick_dir, category="axe-chop-state"
         ):
             return
         tick_dir.mkdir(parents=True, exist_ok=True)
-
-        all_cs_file = str(tick_dir / "all_changespecs.json")
-        filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
-        context_file = str(tick_dir / "context.json")
-
-        serialize_patches(all_patches, all_cs_file)
-        serialize_patches(filtered_patches, filtered_cs_file)
-
-        ctx = ChopScriptContext(
-            max_hook_runners=self.axe_config.max_hook_runners,
-            max_agent_runners=self.axe_config.max_agent_runners,
-            zombie_timeout_seconds=self.axe_config.zombie_timeout_seconds,
-            query=self.axe_config.query,
-            lumberjack_name=self.name,
-            state_dir=str(self._state_dir),
-            all_patches_file=all_cs_file,
-            filtered_patches_file=filtered_cs_file,
-            verbose_lumberjack_diagnostics=(
-                self.axe_config.verbose_lumberjack_diagnostics
-            ),
+        context_file = self._tick_context.write(
+            self._build_chop_context,
+            include_patches=routine_reads_tick_patches(self.config.chops),
         )
-        write_chop_context(ctx, context_file)
 
         now = datetime.now(get_timezone())
 
@@ -364,6 +353,23 @@ class Lumberjack:
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
+    def _build_chop_context(
+        self, all_patches_file: str, filtered_patches_file: str
+    ) -> ChopScriptContext:
+        return ChopScriptContext(
+            max_hook_runners=self.axe_config.max_hook_runners,
+            max_agent_runners=self.axe_config.max_agent_runners,
+            zombie_timeout_seconds=self.axe_config.zombie_timeout_seconds,
+            query=self.axe_config.query,
+            lumberjack_name=self.name,
+            state_dir=str(self._state_dir),
+            all_patches_file=all_patches_file,
+            filtered_patches_file=filtered_patches_file,
+            verbose_lumberjack_diagnostics=(
+                self.axe_config.verbose_lumberjack_diagnostics
+            ),
+        )
+
     def _recover_pending_batches(self) -> list[Any]:
         """Reconcile pending launch batches before lifecycle cleanup or new work."""
         try:
@@ -436,7 +442,9 @@ class Lumberjack:
             )
 
         if outcome.status == "skipped":
-            self._append_log_tail(chop.name, outcome.run_id, log_lines)
+            # A coalesced repeat skip already logged its line on the first skip.
+            if not outcome.skip_coalesced:
+                self._append_log_tail(chop.name, outcome.run_id, log_lines)
             return _ChopResult(
                 chop_name=chop.name,
                 executed=False,
@@ -553,6 +561,7 @@ class Lumberjack:
         append_error(error_info)
 
     def _update_status(self) -> None:
+        refresh_spawn_rate(self._metrics)
         now = datetime.now(get_timezone())
         uptime = int((now - self._start_time).total_seconds())
         status = LumberjackStatus(
@@ -580,29 +589,24 @@ class Lumberjack:
         spawns: int,
         skipped: int,
         no_ops: int,
+        now: float | None = None,
     ) -> None:
-        """Update last-tick counters and the rolling one-minute spawn rate."""
-        now_mono = time.monotonic()
-        self._tick_spawn_window.append((now_mono, spawns))
-        cutoff = now_mono - 60.0
-        self._tick_spawn_window = [
-            sample for sample in self._tick_spawn_window if sample[0] >= cutoff
-        ]
-        total = sum(count for _, count in self._tick_spawn_window)
-        elapsed = now_mono - self._tick_spawn_window[0][0]
-        if elapsed < 1.0:
-            elapsed = 1.0
+        """Update last-tick counters and the rolling-window spawn rate."""
+        current = time.time() if now is None else now
+        if spawns > 0:
+            self._metrics.spawn_samples.append([current, spawns])
+        refresh_spawn_rate(self._metrics, now=current)
         self._metrics.last_tick_spawns = spawns
         self._metrics.last_tick_skipped = skipped
         self._metrics.last_tick_no_ops = no_ops
         self._metrics.last_tick_at = get_timestamp()
-        self._metrics.spawn_rate_per_minute = total * (60.0 / elapsed)
         spawned = self._metrics.chops_spawned
         self._metrics.no_op_ratio = (
             self._metrics.chops_no_op / spawned if spawned else 0.0
         )
 
     def _update_metrics(self) -> None:
+        refresh_spawn_rate(self._metrics)
         write_lumberjack_metrics(self.name, self._metrics)
 
     def _handle_shutdown(self, _signum: int, _frame: object) -> None:
