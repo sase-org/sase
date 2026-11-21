@@ -211,7 +211,10 @@ project only. Named waits and bead-only waits use a scoped index: rows whose ide
 keys intersect the marker's dependency names, plus the waiter's own artifact directory.
 Unscopable shapes — `@tribe` names, hoods, fork sources, identity deps, and armed epic
 follows — still load the full project index. Release decisions stay the same as the full
-view; scoping only drops rows that those queries never consult.
+view; scoping only drops rows that those queries never consult. Cross-project tribe
+evidence, which scans every project's ace-run artifacts, loads only for those unscopable
+shapes. Scoped named and bead-only waits, such as every epic phase, never resolve an `@`
+name, so they skip that scan.
 
 Row selection itself goes through a persistent scope-key cache
 (`~/.sase/cache/wait_scope_keys.json`), so a live tick stats each artifact's

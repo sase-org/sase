@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -19,6 +20,7 @@ from sase.core.wait_dependency_resolution import WaitDependencyIndex
 from sase.axe.run_agent_wait_deps import (
     resolve_initial_wait_release,
     mark_bead_wait_sync_hint,
+    waiting_marker_dependencies_resolved,
 )
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent
@@ -29,6 +31,7 @@ from tests._monitor_wait_dependency_helpers import (
 from tests.test_bead.resolution_test_helpers import bead_store_snapshot
 
 __all__ = [
+    "test_initial_bead_waits_skip_global_tribe_scan",
     "test_initial_wait_release_matches_terminal_outcome_semantics",
     "test_initial_wait_release_routes_full_bead_wait_to_owner_project",
     "test_initial_wait_release_uses_cross_project_stored_job_identity",
@@ -405,3 +408,55 @@ def test_initial_wait_release_withholds_armed_launching_planner(
         project_name="proj",
         artifacts_dir=str(waiter_dir),
     ).releasable
+
+
+@pytest.mark.parametrize(
+    "wait_names",
+    [pytest.param([], id="bead-only"), pytest.param(["proj-9.1"], id="epic-phase")],
+)
+def test_initial_bead_waits_skip_global_tribe_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    wait_names: list[str],
+) -> None:
+    """Bead-only and bead-plus-named (epic phase) waits never scan tribes."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, *wait_names, wait_for_beads=["proj-9.1"])
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "proj-9.1",
+        done=True,
+        outcome="completed",
+    )
+    scan = MagicMock(side_effect=AssertionError("bead waits must not scan tribes"))
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.stored_tribe_names_for_resolution", scan
+    )
+    closed: set[str] = set()
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.closed_bead_ids_for_waits",
+        lambda *_args, **_kwargs: SimpleNamespace(closed_ids=frozenset(closed)),
+    )
+
+    def _release() -> bool:
+        return resolve_initial_wait_release(
+            wait_names,
+            [],
+            wait_beads=["proj-9.1"],
+            project_name="proj",
+            artifacts_dir=str(waiter_dir),
+        ).releasable
+
+    assert not _release()
+    closed.add("proj-9.1")
+    assert _release()
+    resolution = waiting_marker_dependencies_resolved(
+        waiter_dir / "waiting.json",
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+    assert resolution.resolved
+    assert resolution.satisfied_at is None
+    scan.assert_not_called()

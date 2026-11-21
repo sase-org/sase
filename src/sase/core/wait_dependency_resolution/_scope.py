@@ -136,6 +136,18 @@ def marker_scope_keys(marker: Mapping[str, Any]) -> frozenset[str] | None:
     return frozenset(keys)
 
 
+def marker_needs_global_tribes(marker: Mapping[str, Any]) -> bool:
+    """Return whether resolving *marker* may read cross-project tribe evidence.
+
+    The index consults stored-tribe evidence only when it parses an ``@``
+    tribe name. Scoped named waits and bead-only waits cannot name a tribe,
+    so their resolution never reads it. Every unscopable shape keeps the
+    evidence: besides ``@`` names, armed epic follows can resolve an ``@``
+    target, and the other unscopable shapes keep the full view they had.
+    """
+    return marker_scope_keys(marker) is None
+
+
 def select_scope_rows(
     rows: Iterable[ArtifactRow],
     keys: Iterable[str],

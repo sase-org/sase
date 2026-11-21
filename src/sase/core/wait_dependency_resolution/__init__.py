@@ -13,7 +13,12 @@ from ._index import WaitDependencyIndex, build_wait_dependency_index
 from ._json_io import read_json_dict
 from ._release_telemetry import latest_member_finished_at, parse_finished_at
 from ._resolution import dependency_resolution_status
-from ._scope import artifact_scope_keys, marker_scope_keys, select_scope_rows
+from ._scope import (
+    artifact_scope_keys,
+    marker_needs_global_tribes,
+    marker_scope_keys,
+    select_scope_rows,
+)
 from ._scope_cache import (
     ScopeKeyCache,
     keys_for_artifact_dir,
@@ -93,6 +98,7 @@ __all__ = [
     "dependency_resolution_status",
     "keys_for_artifact_dir",
     "latest_member_finished_at",
+    "marker_needs_global_tribes",
     "marker_scope_keys",
     "parse_finished_at",
     "read_json_dict",

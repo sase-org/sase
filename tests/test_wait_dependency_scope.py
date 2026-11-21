@@ -12,6 +12,7 @@ import pytest
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     artifact_scope_keys,
+    marker_needs_global_tribes,
     marker_scope_keys,
     resolve_wait_release,
     select_scope_rows,
@@ -159,6 +160,18 @@ def test_marker_scope_keys_classify_named_and_unscopable_shapes() -> None:
         {"waiting_for": [None]},
     ):
         assert marker_scope_keys(marker) is None
+        assert marker_needs_global_tribes(marker)
+
+
+def test_marker_needs_global_tribes_skips_scoped_and_bead_only_shapes() -> None:
+    for marker in (
+        {"waiting_for": ["lane", "planner.plan"]},
+        {"wait_for_beads": ["sase-a1"]},
+        {"waiting_for": ["sase-a1"], "wait_for_beads": ["sase-a1"]},
+        {"waiting_for": ["lane"], "wait_for_epics_of": [], "wait_epic_follows": []},
+        {"waiting_for": ["lane"], "resolved_deps": ["@team"]},
+    ):
+        assert not marker_needs_global_tribes(marker)
 
 
 def test_select_scope_rows_keeps_matching_rows_and_explicit_waiter(

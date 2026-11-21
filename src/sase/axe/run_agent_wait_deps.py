@@ -28,6 +28,7 @@ from sase.core.wait_dependency_resolution import (
     apply_wait_epic_follow_patch,
     build_wait_dependency_index,
     latest_member_finished_at,
+    marker_needs_global_tribes,
     marker_scope_keys,
     resolve_wait_release,
     select_dirs_with_cache,
@@ -242,6 +243,18 @@ def _build_runner_wait_index(
     return index
 
 
+def _global_stored_tribes_for(marker: Mapping[str, Any]) -> tuple[str, ...]:
+    """Load cross-project tribe evidence only for markers that can read it.
+
+    The evidence costs a scan of every project's ace-run artifacts on the
+    first call in a process. Scoped named and bead-only waits, such as every
+    epic phase, never consult it, so they skip the scan.
+    """
+    if not marker_needs_global_tribes(marker):
+        return ()
+    return stored_tribe_names_for_resolution()
+
+
 def _resolve_marker_release(
     marker: dict[str, Any],
     *,
@@ -262,7 +275,7 @@ def _resolve_marker_release(
         return _parked_release_decision(WaitDependencyStatus("waiting", ("<unknown>",)))
 
     try:
-        global_stored_tribes = stored_tribe_names_for_resolution()
+        global_stored_tribes = _global_stored_tribes_for(marker)
 
         def build_index() -> WaitDependencyIndex:
             return _build_runner_wait_index(
@@ -340,18 +353,19 @@ def _release_satisfied_at(
     if tuple(wait_beads):
         return None
     try:
+        marker: dict[str, Any] = {
+            "waiting_for": list(wait_names),
+            "wait_for_artifacts": list(wait_identity_deps),
+            "wait_for_fork_sources": list(wait_fork_sources),
+            "wait_for_hoods": list(wait_hoods),
+            "wait_for_beads": list(wait_beads),
+            "resolved_deps": list(resolved_deps),
+        }
         index = _build_runner_wait_index(
-            {
-                "waiting_for": list(wait_names),
-                "wait_for_artifacts": list(wait_identity_deps),
-                "wait_for_fork_sources": list(wait_fork_sources),
-                "wait_for_hoods": list(wait_hoods),
-                "wait_for_beads": list(wait_beads),
-                "resolved_deps": list(resolved_deps),
-            },
+            marker,
             project_name=project_name,
             artifacts_dir=artifacts_dir,
-            global_stored_tribes=stored_tribe_names_for_resolution(),
+            global_stored_tribes=_global_stored_tribes_for(marker),
         )
         return latest_member_finished_at(
             index.dependency_member_dirs(
