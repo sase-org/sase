@@ -1472,9 +1472,10 @@ axe:
           description: |-
             Acquire missing bead claims for live pre-launch agents and release claims held by dead ones
 
-            Scans pre-launch agent artifacts, backfills a missing claim for a live waiting agent, and releases a
-            claimed bead when its unpromoted owner has died. Reconciled dead records are tombstoned so later ticks avoid
-            reopening their stores, while a failed project read is retried safely.
+            Reads recent pre-launch agent rows from the artifact index (full history at most hourly), backfills a
+            missing claim for a live waiting agent, and releases a claimed bead when its unpromoted owner has died.
+            Reconciled dead records are tombstoned so later ticks avoid reopening their stores, while a failed project
+            read is retried safely.
         - name: epic_launch_flush
           script: sase_job_epic_launch_flush
           run_every: "30s"

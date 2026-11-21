@@ -390,6 +390,18 @@ def query_agent_artifact_index(
     )
 
 
+def query_agent_artifact_index_payload(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> dict[str, Any]:
+    _sync_queries_patchables()
+    return queries_impl.query_agent_artifact_index_payload(
+        index_path, projects_root, query, options
+    )
+
+
 def query_agent_artifact_index_bounded(
     index_path: Path | str,
     projects_root: Path | str,
@@ -534,6 +546,7 @@ __all__ = [
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
     "query_agent_artifact_index_list_bounded",
+    "query_agent_artifact_index_payload",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs_bounded",

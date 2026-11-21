@@ -100,6 +100,18 @@ release, where no live process writes anything — still resolves on the `max_qu
 backstop. `epic_launch_flush` is untouched by that guard; it already throttles via
 `run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine now.
 
+`bead_claim_checks` finds claim owners in the agent artifact index, not by walking
+artifact directories. A normal tick reads two bounded slices: the normally visible
+active rows, and every completed row (hidden and dismissed included) that finished in
+the last 24 hours. It keeps only each agent's newest `ace-run` row that names a bead, is
+not tombstoned, and never promoted its claim, so an idle tick opens no bead store. At
+most once an hour, tracked in `~/.sase/axe/bead_claim_checks_last_full_sweep` so a
+restart keeps the cadence, the tick reads the index's full history instead. That pass
+also reconciles owners the bounded slices leave out: hidden or dismissed agents that
+never wrote a done marker, and agents that finished more than 24 hours earlier. A
+missing or failing index falls back to the full filesystem walk, as does
+`SASE_CHOP_SCAN_FULL_WALK=1`.
+
 `agent_auto_restart` sweeps update-skew recoveries (see
 [Agent auto-restart](../agent-auto-restart.md) for the full feature guide): it
 enumerates recovery doorbells, recent failed rows, and stale, deferred, and launched
@@ -109,7 +121,10 @@ ledger records, then submits `sase agent auto-restart run -p -j` as a durable pr
 and — when the feature is off or paused — re-surfaces pending failures loudly instead of
 healing them. Its `fs` trigger watches `agent_auto_restart/doorbell` and the code-swap
 lock file with `max_quiet: "60s"`; idle ticks cost a handful of `stat()` calls and the
-full artifact scan runs at most once a minute.
+failed-row sweep runs at most once a minute. The sweep reads the agent artifact index's
+completed rows, newest finish first, until it passes rows that finished more than seven
+days ago, and keeps failed rows whose artifact started inside those seven days. When the
+index file is missing or the query fails, it falls back to the artifact scan.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`

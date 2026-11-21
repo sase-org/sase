@@ -86,10 +86,10 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "inspected only to order pending healer targets."
         ),
     ),
-    "src/sase/agent/auto_restart/healer_targets.py:_rows_via_scan": PathPassingReview(
+    "src/sase/agent/auto_restart/healer_target_rows.py:_row_from_record": PathPassingReview(
         exemption=(
             "Read-only candidate enumeration: done.json is read to decide "
-            "whether a scanned row is a healer candidate."
+            "whether an indexed or scanned row is a healer candidate."
         ),
     ),
     "src/sase/agent/auto_restart/healer_targets.py:_target_for_artifacts_dir": PathPassingReview(

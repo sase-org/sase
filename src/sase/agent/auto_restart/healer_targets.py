@@ -11,28 +11,15 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.agent.auto_restart._healer_common import HealerTarget, read_json
+from sase.agent.auto_restart.healer_target_rows import (
+    recent_failure_rows,
+    row_died_at,
+)
 from sase.axe.runner_auto_restart_doorbell import IN_FLIGHT_RECOVERY_STATES
-
-#: Failed rows older than this are never enumerated from history. In-flight
-#: and skew-suspect rows stay eligible across the window; legacy rows get
-#: the tighter ``max_defer_seconds`` bound inside :func:`is_healer_candidate`.
-_HISTORY_LOOKBACK_SECONDS = 7 * 86400
-
-
-@dataclass(frozen=True)
-class _RecentRow:
-    """One recent failed row from either enumeration source."""
-
-    artifacts_dir: Path
-    project: str
-    agent_name: str
-    died_at: float | None
-    done: dict[str, Any]
 
 
 def resolve_targets(
@@ -94,7 +81,7 @@ def is_healer_candidate(
         # but no facts already failed the in-flight check above.
         return False
     at = time.time() if now is None else now
-    died_at = _row_died_at(done, artifacts_dir)
+    died_at = row_died_at(done, artifacts_dir)
     if died_at is None or at - died_at > _max_defer_seconds():
         return False
     return _legacy_text_matches(done, artifacts_dir)
@@ -154,7 +141,7 @@ def resolve_pending_targets(*, now: float | None = None) -> list[HealerTarget]:
         except Exception:
             continue
     try:
-        rows = _recent_failure_rows(now=at)
+        rows = recent_failure_rows(now=at)
     except Exception:
         rows = []
     for row in rows:
@@ -222,113 +209,6 @@ def resolve_pending_targets(*, now: float | None = None) -> list[HealerTarget]:
             )
         )
     return _order_targets(targets)
-
-
-def _recent_failure_rows(*, now: float) -> list[_RecentRow]:
-    """Return recent failed rows, preferring the bounded scan facade."""
-    try:
-        return _rows_via_scan(now=now)
-    except Exception:
-        pass
-    return _rows_via_history(now=now)
-
-
-def _rows_via_scan(*, now: float) -> list[_RecentRow]:
-    """Enumerate recent failed rows through the artifact scan facade.
-
-    The ``not_before_timestamp`` bound keeps the walk itself inside the
-    lookback instead of walking every project's artifacts tree. Raises on
-    any problem so the caller falls back to the history walk.
-    """
-    import datetime
-
-    from sase.core.agent_scan_facade import scan_agent_artifacts
-    from sase.core.agent_scan_wire_records import AgentArtifactScanOptionsWire
-    from sase.core.paths import sase_projects_dir
-    from sase.core.time import get_timezone
-
-    stamp = datetime.datetime.fromtimestamp(
-        now - _HISTORY_LOOKBACK_SECONDS, tz=get_timezone()
-    ).strftime("%Y%m%d%H%M%S")
-    options = AgentArtifactScanOptionsWire(
-        include_prompt_step_markers=False,
-        include_raw_prompt_snippets=False,
-        include_workflow_state=False,
-        include_waiting=False,
-        not_before_timestamp=stamp,
-        newest_first=True,
-    )
-    scan = scan_agent_artifacts(sase_projects_dir(), options)
-    rows: list[_RecentRow] = []
-    for record in scan.records:
-        done_wire = record.done
-        if done_wire is None or done_wire.outcome != "failed":
-            continue
-        artifacts_dir = Path(str(record.artifact_dir))
-        done = read_json(artifacts_dir / "done.json") or {}
-        if not done and done_wire is not None:
-            done = {
-                "outcome": done_wire.outcome,
-                "error": done_wire.error,
-                "traceback": done_wire.traceback,
-                "finished_at": done_wire.finished_at,
-            }
-        name = (record.agent_meta.name if record.agent_meta else None) or (
-            done_wire.name or artifacts_dir.name
-        )
-        finished = done.get("finished_at")
-        died_at = (
-            float(finished)
-            if isinstance(finished, (int, float)) and not isinstance(finished, bool)
-            else _row_died_at(done, artifacts_dir)
-        )
-        rows.append(
-            _RecentRow(
-                artifacts_dir=artifacts_dir,
-                project=record.project_name,
-                agent_name=str(name),
-                died_at=died_at,
-                done=dict(done),
-            )
-        )
-    return rows
-
-
-def _rows_via_history(*, now: float) -> list[_RecentRow]:
-    """Enumerate recent failed rows through the read-only history walk."""
-    from sase.agent.auto_restart.history import collect_failed_candidates
-
-    rows: list[_RecentRow] = []
-    candidates = collect_failed_candidates(
-        since_seconds=_HISTORY_LOOKBACK_SECONDS, now=now
-    )
-    for candidate in candidates:
-        # Dismissed bundles are never healer candidates.
-        if candidate.source != "done" or candidate.artifacts_dir is None:
-            continue
-        done = candidate.done
-        rows.append(
-            _RecentRow(
-                artifacts_dir=candidate.artifacts_dir,
-                project=candidate.project,
-                agent_name=candidate.name,
-                died_at=candidate.died_at,
-                done=dict(done) if isinstance(done, Mapping) else {},
-            )
-        )
-    return rows
-
-
-def _row_died_at(done: Mapping[str, Any], artifacts_dir: Path) -> float | None:
-    finished = done.get("finished_at")
-    if isinstance(finished, (int, float)) and not isinstance(finished, bool):
-        return float(finished)
-    try:
-        from sase.agent.auto_restart.history import parse_artifact_stamp
-
-        return parse_artifact_stamp(artifacts_dir.name)
-    except Exception:
-        return None
 
 
 def _legacy_text_matches(done: Mapping[str, Any], artifacts_dir: Path) -> bool:

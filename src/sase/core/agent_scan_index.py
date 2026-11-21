@@ -20,13 +20,18 @@ from sase.core.agent_scan_wire import AgentArtifactIndexStatusWire
 from sase.core.agent_scan_wire import AgentArtifactIndexVacuumWire
 from sase.core.agent_scan_wire import agent_artifact_index_status_from_dict
 from sase.core.agent_scan_wire import agent_artifact_index_vacuum_from_dict
-from sase.core.paths import sase_home as _sase_home
+from sase.core import paths as _paths
 from sase.core.rust import require_rust_binding
 
 
 def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Path:
-    """Return the default persistent artifact index path."""
-    root = Path(sase_home).expanduser() if sase_home is not None else _sase_home()
+    """Return the default persistent artifact index path.
+
+    The SASE home is resolved at call time, never bound at import, so the
+    lazily imported implementation cannot pin whichever home was active when
+    it first loaded.
+    """
+    root = Path(sase_home).expanduser() if sase_home is not None else _paths.sase_home()
     return root / "agent_artifact_index.sqlite"
 
 

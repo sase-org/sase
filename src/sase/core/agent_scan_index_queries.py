@@ -114,6 +114,24 @@ def query_agent_artifact_index(
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactScanWire:
     """Return scanner-shaped records from the persistent artifact index."""
+    return agent_scan_wire_from_dict(
+        query_agent_artifact_index_payload(index_path, projects_root, query, options)
+    )
+
+
+def query_agent_artifact_index_payload(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> dict[str, Any]:
+    """Return the raw snapshot payload of :func:`query_agent_artifact_index`.
+
+    Rehydrating a record costs more than the Rust query that produced it.
+    A caller that keeps only a few of many rows tests the raw record dicts
+    first and rehydrates the survivors with
+    :func:`sase.core.agent_scan_wire.agent_artifact_records_from_dicts`.
+    """
     opts = options or AgentArtifactScanOptionsWire()
     query_wire = query or AgentArtifactIndexQueryWire()
     with agent_artifact_index_operation_lock():
@@ -124,7 +142,7 @@ def query_agent_artifact_index(
             agent_artifact_index_query_to_dict(query_wire),
             options_to_dict(opts),
         )
-    return agent_scan_wire_from_dict(payload)
+    return payload
 
 
 def query_agent_artifact_index_bounded(
@@ -343,6 +361,7 @@ __all__ = [
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
     "query_agent_artifact_index_list_bounded",
+    "query_agent_artifact_index_payload",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs_bounded",

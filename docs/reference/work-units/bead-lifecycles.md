@@ -171,7 +171,11 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
   on behalf of a live agent that is waiting without a claim, which is what makes a lost
   or delayed claim self-healing within one `waits` interval. A held claim is recorded in
   the agent's `bead_claim.json` artifact file, so an agent that already holds its claim
-  costs the job nothing: it is filtered out without opening a bead store. `sase doctor`
+  costs the job nothing: it is filtered out without opening a bead store. Each tick
+  reads recent owners from the artifact index; hidden or dismissed owners that never
+  wrote a done marker, and owners that finished more than a day ago, are reconciled by
+  the job's hourly full-history pass instead (see
+  [default routines](../automation/scheduler-default-routines.md)). `sase doctor`
   reports the residue in either direction — a claim with no resolvable owner, and a live
   pre-launch agent whose bead is still `open`.
 

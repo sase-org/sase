@@ -2,14 +2,17 @@
 """Reconcile bead claims for live and dead pre-launch agents.
 
 The owner pre-pass prefers the agent artifact index so idle ticks skip
-``scan_agent_artifacts``. A full filesystem walk runs only when the index
-is unusable or ``SASE_CHOP_SCAN_FULL_WALK=1`` selects the legacy path.
+``scan_agent_artifacts``. Most ticks read a bounded index window; the
+pre-pass widens to full history at most once an hour. A full filesystem
+walk runs only when the index is unusable or ``SASE_CHOP_SCAN_FULL_WALK=1``
+selects the legacy path.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +37,8 @@ from sase.scripts._chop_bead_claim_scan import (
     ClaimArtifact as _ClaimArtifact,
     claim_artifact_from_record,
     claim_artifacts_from_index,
+    claim_full_sweep_due,
+    record_claim_full_sweep,
 )
 from sase.scripts._chop_incremental_index import chop_scan_full_walk
 
@@ -158,14 +163,29 @@ def _scan_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
     return claims
 
 
-def _prepass_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
-    """Cheap owner pre-pass: index first, full scan only when the index is unusable."""
+def _prepass_claim_artifacts(
+    projects_root: Path, *, now: float | None = None
+) -> list[_ClaimArtifact]:
+    """Cheap owner pre-pass: index first, full scan only when the index is unusable.
 
+    The index read is the bounded claim window unless the hourly full-history
+    sweep is due. Any pass that covered full history (that sweep or the
+    filesystem walk) restarts the sweep interval.
+    """
+
+    at = time.time() if now is None else now
     if not chop_scan_full_walk():
-        indexed = claim_artifacts_from_index(projects_root)
+        full_history = claim_full_sweep_due(at)
+        indexed = claim_artifacts_from_index(
+            projects_root, full_history=full_history, now=at
+        )
         if indexed is not None:
+            if full_history:
+                record_claim_full_sweep(at)
             return indexed
-    return _scan_claim_artifacts(projects_root)
+    claims = _scan_claim_artifacts(projects_root)
+    record_claim_full_sweep(at)
+    return claims
 
 
 def _write_reconcile_tombstone(record: _ClaimArtifact, log: ChopLogger) -> bool:

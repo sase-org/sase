@@ -252,13 +252,11 @@ def test_job_tick_ignores_non_skew_and_bundles(
 
 def test_stale_legacy_row_is_ignored(tmp_home: Path) -> None:
     """A skew-shaped legacy row older than max_defer_seconds is ignored."""
-    from sase.agent.auto_restart.healer_targets import (
-        _HISTORY_LOOKBACK_SECONDS,
-        resolve_pending_targets,
-    )
+    from sase.agent.auto_restart.healer_target_rows import HISTORY_LOOKBACK_SECONDS
+    from sase.agent.auto_restart.healer_targets import resolve_pending_targets
 
     now = time.time()
-    stale_stamp = _artifact_stamp(now - _HISTORY_LOOKBACK_SECONDS - 60)
+    stale_stamp = _artifact_stamp(now - HISTORY_LOOKBACK_SECONDS - 60)
     row = _projects_row(
         tmp_home,
         stale_stamp,

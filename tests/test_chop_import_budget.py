@@ -103,3 +103,42 @@ def test_axe_package_getattr_stays_lazy_for_unused_submodules() -> None:
         assert "sase.axe.lumberjack" in sys.modules
         """
     )
+
+
+def test_claim_and_auto_restart_jobs_import_no_scheduler_or_tui() -> None:
+    """The waits-lane jobs reworked by claim-scans stay off the heavy graph."""
+    _run_probe(
+        """
+        import sys
+        import sase.scripts.sase_chop_bead_claim_checks
+
+        heavy = [
+            "sase.ace.tui",
+            "sase.agents_sync",
+            "sase.axe.lumberjack",
+            "sase.axe.orchestrator",
+            "sase.llm_provider",
+        ]
+        present = [name for name in heavy if name in sys.modules]
+        assert not present, present
+        """
+    )
+    _run_probe(
+        """
+        import sys
+        import sase.scripts.sase_chop_agent_auto_restart
+        import sase.agent.auto_restart.healer_target_rows
+
+        heavy = [
+            "sase.ace.tui",
+            "sase.agents_sync",
+            "sase.axe.lumberjack",
+            "sase.axe.orchestrator",
+            "sase.bead.sync",
+            "sase.llm_provider",
+            "sase.macro",
+        ]
+        present = [name for name in heavy if name in sys.modules]
+        assert not present, present
+        """
+    )
