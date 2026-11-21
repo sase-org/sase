@@ -553,11 +553,19 @@ def enrich_agent_from_meta_wire(
     )
     if gate_turn is not None and gate_turn.id:
         try:
+            from sase.core.agent_scan_wire_agent_session_turn import (
+                gate_failure_to_dict,
+            )
             from sase.gate_turn.execution_failure import (
-                project_loaded_failure_for_agent,
+                apply_member_failure_to_agent,
             )
 
-            project_loaded_failure_for_agent(agent)
+            wire_failure = (
+                gate_failure_to_dict(gate.failure) if gate is not None else None
+            )
+            # Consume the loaded wire instead of reopening agent_meta.json
+            # per row; the wire already carries the persisted failure.
+            apply_member_failure_to_agent(agent, wire_failure)
         except Exception:
             pass
 

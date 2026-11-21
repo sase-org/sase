@@ -160,6 +160,184 @@ def test_resurface_flag_once_per_acceptance(tmp_path: Path) -> None:
     )
 
 
+def test_write_preserves_history_across_same_acceptance(tmp_path: Path) -> None:
+    """A repeated failure on the same acceptance never earns a second allowance."""
+    from sase.gate_turn.execution_failure import RESURFACED_HISTORY_KEY
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(json.dumps({}), encoding="utf-8")
+    first = build_gate_execution_failure(
+        stage="command",
+        code="command_failed",
+        message="boom",
+        error_record="e.json",
+        error_report_path="e.json",
+        acceptance_id="acc-1",
+        attempt_id="a1",
+        outcome_id="o1",
+    )
+    write_gate_execution_failure(str(artifacts), first)
+    assert (
+        mark_gate_execution_failure_resurfaced(str(artifacts), acceptance_id="acc-1")
+        is True
+    )
+    # Identical retry replays the same acceptance: history keeps the marker.
+    second = build_gate_execution_failure(
+        stage="command",
+        code="command_failed",
+        message="boom again",
+        error_record="e2.json",
+        error_report_path="e2.json",
+        acceptance_id="acc-1",
+        attempt_id="a2",
+        outcome_id="o2",
+    )
+    write_gate_execution_failure(str(artifacts), second)
+    assert (
+        gate_execution_failure_resurfaced(str(artifacts), acceptance_id="acc-1") is True
+    )
+    stored = read_gate_execution_failure(str(artifacts))
+    assert stored is not None and stored.get("resurfaced") is True
+    meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
+    assert "acc-1" in meta.get(RESURFACED_HISTORY_KEY, {})
+    # A genuinely new acceptance starts a new allowance.
+    third = build_gate_execution_failure(
+        stage="command",
+        code="command_failed",
+        message="new acceptance",
+        error_record="e3.json",
+        error_report_path="e3.json",
+        acceptance_id="acc-2",
+        attempt_id="a3",
+        outcome_id="o3",
+    )
+    write_gate_execution_failure(str(artifacts), third)
+    assert (
+        gate_execution_failure_resurfaced(str(artifacts), acceptance_id="acc-2")
+        is False
+    )
+    assert (
+        gate_execution_failure_resurfaced(str(artifacts), acceptance_id="acc-1") is True
+    )
+
+
+def test_unrelated_visible_notification_cannot_block_recovery(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Identity first: an unrelated visible failure never suppresses the target."""
+    import sase.gate_turn._reclaim_pending as reclaim_mod
+    from contextlib import contextmanager
+    from datetime import UTC, datetime
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    old = time.time() - 7200
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "gate_execution_failure": build_gate_execution_failure(
+                    stage="command",
+                    code="command_failed",
+                    message="boom",
+                    error_record="e.json",
+                    error_report_path="e.json",
+                    acceptance_id="acc-1",
+                    attempt_id="a1",
+                    outcome_id="o1",
+                    at_unix=old,
+                )
+            }
+        ),
+        encoding="utf-8",
+    )
+    record = make_reclaim_record(gate_id="g1", member_agent_name="lane--gate")
+    record = dataclasses.replace(record, artifacts_dir=str(artifacts))
+    facts = SimpleNamespace(receipt={"acceptance_id": "acc-1"})
+    _dismissed_at_str = datetime.fromtimestamp(old, tz=UTC).isoformat()
+
+    class _UnrelatedVisible:
+        action = "GateExecutionFailed"
+        dismissed = False
+        id = "unrelated"
+        action_data = {"request_id": "other", "acceptance_id": "other-acc"}
+        dismissed_at = None
+
+    class _TargetDismissed:
+        action = "GateExecutionFailed"
+        dismissed = True
+        id = "notif-1"
+        action_data = {
+            "request_id": "g1",
+            "request_kind": "custom",
+            "acceptance_id": "acc-1",
+        }
+
+    _TargetDismissed.dismissed_at = _dismissed_at_str
+
+    @contextmanager
+    def _locked(_project: str, _lane: str):
+        yield True
+
+    monkeypatch.setattr("sase.gate_turn.lane_lock.try_gate_lane_lock", _locked)
+    monkeypatch.setattr(
+        "sase.gate_turn.store.read_gate_turn_marker", lambda _p, _a: record
+    )
+    monkeypatch.setattr(
+        "sase.notifications.store.load_notifications",
+        lambda **_k: [_UnrelatedVisible(), _TargetDismissed()],
+    )
+    monkeypatch.setattr(
+        "sase.gate_turn._reclaim_pending._core_resurface_eligible",
+        lambda **_k: True,
+    )
+    notified: list[str] = []
+
+    def _fake_restore(notification_id: str) -> bool:
+        notified.append(notification_id)
+        return True
+
+    monkeypatch.setattr(
+        "sase.notifications.store.restore_dismissed_notification", _fake_restore
+    )
+    reclaim_mod._maybe_resurface_failure_notification(
+        record, Path("/tmp/bundle"), facts, now=time.time()
+    )
+    assert notified == ["notif-1"]
+
+
+def test_cli_list_and_markdown_render_failure_summary() -> None:
+    """Both human list formats render the same failure facts as show."""
+    from sase.main.gate_turn_render import (
+        gate_turn_list_markdown,
+        gate_turn_table,
+    )
+
+    record = _failed_record()
+    table = gate_turn_table([record], title="Gate turns")
+    assert table is not None
+    markdown = gate_turn_list_markdown([record])
+    assert "execution failed" in markdown
+    assert "resume with:" in markdown
+    assert "restart with:" in markdown
+    assert "cancel with:" in markdown
+
+
+def test_snapshot_only_failure_projects_without_artifacts_dir() -> None:
+    """A supplied snapshot renders failure even when the dir is unavailable."""
+    from sase.gate_turn.store import _with_execution_failure
+
+    record = _failed_record()
+    missing = dataclasses.replace(record, artifacts_dir="/nonexistent/dir-xyz")
+    # Wire already carries the failure: no filesystem read may clear it.
+    projected = _with_execution_failure(missing)
+    assert projected.execution_failure is not None
+    assert projected.status_bucket == "Stopped"
+    payload = gate_turn_runtime_json(projected)
+    assert payload["needs_attention"] is True
+    assert payload["recovery_commands"] is not None
+
+
 def test_dismiss_clears_member_failure(tmp_path: Path, monkeypatch: Any) -> None:
     from sase.notification_gates import failure_notifications as fn_mod
 
@@ -186,6 +364,7 @@ def test_maybe_resurface_only_after_hour_and_once(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     import sase.gate_turn._reclaim_pending as reclaim_mod
+    from contextlib import contextmanager
 
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -213,19 +392,49 @@ def test_maybe_resurface_only_after_hour_and_once(
     facts = SimpleNamespace(receipt={"acceptance_id": "acc-1"})
     notified = {"undismissed": []}
 
+    from datetime import UTC, datetime
+
+    dismissed_at = datetime.fromtimestamp(old, tz=UTC).isoformat()
+
     class _FakeNotification:
         action = "GateExecutionFailed"
         dismissed = True
         id = "notif-1"
-        action_data = {"request_id": "g1", "acceptance_id": "acc-1"}
+        action_data = {
+            "request_id": "g1",
+            "request_kind": "custom",
+            "acceptance_id": "acc-1",
+        }
 
+    # Dismissal age comes from dismissed_at, never failure time; the lane
+    # lock serializes competing reclaimers and the changed write proves
+    # this invocation restored the row.
+    @contextmanager
+    def _locked(_project: str, _lane: str):
+        yield True
+
+    monkeypatch.setattr("sase.gate_turn.lane_lock.try_gate_lane_lock", _locked)
+    monkeypatch.setattr(
+        "sase.gate_turn.store.read_gate_turn_marker",
+        lambda _p, _a: record,
+    )
     monkeypatch.setattr(
         "sase.notifications.store.load_notifications",
         lambda **_k: [_FakeNotification()],
     )
+    # Attach the dismissal timestamp the Rust contract now persists.
+    _FakeNotification.dismissed_at = dismissed_at  # type: ignore[attr-defined]
     monkeypatch.setattr(
-        "sase.notifications.store.mark_undismissed",
-        lambda nid: notified["undismissed"].append(nid) or True,
+        "sase.gate_turn._reclaim_pending._core_resurface_eligible",
+        lambda **_k: True,
+    )
+
+    def _fake_restore(notification_id: str) -> bool:
+        notified["undismissed"].append(notification_id)
+        return True
+
+    monkeypatch.setattr(
+        "sase.notifications.store.restore_dismissed_notification", _fake_restore
     )
     reclaim_mod._maybe_resurface_failure_notification(
         record, Path("/tmp/bundle"), facts, now=time.time()
@@ -281,6 +490,7 @@ def test_maybe_resurface_skips_recent_failure(tmp_path: Path, monkeypatch: Any) 
 
 def test_backfill_writes_missing_failure(tmp_path: Path, monkeypatch: Any) -> None:
     import sase.gate_turn._reclaim_pending as reclaim_mod
+    from contextlib import contextmanager
     from sase.notification_gates.journal import ExecutionFailureFacts
 
     artifacts = tmp_path / "artifacts"
@@ -289,6 +499,15 @@ def test_backfill_writes_missing_failure(tmp_path: Path, monkeypatch: Any) -> No
     record = make_reclaim_record(gate_id="g1", member_agent_name="lane--gate")
     record = dataclasses.replace(
         record, artifacts_dir=str(artifacts), bundle_path=str(tmp_path / "bundle")
+    )
+
+    @contextmanager
+    def _locked(_project: str, _lane: str):
+        yield True
+
+    monkeypatch.setattr("sase.gate_turn.lane_lock.try_gate_lane_lock", _locked)
+    monkeypatch.setattr(
+        "sase.gate_turn.store.read_gate_turn_marker", lambda _p, _a: record
     )
     failure = ExecutionFailureFacts(
         outcome_id="o1",

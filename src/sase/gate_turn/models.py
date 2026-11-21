@@ -122,7 +122,27 @@ class GateTurnRecord:
         pair = gate_status_pair(shell.start_status, shell.stop_status)
         state = shell.state or "pending"
         gate_kind = gate.kind if gate is not None else None
+        # Prefer the loaded wire failure so snapshot-only rows (no artifact
+        # dir) still project; terminal members ignore stale failure data.
+        # Old records omit the wire field and fall back to the per-row file
+        # read in store._with_execution_failure.
+        wire_failure = None
+        try:
+            from sase.core.agent_scan_wire_agent_session_turn import (
+                gate_failure_to_dict,
+            )
+
+            wire_failure = (
+                gate_failure_to_dict(gate.failure) if gate is not None else None
+            )
+        except Exception:
+            wire_failure = None
+        from sase.gate_turn.state import gate_state_is_terminal as _is_terminal
+
+        if wire_failure is not None and _is_terminal(state):
+            wire_failure = None
         return cls(
+            execution_failure=wire_failure,
             gate_id=shell.id,
             member_agent_name=meta.name or "",
             lane=meta.agent_session or "",

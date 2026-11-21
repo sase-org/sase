@@ -40,6 +40,9 @@ class Notification:
     snooze_until: str | None = None  # ISO-8601 with timezone, or None
     # Durable activity time after snooze expiry or a resurfacing revision
     resurfaced_at: str | None = None
+    # When the row was dismissed, as a Python-ISO UTC timestamp. None when
+    # visible or for legacy dismissed rows predating dismissal tracking.
+    dismissed_at: str | None = None
     plus_ones: list[NotificationPlusOne] = field(default_factory=list)
     plus_ones_dropped: int = 0
     dedup_key: str | None = None

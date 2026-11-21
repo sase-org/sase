@@ -54,6 +54,35 @@ class AgentSessionTurnMonitorWire:
 
 
 @dataclass(frozen=True)
+class _GateExecutionFailureWire:
+    """Persisted execution-failure facts for a gate-turn member.
+
+    Mirrors the Rust ``GateExecutionFailureWire``: the current
+    pre-response failure plus recovery commands. ``None`` on the gate
+    wire means no current failure; terminal members ignore stale data.
+    """
+
+    stage: str | None = None
+    code: str | None = None
+    message: str | None = None
+    error_record: str | None = None
+    error_report_path: str | None = None
+    acceptance_id: str | None = None
+    attempt_id: str | None = None
+    outcome_id: str | None = None
+    at_unix: float | None = None
+    resume_command: str | None = None
+    restart_command: str | None = None
+    cancel_command: str | None = None
+    recovery_actions: str | None = None
+    bundle_path: str | None = None
+    request_id: str | None = None
+    request_kind: str | None = None
+    resurfaced: bool = False
+    resurfaced_at: str | None = None
+
+
+@dataclass(frozen=True)
 class AgentSessionTurnGateWire:
     """Gate-only fields of a ``agent_session_turn`` record.
 
@@ -73,6 +102,107 @@ class AgentSessionTurnGateWire:
     notification_id: str | None = None
     decision_path: str | None = None
     claim_holder_pid: int | None = None
+    failure: _GateExecutionFailureWire | None = None
+
+
+def gate_failure_to_dict(
+    failure: _GateExecutionFailureWire | None,
+) -> dict[str, Any] | None:
+    """Return the JSON-safe dict for *failure*, or ``None``."""
+    if failure is None:
+        return None
+    # Drop the all-empty signal so old-record defaults survive.
+    payload = {
+        "stage": failure.stage,
+        "code": failure.code,
+        "message": failure.message,
+        "error_record": failure.error_record,
+        "error_report_path": failure.error_report_path,
+        "acceptance_id": failure.acceptance_id,
+        "attempt_id": failure.attempt_id,
+        "outcome_id": failure.outcome_id,
+        "at_unix": failure.at_unix,
+        "resume_command": failure.resume_command,
+        "restart_command": failure.restart_command,
+        "cancel_command": failure.cancel_command,
+        "recovery_actions": failure.recovery_actions,
+        "bundle_path": failure.bundle_path,
+        "request_id": failure.request_id,
+        "request_kind": failure.request_kind,
+        "resurfaced": bool(failure.resurfaced),
+        "resurfaced_at": failure.resurfaced_at,
+    }
+    if all(
+        value is None or value is False
+        for key, value in payload.items()
+        if key not in ("resurfaced", "resurfaced_at")
+    ):
+        return None
+    return payload
+
+
+def _gate_failure_from_mapping(
+    data: Mapping[str, Any] | None,
+) -> _GateExecutionFailureWire | None:
+    """Return the failure wire *data* describes, or ``None``."""
+    if not isinstance(data, Mapping):
+        return None
+    if not data:
+        return None
+    at_unix = data.get("at_unix")
+    try:
+        at_value = float(at_unix) if at_unix is not None else None
+    except (TypeError, ValueError):
+        at_value = None
+    failure = _GateExecutionFailureWire(
+        stage=data.get("stage") if isinstance(data.get("stage"), str) else None,
+        code=data.get("code") if isinstance(data.get("code"), str) else None,
+        message=data.get("message") if isinstance(data.get("message"), str) else None,
+        error_record=data.get("error_record")
+        if isinstance(data.get("error_record"), str)
+        else None,
+        error_report_path=data.get("error_report_path")
+        if isinstance(data.get("error_report_path"), str)
+        else None,
+        acceptance_id=data.get("acceptance_id")
+        if isinstance(data.get("acceptance_id"), str)
+        else None,
+        attempt_id=data.get("attempt_id")
+        if isinstance(data.get("attempt_id"), str)
+        else None,
+        outcome_id=data.get("outcome_id")
+        if isinstance(data.get("outcome_id"), str)
+        else None,
+        at_unix=at_value,
+        resume_command=data.get("resume_command")
+        if isinstance(data.get("resume_command"), str)
+        else None,
+        restart_command=data.get("restart_command")
+        if isinstance(data.get("restart_command"), str)
+        else None,
+        cancel_command=data.get("cancel_command")
+        if isinstance(data.get("cancel_command"), str)
+        else None,
+        recovery_actions=data.get("recovery_actions")
+        if isinstance(data.get("recovery_actions"), str)
+        else None,
+        bundle_path=data.get("bundle_path")
+        if isinstance(data.get("bundle_path"), str)
+        else None,
+        request_id=data.get("request_id")
+        if isinstance(data.get("request_id"), str)
+        else None,
+        request_kind=data.get("request_kind")
+        if isinstance(data.get("request_kind"), str)
+        else None,
+        resurfaced=bool(data.get("resurfaced", False)),
+        resurfaced_at=data.get("resurfaced_at")
+        if isinstance(data.get("resurfaced_at"), str)
+        else None,
+    )
+    if gate_failure_to_dict(failure) is None:
+        return None
+    return failure
 
 
 @dataclass(frozen=True)
@@ -232,7 +362,9 @@ def _agent_session_turn_from_flat_keys(
 ) -> AgentSessionTurnWire | None:
     """Build an ``AgentSessionTurnWire`` from flat legacy ``monitor_*`` / ``gate_*`` keys."""
     has_monitor = _has_any_key(data, _MONITOR_FLAT_KEYS)
-    has_gate = _has_any_key(data, _GATE_FLAT_KEYS)
+    has_gate = _has_any_key(data, _GATE_FLAT_KEYS) or isinstance(
+        data.get("gate_execution_failure"), dict
+    )
     if has_monitor and has_gate:
         # An agent session turn is either a monitor or a gate, never both,
         # because the two are independent inheritance chains keyed off
@@ -250,9 +382,13 @@ def _agent_session_turn_from_flat_keys(
             **_project(data, _MONITOR_SHARED_KEYS),
         )
     if has_gate:
+        gate_fields = _project(data, _GATE_SPECIFIC_KEYS)
+        failure = _gate_failure_from_mapping(data.get("gate_execution_failure"))
+        if failure is not None:
+            gate_fields["failure"] = failure
         return AgentSessionTurnWire(
             kind=_GATE_AGENT_SESSION_ROLE,
-            gate=AgentSessionTurnGateWire(**_project(data, _GATE_SPECIFIC_KEYS)),
+            gate=AgentSessionTurnGateWire(**gate_fields),
             **_project(data, _GATE_SHARED_KEYS),
         )
     return None
@@ -282,17 +418,17 @@ def _agent_session_turn_from_nested_dict(
         if isinstance(monitor_data, dict)
         else None
     )
-    gate = (
-        AgentSessionTurnGateWire(
-            **{
-                key: gate_data[key]
-                for key in AgentSessionTurnGateWire.__dataclass_fields__
-                if key in gate_data
-            }
-        )
-        if isinstance(gate_data, dict)
-        else None
-    )
+    gate = None
+    if isinstance(gate_data, dict):
+        gate_fields = {
+            key: gate_data[key]
+            for key in AgentSessionTurnGateWire.__dataclass_fields__
+            if key in gate_data and key != "failure"
+        }
+        failure = _gate_failure_from_mapping(gate_data.get("failure"))
+        if failure is not None:
+            gate_fields["failure"] = failure
+        gate = AgentSessionTurnGateWire(**gate_fields)
     return AgentSessionTurnWire(kind=kind, monitor=monitor, gate=gate, **shared)
 
 
@@ -319,4 +455,5 @@ __all__ = [
     "AgentSessionTurnMonitorWire",
     "AgentSessionTurnWire",
     "agent_session_turn_from_mapping",
+    "gate_failure_to_dict",
 ]

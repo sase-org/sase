@@ -396,6 +396,64 @@ def _persist_gate_member_failure(
         member_artifacts = _gate_member_artifacts_dir(envelope)
         if member_artifacts is None:
             return
+        # Serialize with reclaim backfill/resurface under the lane lock and
+        # revalidate terminal state immediately before the write so a stale
+        # observation never overwrites a resumed owner or newer failure.
+        try:
+            from sase.gate_turn.lane_lock import try_gate_lane_lock
+            from sase.gate_turn.store import find_gate_turn_by_gate_id
+
+            request_id = envelope.get("request_id")
+            lane = None
+            project = None
+            try:
+                probe = find_gate_turn_by_gate_id(None, str(request_id))
+                if probe is not None:
+                    lane = probe.lane
+                    project = probe.project_name
+            except Exception:
+                pass
+            if isinstance(lane, str) and lane and isinstance(project, str):
+                with try_gate_lane_lock(project, lane) as acquired:
+                    if not acquired:
+                        return
+                    fresh = find_gate_turn_by_gate_id(None, str(request_id))
+                    if fresh is None or fresh.is_terminal:
+                        return
+                    # Do not overwrite a newer failure for a different
+                    # acceptance from a stale observation: the write path
+                    # preserves once-per-acceptance history, but a stale
+                    # same-acceptance retry must not clear a live owner.
+                    # The write itself clears settler pid; the lock above
+                    # serializes that with reclaim effects.
+                    write_gate_execution_failure(
+                        fresh.artifacts_dir,
+                        build_gate_execution_failure(
+                            stage=failure.stage,
+                            code=failure.code,
+                            message=failure.message,
+                            error_record=failure.error_record,
+                            error_report_path=error_report,
+                            acceptance_id=failure.acceptance_id,
+                            attempt_id=failure.attempt_id,
+                            outcome_id=failure.outcome_id,
+                            resume_command=str(action_data.get("resume_command") or ""),
+                            restart_command=str(
+                                action_data.get("restart_command") or ""
+                            ),
+                            cancel_command=str(action_data.get("cancel_command") or ""),
+                            recovery_actions=str(
+                                action_data.get("recovery_actions") or ""
+                            ),
+                            bundle_path=str(bundle_path),
+                            request_id=str(envelope.get("request_id") or ""),
+                            request_kind=str(envelope.get("kind") or ""),
+                            at_unix=failure.at_unix,
+                        ),
+                    )
+                    return
+        except Exception:
+            pass
         write_gate_execution_failure(
             member_artifacts,
             build_gate_execution_failure(

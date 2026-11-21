@@ -75,6 +75,7 @@ def _clone_notification(notification: Notification) -> Notification:
         muted=notification.muted,
         snooze_until=notification.snooze_until,
         resurfaced_at=notification.resurfaced_at,
+        dismissed_at=notification.dismissed_at,
         plus_ones=notification.plus_ones,
         plus_ones_dropped=notification.plus_ones_dropped,
         dedup_key=notification.dedup_key,
@@ -464,6 +465,20 @@ def mark_undismissed(notification_id: str) -> bool:
         _state_update(kind="mark_undismissed", id=notification_id)
     )
     return outcome.matched_count > 0
+
+
+def restore_dismissed_notification(notification_id: str) -> bool:
+    """Restore one dismissed row, proving this call changed it.
+
+    Returns True only when the store reports a changed write. A matched
+    but already-visible row returns False: matching alone never proves
+    this invocation restored the row, so only a changed write earns the
+    once-per-acceptance resurface mark.
+    """
+    outcome = _apply_state_update(
+        _state_update(kind="mark_undismissed", id=notification_id)
+    )
+    return int(getattr(outcome, "changed_count", 0)) > 0
 
 
 def mark_many_undismissed(notification_ids: Iterable[str]) -> int:

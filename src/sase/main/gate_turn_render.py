@@ -137,8 +137,42 @@ def gate_turn_cancel_json(record: GateTurnRecord, *, changed: bool) -> dict[str,
     }
 
 
+def _failure_detail_texts(record: GateTurnRecord) -> list[Text]:
+    """Return actionable failure lines for *record* using shared projection facts.
+
+    Uses the same ``execution_failure`` / ``recovery_commands`` facts that
+    ``sase gate show`` renders, so list and show agree. Empty when the
+    record has no current failure.
+    """
+    payload = gate_turn_runtime_json(record)
+    failure = payload.get("execution_failure")
+    if not isinstance(failure, dict):
+        return []
+    lines: list[Text] = []
+    stage = failure.get("stage") or "execution"
+    code = failure.get("code") or "failed"
+    message = failure.get("message") or ""
+    lines.append(
+        Text(
+            f"  ✗ {short_gate_turn_id(record.gate_id)} execution failed"
+            f" ({stage}/{code}): {message}".rstrip(),
+            style="bold #FF5F5F",
+        )
+    )
+    recovery = payload.get("recovery_commands")
+    if isinstance(recovery, dict):
+        for key in ("resume_command", "restart_command", "cancel_command"):
+            command = recovery.get(key)
+            if isinstance(command, str) and command:
+                label = key.removesuffix("_command")
+                lines.append(Text(f"  {label} with: {command}", style="dim"))
+    return lines
+
+
 def gate_turn_table(records: Sequence[GateTurnRecord], *, title: str) -> Panel:
     """Render gate turns as the newest-first table panel."""
+    from rich.console import Group
+
     table = Table(
         box=box.SIMPLE_HEAD,
         expand=True,
@@ -167,8 +201,13 @@ def gate_turn_table(records: Sequence[GateTurnRecord], *, title: str) -> Panel:
             Text(_relative_start(record), style=row_style or "dim"),
         )
 
+    details: list[Any] = [table]
+    for record in records:
+        details.extend(_failure_detail_texts(record))
+    body: Any = details[0] if len(details) == 1 else Group(*details)
+
     return Panel(
-        table,
+        body,
         title=title,
         title_align="left",
         border_style=_BORDER_STYLE,
@@ -215,7 +254,28 @@ def gate_turn_list_markdown(records: Sequence[GateTurnRecord]) -> str:
                 opened=_relative_start(record),
             )
         )
-    return "\n".join(rows) + "\n"
+    lines = ["\n".join(rows) + "\n"]
+    for record in records:
+        payload = gate_turn_runtime_json(record)
+        failure = payload.get("execution_failure")
+        if not isinstance(failure, dict):
+            continue
+        stage = failure.get("stage") or "execution"
+        code = failure.get("code") or "failed"
+        message = failure.get("message") or ""
+        lines.append(
+            f"✗ {short_gate_turn_id(record.gate_id)} execution failed"
+            f" ({stage}/{code}): {message}".rstrip()
+            + "\n"
+        )
+        recovery = payload.get("recovery_commands")
+        if isinstance(recovery, dict):
+            for key in ("resume_command", "restart_command", "cancel_command"):
+                command = recovery.get(key)
+                if isinstance(command, str) and command:
+                    label = key.removesuffix("_command")
+                    lines.append(f"  {label} with: {command}\n")
+    return "".join(lines)
 
 
 __all__ = [

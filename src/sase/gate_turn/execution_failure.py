@@ -22,6 +22,14 @@ META_KEY = "gate_execution_failure"
 RESURFACED_KEY = "gate_execution_failure_resurfaced"
 RESURFACED_AT_KEY = "gate_execution_failure_resurfaced_at"
 RESURFACED_ACCEPTANCE_KEY = "gate_execution_failure_resurfaced_acceptance"
+#: Once-per-acceptance resurface history, kept separate from the transient
+#: failure object so recovery clearing the failure does not grant a second
+#: allowance for the same acceptance. Maps acceptance_id -> ISO timestamp.
+RESURFACED_HISTORY_KEY = "gate_execution_failure_resurfaced_history"
+#: First-observation timestamps for dismissed rows that predate dismissal
+#: tracking, mapping notification id -> unix seconds. Legacy rows never
+#: infer dismissal from failure time.
+DISMISSAL_OBSERVED_KEY = "gate_execution_failure_dismissal_observed"
 
 #: Meta keys that claim a live settler while a gate executes. Cleared when
 #: a pre-response failure is persisted so the row no longer reads as running.
@@ -85,18 +93,60 @@ def read_gate_execution_failure(artifacts_dir: str) -> dict[str, Any] | None:
     return dict(failure) if isinstance(failure, dict) else None
 
 
+def _read_history(artifacts_dir: str) -> dict[str, Any]:
+    """Return the persisted once-per-acceptance resurface history."""
+    try:
+        with open(
+            os.path.join(artifacts_dir, "agent_meta.json"), encoding="utf-8"
+        ) as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    history = meta.get(RESURFACED_HISTORY_KEY)
+    return dict(history) if isinstance(history, dict) else {}
+
+
 def write_gate_execution_failure(
     artifacts_dir: str,
     failure: Mapping[str, Any],
 ) -> None:
-    """Persist *failure* and clear live-settler ownership in one write."""
+    """Persist *failure* and clear live-settler ownership in one write.
+
+    Preserves once-per-acceptance resurface history across new attempts of
+    the same acceptance: a repeated failure on the same acceptance never
+    earns a second allowance. A genuinely new acceptance starts fresh.
+    """
     from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 
     payload = dict(failure)
-    # A fresh acceptance resets the one-time resurface flag.
+    acceptance_id = payload.get("acceptance_id")
+    history = _read_history(artifacts_dir)
+    if isinstance(acceptance_id, str) and acceptance_id:
+        # A repeated attempt on an already-resurfaced acceptance keeps its
+        # marker; identical retries replay the same acceptance.
+        if acceptance_id in history:
+            payload["resurfaced"] = True
+            existing = history.get(acceptance_id)
+            if isinstance(existing, str) and not payload.get("resurfaced_at"):
+                payload["resurfaced_at"] = existing
+        else:
+            # A genuinely new acceptance starts a new allowance.
+            payload["resurfaced"] = False
+            payload["resurfaced_at"] = None
+    else:
+        payload["resurfaced"] = False
+        payload["resurfaced_at"] = None
     update_meta_fields(
         artifacts_dir,
-        {META_KEY: payload, "pid": None, "process_identity": None, "proc_id": None},
+        {
+            META_KEY: payload,
+            RESURFACED_HISTORY_KEY: history,
+            "pid": None,
+            "process_identity": None,
+            "proc_id": None,
+        },
     )
 
 
@@ -139,7 +189,14 @@ def mark_gate_execution_failure_resurfaced(
     *,
     acceptance_id: str | None,
 ) -> bool:
-    """Record the one-time resurface. Return True when newly marked."""
+    """Record the one-time resurface. Return True when newly marked.
+
+    Records in both the transient failure object and the durable
+    per-acceptance history so clearing the failure on recovery does not
+    grant the same acceptance a second allowance.
+    """
+    if not isinstance(acceptance_id, str) or not acceptance_id:
+        return False
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     try:
         raw = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -147,25 +204,74 @@ def mark_gate_execution_failure_resurfaced(
         return False
     if not isinstance(raw, dict):
         return False
+    history = raw.get(RESURFACED_HISTORY_KEY)
+    history = dict(history) if isinstance(history, dict) else {}
+    if acceptance_id in history:
+        return False
     failure = raw.get(META_KEY)
     if not isinstance(failure, dict):
         return False
     if failure.get("acceptance_id") != acceptance_id:
         return False
     if failure.get("resurfaced") is True:
+        # Transient flag already set without history (legacy): adopt it.
+        try:
+            from datetime import UTC, datetime
+
+            stamp = datetime.now(UTC).isoformat()
+        except Exception:
+            stamp = None
+        from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+
+        history[acceptance_id] = stamp if isinstance(stamp, str) else True
+        update_meta_fields(artifacts_dir, {RESURFACED_HISTORY_KEY: history})
         return False
     from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 
-    updated = dict(failure)
-    updated["resurfaced"] = True
     try:
         from datetime import UTC, datetime
 
-        updated["resurfaced_at"] = datetime.now(UTC).isoformat()
+        stamp = datetime.now(UTC).isoformat()
     except Exception:
-        updated["resurfaced_at"] = None
-    update_meta_fields(artifacts_dir, {META_KEY: updated})
+        stamp = None
+    updated = dict(failure)
+    updated["resurfaced"] = True
+    updated["resurfaced_at"] = stamp
+    history[acceptance_id] = stamp if isinstance(stamp, str) else True
+    update_meta_fields(
+        artifacts_dir, {META_KEY: updated, RESURFACED_HISTORY_KEY: history}
+    )
     return True
+
+
+def record_dismissal_observation(
+    artifacts_dir: str, notification_id: str, *, now: float
+) -> float:
+    """Record first observation of a legacy dismissed row; return its time.
+
+    For dismissed rows with no dismissal timestamp, the first observation
+    starts the one-hour wait. Never infers dismissal from failure time.
+    """
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        raw = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
+    observed = raw.get(DISMISSAL_OBSERVED_KEY)
+    observed = dict(observed) if isinstance(observed, dict) else {}
+    existing = observed.get(notification_id)
+    if isinstance(existing, (int, float)):
+        return float(existing)
+    observed[notification_id] = float(now)
+    try:
+        from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+
+        update_meta_fields(artifacts_dir, {DISMISSAL_OBSERVED_KEY: observed})
+    except Exception:
+        pass
+    return float(now)
 
 
 def apply_member_failure_to_agent(
@@ -231,30 +337,17 @@ def apply_member_failure_to_agent(
         pass
 
 
-def project_loaded_failure_for_agent(agent: Any) -> None:
-    """Read the member's persisted failure and project it onto *agent*.
-
-    Load-time helper for snapshot-backed agent loaders: reads
-    ``agent_meta.json`` once per gate row (loaders run off the event loop,
-    never render paths) and applies :func:`apply_member_failure_to_agent`.
-    Best-effort: any failure leaves the row as the wire projected it.
-    """
-    try:
-        get_dir = getattr(agent, "get_artifacts_dir", None)
-        artifacts = get_dir() if callable(get_dir) else None
-        if not artifacts:
-            return
-        apply_member_failure_to_agent(agent, read_gate_execution_failure(artifacts))
-    except Exception:
-        pass
-
-
 def gate_execution_failure_resurfaced(
     artifacts_dir: str,
     *,
     acceptance_id: str | None,
 ) -> bool:
     """Return whether the current acceptance already resurfaced once."""
+    if not isinstance(acceptance_id, str) or not acceptance_id:
+        return False
+    history = _read_history(artifacts_dir)
+    if acceptance_id in history:
+        return True
     failure = read_gate_execution_failure(artifacts_dir)
     if failure is None:
         return False
@@ -264,7 +357,9 @@ def gate_execution_failure_resurfaced(
 
 
 __all__ = [
+    "DISMISSAL_OBSERVED_KEY",
     "META_KEY",
+    "RESURFACED_HISTORY_KEY",
     "SETTLER_KEYS",
     "apply_member_failure_to_agent",
     "build_gate_execution_failure",
@@ -272,7 +367,7 @@ __all__ = [
     "clear_gate_member_failure_for_bundle",
     "gate_execution_failure_resurfaced",
     "mark_gate_execution_failure_resurfaced",
-    "project_loaded_failure_for_agent",
     "read_gate_execution_failure",
+    "record_dismissal_observation",
     "write_gate_execution_failure",
 ]

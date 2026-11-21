@@ -349,6 +349,9 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         resurfaced_at=(
             None if data.get("resurfaced_at") is None else str(data["resurfaced_at"])
         ),
+        dismissed_at=(
+            None if data.get("dismissed_at") is None else str(data["dismissed_at"])
+        ),
         plus_ones=plus_ones,
         plus_ones_dropped=int(dropped),
         dedup_key=(None if data.get("dedup_key") is None else str(data["dedup_key"])),

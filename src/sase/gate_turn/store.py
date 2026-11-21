@@ -97,8 +97,12 @@ def read_gate_turn_marker(
         converted = GateTurnRecord.from_record(record)
     except ValueError:
         return None
+    # from_record already prefers the loaded wire failure; the raw file
+    # read below is the legacy fallback for shapes the wire omits.
+    if converted.execution_failure is not None or converted.is_terminal:
+        return converted
     failure = raw_meta.get("gate_execution_failure")
-    if isinstance(failure, dict) and not converted.is_terminal:
+    if isinstance(failure, dict):
         from dataclasses import replace as _replace
 
         try:
@@ -285,15 +289,27 @@ def _gate_turns_from_records(
 
 
 def _with_execution_failure(record: GateTurnRecord) -> GateTurnRecord:
-    """Attach the persisted failure object without reopening the bundle.
+    """Attach the persisted failure object, preferring the loaded wire.
 
-    The Rust index does not project ``agent_meta.json::gate_execution_failure``,
-    so the Python store reads that one small file per gate-turn row. Gate-turn
-    lists are low-volume (one row per pending gate), never the TUI hot path,
-    which renders from its own mtime-cached loader instead.
+    The Rust scanner now projects ``agent_meta.json::gate_execution_failure``
+    into the gate wire, so snapshot-only rows (artifact dir unavailable)
+    still render. The per-row file read below is the legacy fallback for
+    old records the wire omits; terminal members never project stale data.
     """
     from dataclasses import replace
 
+    # Wire already supplied the failure via models.from_record: keep it.
+    # This is what lets a supplied snapshot render with its artifact
+    # directory unavailable.
+    if record.execution_failure is not None:
+        if record.is_terminal:
+            try:
+                return replace(record, execution_failure=None)
+            except Exception:
+                return record
+        return record
+    if record.is_terminal:
+        return record
     try:
         from sase.gate_turn.execution_failure import read_gate_execution_failure
 
@@ -301,8 +317,6 @@ def _with_execution_failure(record: GateTurnRecord) -> GateTurnRecord:
     except Exception:
         return record
     if failure is None:
-        return record
-    if record.is_terminal:
         return record
     try:
         return replace(record, execution_failure=failure)

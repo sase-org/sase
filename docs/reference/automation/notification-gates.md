@@ -329,10 +329,21 @@ before recording a bundle is still settled lost on a later pass.
 
 Reclaim also backfills `gate_execution_failure` for members that failed before the
 object existed, when it sees an `accepted_failed` or `accepted_owner_lost` gate whose
-meta lacks it. A dismissed `GateExecutionFailed` notification resurfaces at most once
-per acceptance: when the failure is still current, the notification is dismissed, and
-more than an hour has passed since the failure, reclaim restores the notification and
-records the resurface in the member meta.
+meta lacks it. Backfill and resurface run serialized under the lane lock with a fresh
+re-read: a stale reclaim never overwrites a resumed owner, restores a resolved
+notification, or replaces a newer failure. A dismissed `GateExecutionFailed`
+notification resurfaces at most once per acceptance: the request kind, gate ID and
+acceptance must match before any other notification's state is considered, the failure
+must still be current, and the row must still be dismissed. The hour is measured from
+dismissal, never from failure time: the store persists `dismissed_at` on every dismiss
+(single, bulk, and agent-matching paths) and clears it on undismiss, and both human
+`list` formats render the same failure summary and resume/restart/cancel commands as
+`show`. Rows dismissed before tracking carry no timestamp; reclaim records the first
+observation in the member meta and waits a full hour from that observation. Once an
+acceptance resurfaces, repeating the same acceptance (identical retries replay it) never
+earns a second allowance; the history is kept separate from the transient failure object
+so recovery clearing it does not reset the allowance, and a genuinely new acceptance
+starts a new one. Only a changed un-dismiss write proves restoration and earns the mark.
 
 Immediate agent-side gate creation also writes a per-process intent marker before slow
 setup work starts. A clean creation error or the normal runner handoff clears it. If the
