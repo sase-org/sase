@@ -84,12 +84,12 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
         if notification.files:
             error_report = str(notification.files[0])
         else:
-            app.notify(_missing_error_report_message(notification), severity="warning")  # type: ignore[attr-defined]
+            _notify_missing_error_report(app, notification)
             return False
 
     expanded = os.path.expanduser(error_report)
     if not os.path.exists(expanded):
-        app.notify(_missing_error_report_message(notification), severity="warning")  # type: ignore[attr-defined]
+        _notify_missing_error_report(app, notification)
         return False
 
     editor = os.environ.get("EDITOR") or "nvim"
@@ -101,10 +101,26 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
     return True
 
 
+def _notify_missing_error_report(app: object, notification: Notification) -> None:
+    from ._notification_off_loop import run_off_loop
+
+    run_off_loop(
+        app,
+        lambda: _missing_error_report_message(notification),
+        lambda message: app.notify(message, severity="warning"),  # type: ignore[attr-defined]
+        name=f"notification-error-summary:{notification.id}",
+    )
+
+
 def _missing_error_report_message(notification: Notification) -> str:
     if notification.action != "GateExecutionFailed":
         return "No error report available"
-    data = notification.action_data
+    from sase.notifications.payloads import resolve_notification_action_data
+    from sase.notifications.store import notifications_file_path
+
+    data = resolve_notification_action_data(
+        notifications_file_path(), notification.action_data
+    )
     message = data.get("message") or data.get("code") or "gate execution failed"
     commands = [
         data.get("resume_command"),

@@ -82,6 +82,18 @@ def expire_blocked_waiters(notification: Notification) -> ExpireBlockedWaitersRe
         _expire_one_waiter(waiter, reason=reason)
         for waiter in waiters_from_root_notice(notification)
     )
+    if not results and notification.action_data.get("waiter_count", "0") != "0":
+        return ExpireBlockedWaitersResult(
+            results=(
+                WaiterExpireResult(
+                    artifact_dir="",
+                    name="waiter list",
+                    status="failed",
+                    message="Notification waiter payload is missing or invalid",
+                ),
+            ),
+            notice_settled=False,
+        )
     notice_settled = False
     if results and not any(result.status == "failed" for result in results):
         notice_settled = mark_dismissed(notification.id)

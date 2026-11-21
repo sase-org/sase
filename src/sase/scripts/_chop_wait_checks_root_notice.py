@@ -41,8 +41,14 @@ from sase.core.time import get_timezone
 from sase.core.wait_dependency_resolution import read_json_dict
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.notifications.models import Notification, normalize_notification_tags
+from sase.notifications.payloads import (
+    resolve_notification_action_data,
+    resolve_notification_notes,
+    resolve_notification_value,
+)
 from sase.notifications.store import (
     load_notifications,
+    notifications_file_path,
     reconcile_notification_rows,
     upsert_notification,
 )
@@ -322,8 +328,11 @@ def waiters_from_root_notice(row: Notification) -> list[RootWaiter]:
 
 
 def _stored_waiters(row: Notification) -> list[RootWaiter]:
+    value = row.action_data.get("waiters", "[]")
+    if value.startswith("sase-notification-blob:v1:"):
+        value = resolve_notification_value(notifications_file_path(), value) or "[]"
     try:
-        raw = json.loads(row.action_data.get("waiters", "[]"))
+        raw = json.loads(value)
     except (TypeError, ValueError):
         return []
     if not isinstance(raw, list):
@@ -383,10 +392,19 @@ def _auto_dismissed(row: Notification) -> Notification:
 
 
 def _same_content(existing: Notification, desired: Notification) -> bool:
-    existing_data = dict(existing.action_data)
+    existing_data: Mapping[str, str | None] = existing.action_data
+    existing_notes: list[str | None] = list(existing.notes)
+    if any(
+        "sase-notification-blob:v1:" in value
+        for value in [*existing.action_data.values(), *existing.notes]
+    ):
+        path = notifications_file_path()
+        existing_data = resolve_notification_action_data(path, existing.action_data)
+        existing_notes = resolve_notification_notes(path, existing.notes)
+    existing_data = dict(existing_data)
     existing_data.pop(AUTO_DISMISSED_ACTION_DATA_KEY, None)
     return (
-        existing.notes == desired.notes
+        existing_notes == desired.notes
         and existing.files == desired.files
         and existing.tags == desired.tags
         and existing.icon == desired.icon

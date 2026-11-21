@@ -62,9 +62,16 @@ writes that are still in flight.
 
 Readers that need full content resolve the reference when the user asks for it. The TUI
 resolves report snapshots and run-prune review data, Telegram resolves completion
-prompts and notes, and `sase notify show` resolves all payload fields. Lists and mobile
-notification cards can use the stored note preview. Missing note sidecars leave that
-preview available; a missing action-data sidecar has no inline value to show.
+prompts, notes, and attached commit messages, and `sase notify show` resolves all
+payload fields. Waiter-expiry actions resolve the full waiter list; a missing sidecar
+keeps the notice open. Waiter reconciliation compares resolved content so unchanged
+large lists do not trigger writes. Lists and mobile notification cards can use the
+stored note preview. Missing note sidecars leave that preview available; a missing
+action-data sidecar has no inline value to show.
+
+The TUI's `JumpToAgent` action uses the notification's short identity fields to select
+the agent, whose prompt pane reads the full raw prompt from its artifact directory. It
+does not need to hydrate the notification's duplicate prompt on inbox refresh.
 
 Completion notifications point to the existing raw prompt file when it exactly matches
 the prompt, avoiding a second copy. Failure summaries over 4 KiB are shortened and point

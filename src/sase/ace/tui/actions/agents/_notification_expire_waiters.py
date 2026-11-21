@@ -12,7 +12,6 @@ from sase.agent.expire_blocked_waiters import (
     expire_blocked_waiters,
     expire_blocked_waiters_summary,
 )
-from sase.scripts._chop_wait_checks_root_notice import waiters_from_root_notice
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -29,8 +28,12 @@ def handle_expire_waiters(app: Any, notification: Notification) -> bool:
     from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
     from sase.ace.tui.modals.confirm_dialog import ConfirmKind
 
-    waiters = waiters_from_root_notice(notification)
-    count = len(waiters)
+    # The full list may live in a sidecar; only the worker needs to load it.
+    try:
+        count = int(notification.action_data.get("waiter_count", "0"))
+    except ValueError:
+        app.notify("Invalid waiter count in notification", severity="warning")
+        return False
     blocker = (
         notification.action_data.get("blocker_name")
         or notification.action_data.get("blocker_dependency")

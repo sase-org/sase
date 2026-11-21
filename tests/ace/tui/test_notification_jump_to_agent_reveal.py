@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -64,6 +65,30 @@ def test_collapsed_clan_member_is_revealed() -> None:
     assert app._agents[app.current_idx].identity == target.identity
     assert app.notifications == []
     assert app._entry_jump_agents_anchor_stack != []
+
+
+def test_externalized_completion_still_opens_full_agent_prompt(tmp_path: Path) -> None:
+    from sase.notifications.store import (
+        append_notification,
+        load_notifications,
+        notifications_file_path,
+    )
+
+    app, _container, target = collapsed_clan()
+    prompt = "Full prompt text\n" * 12_800
+    target.artifacts_dir = str(tmp_path)
+    (tmp_path / "raw_prompt.md").write_text(prompt, encoding="utf-8")
+    notification = _notification(
+        "jump-test", raw_suffix=target.raw_suffix, agent_type=target.agent_type.value
+    )
+    notification.action_data["prompt"] = prompt
+    append_notification(notification)
+    stored = load_notifications()[0]
+    assert notifications_file_path().stat().st_size < 8 * 1024
+    assert stored.action_data["prompt"].startswith("sase-notification-blob:v1:")
+
+    assert handle_jump_to_agent(app, stored) is True
+    assert app._agents[app.current_idx].get_raw_prompt_content() == prompt
 
 
 def test_every_layer_at_once() -> None:

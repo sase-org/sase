@@ -89,6 +89,21 @@ def test_handle_expire_waiters_pushes_danger_confirm_named_with_count() -> None:
     assert "without launching" in modal._message
 
 
+def test_confirmation_does_not_read_waiter_sidecar(monkeypatch: Any) -> None:
+    app = _ExpireApp()
+    notice = _notice(waiter_count=100)
+    notice.action_data["waiters"] = "sase-notification-blob:v1:missing:20000"
+    resolve = MagicMock(side_effect=AssertionError("disk read on UI thread"))
+    monkeypatch.setattr(
+        "sase.scripts._chop_wait_checks_root_notice.resolve_notification_value", resolve
+    )
+
+    assert handle_expire_waiters(app, notice) is True
+    assert isinstance(app.screen, ConfirmActionModal)
+    assert "Expire 100 waiters" in app.screen._message
+    resolve.assert_not_called()
+
+
 def test_confirming_expire_runs_operation_and_refreshes(
     monkeypatch: Any,
 ) -> None:
