@@ -14,6 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import time
+from typing import Any
 
 from sase.artifact_links.derive import (
     DerivableDocument,
@@ -21,8 +22,18 @@ from sase.artifact_links.derive import (
     derive_candidate_links,
 )
 from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
+from sase.sdd._artifact_link_incremental import (
+    ArtifactLinkReconcileMemo,
+    combine_reconcile_fingerprint,
+    reconcile_input_fingerprint,
+    store_backed_rows_digest,
+    unrepairable_refs_fingerprint,
+)
 from sase.sdd._artifact_link_store_support import is_projected_row, kind_of_ref
 from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
+from sase.sdd._artifact_link_store_aggregate import (
+    ArtifactLinkAggregateWriteDeferred,
+)
 from sase.sdd._artifact_link_store_reconcile import (
     AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
 )
@@ -257,6 +268,14 @@ class _ArtifactLinkReconcileReport:
     repaired_renames: int = 0
     deferred_refs: int = 0
     skip_diagnostics: tuple[str, ...] = ()
+    reconcile_skipped: bool = False
+    projection_changed: bool = False
+    rename_scan_skipped: bool = False
+
+
+_RECONCILE_DEFERRED_DIAGNOSTIC = (
+    "reconcile deadline expired; deferred dangling-ref repair"
+)
 
 
 @artifact_link_snapshot_memo()
@@ -265,6 +284,8 @@ def reconcile_and_repair_artifact_links(
     *,
     deadline: float | None = None,
     progress: Callable[[str], None] | None = None,
+    memo: ArtifactLinkReconcileMemo | None = None,
+    now: float | None = None,
 ) -> _ArtifactLinkReconcileReport:
     """Run the cross-workspace aggregate reconcile and dangling-ref repair.
 
@@ -278,6 +299,16 @@ def reconcile_and_repair_artifact_links(
     ``deadline`` is a ``time.monotonic()`` timestamp forwarded to the
     aggregate reconcile and the rename repair. Interactive callers leave
     it unset so the doctor finishes its work instead of deferring.
+
+    *memo* (the hourly chop's persisted per-project state) enables the
+    incremental paths and is updated in place; callers without one always
+    run the full pass. While the reconcile inputs and the store-backed
+    aggregate match what the last complete reconcile left behind, only the
+    projected rows are recomputed instead of re-reducing every event store;
+    while the dangling-ref set and the sidecar ref heads match a rename scan
+    that found nothing, the full-history ``git log -M`` scan is skipped.
+    Once :data:`FULL_PASS_INTERVAL_SECONDS` has passed since the last full
+    reconcile, everything runs regardless. *now* is a wall-clock time.
     """
 
     from sase.artifact_cli.link_health import dangling_and_orphaned_artifact_link_refs
@@ -287,27 +318,82 @@ def reconcile_and_repair_artifact_links(
         repair_historical_artifact_renames,
     )
 
-    if progress is not None:
-        progress("aggregate")
-    reconciled = store.reconcile_aggregate(deadline=deadline)
-    write_deferred = AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC in (
+    wall_now = time.time() if now is None else now
+    full_due = memo is None or memo.full_pass_due(now=wall_now)
+    reconcile_skipped = False
+    projection_changed = False
+    inputs_fingerprint = None if memo is None else reconcile_input_fingerprint(store)
+    if (
+        memo is not None
+        and not full_due
+        and inputs_fingerprint is not None
+        and memo.input_fingerprint is not None
+        and memo.input_fingerprint
+        == combine_reconcile_fingerprint(
+            inputs_fingerprint,
+            store_backed_rows_digest(store.load_aggregate().get("rows", ())),
+        )
+    ):
+        if progress is not None:
+            progress("projection")
+        try:
+            projection_changed = store.refresh_projected_aggregate_rows(
+                deadline=deadline
+            )
+        except ArtifactLinkAggregateWriteDeferred:
+            return _ArtifactLinkReconcileReport(
+                skip_diagnostics=(
+                    AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC,
+                    _RECONCILE_DEFERRED_DIAGNOSTIC,
+                ),
+                reconcile_skipped=True,
+            )
+        reconcile_skipped = True
+        reconciled: dict[str, Any] = {}
+    else:
+        if memo is not None:
+            memo.input_fingerprint = None
+        if progress is not None:
+            progress("aggregate")
+        reconciled = store.reconcile_aggregate(deadline=deadline)
+    reconcile_diagnostics = tuple(
         str(item) for item in reconciled.get("skip_diagnostics", ())
     )
+    write_deferred = AGGREGATE_WRITE_DEFERRED_DIAGNOSTIC in reconcile_diagnostics
     if write_deferred or (deadline is not None and time.monotonic() >= deadline):
         skip_diagnostics = tuple(
-            dict.fromkeys(
-                (
-                    *(str(item) for item in reconciled.get("skip_diagnostics", ())),
-                    "reconcile deadline expired; deferred dangling-ref repair",
-                )
-            )
+            dict.fromkeys((*reconcile_diagnostics, _RECONCILE_DEFERRED_DIAGNOSTIC))
         )
-        return _ArtifactLinkReconcileReport(skip_diagnostics=skip_diagnostics)
+        return _ArtifactLinkReconcileReport(
+            skip_diagnostics=skip_diagnostics,
+            reconcile_skipped=reconcile_skipped,
+            projection_changed=projection_changed,
+        )
+    if memo is not None and not reconcile_skipped and not reconcile_diagnostics:
+        memo.input_fingerprint = combine_reconcile_fingerprint(
+            inputs_fingerprint,
+            store_backed_rows_digest(reconciled.get("rows", ())),
+        )
+        memo.full_pass_at = wall_now
     if progress is not None:
         progress("dangling_scan")
     refs = dangling_and_orphaned_artifact_link_refs(
         store, kinds=REPAIRABLE_RENAME_KINDS
     )
+    refs_fingerprint = (
+        None if memo is None else unrepairable_refs_fingerprint(store, refs)
+    )
+    if (
+        memo is not None
+        and not full_due
+        and refs_fingerprint is not None
+        and refs_fingerprint == memo.unrepairable_refs
+    ):
+        return _ArtifactLinkReconcileReport(
+            reconcile_skipped=reconcile_skipped,
+            projection_changed=projection_changed,
+            rename_scan_skipped=True,
+        )
     if progress is not None:
         progress("repair")
     repair = repair_historical_artifact_renames(
@@ -316,6 +402,12 @@ def reconcile_and_repair_artifact_links(
         deadline=deadline,
         require_machine_writable=True,
     )
+    if memo is not None:
+        memo.unrepairable_refs = (
+            refs_fingerprint
+            if not repair.renames and not repair.deferred_refs
+            else None
+        )
     if repair.changed_paths:
         if progress is not None:
             progress("commit")
@@ -332,11 +424,13 @@ def reconcile_and_repair_artifact_links(
         skip_diagnostics=tuple(
             dict.fromkeys(
                 (
-                    *(str(item) for item in reconciled.get("skip_diagnostics", ())),
+                    *reconcile_diagnostics,
                     *(getattr(repair, "skip_diagnostics", ()) or ()),
                 )
             )
         ),
+        reconcile_skipped=reconcile_skipped,
+        projection_changed=projection_changed,
     )
 
 

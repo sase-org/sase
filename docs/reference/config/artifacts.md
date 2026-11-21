@@ -43,10 +43,10 @@ oversized files, but SASE does not copy their bytes into `.sase/artifacts/pool/`
 for the layout and garbage-collection rules.
 
 `artifacts.retention` is the opt-in policy the hourly `artifact_retention` housekeeping
-job enforces against the indexed store. Agent finalization only runs a throttled
-fallback when the last stamp is missing or older than 24 hours. It ships disabled with
-generous values pre-filled, so enabling it later is a flag flip rather than a policy
-design exercise.
+job enforces against the indexed store, running the full pass at most once every 6
+hours. Agent finalization only runs a throttled fallback when the last stamp is missing
+or older than 24 hours. It ships disabled with generous values pre-filled, so enabling
+it later is a flag flip rather than a policy design exercise.
 
 ```yaml
 artifacts:

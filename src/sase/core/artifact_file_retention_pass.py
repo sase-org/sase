@@ -1,9 +1,13 @@
 """Indexed artifact-file retention pass shared by housekeeping and the runner.
 
-The hourly ``artifact_retention`` job is the primary owner. Agent finalization
-only runs this pass when the last completed stamp is missing or older than 24
-hours, so a machine without a scheduler still enforces retention at least
-daily. Overlapping passes are excluded with a non-blocking exclusive lock.
+The hourly ``artifact_retention`` job is the primary owner, but it runs the
+full pass only when the last *enforced* pass is missing or older than 6 hours:
+the policy's predicates are measured in days, while the protection scan walks
+the same text roots as the hourly ``artifact_run_prune`` preview. Agent
+finalization only runs this pass when the last completed stamp is missing or
+older than 24 hours, so a machine without a scheduler still enforces retention
+at least daily. Overlapping passes are excluded with a non-blocking exclusive
+lock.
 """
 
 from __future__ import annotations
@@ -24,6 +28,13 @@ from sase.core.paths import sase_home
 
 _INLINE_FALLBACK_MAX_AGE = timedelta(hours=24)
 """Runner inline fallback runs only when the stamp is this old or missing."""
+
+HOUSEKEEPING_MAX_AGE = timedelta(hours=6)
+"""The hourly job runs the full pass only when the last enforced one is this old.
+
+Well under the runner's 24-hour fallback, so on a machine with a scheduler the
+stamp never ages into an agent finalization paying for the pass inline.
+"""
 
 STAMP_FILENAME = "artifact_retention.json"
 LOCK_FILENAME = "artifact_retention.lock"
@@ -77,17 +88,28 @@ def _read_artifact_retention_stamp() -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def _artifact_retention_stamp_is_fresh(*, now: datetime | None = None) -> bool:
-    """Return whether the last completed pass finished within 24 hours."""
+def _artifact_retention_stamp_is_fresh(
+    *,
+    now: datetime | None = None,
+    max_age: timedelta = _INLINE_FALLBACK_MAX_AGE,
+    outcomes: frozenset[str] | None = None,
+) -> bool:
+    """Return whether the last completed pass finished within *max_age*.
+
+    With *outcomes*, only a stamp whose recorded outcome is one of them counts
+    as fresh, so a skipped or failed pass never postpones the next attempt.
+    """
 
     stamp = _read_artifact_retention_stamp()
     if stamp is None:
+        return False
+    if outcomes is not None and stamp.get("outcome") not in outcomes:
         return False
     completed = _parse_completed_at(stamp.get("completed_at"))
     if completed is None:
         return False
     current = now if now is not None else datetime.now(UTC)
-    return current - completed < _INLINE_FALLBACK_MAX_AGE
+    return current - completed < max_age
 
 
 def maybe_enforce_artifact_retention() -> _ArtifactRetentionPassResult:
@@ -100,6 +122,27 @@ def maybe_enforce_artifact_retention() -> _ArtifactRetentionPassResult:
     if _artifact_retention_stamp_is_fresh():
         return _ArtifactRetentionPassResult(outcome="stamp_fresh", stamped=False)
     return enforce_artifact_retention()
+
+
+def enforce_artifact_retention_for_housekeeping(
+    progress: Callable[[str], None] | None = None,
+    *,
+    now: datetime | None = None,
+) -> _ArtifactRetentionPassResult:
+    """Run the hourly job's pass only when the last enforced pass is stale.
+
+    Returns ``stamp_fresh`` without taking the lock while an ``enforced``
+    stamp is younger than :data:`HOUSEKEEPING_MAX_AGE`; any other recorded
+    outcome (disabled, protection unavailable, failed) retries next hour.
+    """
+
+    if _artifact_retention_stamp_is_fresh(
+        now=now,
+        max_age=HOUSEKEEPING_MAX_AGE,
+        outcomes=frozenset({"enforced"}),
+    ):
+        return _ArtifactRetentionPassResult(outcome="stamp_fresh", stamped=False)
+    return enforce_artifact_retention(progress=progress)
 
 
 def enforce_artifact_retention(

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import time
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
@@ -15,8 +16,12 @@ from sase.core.agent_artifact_run_retention import (
     collect_ace_run_retention_protections,
     plan_ace_run_retention,
 )
+from sase.core.agent_artifact_run_size_cache import AceRunSizeCache
 from sase.core.agent_artifact_run_trash import purge_ace_run_trash
 from sase.core.time import local_now
+
+
+SIZE_CACHE_FILENAME = "artifact_run_prune_sizes.json"
 
 
 @builtin_chop("artifact_run_prune")
@@ -64,11 +69,19 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         f"{time.monotonic() - started:.1f}s"
     )
 
-    plan = plan_ace_run_retention(policy, protections=protections)
+    size_cache = AceRunSizeCache(Path(runtime.context.state_dir) / SIZE_CACHE_FILENAME)
+    plan = plan_ace_run_retention(
+        policy, protections=protections, size_cache=size_cache
+    )
+    try:
+        size_cache.save()
+    except OSError as exc:  # noqa: BLE001 - the cache only saves later walks.
+        runtime.log.warning(f"artifact_run_prune: size cache not saved: {exc}")
     runtime.log.info(
         "artifact_run_prune progress: plan done in "
         f"{time.monotonic() - started:.1f}s "
-        f"candidates={plan.counts.candidates} selected={plan.counts.selected}"
+        f"candidates={plan.counts.candidates} selected={plan.counts.selected} "
+        f"size_cache_hits={size_cache.hits} size_cache_misses={size_cache.misses}"
     )
     if plan.counts.selected or plan.counts.empty_out_of_range_shards:
         runtime.log(

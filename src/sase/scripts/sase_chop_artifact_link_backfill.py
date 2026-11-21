@@ -21,6 +21,11 @@ one lazily built agent catalog across every project in a run. Job 3 starts
 only when its decaying duration estimate fits in the remaining budget (the
 first project of a tick always runs it). A project whose drain or reconcile
 work was deferred for budget goes first on the next tick.
+
+Jobs 1, 3, and 4 are incremental (see ``sase.sdd._artifact_link_incremental``):
+the sweep skips its document walk, reconcile recomputes only projected rows,
+and the rename scan is skipped while each one's input fingerprint matches the
+last complete pass, with a full pass at least once a day.
 """
 
 from __future__ import annotations
@@ -226,6 +231,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "sweep_scanned": totals.sweep_scanned,
             "sweep_persisted": totals.sweep_persisted,
             "sweep_remaining": totals.sweep_remaining,
+            "sweep_skipped": totals.sweep_skipped,
             "outbox_drained": totals.outbox_drained,
             "outbox_dropped": totals.outbox_dropped,
             "bead_projection_failed": totals.bead_projection_failed,
@@ -240,6 +246,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "publication_discovered": totals.publication_discovered,
             "publication_cleared": totals.publication_cleared,
             "reconciled": totals.reconciled,
+            "reconcile_skipped": totals.reconcile_skipped,
+            "projection_refreshed": totals.projection_refreshed,
+            "rename_scan_skipped": totals.rename_scan_skipped,
             "repaired_renames": totals.repaired_renames,
             "deferred_projects": totals.deferred_projects,
             "stale_checked_projects": totals.stale_checked_projects,

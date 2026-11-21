@@ -1892,8 +1892,13 @@ axe:
             each candidate is durable or parked. The drain drops never-published rows of long-finished
             agents at most once per day per project and logs per-phase timings; reconcile starts only
             when its learned duration fits the remaining budget, and a project whose work was deferred
-            goes first on the next tick. A hard bead projection failure this tick is
-            check_error with reason bead_projection_failed; parked operations alone are not an error.
+            goes first on the next tick. Unchanged inputs skip work: the sweep skips its document walk
+            while the document paths match its last complete sweep, reconcile only recomputes projected
+            rows while the event stores, bead events, outbox, and store-backed aggregate rows match its
+            last complete pass, and the git rename scan is skipped while the dangling-ref set and sidecar
+            ref heads match a scan that found nothing; each runs in full at least once a day. A hard bead
+            projection failure this tick is check_error with reason bead_projection_failed; parked
+            operations alone are not an error.
         - name: artifact_retention
           script: sase_job_artifact_retention
           timeout: "5m"
@@ -1902,11 +1907,13 @@ axe:
 
             Runs the bounded store pass that used to sit on every agent finalization: plan with the
             configured policy plus protection scan, trash selected automatic captures, and purge trash
-            past the grace period. Writes ~/.sase/artifact_retention.json with the time and outcome of
-            every completed pass, including a skip because artifacts.retention.enabled is false or a
-            protection source is unavailable. A non-blocking exclusive lock excludes overlapping
-            passes. Agent finalization only runs the same pass when that stamp is missing or older
-            than 24 hours, and skips immediately when the lock is busy.
+            past the grace period. The hourly job runs that pass only when the last enforced pass is
+            missing or older than 6 hours and otherwise reports stamp_fresh without scanning. Writes
+            ~/.sase/artifact_retention.json with the time and outcome of every completed pass,
+            including a skip because artifacts.retention.enabled is false or a protection source is
+            unavailable. A non-blocking exclusive lock excludes overlapping passes. Agent finalization
+            only runs the same pass when that stamp is missing or older than 24 hours, and skips
+            immediately when the lock is busy.
         - name: artifact_run_prune
           script: sase_job_artifact_run_prune
           timeout: "5m"
@@ -1916,8 +1923,9 @@ axe:
             Purges expired restorable run-trash batches, then plans whole-run ace-run retention. The preview
             keeps the newest artifacts.retention.keep_recent_run_months calendar months whole, protects runs
             referenced by artifact files, text refs, agent names, and non-closed beads, and reports empty
-            month/day shards outside sase's TUI startup watch window. It writes a review snapshot and upserts
-            one actionable Axe report notification; confirmed runs move to a 14-day restorable trash.
+            month/day shards outside sase's TUI startup watch window. Selected runs reuse their last
+            measured size while the run directory's identity is unchanged. It writes a review snapshot and
+            upserts one actionable Axe report notification; confirmed runs move to a 14-day restorable trash.
 
 
 llm_provider:

@@ -306,20 +306,36 @@ logged as a warning, and that project goes first on the next tick. Counters incl
 `stale_checked_projects`. A hard bead projection failure this tick sets status
 `check_error` with reason `bead_projection_failed` even if traversal completed; parked
 operations alone are not an error. A large derivation backlog converges over several
-hourly ticks instead of rescanning the full corpus each time. Run
-`sase axe job run artifact_link_backfill` for an immediate pass. The link model and
-doctor counters are documented in [Artifact Links](../artifact-links.md).
+hourly ticks instead of rescanning the full corpus each time.
+
+Unchanged inputs skip the expensive work, so a quiet hour costs little more than the
+per-project sync. The sweep skips its document walk while the `plan`/`research` document
+paths match its last complete sweep. Reconcile skips re-reducing every event store while
+the event-store files, bead events, pending outbox, and store-backed aggregate rows all
+match what its last complete pass left behind; it then only recomputes the projected
+rows and writes the aggregate when they changed. The full-history Git rename scan is
+skipped while the dangling-ref set and the sidecars' ref heads match a scan that found
+nothing to repair. Each pass still runs in full at least once every 24 hours. The
+fingerprints live in the job's `artifact_link_backfill_schedule.json`, and the counters
+`sweep_skipped`, `reconcile_skipped`, `projection_refreshed`, and `rename_scan_skipped`
+report the skips. Run `sase axe job run artifact_link_backfill` for an immediate pass.
+The link model and doctor counters are documented in
+[Artifact Links](../artifact-links.md).
 
 The `artifact_retention` job owns indexed artifact-file retention. It runs the same
 bounded pass that used to sit on every agent finalization: plan with
 [`artifacts.retention`](../config/artifacts.md#artifacts) plus the protection scan,
-trash selected automatic captures, and purge trash past the grace period. Every
-completed pass writes `~/.sase/artifact_retention.json` with the time and outcome,
-including a skip because retention is disabled or a protection source is unavailable. A
-non-blocking exclusive lock excludes overlapping passes. Agent finalization only runs
-the same pass when that stamp is missing or older than 24 hours, so a machine without a
-scheduler still enforces retention at least daily, and it skips immediately when the
-lock is busy. Run `sase axe job run artifact_retention` for an immediate pass. See
+trash selected automatic captures, and purge trash past the grace period. The hourly job
+runs that pass only when the last `enforced` stamp is missing or older than 6 hours;
+otherwise it reports outcome `stamp_fresh` without scanning, so its protection walk no
+longer repeats the `artifact_run_prune` walk every hour. Any other recorded outcome
+(disabled, protection unavailable, failed) retries on the next tick. Every completed
+pass writes `~/.sase/artifact_retention.json` with the time and outcome, including a
+skip because retention is disabled or a protection source is unavailable. A non-blocking
+exclusive lock excludes overlapping passes. Agent finalization only runs the same pass
+when that stamp is missing or older than 24 hours, so a machine without a scheduler
+still enforces retention at least daily, and it skips immediately when the lock is busy.
+Run `sase axe job run artifact_retention` for an immediate pass. See
 [SASE disk cleanup](../disk-cleanup.md) and
 [Store Lifecycle](../agent-attachments.md#store-lifecycle).
 
@@ -340,26 +356,28 @@ runs tied to non-closed beads; runs an unresolved
 [Agent Hijack](../agents/agent-sessions.md#hijack-recovery) still holds for recovery,
 including expired holds; and symlinked run directories. If continuation retention
 planning fails, every candidate is protected (`continuation_unavailable`) instead of the
-job crashing. The summary reports `candidates`, `selected` run directories,
-`empty_shards` outside sase's TUI startup watch window, reclaimable `bytes`,
-`protected`, and `unavailable` protection sources; any unavailable source turns the run
-into `check_error`. When the preview finds protection problems, empty shards, or a run
-selection worth a nudge, the job writes a review snapshot and upserts an actionable Axe
-`ViewReport` notification. A run selection is worth a nudge only when its reclaimable
-bytes reach `artifacts.retention.run_prune_notify_min_bytes` (default 1 GiB) or the
-runs' filesystem is under the same managed disk-pressure thresholds as the
-`disk_pressure` job; a smaller selection on a roomy disk retires any live preview
-instead. The notification is episode-deduplicated: a repeat of the current preview adds
-a `+1` note; any change, including a return to an earlier fingerprint, starts a fresh
-row and retires older preview rows; a clean nothing-to-prune run retires them too. Enter
-opens the snapshot review. In a ready review, `y` quarantines the reviewed runs into
-journaled, restorable trash (`sase artifact prune-runs --apply`, optionally restricted
-with `--snapshot`). When protections were unreadable or the snapshot is missing, `y`
-starts a durable re-check that republishes the preview
-(`sase artifact prune-runs --publish-preview`). Protections are re-verified before every
-move, and unattended apply paths still refuse. The hourly job permanently purges batches
-after the configured `artifacts.retention.trash_grace_days` period; runs that gain a
-protection reference are restored instead.
+job crashing. Each selected run's size is measured once and reused from the job's
+`artifact_run_prune_sizes.json` while the run directory's inode and mtime are unchanged.
+The summary reports `candidates`, `selected` run directories, `empty_shards` outside
+sase's TUI startup watch window, reclaimable `bytes`, `protected`, and `unavailable`
+protection sources; any unavailable source turns the run into `check_error`. When the
+preview finds protection problems, empty shards, or a run selection worth a nudge, the
+job writes a review snapshot and upserts an actionable Axe `ViewReport` notification. A
+run selection is worth a nudge only when its reclaimable bytes reach
+`artifacts.retention.run_prune_notify_min_bytes` (default 1 GiB) or the runs' filesystem
+is under the same managed disk-pressure thresholds as the `disk_pressure` job; a smaller
+selection on a roomy disk retires any live preview instead. The notification is
+episode-deduplicated: a repeat of the current preview adds a `+1` note; any change,
+including a return to an earlier fingerprint, starts a fresh row and retires older
+preview rows; a clean nothing-to-prune run retires them too. Enter opens the snapshot
+review. In a ready review, `y` quarantines the reviewed runs into journaled, restorable
+trash (`sase artifact prune-runs --apply`, optionally restricted with `--snapshot`).
+When protections were unreadable or the snapshot is missing, `y` starts a durable
+re-check that republishes the preview (`sase artifact prune-runs --publish-preview`).
+Protections are re-verified before every move, and unattended apply paths still refuse.
+The hourly job permanently purges batches after the configured
+`artifacts.retention.trash_grace_days` period; runs that gain a protection reference are
+restored instead.
 
 The review panel shows the snapshot age, selected run count and bytes, protected count,
 retained month window, and project totals. A preview older than 24 hours is marked

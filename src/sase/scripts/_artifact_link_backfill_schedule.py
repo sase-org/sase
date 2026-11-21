@@ -1,12 +1,15 @@
 """Per-project cadence state for the ``artifact_link_backfill`` chop.
 
-Persists two facts across hourly ticks in one small JSON file:
+Persists these facts across hourly ticks in one small JSON file:
 
 - when each project last completed a stale-terminal outbox drop, so that
   expensive check (it may build the whole agent catalog) runs at most once
   per day per project;
 - a decaying estimate of each project's reconcile/repair duration, so the
-  chop never starts a reconcile it cannot finish inside its budget.
+  chop never starts a reconcile it cannot finish inside its budget;
+- the input fingerprints each project's last complete sweep and
+  reconcile/repair pass finished with, plus when each last ran in full, so
+  an unchanged project skips that work until its daily full pass.
 """
 
 from __future__ import annotations
@@ -18,6 +21,11 @@ import math
 import os
 from pathlib import Path
 import tempfile
+
+from sase.sdd._artifact_link_incremental import (
+    FULL_PASS_INTERVAL_SECONDS,
+    ArtifactLinkReconcileMemo,
+)
 
 SCHEDULE_FILENAME = "artifact_link_backfill_schedule.json"
 _SCHEDULE_SCHEMA_VERSION = 1
@@ -34,6 +42,9 @@ class BackfillSchedule:
 
     stale_checked_at: dict[str, float] = field(default_factory=dict)
     reconcile_seconds: dict[str, float] = field(default_factory=dict)
+    sweep_fingerprints: dict[str, str] = field(default_factory=dict)
+    sweep_full_at: dict[str, float] = field(default_factory=dict)
+    reconcile_memos: dict[str, ArtifactLinkReconcileMemo] = field(default_factory=dict)
 
     def stale_drop_due(self, project: str, *, now: float) -> bool:
         """Return whether *project*'s daily stale-terminal drop should run."""
@@ -66,11 +77,51 @@ class BackfillSchedule:
         )
         self.reconcile_seconds[project] = max(observed, blended)
 
+    def sweep_skippable(
+        self, project: str, fingerprint: str | None, *, now: float
+    ) -> bool:
+        """Return whether *project*'s sweep may skip its document walk.
+
+        True only while *fingerprint* matches the one a complete sweep (no
+        documents left pending) recorded, and that sweep's full walk is
+        younger than the daily backstop.
+        """
+
+        full_at = self.sweep_full_at.get(project)
+        return (
+            fingerprint is not None
+            and self.sweep_fingerprints.get(project) == fingerprint
+            and full_at is not None
+            and now - full_at < FULL_PASS_INTERVAL_SECONDS
+        )
+
+    def record_sweep(
+        self, project: str, fingerprint: str | None, *, complete: bool, now: float
+    ) -> None:
+        """Record one full sweep walk; only a complete one may vouch for skips."""
+
+        self.sweep_full_at[project] = float(now)
+        if complete and fingerprint is not None:
+            self.sweep_fingerprints[project] = fingerprint
+        else:
+            self.sweep_fingerprints.pop(project, None)
+
+    def reconcile_memo(self, project: str) -> ArtifactLinkReconcileMemo:
+        """Return *project*'s mutable reconcile memo, creating an empty one."""
+
+        return self.reconcile_memos.setdefault(project, ArtifactLinkReconcileMemo())
+
     def prune(self, live_projects: Iterable[str]) -> None:
         """Forget projects that are no longer enabled."""
 
         live = set(live_projects)
-        for mapping in (self.stale_checked_at, self.reconcile_seconds):
+        for mapping in (
+            self.stale_checked_at,
+            self.reconcile_seconds,
+            self.sweep_fingerprints,
+            self.sweep_full_at,
+            self.reconcile_memos,
+        ):
             for key in set(mapping) - live:
                 del mapping[key]
 
@@ -90,6 +141,9 @@ def read_backfill_schedule(path: Path) -> BackfillSchedule:
     return BackfillSchedule(
         stale_checked_at=_number_map(payload.get("stale_checked_at")),
         reconcile_seconds=_number_map(payload.get("reconcile_seconds")),
+        sweep_fingerprints=_string_map(payload.get("sweep_fingerprints")),
+        sweep_full_at=_number_map(payload.get("sweep_full_at")),
+        reconcile_memos=_memo_map(payload.get("reconcile_memos")),
     )
 
 
@@ -101,6 +155,12 @@ def write_backfill_schedule(path: Path, schedule: BackfillSchedule) -> None:
         "schema_version": _SCHEDULE_SCHEMA_VERSION,
         "stale_checked_at": dict(sorted(schedule.stale_checked_at.items())),
         "reconcile_seconds": dict(sorted(schedule.reconcile_seconds.items())),
+        "sweep_fingerprints": dict(sorted(schedule.sweep_fingerprints.items())),
+        "sweep_full_at": dict(sorted(schedule.sweep_full_at.items())),
+        "reconcile_memos": {
+            key: memo.to_json()
+            for key, memo in sorted(schedule.reconcile_memos.items())
+        },
     }
     fd, temporary_path = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
@@ -131,6 +191,26 @@ def _number_map(value: object) -> dict[str, float]:
         ):
             result[key] = float(item)
     return result
+
+
+def _string_map(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: item
+        for key, item in value.items()
+        if isinstance(key, str) and isinstance(item, str) and item
+    }
+
+
+def _memo_map(value: object) -> dict[str, ArtifactLinkReconcileMemo]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: ArtifactLinkReconcileMemo.from_json(item)
+        for key, item in value.items()
+        if isinstance(key, str)
+    }
 
 
 __all__ = [

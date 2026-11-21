@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Enforce indexed artifact-file retention from the hourly housekeeping lane.
 
+The job runs the full pass only when the last enforced pass is missing or
+older than 6 hours, and otherwise reports ``stamp_fresh`` without scanning.
 The runner only keeps a throttled fallback: it runs the same pass when the
 stamp is missing or older than 24 hours, and skips immediately when this job
 holds the exclusive lock.
@@ -10,7 +12,10 @@ from __future__ import annotations
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
-from sase.core.artifact_file_retention_pass import enforce_artifact_retention
+from sase.core.artifact_file_retention_pass import (
+    HOUSEKEEPING_MAX_AGE,
+    enforce_artifact_retention_for_housekeeping,
+)
 
 
 def _reason_for(outcome: str) -> str | None:
@@ -21,7 +26,7 @@ def _reason_for(outcome: str) -> str | None:
 
 @builtin_chop("artifact_retention")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    result = enforce_artifact_retention(progress=runtime.log)
+    result = enforce_artifact_retention_for_housekeeping(progress=runtime.log)
     if result.outcome == "enforced":
         runtime.log(
             (
@@ -32,6 +37,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 f"purged {result.purged_entries} trash entries"
             ),
             "cyan",
+        )
+    elif result.outcome == "stamp_fresh":
+        hours = HOUSEKEEPING_MAX_AGE.total_seconds() / 3600
+        runtime.log(
+            f"artifact_retention skipped: last enforced pass is under {hours:g}h old"
         )
     elif result.outcome == "protection_unavailable":
         sources = ", ".join(result.sources_unavailable) or "unknown"

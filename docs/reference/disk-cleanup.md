@@ -80,9 +80,10 @@ under disk pressure; see
 
 Indexed artifact-file retention is a separate owner from ACE-run directory preview. The
 hourly `artifact_retention` housekeeping job enforces `artifacts.retention` against the
-indexed store and writes `~/.sase/artifact_retention.json` after every completed pass.
-Agent finalization only runs that pass when the stamp is missing or older than 24 hours,
-and skips immediately if another pass holds the lock. See
+indexed store at most once every 6 hours and writes `~/.sase/artifact_retention.json`
+after every completed pass. Agent finalization only runs that pass when the stamp is
+missing or older than 24 hours, and skips immediately if another pass holds the lock.
+See
 [Scheduler housekeeping](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval)
 and [Store Lifecycle](agent-attachments.md#store-lifecycle).
 

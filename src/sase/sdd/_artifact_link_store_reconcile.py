@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+import json
 from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any
@@ -184,6 +185,50 @@ class ArtifactLinkStoreReconcileMixin:
         if captured:
             written["skip_diagnostics"] = tuple(captured)
         return written
+
+    def refresh_projected_aggregate_rows(
+        self, *, deadline: float | None = None
+    ) -> bool:
+        """Recompute only the aggregate's projected rows; return whether it changed.
+
+        The cheap half of :meth:`reconcile_aggregate`, for a pass whose
+        store-backed inputs are known to be unchanged since the last complete
+        reconcile: every non-projected prior row is carried forward in place
+        through the same :func:`project_aggregate_rows` rule, and only the
+        projection layer is recomputed. Nothing is written when the projected
+        rows come out identical. A lost write race on a deadline raises
+        :class:`ArtifactLinkAggregateWriteDeferred` exactly like a rebuild.
+        """
+
+        first: list[tuple[list[dict[str, Any]], dict[str, Any]]] = []
+
+        def compute_preview() -> dict[str, Any]:
+            prior = self.load_aggregate()
+            document = {
+                "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                "generation": prior["generation"],
+                "rows": project_aggregate_rows(
+                    collected=(),
+                    prior_rows=prior["rows"],
+                    authoritative_source_was_consulted=lambda _row: False,
+                    projected_rows=self.projected_rows(),
+                ),
+            }
+            if not first:
+                first.append((prior["rows"], document))
+            return document
+
+        compute_preview()
+        prior_rows, preview = first[0]
+        if _projected_row_keys(prior_rows) == _projected_row_keys(preview["rows"]):
+            return False
+        pending: list[dict[str, Any]] = [preview]
+
+        def next_preview() -> dict[str, Any]:
+            return pending.pop() if pending else compute_preview()
+
+        self._write_merged_aggregate(next_preview, deadline=deadline)
+        return True
 
     def backfill_bead_endpoint_links(self) -> dict[str, int]:
         """Write the inbound event a one-sided write never produced.
@@ -535,3 +580,13 @@ class ArtifactLinkStoreReconcileMixin:
             else str(self.beads_dir.expanduser().resolve(strict=False))
         )
         return roots, beads
+
+
+def _projected_row_keys(rows: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Return the projected rows of *rows* as a sorted list of canonical JSON."""
+
+    return sorted(
+        json.dumps(row, sort_keys=True, separators=(",", ":"))
+        for row in rows
+        if is_projected_row(row)
+    )

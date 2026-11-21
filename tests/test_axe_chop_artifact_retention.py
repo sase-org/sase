@@ -216,7 +216,7 @@ def test_job_reports_lock_busy_without_stamping(
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     monkeypatch.setattr(
         retention_chop,
-        "enforce_artifact_retention",
+        "enforce_artifact_retention_for_housekeeping",
         lambda **_kwargs: _ArtifactRetentionPassResult(
             outcome="lock_busy", stamped=False
         ),
@@ -238,7 +238,7 @@ def test_job_marks_failed_pass_check_error(
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     monkeypatch.setattr(
         retention_chop,
-        "enforce_artifact_retention",
+        "enforce_artifact_retention_for_housekeeping",
         lambda **_kwargs: _ArtifactRetentionPassResult(
             outcome="failed",
             stamped=True,
@@ -280,3 +280,57 @@ def test_job_emits_phase_progress_lines(
     assert any("phase plan:" in message for message in phases)
     assert any("phase trash:" in message for message in phases)
     assert any("phase purge:" in message for message in phases)
+
+
+def _write_stamp(tmp_path: Path, *, outcome: str, age_hours: float) -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    completed = datetime.now(UTC) - timedelta(hours=age_hours)
+    (tmp_path / "artifact_retention.json").write_text(
+        json.dumps({"completed_at": completed.isoformat(), "outcome": outcome}),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "age_hours", "runs"),
+    [
+        ("enforced", 1.0, False),
+        ("enforced", 5.9, False),
+        ("enforced", 6.1, True),
+        ("failed", 1.0, True),
+        ("protection_unavailable", 1.0, True),
+        ("disabled", 1.0, True),
+    ],
+)
+def test_hourly_job_runs_the_pass_only_when_the_enforced_stamp_is_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    age_hours: float,
+    runs: bool,
+) -> None:
+    import sase.core.artifact_file_retention_pass as retention_pass
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    _write_stamp(tmp_path, outcome=outcome, age_hours=age_hours)
+    calls: list[object] = []
+
+    def fake_pass(**kwargs: object) -> _ArtifactRetentionPassResult:
+        calls.append(kwargs)
+        return _ArtifactRetentionPassResult(outcome="enforced", stamped=True)
+
+    monkeypatch.setattr(retention_pass, "enforce_artifact_retention", fake_pass)
+    runtime = _Runtime()
+
+    result = retention_chop._run(runtime)
+
+    assert bool(calls) is runs
+    if runs:
+        assert runtime.summary["outcome"] == "enforced"
+    else:
+        assert runtime.summary["outcome"] == "stamp_fresh"
+        assert runtime.reason == "stamp_fresh"
+        assert result.status == "no_op"
+        assert any("under 6h old" in message for message in runtime.log.messages)

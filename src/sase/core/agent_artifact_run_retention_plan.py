@@ -27,6 +27,7 @@ from sase.core.agent_artifact_run_protection import (
 from sase.core.agent_artifact_run_retention_candidates import (
     collect_ace_run_retention_candidates,
 )
+from sase.core.agent_artifact_run_size_cache import AceRunSizeCache
 from sase.core.agent_artifact_run_retention_models import (
     AceRunProtectionSnapshot,
     AceRunRetentionApplyResult,
@@ -52,8 +53,14 @@ _RUN_RETENTION_WIRE_SCHEMA_VERSION = 3
 def plan_ace_run_retention(
     policy: AceRunRetentionPolicy,
     protections: AceRunProtectionSnapshot | None = None,
+    *,
+    size_cache: AceRunSizeCache | None = None,
 ) -> AceRunRetentionPlan:
-    """Return what ACE-run retention would reclaim without deleting anything."""
+    """Return what ACE-run retention would reclaim without deleting anything.
+
+    *size_cache* lets a recurring preview reuse the tree sizes of selected
+    runs whose directory identity is unchanged; the caller saves it.
+    """
 
     protection_snapshot = protections or collect_ace_run_retention_protections(
         projects_root=policy.projects_root
@@ -76,6 +83,7 @@ def plan_ace_run_retention(
         project_names=project_names,
         projects_root=projects_root,
         extra_sources_unavailable=sources_unavailable,
+        size_cache=size_cache,
     )
 
 
@@ -175,6 +183,7 @@ def _plan_from_result(
     project_names: tuple[str, ...],
     projects_root: Path,
     extra_sources_unavailable: Sequence[str],
+    size_cache: AceRunSizeCache | None = None,
 ) -> AceRunRetentionPlan:
     selected: list[AceRunRetentionItem] = []
     protected: list[ProtectedAceRunItem] = []
@@ -182,7 +191,11 @@ def _plan_from_result(
         artifact_dir = str(item.get("artifact_dir") or "")
         outcome = item.get("outcome")
         if outcome == "selected":
-            size_bytes = _tree_size(Path(artifact_dir))
+            size_bytes = (
+                _tree_size(Path(artifact_dir))
+                if size_cache is None
+                else size_cache.size(Path(artifact_dir), _tree_size)
+            )
             selected.append(
                 AceRunRetentionItem(
                     project=str(item.get("project") or ""),

@@ -509,16 +509,16 @@ drop at apply time. `reclaim --apply` says this outright in its summary.
 ### Ongoing enforcement
 
 `artifacts.retention` is disabled by default and removes nothing until enabled. Once
-enabled, the hourly `artifact_retention` housekeeping job runs one bounded pass: it
-plans with the configured policy plus the protection scan, trashes what it selects, and
-purges trash entries past the grace period, printing one `[artifacts] retention:` line
-with rows trashed, bytes reclaimed, and entries purged. Every completed pass, including
-a skip because retention is disabled or a protection source is unavailable, writes
-`~/.sase/artifact_retention.json`. The runner's exec-finalize tail only runs the same
-pass when that stamp is missing or older than 24 hours, and skips immediately when the
-lock is busy. The pass is wrapped defensively and never fails a run; when a protection
-source is unavailable it prints `[artifacts] retention skipped:` and touches nothing.
-See [configuration](config/artifacts.md#artifacts) for the fields.
+enabled, the hourly `artifact_retention` housekeeping job runs a bounded pass at most
+every 6 hours: it plans with the configured policy plus the protection scan, trashes
+what it selects, and purges trash entries past the grace period, printing one
+`[artifacts] retention:` line with rows trashed, bytes reclaimed, and entries purged.
+Every completed pass, including a skip because retention is disabled or a protection
+source is unavailable, writes `~/.sase/artifact_retention.json`. The runner's
+exec-finalize tail only runs the same pass when that stamp is missing or older than 24
+hours, and skips immediately when the lock is busy. The pass never fails a run; when a
+protection source is unavailable it prints `[artifacts] retention skipped:` and touches
+nothing. See [configuration](config/artifacts.md#artifacts) for the fields.
 
 Sources:
 
