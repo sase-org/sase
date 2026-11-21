@@ -12,7 +12,8 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
-import sase.core.agent_artifact_run_retention as run_retention
+import sase.core.agent_artifact_run_retention_candidates as run_retention_candidates
+import sase.core.agent_artifact_run_retention_plan as run_retention_plan
 from sase.core.agent_artifact_run_retention import (
     ACE_RUN_RETENTION_SCHEMA_VERSION,
     AceRunProtectionSnapshot,
@@ -309,9 +310,9 @@ def test_binding_preserves_run_reached_through_symlinked_ancestor(
     )
     alias = projects_root / "alias/artifacts/ace-run/202601/01/20260101000000"
 
-    result = run_retention._call_rust(
+    result = run_retention_plan._call_rust(
         {
-            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
+            "schema_version": run_retention_plan._RUN_RETENTION_WIRE_SCHEMA_VERSION,
             "projects_root": str(projects_root),
             "recent_months": ["202609"],
             "current_timestamp": "20260914120000",
@@ -346,9 +347,9 @@ def test_binding_refuses_apply_with_omitted_protection_fields(
     projects_root = tmp_path / "projects"
     old = _run_dir(projects_root, "proj", "20260101000000")
 
-    result = run_retention._call_rust(
+    result = run_retention_plan._call_rust(
         {
-            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
+            "schema_version": run_retention_plan._RUN_RETENTION_WIRE_SCHEMA_VERSION,
             "projects_root": str(projects_root),
             "apply": True,
         }
@@ -369,9 +370,9 @@ def test_binding_refuses_empty_shard_apply(
     empty_day = workflow / "202601" / "01"
     empty_day.mkdir(parents=True)
 
-    result = run_retention._call_rust(
+    result = run_retention_plan._call_rust(
         {
-            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
+            "schema_version": run_retention_plan._RUN_RETENTION_WIRE_SCHEMA_VERSION,
             "projects_root": str(projects_root),
             "recent_months": ["202609"],
             "current_timestamp": "20260914120000",
@@ -400,7 +401,7 @@ def test_binding_preserves_empty_referenced_run_during_empty_cleanup(
     referenced = workflow / "202601" / "01" / "20260101000000"
     referenced.mkdir(parents=True)
 
-    result = run_retention._call_rust(
+    result = run_retention_plan._call_rust(
         {
             "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
             "projects_root": str(projects_root),
@@ -448,13 +449,13 @@ def test_only_selected_dirs_are_sized(
     recent = _run_dir(projects_root, "proj", "20260901000000")
 
     sized: list[str] = []
-    real_tree_size = run_retention._tree_size
+    real_tree_size = run_retention_plan._tree_size
 
     def counting_tree_size(path: Path) -> int:
         sized.append(str(path))
         return real_tree_size(path)
 
-    monkeypatch.setattr(run_retention, "_tree_size", counting_tree_size)
+    monkeypatch.setattr(run_retention_plan, "_tree_size", counting_tree_size)
     plan = plan_ace_run_retention(
         AceRunRetentionPolicy(
             now=datetime(2026, 9, 12, 12, 0, 0),
@@ -487,22 +488,26 @@ def test_recent_window_short_circuit_skips_scans_but_stays_protected(
     recent = _run_dir(projects_root, "proj", "20260901000000")
 
     seen_scan_dirs: list[str] = []
-    real_scan = run_retention.scan_agent_artifact_dirs
+    real_scan = run_retention_candidates.scan_agent_artifact_dirs
 
     def recording_scan(root: Path, dirs: tuple[Path, ...], options: object) -> object:
         seen_scan_dirs.extend(str(path) for path in dirs)
         return real_scan(root, dirs, options)
 
     seen_continuation_dirs: list[str] = []
-    real_continuation = run_retention.plan_continuation_run_retention
+    real_continuation = run_retention_candidates.plan_continuation_run_retention
 
     def recording_continuation(dirs: object, **kwargs: object) -> dict[str, object]:
         seen_continuation_dirs.extend(str(path) for path in dirs)  # type: ignore[arg-type]
         return real_continuation(dirs, **kwargs)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(run_retention, "scan_agent_artifact_dirs", recording_scan)
     monkeypatch.setattr(
-        run_retention, "plan_continuation_run_retention", recording_continuation
+        run_retention_candidates, "scan_agent_artifact_dirs", recording_scan
+    )
+    monkeypatch.setattr(
+        run_retention_candidates,
+        "plan_continuation_run_retention",
+        recording_continuation,
     )
 
     plan = plan_ace_run_retention(
