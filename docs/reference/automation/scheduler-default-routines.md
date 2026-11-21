@@ -117,11 +117,13 @@ outcome: `"completed"`, `"noop"`, `"epic_approved"`, or `"plan_committed"`. An o
 wait on an epic-approved planner follows it into the epic it launched: `%wait(planner)`
 also waits until that epic is closed (opt out with `%wait(planner, for_epic=false)`).
 The runner initial check, the parked-runner fallback, `wait_checks`, and kill/dismiss
-share that decision. The default is true for user-authored agent targets; `--plan` rows
-never follow. `"noop"` agents can also satisfy waits even though they are hidden from
-normal done-agent lists. Failed, killed, stopped, crashed, still-running, malformed, or
-missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked
-until a later successful run of the same dependency name appears. `"plan_rejected"` is
+share that decision. Following launched epics is the default for user-authored agent
+targets; waits on names ending in `--plan` and waits with `target=turn` never follow.
+See [agent waits](../macros/directive-launch.md#agent-names-waits-and-queue-admission).
+`"noop"` agents can also satisfy waits even though they are hidden from normal
+done-agent lists. Failed, killed, stopped, crashed, still-running, malformed, or missing
+`done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked until a
+later successful run of the same dependency name appears. `"plan_rejected"` is
 deliberately identity-terminal for exact artifact waits but does not satisfy a named
 `%wait`.
 
@@ -393,11 +395,12 @@ because process death leaves no filesystem event to watch. To spot leaks by hand
 ### Published agent state refresh
 
 `agent_state_refresh` updates already-published runs from verified local evidence,
-without requiring another commit or a full sync. Each tick selects one enabled project
-with an agents sidecar and examines at most 100 runs across five hoods for the current
-owner. It has a 90-second work budget and a two-minute job timeout. Projects rotate
-fairly; cursors and retry backoff persist between ticks, so five minutes is the job
-cadence, not a deadline for refreshing every project.
+without requiring another commit in the primary repository or a full sync. Each tick
+selects one enabled project with an agents sidecar and examines at most 100 runs across
+at most five hoods (groups of agents sharing a name prefix) for the configured username
+and machine. It has a 90-second work budget and a two-minute job timeout. Projects
+rotate fairly; cursors and retry backoff persist between ticks, so five minutes is the
+job cadence, not a deadline for refreshing every project.
 
 Live runs stay live. Missing or contradictory evidence leaves a run unresolved instead
 of inferring completion from its age. For unresolved runs, subsequent scheduled passes

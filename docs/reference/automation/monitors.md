@@ -196,18 +196,23 @@ an agent, a run with no starter scope, or another agent's run — is refused wit
 with exit `1`, showing the state and a `sase tool show RUN` pointer. No monitor starts
 on any refusal.
 
-For a refused join, `sase tool show RUN` reports the current state. A refused staged
-reservation also prints a bounded inline-wait command and a fresh monitored rerun
-command. A rerun starts a separate execution; it does not adopt the original. An
-unjoined starter-scoped run stops when its starter's turn ends.
+For a refused join, `sase tool show RUN` reports the current state. A staged join
+reservation rejected by the join policy also prints a bounded inline-wait command and a
+fresh monitored rerun command. A rerun starts a separate execution; it does not adopt
+the original. A starter-scoped run with neither an active monitor join nor a staged join
+reservation is stopped when its starter's turn ends.
 
-The join records atomically after the monitor member exists and before its proc submits;
-a refused or failed start tears the member down (releasing the join) and runs nothing.
-The monitor proc follows the run into the monitor log without a deadline, then renders a
-compact summary with the triage footer and exits with the run's mapped code. In the
-Procs tab that proc carries a `tool-run-join:<id>` tag, so `Enter` opens Admin Center →
-Tools focused on the run (`⏎: run`) instead of jumping to the monitor's agent. A monitor
-that owns a reserved run uses `tool-run:<id>` and opens the same way. See
+A successful start reserves the join and reports `Staged`. The reservation keeps the
+original run alive while the starter finishes through `/sase_final`; the host activates
+the join after finalizers settle. The reservation records atomically after the monitor
+member exists. A refused or failed start tears that member down, releases its
+reservation, and starts no monitor command.
+
+The monitor proc follows the original run into the monitor log without a deadline, then
+renders a compact summary with the triage footer and exits with the run's mapped code.
+In the Procs tab that proc carries a `tool-run-join:<id>` tag, so `Enter` opens Admin
+Center → Tools focused on the run (`⏎: run`) instead of jumping to the monitor's agent.
+A monitor that owns a reserved run uses `tool-run:<id>` and opens the same way. See
 [Opening a row](../tui/procs-tab.md#opening-a-row). `stop`, timeout, and a lost joiner
 converge through the detached-run watchdog with the `stop_requested` reason preserved,
 and `sase tool stop RUN` on a joined run stops the active joining monitor (suppressing

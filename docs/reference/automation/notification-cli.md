@@ -315,11 +315,13 @@ sase notify show --id <notification_id> -f markdown
 ```
 
 The default `show` format is markdown. Both formats include the notification tags,
-notes, attached file paths, action data, and state flags. `show` resolves
-[stored payload references](notification-storage.md#oversized-payloads) to their full
-text; `list` keeps the compact stored values. If a payload file is missing, `show` keeps
-a note's inline preview and omits an unavailable action-data field. A payload read error
-exits 1; a notification ID that cannot be found exits 2.
+notes, attached file paths, action data, and state flags. `show` expands
+[stored payload references](notification-storage.md#oversized-payloads) in `notes` and
+`action_data` to their full text. `list --json` returns the stored previews and
+references; the default list table shortens notes to 80 characters. If a payload file is
+missing, `show` keeps a note's stored preview and reference and omits an unavailable
+action-data field. A payload read error exits 1; a notification ID that cannot be found
+exits 2.
 
 Axe error digest notifications usually point to the grouped report through `files` or
 `action_data.error_report_path`; the note names the true total and cause count, and the

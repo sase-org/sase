@@ -67,9 +67,9 @@ The general lifecycle is `open` → `in_progress` → `closed`, with machine-man
 artifact references and a model annotation (`-m/--model`). Plan beads also carry a plan
 reference (the `design` field) and a tier (`plan` or `epic`). Storage lives under the
 resolved SDD store: `events/**` is the source of truth, `issues.jsonl` is a generated
-compatibility projection, and `beads.db` is a gitignored mutation lock. A separate,
-rebuildable SQLite read model lives under the clone's Git directory. Fresh clones read
-the tracked event store directly; see
+compatibility projection, and `beads.db` is a gitignored lock file that serializes
+writes. Read caching uses a separate, rebuildable SQLite database under the clone's Git
+directory. Fresh clones read the tracked event store directly; see
 [Bead storage](../../reference/work-units/bead-storage.md).
 
 Three issue types:

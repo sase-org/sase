@@ -26,15 +26,17 @@ forces a re-read when the caller asked to expire snoozes.
 
 The store keeps itself O(live). The hourly `notification_store_compact` housekeeping job
 drives compaction so a multi-megabyte re-parse does not sit on an interactive path. When
-`notifications.jsonl` crosses 4 MiB or holds at least 1,000 dismissed rows, a
-cache-missing read or rewrite may still compact under the same exclusive lock: dismissed
-rows older than a 3-day retention window are appended to a sibling
-`notifications-archive.jsonl` and dropped from the live file, then the live file is
-replaced atomically so a crash mid-compaction loses no row. Snoozed rows are never
-archived while snoozed, and dismissed rows inside the retention window stay put so the
-inbox UI's `include_dismissed` view is unchanged. Unread and still-actionable rows stay
-in the live file. `sase logs pack` reads the archive alongside the live file, so a
-window older than the retention period still packs complete.
+`notifications.jsonl` reaches 4 MiB or holds at least 1,000 dismissed, unsnoozed rows,
+archiving becomes eligible during the hourly pass, a cache-missing read, or a rewrite
+under the same exclusive lock. Dismissed rows whose latest activity is older than 3 days
+are appended to a sibling `notifications-archive.jsonl` and dropped from the live file,
+then the live file is replaced atomically so a crash mid-compaction loses no row.
+Snoozed rows are never archived while snoozed, and dismissed rows inside the retention
+window stay put so the inbox UI's `include_dismissed` view is unchanged. Activity means
+`resurfaced_at` when present, otherwise the creation `timestamp`. Undismissed rows stay
+in the live file; the read/unread flag does not determine eligibility. `sase logs pack`
+reads the archive alongside the live file, so a window older than the retention period
+still packs complete.
 
 ## Oversized payloads
 
