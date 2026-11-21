@@ -353,6 +353,13 @@ spec's `"shell"` block, the `"fork"` key set to `"shell"`, and
 option or block is an error. See
 [feature_flags](../config/feature-flags.md#featureflags).
 
+For an `inherit` gate turn, dirty repositories are carried into the gate uncommitted
+when the starter omits its final declaration. The staged descriptor and final-context
+output identify those repositories. The starter may still submit an explicit `commit`
+declaration through `/sase_final`; do so when an option command or the successor needs
+committed source. Without it, an option command that requires committed source will
+fail.
+
 Branch policy in the specification may override or suppress that default. A turn block
 without an explicit `continuation_mode` records the derived `gate_turn` mode; pairing a
 turn block with an explicit `"none"` is rejected, because `"none"` would discard the

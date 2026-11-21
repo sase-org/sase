@@ -67,6 +67,7 @@ class StagedGatePreparation:
     record: dict[str, Any] | None
     snapshot_dir: Path | None
     snapshots: tuple[dict[str, Any], ...]
+    carry_notice: dict[str, Any] | None = None
 
 
 def prepare_staged_gate(
@@ -120,6 +121,7 @@ def prepare_staged_gate(
         )
     workspace_mode = _workspace_mode(effective)
     successor_workspace, carry_allowed = _disposition(workspace_mode)
+    carry_notice = _carry_notice(workspace_mode, Path(artifacts_dir))
     identity = str(staged_id or uuid4())
     root = Path(artifacts_dir) / STAGED_GATE_RESOURCES_DIRNAME
     snapshot_dir = root / identity
@@ -167,6 +169,7 @@ def prepare_staged_gate(
         record=record,
         snapshot_dir=snapshot_dir,
         snapshots=tuple(snapshots),
+        carry_notice=carry_notice,
     )
 
 
@@ -372,6 +375,42 @@ def _disposition(workspace_mode: str) -> tuple[str, bool]:
     if workspace_mode == "inherit":
         return "inherit", True
     return "none", False
+
+
+def _carry_notice(workspace_mode: str, artifacts_dir: Path) -> dict[str, Any] | None:
+    """Describe dirty repositories carried by an inheriting staged gate."""
+    if workspace_mode != "inherit":
+        return None
+
+    dirty_state = _collect_finalizer_dirty_state(artifacts_dir)
+    if not dirty_state.repos:
+        return None
+
+    from sase.finalizers.declaration_store import repository_obligation_id
+
+    repositories = [
+        {
+            "repo_id": repository_obligation_id(repo),
+            "name": f"{repo.kind}:{repo.name}",
+        }
+        for repo in dirty_state.repos
+    ]
+    return {
+        "repo_ids": [repository["repo_id"] for repository in repositories],
+        "repositories": repositories,
+        "message": (
+            "These will reach the gate uncommitted unless you submit a `commit` "
+            "declaration through `/sase_final`; option commands that require "
+            "committed source will otherwise fail."
+        ),
+    }
+
+
+def _collect_finalizer_dirty_state(artifacts_dir: Path) -> Any:
+    """Reuse the finalizer's repository discovery and dirty-state scan."""
+    from sase.finalizers._declaration_context import collect_finalizer_dirty_state
+
+    return collect_finalizer_dirty_state(artifacts_dir)
 
 
 def _capture_resource_snapshots(

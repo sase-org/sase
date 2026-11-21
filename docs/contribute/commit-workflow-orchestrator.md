@@ -583,6 +583,13 @@ Final declarations have three distinct boundaries:
    manual stitch made after acceptance remains stale execution-time state; the executor
    fails closed instead of treating it as the host's own work.
 
+For a carry-allowed inheriting handoff with dirty repositories, `sase final context`
+sets `commit_declaration.omitted_submission_default` to `carry` and lists the carried
+repository IDs. Omitting the declaration carries those repositories into the gate or
+successor uncommitted. The manifest template still contains `commit` decisions, so the
+starter can explicitly submit them when gate option commands or the successor require
+committed source.
+
 Long verification has a separate conditional path. `sase final prepare` accepts a JSON
 wrapper containing a success message, an exact verification argv, and the completed
 declaration that would otherwise go to `sase final submit`. It publishes the current

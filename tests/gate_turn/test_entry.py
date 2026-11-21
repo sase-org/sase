@@ -12,6 +12,33 @@ import pytest
 from sase.gate_turn import entry
 
 
+def test_staged_descriptor_renders_carry_notice_in_json_and_human_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    notice = {
+        "repo_ids": ["repo-123"],
+        "repositories": [{"repo_id": "repo-123", "name": "main:project"}],
+        "message": (
+            "These will reach the gate uncommitted unless you submit a `commit` "
+            "declaration through `/sase_final`; option commands that require "
+            "committed source will otherwise fail."
+        ),
+    }
+
+    entry.emit_staged_descriptor(
+        kind="custom",
+        request_id="gate-1",
+        staged_id="stage-1",
+        workspace_mode="inherit",
+        carry_notice=notice,
+    )
+
+    out = capsys.readouterr()
+    assert json.loads(out.out)["carry_notice"] == notice
+    assert "Dirty repositories main:project." in out.err
+    assert notice["message"] in out.err
+
+
 def test_auto_gate_publishes_inline_with_frozen_policy(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

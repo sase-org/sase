@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import sase.gate_turn.staged_contract as staged_contract
 from sase.agent.staged_handoff import build_gate_staged_record
 from sase.core.staged_handoff import (
     StagedHandoffContractError,
@@ -27,6 +28,7 @@ from sase.gate_turn.staged_contract import (
 )
 from sase.notification_gates.model_request import GateSpec
 from sase.notification_gates.models import GateError
+from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 
 _ECHO_COMMAND = "#!/bin/sh\necho ok\n"
 _UNICODE_BODY = "héllo wörld ✓ — naïve café\n"
@@ -231,6 +233,92 @@ def test_prepare_release_workspace_maps_disposition(
     assert preparation.carry_allowed is False
     assert preparation.record is not None
     assert validate_staged_handoff(dict(preparation.record)) == preparation.record
+
+
+def test_prepare_inheriting_gate_reports_dirty_repositories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.finalizers.declaration_store import repository_obligation_id
+
+    _write_sources(tmp_path, monkeypatch)
+    artifacts = tmp_path / "artifacts"
+    state = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="project",
+                path=str(tmp_path),
+                changed_files=("src/app.py",),
+                kind="main",
+            ),
+        ),
+        details="dirty",
+    )
+    monkeypatch.setattr(
+        staged_contract,
+        "_collect_finalizer_dirty_state",
+        lambda _artifacts: state,
+    )
+
+    preparation = prepare_staged_gate(
+        _request(),
+        creator=_creator(str(artifacts)),
+        artifacts_dir=str(artifacts),
+    )
+
+    assert preparation.carry_notice == {
+        "repo_ids": [repository_obligation_id(state.repos[0])],
+        "repositories": [
+            {
+                "repo_id": repository_obligation_id(state.repos[0]),
+                "name": "main:project",
+            }
+        ],
+        "message": (
+            "These will reach the gate uncommitted unless you submit a `commit` "
+            "declaration through `/sase_final`; option commands that require "
+            "committed source will otherwise fail."
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    ("workspace", "dirty"),
+    [("release", True), ("inherit", False)],
+)
+def test_prepare_omits_carry_notice_for_release_or_clean_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: str,
+    dirty: bool,
+) -> None:
+    _write_sources(tmp_path, monkeypatch)
+    artifacts = tmp_path / "artifacts"
+    repos = (
+        (
+            DirtyRepo(
+                name="project",
+                path=str(tmp_path),
+                changed_files=("src/app.py",),
+                kind="main",
+            ),
+        )
+        if dirty
+        else ()
+    )
+    monkeypatch.setattr(
+        staged_contract,
+        "_collect_finalizer_dirty_state",
+        lambda _artifacts: DirtyState(str(tmp_path), repos, "dirty" if dirty else ""),
+    )
+
+    preparation = prepare_staged_gate(
+        _request(workspace=workspace),
+        creator=_creator(str(artifacts)),
+        artifacts_dir=str(artifacts),
+    )
+
+    assert preparation.carry_notice is None
 
 
 def test_prepare_auto_gate_stays_inline(

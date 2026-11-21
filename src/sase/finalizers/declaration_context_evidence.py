@@ -90,6 +90,34 @@ def build_commit_declaration_context(
             _absorbed_raw_commits_entry(absorbed) for absorbed in absorbed_raw_commits
         ],
     }
+    carried_repo_ids = [
+        obligation.obligation_id
+        for obligation in context.obligations
+        if obligation.kind == "repository"
+    ]
+    commit_submission_omitted = any(
+        requirement.trigger == "dirty_repository"
+        and not requirement.submission_required
+        for requirement in context.requirements
+    )
+    if (
+        context.handoff is not None
+        and context.handoff.carry_allowed
+        and commit_submission_omitted
+        and carried_repo_ids
+    ):
+        payload.update(
+            {
+                "omitted_submission_default": "carry",
+                "carried_repo_ids": carried_repo_ids,
+                "omitted_submission_rule": (
+                    "Omitting this declaration carries these dirty repositories "
+                    "into the inheriting handoff uncommitted. An explicit `commit` "
+                    "declaration is still allowed and is required when the staged "
+                    "gate's option commands or successor need committed source."
+                ),
+            }
+        )
     if context.handoff is not None:
         handoff = context.handoff
         payload["handoff"] = {

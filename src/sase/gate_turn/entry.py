@@ -177,6 +177,7 @@ def _complete_gate_entry(outcome: _GateEntryOutcome) -> None:
             request_id=outcome.preparation.request_id,
             staged_id=outcome.preparation.staged_id,
             workspace_mode=outcome.preparation.workspace_mode,
+            carry_notice=outcome.preparation.carry_notice,
         )
         return
     if outcome.creation is None:
@@ -199,6 +200,7 @@ def emit_staged_descriptor(
     request_id: str,
     staged_id: str,
     workspace_mode: str,
+    carry_notice: Mapping[str, Any] | None = None,
 ) -> None:
     """Print the shared staged descriptor: JSON on stdout, instruction on stderr."""
     descriptor = {
@@ -210,6 +212,8 @@ def emit_staged_descriptor(
         "workspace_mode": workspace_mode,
         "instruction": STAGED_GATE_INSTRUCTION,
     }
+    if carry_notice is not None:
+        descriptor["carry_notice"] = dict(carry_notice)
     json.dump(descriptor, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     sys.stdout.flush()
@@ -217,6 +221,23 @@ def emit_staged_descriptor(
         f"Staged {kind} gate request {request_id}. {STAGED_GATE_INSTRUCTION}",
         file=sys.stderr,
     )
+    if carry_notice is not None:
+        repositories = carry_notice.get("repositories")
+        names = (
+            [
+                str(item["name"])
+                for item in repositories
+                if isinstance(item, Mapping) and isinstance(item.get("name"), str)
+            ]
+            if isinstance(repositories, list)
+            else []
+        )
+        message = carry_notice.get("message")
+        if names and isinstance(message, str) and message:
+            print(
+                f"Carry notice: Dirty repositories {', '.join(names)}. {message}",
+                file=sys.stderr,
+            )
 
 
 def _publish_gate(

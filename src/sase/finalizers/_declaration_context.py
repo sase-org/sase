@@ -179,6 +179,11 @@ def _collect_dirty_state(root: Path) -> DirtyState:
     )
 
 
+def collect_finalizer_dirty_state(root: Path) -> DirtyState:
+    """Collect repository dirt through the finalizer's shared state helper."""
+    return _collect_dirty_state(root)
+
+
 def _handoff_from_staged_record(root: Path) -> FinalizerHandoffWire | None:
     from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 

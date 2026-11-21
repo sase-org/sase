@@ -82,6 +82,18 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
                 "  Allowed repository actions: "
                 + ", ".join(str(action) for action in allowed_actions)
             )
+        omitted_default = commit_declaration.get("omitted_submission_default")
+        if isinstance(omitted_default, str) and omitted_default:
+            lines.append(f"  Omitted submission default: {omitted_default}")
+            carried_repo_ids = commit_declaration.get("carried_repo_ids")
+            if isinstance(carried_repo_ids, list) and carried_repo_ids:
+                lines.append(
+                    "  Carried repository obligations: "
+                    + ", ".join(str(repo_id) for repo_id in carried_repo_ids)
+                )
+            omitted_rule = commit_declaration.get("omitted_submission_rule")
+            if isinstance(omitted_rule, str) and omitted_rule:
+                lines.append(f"  Carry rule: {omitted_rule}")
         prepared_coverage = commit_declaration.get("prepared_coverage")
         if isinstance(prepared_coverage, Mapping) and prepared_coverage.get("eligible"):
             lines.append(

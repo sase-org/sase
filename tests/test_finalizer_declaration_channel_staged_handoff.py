@@ -30,6 +30,7 @@ from sase.finalizers.declaration import load_finalizer_plan
 from sase.llm_provider.types import InvokeResult
 
 from .finalizer_declaration_channel_test_helpers import (
+    clean_state,
     dirty_state,
     prepare_dirty_declaration,
     valid_manifest,
@@ -147,6 +148,14 @@ def test_inheriting_handoff_publishes_descriptor_and_optional_commit_template(
     commit_context = publication.payload["commit_declaration"]
     assert commit_context["default_action"] == "commit"
     assert commit_context["allowed_repository_actions"] == ["commit", "carry"]
+    assert commit_context["omitted_submission_default"] == "carry"
+    assert commit_context["carried_repo_ids"] == [
+        publication.context.obligations[0].obligation_id
+    ]
+    assert (
+        "option commands or successor need committed source"
+        in commit_context["omitted_submission_rule"]
+    )
     assert commit_context["handoff"] == {
         "kind": "questions",
         "staged_ref": _STAGED_ID,
@@ -156,6 +165,40 @@ def test_inheriting_handoff_publishes_descriptor_and_optional_commit_template(
     pretty = format_context_pretty(publication.payload)
     assert "questions (staged ref: " + _STAGED_ID in pretty
     assert "Allowed repository actions: commit, carry" in pretty
+    assert "Omitted submission default: carry" in pretty
+    assert (
+        "Carried repository obligations: " + commit_context["carried_repo_ids"][0]
+        in pretty
+    )
+    assert commit_context["omitted_submission_rule"] in pretty
+
+
+@pytest.mark.parametrize("clean", [False, True])
+def test_context_only_describes_carry_when_dirty_submission_is_omitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    clean: bool,
+) -> None:
+    prepare_dirty_declaration(
+        monkeypatch,
+        tmp_path,
+        collect=(lambda _root: clean_state(tmp_path)) if clean else None,
+    )
+    if clean:
+        _stage(monkeypatch, tmp_path)
+    else:
+        _stage(
+            monkeypatch,
+            tmp_path,
+            kind="gate",
+            successor_workspace="none",
+            carry_allowed=False,
+        )
+
+    publication = publish_final_context()
+
+    assert "omitted_submission_default" not in publication.payload["commit_declaration"]
+    assert "carried_repo_ids" not in publication.payload["commit_declaration"]
 
 
 def test_missing_declaration_synthesizes_host_carry_for_inheriting_handoff(
