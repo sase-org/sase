@@ -28,6 +28,7 @@ from sase.sdd._artifact_link_outbox_types import (
     sidecar_refs as _sidecar_refs,
 )
 from sase.sdd._artifact_link_store_support import BEAD_KIND, kind_of_ref
+from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
 from sase.sdd.artifact_link_origins import ARTIFACT_LINK_MACHINE_TRUSTED_ORIGINS
 from sase.sdd.artifact_link_event_publisher import (
     artifact_link_alias_producer_id,
@@ -90,6 +91,7 @@ class _StaleTerminalDecision:
     diagnostics: tuple[str, ...] = ()
 
 
+@artifact_link_snapshot_memo()
 def drain_artifact_link_outbox(
     *,
     store: ArtifactLinkStore | None = None,

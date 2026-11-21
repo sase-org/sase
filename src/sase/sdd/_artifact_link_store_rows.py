@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
+from sase.sdd._artifact_link_event_store import ArtifactLinkEventSnapshot
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     artifact_link_row_identity,
@@ -241,14 +242,16 @@ class ArtifactLinkStoreRowsMixin:
         *,
         include_pending: bool,
         exclude_pending_event_ids: Iterable[str] = (),
+        event_snapshot: ArtifactLinkEventSnapshot | None = None,
     ) -> tuple[dict[str, Any], ...]:
         legacy_rows = tuple(self._iter_sidecar_rows())
         bead_rows = tuple(self._iter_bead_rows())
-        event_snapshot = self.artifact_link_event_snapshot(
-            include_pending=include_pending,
-            strict=True,
-            exclude_pending_event_ids=exclude_pending_event_ids,
-        )
+        if event_snapshot is None:
+            event_snapshot = self.artifact_link_event_snapshot(
+                include_pending=include_pending,
+                strict=True,
+                exclude_pending_event_ids=exclude_pending_event_ids,
+            )
         if self._legacy_indexes_imported():
             event_rows = (
                 event_snapshot.rows if include_pending else event_snapshot.durable_rows
@@ -271,13 +274,15 @@ class ArtifactLinkStoreRowsMixin:
         *,
         include_pending: bool,
         exclude_pending_event_ids: Iterable[str] = (),
+        event_snapshot: ArtifactLinkEventSnapshot | None = None,
     ) -> tuple[dict[str, Any], ...]:
         legacy_rows = tuple(self._iter_sidecar_rows())
-        event_snapshot = self.artifact_link_event_snapshot(
-            include_pending=include_pending,
-            strict=True,
-            exclude_pending_event_ids=exclude_pending_event_ids,
-        )
+        if event_snapshot is None:
+            event_snapshot = self.artifact_link_event_snapshot(
+                include_pending=include_pending,
+                strict=True,
+                exclude_pending_event_ids=exclude_pending_event_ids,
+            )
         if self._legacy_indexes_imported():
             return tuple(
                 unique_rows(

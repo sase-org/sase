@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 import json
@@ -492,6 +493,38 @@ def _read_outbox_records(project_key: str) -> tuple[_ArtifactLinkOutboxRecord, .
         return _read_outbox_records_unlocked(path, project_key)
 
 
+@contextmanager
+def artifact_link_outbox_read_scope(
+    project_key: str,
+) -> Iterator[
+    tuple[
+        Path,
+        tuple[int, int, int] | None,
+        Callable[[], tuple[_ArtifactLinkOutboxRecord, ...]],
+    ]
+]:
+    """Hold the shared outbox lock while callers inspect its version and contents."""
+
+    path = _artifact_link_outbox_path(project_key)
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
+        try:
+            stat = path.stat()
+            file_version: tuple[int, int, int] | None = (
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+            )
+        except FileNotFoundError:
+            file_version = (0, 0, 0)
+        except OSError:
+            file_version = None
+        yield (
+            path,
+            file_version,
+            lambda: _read_outbox_records_unlocked(path, project_key),
+        )
+
+
 def _read_outbox_records_unlocked(
     path: Path,
     project_key: str,
@@ -645,6 +678,7 @@ def _fsync_directory(path: Path) -> None:
 __all__ = [
     "append_artifact_link_outbox_entry",
     "append_artifact_link_outbox_event",
+    "artifact_link_outbox_read_scope",
     "convert_legacy_artifact_link_outbox_entries",
     "inspect_artifact_link_outbox",
     "pending_artifact_link_outbox_snapshot",

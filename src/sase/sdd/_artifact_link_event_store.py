@@ -27,6 +27,12 @@ from sase.sdd._artifact_link_store_support import (
     validate_artifact_link_row,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
+from sase.sdd._artifact_link_snapshot_memo import (
+    lookup_durable_input,
+    lookup_pending_outbox,
+    remember_durable_input,
+    remember_pending_outbox,
+)
 
 ARTIFACT_LINK_EVENT_DIR = "link-events/v1"
 
@@ -259,38 +265,16 @@ class ArtifactLinkEventStoreAdapter:
             for path in _iter_event_object_paths(root):
                 try:
                     relpath = path.relative_to(root).as_posix()
-                    validated = require_rust_binding(
-                        "artifact_link_event_validate_bytes"
-                    )(path.read_bytes(), relpath)
-                    event = dict(validated["event"])
-                    event_project = str(event.get("project_key") or "")
-                    if event_project != self.project_key:
-                        findings.append(
-                            ArtifactLinkEventValidationFinding(
-                                "project-mismatch",
-                                relpath,
-                                f"event project {event_project!r} != {self.project_key!r}",
-                            )
-                        )
-                        continue
-                    candidates.append(
-                        candidate_from_event(
-                            event,
-                            tier="durable",
-                            source_locator=f"{kind}:{relpath}",
-                            root=str(root),
-                            relative_path=relpath,
-                            digest=str(validated["digest"]),
-                            canonical_json=str(validated["canonical_json"]),
-                        )
+                    stat = path.stat()
+                    memo_key = (
+                        kind,
+                        str(root),
+                        relpath,
+                        stat.st_ino,
+                        stat.st_size,
+                        stat.st_mtime_ns,
                     )
-                except (
-                    OSError,
-                    TypeError,
-                    ValueError,
-                    RuntimeError,
-                    AttributeError,
-                ) as exc:
+                except OSError as exc:
                     findings.append(
                         ArtifactLinkEventValidationFinding(
                             "invalid-object",
@@ -298,6 +282,54 @@ class ArtifactLinkEventStoreAdapter:
                             str(exc),
                         )
                     )
+                    continue
+                memo_hit, cached = lookup_durable_input(memo_key)
+                if memo_hit:
+                    if isinstance(cached, ArtifactLinkEventCandidate):
+                        candidates.append(cached)
+                    elif isinstance(cached, ArtifactLinkEventValidationFinding):
+                        findings.append(cached)
+                    continue
+                try:
+                    validated = require_rust_binding(
+                        "artifact_link_event_validate_bytes"
+                    )(path.read_bytes(), relpath)
+                    event = dict(validated["event"])
+                    event_project = str(event.get("project_key") or "")
+                    if event_project != self.project_key:
+                        finding = ArtifactLinkEventValidationFinding(
+                            "project-mismatch",
+                            relpath,
+                            f"event project {event_project!r} != {self.project_key!r}",
+                        )
+                        findings.append(finding)
+                        remember_durable_input(memo_key, finding)
+                        continue
+                    candidate = candidate_from_event(
+                        event,
+                        tier="durable",
+                        source_locator=f"{kind}:{relpath}",
+                        root=str(root),
+                        relative_path=relpath,
+                        digest=str(validated["digest"]),
+                        canonical_json=str(validated["canonical_json"]),
+                    )
+                    candidates.append(candidate)
+                    remember_durable_input(memo_key, candidate)
+                except (
+                    OSError,
+                    TypeError,
+                    ValueError,
+                    RuntimeError,
+                    AttributeError,
+                ) as exc:
+                    finding = ArtifactLinkEventValidationFinding(
+                        "invalid-object",
+                        _display_path(root, path),
+                        str(exc),
+                    )
+                    findings.append(finding)
+                    remember_durable_input(memo_key, finding)
         return tuple(candidates), tuple(findings), tuple(roots)
 
     def _pending_candidates(
@@ -306,23 +338,62 @@ class ArtifactLinkEventStoreAdapter:
         now: float | None,
         exclude_operation_ids: Iterable[str],
     ) -> tuple[tuple[ArtifactLinkEventCandidate, ...], _ArtifactLinkPendingStats]:
-        from sase.sdd.artifact_link_outbox import (
-            pending_artifact_link_outbox_snapshot,
-        )
+        from sase.sdd._artifact_link_outbox_io import artifact_link_outbox_read_scope
 
-        events, created_at = pending_artifact_link_outbox_snapshot(
-            self.project_key,
-            exclude_operation_ids=exclude_operation_ids,
-        )
-        candidates = tuple(
-            candidate_from_event(
-                event,
-                tier="pending",
-                source_locator=f"pending:outbox:{event.get('operation_id') or ''}",
+        with artifact_link_outbox_read_scope(self.project_key) as (
+            path,
+            file_version,
+            read_records,
+        ):
+            memo_key = (
+                self.project_key,
+                str(path.resolve(strict=False)),
+                *(file_version or (0, 0, 0)),
             )
-            for event in events
+            cached = None if file_version is None else lookup_pending_outbox(memo_key)
+            if cached is None:
+                records = read_records()
+                candidates: list[ArtifactLinkEventCandidate] = []
+                created_at_values: list[float] = []
+                for record in records:
+                    entry = record.entry
+                    if record.kind != "event" or entry is None or entry.event is None:
+                        continue
+                    candidates.append(
+                        candidate_from_event(
+                            entry.event,
+                            tier="pending",
+                            source_locator=(
+                                f"pending:outbox:{entry.event.get('operation_id') or ''}"
+                            ),
+                        )
+                    )
+                    created_at_values.append(entry.created_at)
+                full_candidates = tuple(candidates)
+                full_created_at = tuple(created_at_values)
+                if file_version is not None:
+                    remember_pending_outbox(
+                        memo_key,
+                        full_candidates,
+                        full_created_at,
+                    )
+            else:
+                full_candidates, full_created_at = cached
+
+        excluded = frozenset(
+            str(value) for value in exclude_operation_ids if str(value)
         )
-        return candidates, _pending_stats(created_at, now=now)
+        pending = tuple(
+            (candidate, created_at)
+            for candidate, created_at in zip(
+                full_candidates, full_created_at, strict=True
+            )
+            if str(candidate.event.get("operation_id") or "") not in excluded
+        )
+        return (
+            tuple(candidate for candidate, _created_at in pending),
+            _pending_stats((created_at for _candidate, created_at in pending), now=now),
+        )
 
 
 def reduce_artifact_link_event_inputs(

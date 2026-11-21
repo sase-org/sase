@@ -22,6 +22,7 @@ from sase.artifact_links.derive import (
 )
 from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
 from sase.sdd._artifact_link_store_support import is_projected_row, kind_of_ref
+from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
 from sase.sdd.artifact_link_derivation import (
     ArtifactLinkDerivationInputs,
     artifact_link_derivation_inputs,
@@ -255,6 +256,7 @@ class _ArtifactLinkReconcileReport:
     skip_diagnostics: tuple[str, ...] = ()
 
 
+@artifact_link_snapshot_memo()
 def reconcile_and_repair_artifact_links(
     store: ArtifactLinkStore,
     *,

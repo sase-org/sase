@@ -45,6 +45,7 @@ from sase.sdd._artifact_link_event_publish_state import (
     operation_states as _operation_states,
     required_roots as _required_roots,
 )
+from sase.sdd._artifact_link_snapshot_memo import artifact_link_snapshot_memo
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
 if TYPE_CHECKING:
@@ -95,6 +96,7 @@ class _ArtifactLinkEventPublishReport:
     bead_projection_failed: bool = False
 
 
+@artifact_link_snapshot_memo()
 def publish_artifact_link_events(
     store: ArtifactLinkStore,
     events: Iterable[Mapping[str, Any]],

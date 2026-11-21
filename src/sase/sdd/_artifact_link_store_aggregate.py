@@ -75,6 +75,7 @@ class ArtifactLinkStoreAggregateMixin:
             self._load_store_truth_rows(
                 include_pending=True,
                 exclude_pending_event_ids=exclude_pending_event_ids,
+                event_snapshot=event_snapshot,
             )
         )
         return {
