@@ -314,14 +314,19 @@ sase notify show --id <notification_id> -f json
 sase notify show --id <notification_id> -f markdown
 ```
 
-The default `show` format is markdown. It includes the notification tags, notes,
-attached file paths, action data, and state flags. Axe error digest notifications
-usually point to the grouped report through `files` or `action_data.error_report_path`;
-the note names the true total and cause count, and the attached file has one line per
-cause plus detail blocks. Gate execution failures use action `GateExecutionFailed`,
-deterministic ids scoped to the gate and accepted receipt, tags `gate`, `execution`, and
-`error`, and action data with `error_report_path` plus the exact safe resume, restart,
-and cancel commands.
+The default `show` format is markdown. Both formats include the notification tags,
+notes, attached file paths, action data, and state flags. `show` resolves
+[stored payload references](notification-storage.md#oversized-payloads) to their full
+text; `list` keeps the compact stored values. If a payload file is missing, `show` keeps
+a note's inline preview and omits an unavailable action-data field. A payload read error
+exits 1; a notification ID that cannot be found exits 2.
+
+Axe error digest notifications usually point to the grouped report through `files` or
+`action_data.error_report_path`; the note names the true total and cause count, and the
+attached file has one line per cause plus detail blocks. Gate execution failures use
+action `GateExecutionFailed`, deterministic ids scoped to the gate and accepted receipt,
+tags `gate`, `execution`, and `error`, and action data with `error_report_path` plus the
+exact safe resume, restart, and cancel commands.
 
 To create a local test notification with a persistent PNG attachment for sase's TUI
 modal image-preview checks, run `tools/test_image_notification` from the repository

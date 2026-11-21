@@ -58,6 +58,10 @@ and the job never rings the doorbell for it. The job writes per-project queue co
 oldest request age, and its last outcome—including the retained link-row count—to
 `~/.sase/agent_publication/heartbeat.json`.
 
+After a pass has run for 60 seconds, the publisher logs progress at phase boundaries,
+including project drains and heartbeat writes. These lines show elapsed time and the
+project when applicable; the final summary reports the outcome.
+
 The `error_digest` job snapshots the durable interval counter and writes a grouped
 digest file at `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The header states the
 true total, cause count, samples kept, and coverage interval
@@ -76,9 +80,11 @@ reported as a Python traceback.
 
 The `notification_store_compact` job bounds `~/.sase/notifications/notifications.jsonl`
 by moving dismissed rows older than 3 days into `notifications-archive.jsonl`. Unread
-and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
-against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
-refresh cadence.
+and still-actionable rows stay in the live file. It also externalizes oversized
+payloads, removes missing attachment paths, and collects unreferenced payload files; see
+[Notification storage](notification-storage.md#oversized-payloads). sase's TUI snapshot
+reads are memoized against an mtime+size token, so this pass lives on `housekeeping`
+rather than the TUI refresh cadence.
 
 The `footprint_fold` job ingests a changed catalog, folds pending local usage records,
 applies spool retention, and prunes daily aggregates older than
@@ -313,6 +319,11 @@ scheduler still enforces retention at least daily, and it skips immediately when
 lock is busy. Run `sase axe job run artifact_retention` for an immediate pass. See
 [SASE disk cleanup](../disk-cleanup.md) and
 [Store Lifecycle](../agent-attachments.md#store-lifecycle).
+
+Its log reports elapsed time after protection scanning, planning, moving files to trash,
+and purging expired trash. The `artifact_run_prune` log similarly reports progress after
+protection scanning, trash purge, planning, and preview publication. These appear in the
+[streamed job log](scheduler-jobs.md#job-run-history) while the job is running.
 
 The `artifact_run_prune` job first purges expired run-trash batches, restoring any runs
 that gained a protection reference. It then previews old `artifacts/ace-run/`

@@ -114,15 +114,14 @@ full artifact scan runs at most once a minute.
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`
 outcome: `"completed"`, `"noop"`, `"epic_approved"`, or `"plan_committed"`. An ordinary
-wait on an epic-approved planner releases when that planner finishes. An ordinary wait
-on an epic-approved planner follows it into the epic it launched: `%wait(planner)` also
-waits until that epic is closed (opt out with `%wait(planner, for_epic=false)`). The
-runner initial check, the parked-runner fallback, `wait_checks`, and kill/dismiss share
-that decision. The default is true for user-authored agent targets; `--plan` rows never
-follow. `"noop"` agents can also satisfy waits even though they are hidden from normal
-done-agent lists. Failed, killed, stopped, crashed, still-running, malformed, or missing
-`done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked until a
-later successful run of the same dependency name appears. `"plan_rejected"` is
+wait on an epic-approved planner follows it into the epic it launched: `%wait(planner)`
+also waits until that epic is closed (opt out with `%wait(planner, for_epic=false)`).
+The runner initial check, the parked-runner fallback, `wait_checks`, and kill/dismiss
+share that decision. The default is true for user-authored agent targets; `--plan` rows
+never follow. `"noop"` agents can also satisfy waits even though they are hidden from
+normal done-agent lists. Failed, killed, stopped, crashed, still-running, malformed, or
+missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked
+until a later successful run of the same dependency name appears. `"plan_rejected"` is
 deliberately identity-terminal for exact artifact waits but does not satisfy a named
 `%wait`.
 
@@ -269,6 +268,7 @@ Lower-frequency status checks:
 
 | Job                       | Description                                                  |
 | ------------------------- | ------------------------------------------------------------ |
+| `agent_state_refresh`     | Refresh already-published runs from verified local state     |
 | `bead_task_triage`        | Reconcile the one pending gate each task bead owns           |
 | `plugins_required`        | Raise one `PluginsRequired` gate per project missing plugins |
 | `pr_submitted_checks`     | Start PR submission status checks                            |
@@ -389,6 +389,24 @@ server, ssh ControlMaster) are left untouched. It keeps the default `always` tri
 because process death leaves no filesystem event to watch. To spot leaks by hand, run
 `systemctl --user list-units 'sase-agent-*'`; to reap one pass immediately, run
 `sase axe job run orphan_agent_scope_reap`.
+
+### Published agent state refresh
+
+`agent_state_refresh` updates already-published runs from verified local evidence,
+without requiring another commit or a full sync. Each tick selects one enabled project
+with an agents sidecar and examines at most 100 runs across five hoods for the current
+owner. It has a 90-second work budget and a two-minute job timeout. Projects rotate
+fairly; cursors and retry backoff persist between ticks, so five minutes is the job
+cadence, not a deadline for refreshing every project.
+
+Live runs stay live. Missing or contradictory evidence leaves a run unresolved instead
+of inferring completion from its age. For unresolved runs, subsequent scheduled passes
+reuse the previous result while the published state, local completion markers, and
+artifact and dismissed-agent indexes are unchanged. Changed evidence triggers another
+inspection. The job reports skipped repeats as `unchanged_unresolved` and emits a
+bounded daily summary instead of repeating each diagnostic. Direct
+[`sase agent sync --repair-states`](../agents/hood-sync.md#commands-and-status) calls
+inspect the evidence afresh; preview does not change published state.
 
 ## usage (60-second interval) {#usage-60-second-interval}
 

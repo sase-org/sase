@@ -63,6 +63,15 @@ stale records it reports are pruned as a side effect. `project.beads` reports
 nothing will resume) with the last turn, cause sentence, and age, plus fork or close
 remedies. Claimed-bead and dangling-dependency advisories stay as they are.
 
+`instructions.bundle_size` is a deep check: run
+`sase doctor -D -C instructions.bundle_size` to inspect every enabled project's root
+bundle against capped providers. It reports `WARN` when compaction is needed and `ERROR`
+when the bundle still exceeds the limit. See
+[instruction delivery diagnostics](providers/agent-clis.md#verifying-instruction-delivery)
+for the complete results and
+[provider size limits](memory/instruction-bundles.md#provider-size-limits) for the
+compaction policy.
+
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.
 

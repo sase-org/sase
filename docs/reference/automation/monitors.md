@@ -196,6 +196,11 @@ an agent, a run with no starter scope, or another agent's run — is refused wit
 with exit `1`, showing the state and a `sase tool show RUN` pointer. No monitor starts
 on any refusal.
 
+For a refused join, `sase tool show RUN` reports the current state. A refused staged
+reservation also prints a bounded inline-wait command and a fresh monitored rerun
+command. A rerun starts a separate execution; it does not adopt the original. An
+unjoined starter-scoped run stops when its starter's turn ends.
+
 The join records atomically after the monitor member exists and before its proc submits;
 a refused or failed start tears the member down (releasing the join) and runs nothing.
 The monitor proc follows the run into the monitor log without a deadline, then renders a

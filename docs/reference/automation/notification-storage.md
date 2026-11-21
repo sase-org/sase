@@ -68,6 +68,8 @@ Completion notifications point to the existing raw prompt file when it exactly m
 the prompt, avoiding a second copy. Failure summaries over 4 KiB are shortened and point
 to their full error report.
 
+## Snooze timing
+
 The Rust store also owns every temporal semantic: it validates and normalizes snooze
 deadlines, expires due rows atomically under the same lock as the read, stamps
 `resurfaced_at`, and reports both `expired_ids` and the earliest remaining

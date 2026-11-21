@@ -157,8 +157,9 @@ Prompt-archive publication is not a separate durable queue. The outbox request e
 for a commit's hood also owns its prompt. The inline commit path publishes the archive
 directly; when the background path is selected, the publisher regenerates it from the
 local artifact pool inside the same bounded transaction that publishes the hood. A
-request is acknowledged only once both halves reached the sidecar, so a prompt that
-could not be rebuilt keeps its request queued and retryable rather than retiring it.
+request is acknowledged only once both halves reached the sidecar. Restore failures
+remain queued until recovery succeeds or the
+[unrecoverable-prompt policy](#unrecoverable-prompt-archives) retires the request.
 
 An approved planner's archive is plan-named and carries the plan snapshot, which the
 outbox row does not. Before enqueueing, plan approval writes
@@ -417,15 +418,16 @@ budget before running the normal full reconciliation. It never revives terminal 
 
 ### Unrecoverable prompt archives
 
-A deferred prompt row whose source bytes are gone everywhere — no local `raw_prompt.md`
-in any known artifacts directory, no archived copy in the sidecar — and whose retry
-budget is spent (or that is already quarantined) retires as
-`prompt_archive_unrecoverable` instead of quarantining forever. The transition appends
-one record to `~/.sase/agent_publication/terminal_obligations.jsonl` with the project,
-agent, revision, run id, artifacts dir, and the probes performed. A terminal prompt row
-stops retries, releases that revision's staging-pool protection, is skipped by
-`--retry-quarantined`, and never counts as published: the request is retired, not
-acknowledged. A source that reappears before the terminal decision restores normally.
+A deferred prompt row past its 30-minute grace period whose source bytes are gone
+everywhere — no local `raw_prompt.md` in any known artifacts directory, no archived copy
+in the sidecar — and whose retry budget is spent (or that is already quarantined)
+retires as `prompt_archive_unrecoverable` instead of quarantining forever. The
+transition appends one record to `~/.sase/agent_publication/terminal_obligations.jsonl`
+with the project, agent, revision, run id, artifacts dir, and the probes performed. A
+terminal prompt row stops retries, releases that revision's staging-pool protection, is
+skipped by `--retry-quarantined`, and never counts as published: the request is retired,
+not acknowledged. A source that reappears before the terminal decision restores
+normally.
 
 Already-quarantined prompt rows get there too: each publisher pass re-checks up to 25
 per project and retires the unrecoverable ones, never charging or erroring. A row whose
@@ -603,9 +605,9 @@ exactly one project per call, report by default, and write only with `--apply`.
   only state changes with regenerated pages. The window defaults to 100 examined runs
   across at most 5 hoods; `--state-limit` accepts 1 through 500 and `--state-after`
   resumes from a report's `next_cursor`. Preview is advisory: apply revalidates and may
-  report different counts. The scheduler's `agent_state_refresh` job runs this repair
-  once per tick for one project; see the owner-local backfill runbook in the sidecar
-  internals.
+  report different counts. The scheduler's
+  [`agent_state_refresh` job](../automation/scheduler-default-routines.md#published-agent-state-refresh)
+  runs this repair once per tick for one project.
 
 CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 
