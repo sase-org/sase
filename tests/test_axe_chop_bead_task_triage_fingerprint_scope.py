@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import sase.scripts.sase_chop_bead_task_triage as task_triage
+import sase.scripts._bead_task_triage_reconcile as task_triage
 from sase.bead.model import (
     CloseRecord,
     Issue,

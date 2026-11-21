@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-import sase.scripts.sase_chop_bead_task_triage as task_triage
+import sase.scripts._bead_task_triage_reconcile as task_triage
 from sase.bead.model import SnoozeRecord, Status
 from sase.notification_gates.paths import bundle_paths
 from sase.notifications.models import Notification

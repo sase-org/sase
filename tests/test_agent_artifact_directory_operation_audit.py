@@ -253,6 +253,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "workspace-local SDD sidecar clone, not an agent artifact directory."
         ),
     ),
+    "src/sase/scripts/_bead_task_triage_gates.py:reap_settled_bundles": DirOpReview(
+        exemption=(
+            "Reaps only settled, owned interaction-request bundles under the "
+            "automation gate-kind directories while holding each bundle's "
+            "creation lock; these are not agent artifact directories."
+        ),
+    ),
     "src/sase/sudo/execution_handoff.py:cleanup_handoff": DirOpReview(
         exemption=(
             "Deletes only a user-owned sudo executor handoff directory under "
