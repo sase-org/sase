@@ -100,6 +100,7 @@ def _gate_role_label(agent: Agent) -> str:
         pair,
         gate_state=agent.gate_state,
         settled=_gate_status_is_settled(agent, pair.stop),
+        has_failure=isinstance(getattr(agent, "gate_execution_failure", None), dict),
     )
 
 

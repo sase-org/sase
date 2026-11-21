@@ -72,16 +72,23 @@ def _state_text(gate_state: str | None) -> Text:
 
 
 def _status_pair_text(agent: Agent) -> Text:
+    # Use-site import: failure rendering stays out of the TUI startup
+    # closure (see test_tui_app_import_stays_under_startup_budget).
+    from ._agent_gate_failure import execution_failure_for
+
+    failure = execution_failure_for(agent)
     pair = gate_status_pair(agent.gate_start_status, agent.gate_stop_status)
     style = gate_status_style(
         pair,
         gate_state=agent.gate_state,
         accent=agent.gate_accent,
+        has_failure=isinstance(failure, dict),
     )
     effective = effective_gate_status(
         pair,
         gate_state=agent.gate_state,
         settled=gate_state_is_terminal(agent.gate_state),
+        has_failure=isinstance(failure, dict),
     )
     text = Text()
     if pair.start == pair.stop:
@@ -283,6 +290,11 @@ def _gate_field_parts(
         if agent.gate_followup_error:
             text.append(f" · {agent.gate_followup_error}", style="bold #FFAF00")
         text.append("\n")
+    # Use-site import: failure rendering stays out of the TUI startup
+    # closure (see test_tui_app_import_stays_under_startup_budget).
+    from ._agent_gate_failure import append_failure_fields
+
+    append_failure_fields(text, agent)
 
     if agent.gate_kind == "question":
         # A gate row's Context card already shows this round in its

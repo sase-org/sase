@@ -40,7 +40,12 @@ def _gate_state_bucket(gate_state: str | None) -> str:
     return turn_state_bucket(gate_state, _GATE_STATE_CONFIG)
 
 
-def gate_member_status_bucket(gate_state: str | None, status: str | None) -> str:
+def gate_member_status_bucket(
+    gate_state: str | None,
+    status: str | None,
+    *,
+    has_execution_failure: bool = False,
+) -> str:
     """Return the display bucket for a gate member row showing *status*.
 
     A gate that settled into a handoff status (an approved plan, an answered
@@ -48,11 +53,18 @@ def gate_member_status_bucket(gate_state: str | None, status: str | None) -> str
     ``Running`` bucket its status implies.  Every other state -- pending,
     settling, rejected, cancelled, timed out, failed -- keeps the bucket its
     gate state implies.
+
+    A non-terminal gate with a persisted execution failure stays in the
+    awaiting-human bucket (``Stopped``, the same bucket as ``pending``)
+    instead of ``Running``: it is recoverable and still owns its workspace,
+    so it must not look terminal or still-running.
     """
     if status in PLAN_EXECUTION_FAILED_STATUSES:
         return "Failed"
     if status in HANDOFF_SETTLED_STATUSES:
         return status_bucket_for_values(status)
+    if has_execution_failure and not gate_state_is_terminal(gate_state):
+        return _gate_state_bucket("pending")
     return _gate_state_bucket(gate_state)
 
 

@@ -97,7 +97,12 @@ def dismiss_gate_execution_failed(
     request_id: str | None = None,
     request_kind: str | None = None,
 ) -> None:
-    """Dismiss all open failure notifications matching one gate."""
+    """Dismiss all open failure notifications matching one gate.
+
+    Also clears the gate member's persisted ``gate_execution_failure``
+    object, so a recovered gate stops projecting as needing a human on
+    every surface even after its inbox row is gone.
+    """
     if envelope is not None:
         request_id = str(envelope.get("request_id") or request_id or "")
         request_kind = str(envelope.get("kind") or request_kind or "")
@@ -122,6 +127,31 @@ def dismiss_gate_execution_failed(
         log.warning(
             "Failed to dismiss gate execution failure notifications", exc_info=True
         )
+    try:
+        from sase.gate_turn.execution_failure import (
+            clear_gate_execution_failure,
+            clear_gate_member_failure_for_bundle,
+        )
+
+        if bundle_path is not None:
+            clear_gate_member_failure_for_bundle(bundle_path)
+        elif envelope is not None or request_id:
+            try:
+                from sase.gate_turn.store import find_gate_turn_by_gate_id
+
+                resolved = request_id or (
+                    str(envelope.get("request_id"))
+                    if isinstance(envelope, Mapping)
+                    else ""
+                )
+                if resolved:
+                    record = find_gate_turn_by_gate_id(None, resolved)
+                    if record is not None:
+                        clear_gate_execution_failure(record.artifacts_dir)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def _recovery_actions(stage: str, code: str = "") -> tuple[str, ...]:

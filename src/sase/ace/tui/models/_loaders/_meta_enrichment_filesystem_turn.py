@@ -92,3 +92,9 @@ def apply_filesystem_turn_meta(agent: Agent, data: dict[str, object]) -> None:
             raw_gate_id if isinstance(raw_gate_id, str) else None,
         ),
     )
+    from sase.gate_turn.execution_failure import apply_member_failure_to_agent
+
+    _raw_failure = data.get("gate_execution_failure")
+    apply_member_failure_to_agent(
+        agent, _raw_failure if isinstance(_raw_failure, dict) else None
+    )

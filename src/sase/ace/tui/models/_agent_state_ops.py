@@ -94,6 +94,7 @@ class AgentStateOperationsFields:
     gate_followup_error: str | None = None
     gate_followup_degraded_reason: str | None = None
     gate_followup_prompt_path: str | None = None
+    gate_execution_failure: dict[str, Any] | None = None
 
     # Stand-alone named-proc projection. These rows come from the durable proc
     # store and are presentation-only: they are not SASE agents, do not own

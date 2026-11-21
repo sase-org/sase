@@ -262,6 +262,7 @@ class _GateStatusPresentationRow(Protocol):
     gate_stop_status: str | None
     gate_state: str | None
     gate_accent: str | None
+    gate_execution_failure: dict[str, object] | None
 
 
 def monitor_status_presentation(
@@ -303,11 +304,21 @@ def gate_status_presentation(
         return None
     pair = gate_status_pair(start, stop)
     if row.status.casefold() not in {pair.start.casefold(), pair.stop.casefold()}:
-        return None
-    glyph = gate_status_glyph(row.gate_state)
+        # A failed gate appends " ✗" to its pending label, so the row status
+        # no longer equals either pair half. Still style it as a gate status.
+        failure = getattr(row, "gate_execution_failure", None)
+        if not (isinstance(failure, dict) and row.status.endswith(" ✗")):
+            return None
+    has_failure = isinstance(getattr(row, "gate_execution_failure", None), dict)
+    glyph = gate_status_glyph(row.gate_state, has_failure=has_failure)
     if row.gate_state == "failed":
         glyph = ""
     return (
-        gate_status_style(pair, gate_state=row.gate_state, accent=row.gate_accent),
+        gate_status_style(
+            pair,
+            gate_state=row.gate_state,
+            accent=row.gate_accent,
+            has_failure=has_failure,
+        ),
         glyph,
     )

@@ -601,6 +601,33 @@ def _print_gate_turn_runtime(console: Console, gate_turn: Mapping[str, Any]) -> 
         resume = gate_turn.get("followup_resume_command")
         if resume:
             console.print(Text(f"  resume with: {resume}", style="dim"), soft_wrap=True)
+    failure = gate_turn.get("execution_failure")
+    if isinstance(failure, dict):
+        stage = failure.get("stage") or "execution"
+        code = failure.get("code") or "failed"
+        message = failure.get("message") or ""
+        console.print(
+            Text(
+                f"  ✗ execution failed ({stage}/{code}): {message}".rstrip(),
+                style="bold #FF5F5F",
+            ),
+            soft_wrap=True,
+        )
+        report = failure.get("error_report_path")
+        if isinstance(report, str) and report:
+            console.print(
+                Text(f"  error report: {report}", style="dim"), soft_wrap=True
+            )
+        recovery = gate_turn.get("recovery_commands")
+        if isinstance(recovery, dict):
+            for key in ("resume_command", "restart_command", "cancel_command"):
+                command = recovery.get(key)
+                if isinstance(command, str) and command:
+                    label = key.removesuffix("_command")
+                    console.print(
+                        Text(f"  {label} with: {command}", style="dim"),
+                        soft_wrap=True,
+                    )
 
 
 def _status_style(status: str) -> str:

@@ -93,6 +93,7 @@ _TURN_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
     "gate_accent",
     "gate_execution_active",
     "gate_finalize_proc_id",
+    "gate_execution_failure",
 )
 
 

@@ -66,6 +66,7 @@ def gate_badge_style(row: Agent) -> str | None:
             pair,
             gate_state=getattr(row, "gate_state", None),
             accent=getattr(row, "gate_accent", None),
+            has_failure=isinstance(getattr(row, "gate_execution_failure", None), dict),
         )
     except Exception:
         return None

@@ -287,6 +287,26 @@ timeout, stopped, or lost. Answered commands start right away even when every ru
 slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a full
 queue never delays the decision itself.
 
+An accepted-but-failed gate turn is a non-terminal gate whose accepted option command
+failed before publishing a response. The durable `attempt_failed` journal event stays
+the source of truth, and the member's `agent_meta.json` mirrors a small
+`gate_execution_failure` object (stage, code, message, error report path, acceptance and
+attempt ids, plus the resume / restart / cancel commands). The member clears its live
+settler pid at the same time, so the row no longer reads as running.
+
+Every surface projects the persisted object without reopening the bundle: the shared
+`gate_turn_runtime_json` shape carries `execution_failure`, a combined
+`needs_attention`, and `recovery_commands`, while `followup_needs_attention` keeps its
+existing meaning. A failed non-terminal member shows the `✗` failure glyph and
+`GATE_STATUS_FAILURE_STYLE`, its label appends `✗` to the pending status, and its bucket
+stays in the awaiting-human bucket (`Stopped`, the same bucket as `pending`) instead of
+`Running`. `sase gate list` shows the failure in its state cell and `sase gate show`
+renders the failure line with the error report and each recovery command. The ACE GATE
+section shows the same failure and commands, and pressing `Enter` on the failed gate row
+reuses the `GateExecutionFailed` recovery dialog, so recovery does not depend on finding
+the dismissed notification. A later `--resume` success, supersede, cancellation,
+successful side effects, or terminal settlement clears the object.
+
 Agents waiting for the [agent session](../glossary.md#sase-agent-session) to finish stay
 pending while the gate's follow-up agent is being launched. Accepting the decision does
 not complete the session: waits follow the successor once it is recorded. A failed
@@ -306,6 +326,13 @@ default) has passed after that deadline. Reclaim skips a turn whose gate creatio
 still running (its session's gate-creation lock is held), so an `%auto` gate that is
 still executing its selected commands is never marked lost; a turn whose creator died
 before recording a bundle is still settled lost on a later pass.
+
+Reclaim also backfills `gate_execution_failure` for members that failed before the
+object existed, when it sees an `accepted_failed` or `accepted_owner_lost` gate whose
+meta lacks it. A dismissed `GateExecutionFailed` notification resurfaces at most once
+per acceptance: when the failure is still current, the notification is dismissed, and
+more than an hour has passed since the failure, reclaim restores the notification and
+records the resurface in the member meta.
 
 Immediate agent-side gate creation also writes a per-process intent marker before slow
 setup work starts. A clean creation error or the normal runner handoff clears it. If the

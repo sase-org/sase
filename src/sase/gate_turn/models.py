@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from typing import Any
+
 from sase.gate_turn.state import (
     gate_member_status_bucket,
     gate_state_is_terminal,
@@ -79,15 +81,28 @@ class GateTurnRecord:
     followup_error_stage: str | None = None
     followup_error_type: str | None = None
     claim_holder_pid: int | None = None
+    execution_failure: dict[str, Any] | None = None
+
+    @property
+    def has_execution_failure(self) -> bool:
+        """Return whether a persisted execution failure needs a human."""
+        return self.execution_failure is not None and not self.is_terminal
 
     @property
     def status_bucket(self) -> str:
         """Return this gate turn's display status bucket."""
         pair = gate_status_pair(self.start_status, self.stop_status)
         status = effective_gate_status(
-            pair, gate_state=self.gate_state, settled=self.is_terminal
+            pair,
+            gate_state=self.gate_state,
+            settled=self.is_terminal,
+            has_failure=self.execution_failure is not None,
         )
-        return gate_member_status_bucket(self.gate_state, status)
+        return gate_member_status_bucket(
+            self.gate_state,
+            status,
+            has_execution_failure=self.execution_failure is not None,
+        )
 
     @property
     def is_terminal(self) -> bool:

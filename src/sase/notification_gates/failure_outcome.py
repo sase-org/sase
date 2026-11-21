@@ -141,6 +141,7 @@ def record_failure_outcome(
         source=source,
     )
     _project_execution_failure(bundle_path)
+    _persist_gate_member_failure(bundle_path, failure)
     return failure
 
 
@@ -360,6 +361,80 @@ def _publish_failure_notification(
         failure,
         source=source,
     )
+
+
+def _persist_gate_member_failure(
+    bundle_path: Path,
+    failure: ExecutionFailureFacts,
+) -> None:
+    """Best-effort: mirror a pre-response failure onto the gate member.
+
+    Only ``command`` and ``terminal_prepare`` failures block the response
+    and keep the member parked; later stages already have a response and
+    clear through the normal success path. Failures here must never break
+    the journal/notification write that already succeeded.
+    """
+    try:
+        if failure.stage not in {"command", "terminal_prepare"}:
+            return
+        from sase.gate_turn.execution_failure import (
+            build_gate_execution_failure,
+            write_gate_execution_failure,
+        )
+        from sase.notification_gates.failure_notifications import (
+            gate_failure_action_data,
+        )
+
+        try:
+            envelope, _adapter = load_and_verify_bundle(bundle_path)
+        except Exception:
+            return
+        action_data = gate_failure_action_data(bundle_path, envelope, failure)
+        error_report = str(action_data.get("error_report_path") or "")
+        if not error_report and failure.error_record:
+            error_report = str(bundle_path / failure.error_record)
+        member_artifacts = _gate_member_artifacts_dir(envelope)
+        if member_artifacts is None:
+            return
+        write_gate_execution_failure(
+            member_artifacts,
+            build_gate_execution_failure(
+                stage=failure.stage,
+                code=failure.code,
+                message=failure.message,
+                error_record=failure.error_record,
+                error_report_path=error_report,
+                acceptance_id=failure.acceptance_id,
+                attempt_id=failure.attempt_id,
+                outcome_id=failure.outcome_id,
+                resume_command=str(action_data.get("resume_command") or ""),
+                restart_command=str(action_data.get("restart_command") or ""),
+                cancel_command=str(action_data.get("cancel_command") or ""),
+                recovery_actions=str(action_data.get("recovery_actions") or ""),
+                bundle_path=str(bundle_path),
+                request_id=str(envelope.get("request_id") or ""),
+                request_kind=str(envelope.get("kind") or ""),
+                at_unix=failure.at_unix,
+            ),
+        )
+    except Exception:
+        return
+
+
+def _gate_member_artifacts_dir(envelope: Mapping[str, Any]) -> str | None:
+    """Return the gate-turn member's artifacts dir for *envelope*, if any."""
+    try:
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
+
+        request_id = envelope.get("request_id")
+        if not isinstance(request_id, str) or not request_id:
+            return None
+        record = find_gate_turn_by_gate_id(None, request_id)
+        if record is None or record.is_terminal:
+            return None
+        return record.artifacts_dir or None
+    except Exception:
+        return None
 
 
 def _append_owner_lost_transition(

@@ -551,6 +551,15 @@ def enrich_agent_from_meta_wire(
             gate_turn.id if gate_turn is not None else None,
         ),
     )
+    if gate_turn is not None and gate_turn.id:
+        try:
+            from sase.gate_turn.execution_failure import (
+                project_loaded_failure_for_agent,
+            )
+
+            project_loaded_failure_for_agent(agent)
+        except Exception:
+            pass
 
     apply_finalizer_status(agent, meta.finalizer_status)
 

@@ -12,6 +12,7 @@ from sase.notification_gates.model_turn import (
 )
 from sase.turns.status import (
     TurnStatusPair,
+    clamp_turn_status,
     effective_turn_status,
     turn_status_glyph,
     turn_status_pair,
@@ -72,14 +73,29 @@ def gate_status_pair(start: str | None, stop: str | None) -> TurnStatusPair:
     )
 
 
+#: Suffix marking a non-terminal gate whose accepted execution failed.
+#: Kept short so the combined label stays within
+#: ``GATE_TURN_STATUS_MAX_CHARS``.
+FAILURE_LABEL_SUFFIX = " ✗"
+
+
+def _has_active_failure(
+    gate_state: str | None, settled: bool, has_failure: bool
+) -> bool:
+    return bool(has_failure) and not settled and gate_state not in _TERMINAL_GATE_STATES
+
+
 def gate_status_style(
     pair: TurnStatusPair,
     *,
     gate_state: str | None,
     accent: str | None = None,
+    has_failure: bool = False,
 ) -> str:
     """Return the Rich style for a gate status token."""
     if gate_state in _FAILURE_GATE_STATES:
+        return GATE_STATUS_FAILURE_STYLE
+    if has_failure and gate_state not in _TERMINAL_GATE_STATES:
         return GATE_STATUS_FAILURE_STYLE
     if gate_state in _SETTLED_OK_GATE_STATES:
         return "#9E9E9E"
@@ -95,8 +111,10 @@ def gate_status_style(
     )
 
 
-def gate_status_glyph(gate_state: str | None) -> str:
+def gate_status_glyph(gate_state: str | None, *, has_failure: bool = False) -> str:
     """Return the outcome glyph for ``gate_state``, or ``""`` if none."""
+    if has_failure and gate_state not in _TERMINAL_GATE_STATES:
+        return "✗"
     return turn_status_glyph(gate_state, glyphs=_GATE_STATUS_GLYPHS)
 
 
@@ -105,19 +123,37 @@ def effective_gate_status(
     *,
     gate_state: str | None,
     settled: bool,
+    has_failure: bool = False,
 ) -> str:
     """Return the label a surface should show for this pair and state."""
-    return effective_turn_status(
+    base = effective_turn_status(
         pair,
         shell_state=gate_state,
         settled=settled,
         terminal_states=_TERMINAL_GATE_STATES,
+    )
+    if not _has_active_failure(gate_state, settled, has_failure):
+        return base
+    if base.endswith(FAILURE_LABEL_SUFFIX):
+        return base
+    candidate = f"{base}{FAILURE_LABEL_SUFFIX}"
+    if len(candidate) <= GATE_TURN_STATUS_MAX_CHARS:
+        return candidate
+    trimmed = base[: max(0, GATE_TURN_STATUS_MAX_CHARS - len(FAILURE_LABEL_SUFFIX))]
+    trimmed = trimmed.rstrip()
+    candidate = f"{trimmed}{FAILURE_LABEL_SUFFIX}"
+    return clamp_turn_status(
+        candidate,
+        max_chars=GATE_TURN_STATUS_MAX_CHARS,
+        ellipsis=GATE_TURN_STATUS_ELLIPSIS,
+        noun="gate turn status",
     )
 
 
 __all__ = [
     "DEFAULT_GATE_TURN_PENDING_STATUS",
     "DEFAULT_GATE_TURN_SETTLED_STATUS",
+    "FAILURE_LABEL_SUFFIX",
     "GATE_STATUS_ACCENTS",
     "GATE_STATUS_FAILURE_STYLE",
     "effective_gate_status",

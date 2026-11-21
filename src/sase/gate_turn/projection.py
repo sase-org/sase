@@ -81,13 +81,32 @@ def _gate_turn_holds_workspace_claim(
         return False
 
 
+def _execution_recovery_commands(
+    failure: dict[str, Any] | None,
+) -> dict[str, str] | None:
+    """Return the non-empty recovery commands for *failure*, if any."""
+    if not isinstance(failure, dict):
+        return None
+    commands: dict[str, str] = {}
+    for key in ("resume_command", "restart_command", "cancel_command"):
+        value = failure.get(key)
+        if isinstance(value, str) and value.strip():
+            commands[key] = value
+    return commands or None
+
+
 def gate_turn_runtime_json(record: GateTurnRecord) -> dict[str, Any]:
     """Return the stable runtime JSON shape shared by list/show/cancel."""
+    has_failure = record.execution_failure is not None and not record.is_terminal
     pair = gate_status_pair(record.start_status, record.stop_status)
     status_label = effective_gate_status(
-        pair, gate_state=record.gate_state, settled=record.is_terminal
+        pair,
+        gate_state=record.gate_state,
+        settled=record.is_terminal,
+        has_failure=record.execution_failure is not None,
     )
-    needs_attention = gate_turn_followup_needs_attention(record)
+    followup_attention = gate_turn_followup_needs_attention(record)
+    needs_attention = bool(followup_attention or has_failure)
     return {
         "gate_id": record.gate_id,
         "short_id": short_gate_turn_id(record.gate_id),
@@ -122,7 +141,7 @@ def gate_turn_runtime_json(record: GateTurnRecord) -> dict[str, Any]:
         "followup_outcome": record.followup_outcome,
         "followup_error": record.followup_error,
         "followup_degraded_reason": record.followup_degraded_reason,
-        "followup_needs_attention": needs_attention,
+        "followup_needs_attention": followup_attention,
         "followup_resume_command": (
             resume_command_for(
                 {
@@ -130,7 +149,18 @@ def gate_turn_runtime_json(record: GateTurnRecord) -> dict[str, Any]:
                     "gate_kind": record.kind,
                 }
             )
-            if needs_attention
+            if followup_attention
+            else None
+        ),
+        "execution_failure": (
+            dict(record.execution_failure)
+            if isinstance(record.execution_failure, dict)
+            else None
+        ),
+        "needs_attention": needs_attention,
+        "recovery_commands": _execution_recovery_commands(
+            record.execution_failure
+            if isinstance(record.execution_failure, dict)
             else None
         ),
     }

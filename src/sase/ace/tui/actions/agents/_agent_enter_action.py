@@ -200,6 +200,9 @@ class AgentEnterActionMixin:
             open_notification_action(self, notification)
             self._schedule_notification_snapshot_refresh()  # type: ignore[attr-defined]
             return
+        if self._open_gate_member_failure_recovery(agent_identity):
+            self._schedule_notification_snapshot_refresh()  # type: ignore[attr-defined]
+            return
         if not target.notification_id:
             self.notify(  # type: ignore[attr-defined]
                 f"Gate {_short_gate_ref(target)} is no longer pending",
@@ -207,6 +210,19 @@ class AgentEnterActionMixin:
             )
             return
         self._load_agent_enter_gate_detail(target, agent_identity=agent_identity)
+
+    def _open_gate_member_failure_recovery(
+        self: Any, agent_identity: tuple[object, ...]
+    ) -> bool:
+        """Open the shared failure recovery modal from a gate member row."""
+        # Use-site import: recovery wiring stays out of the TUI startup
+        # closure (see test_tui_app_import_stays_under_startup_budget).
+        from ._gate_member_failure_recovery import open_gate_member_failure_recovery
+
+        agent = self._agent_enter_agent(agent_identity)
+        if agent is None:
+            return False
+        return open_gate_member_failure_recovery(self, agent)
 
     def _load_agent_enter_gate_detail(
         self: Any, target: AgentEnterTarget, *, agent_identity: tuple[object, ...]

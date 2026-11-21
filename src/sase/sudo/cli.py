@@ -519,6 +519,7 @@ def _turn_status_label(row: GateTurnRecord) -> str:
         pair,
         gate_state=row.gate_state,
         settled=row.is_terminal,
+        has_failure=row.execution_failure is not None,
     )
 
 

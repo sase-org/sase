@@ -94,9 +94,18 @@ def read_gate_turn_marker(
         done=DoneMarkerWire(**done_kwargs) if done_kwargs is not None else None,
     )
     try:
-        return GateTurnRecord.from_record(record)
+        converted = GateTurnRecord.from_record(record)
     except ValueError:
         return None
+    failure = raw_meta.get("gate_execution_failure")
+    if isinstance(failure, dict) and not converted.is_terminal:
+        from dataclasses import replace as _replace
+
+        try:
+            return _replace(converted, execution_failure=dict(failure))
+        except Exception:
+            return converted
+    return converted
 
 
 def list_gate_turns(*, project: str | None = None) -> list[GateTurnRecord]:
@@ -267,11 +276,38 @@ def _gate_turns_from_records(
         )
         if converted is not None
     ]
+    shells = [_with_execution_failure(shell) for shell in shells]
     shells.sort(
         key=lambda record: (record.timestamp, record.artifacts_dir),
         reverse=True,
     )
     return shells
+
+
+def _with_execution_failure(record: GateTurnRecord) -> GateTurnRecord:
+    """Attach the persisted failure object without reopening the bundle.
+
+    The Rust index does not project ``agent_meta.json::gate_execution_failure``,
+    so the Python store reads that one small file per gate-turn row. Gate-turn
+    lists are low-volume (one row per pending gate), never the TUI hot path,
+    which renders from its own mtime-cached loader instead.
+    """
+    from dataclasses import replace
+
+    try:
+        from sase.gate_turn.execution_failure import read_gate_execution_failure
+
+        failure = read_gate_execution_failure(record.artifacts_dir)
+    except Exception:
+        return record
+    if failure is None:
+        return record
+    if record.is_terminal:
+        return record
+    try:
+        return replace(record, execution_failure=failure)
+    except Exception:
+        return record
 
 
 def _gate_records(project_name: str | None) -> list[AgentArtifactRecordWire]:

@@ -104,13 +104,20 @@ def settle_gate_turn(
         else FOLLOWUP_LOCK_TIMEOUT_SECONDS
     )
     with with_gate_followup_lock(artifacts_dir, timeout=timeout):
-        return _settle_gate_turn_locked(
+        settled = _settle_gate_turn_locked(
             record,
             gate_state=gate_state,
             reason=reason,
             creator_live=creator_live,
             resume=resume,
         )
+    try:
+        from sase.gate_turn.execution_failure import clear_gate_execution_failure
+
+        clear_gate_execution_failure(artifacts_dir)
+    except Exception:
+        pass
+    return settled
 
 
 def _settle_gate_turn_locked(

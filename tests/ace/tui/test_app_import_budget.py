@@ -68,7 +68,18 @@ _MAX_ELAPSED_SECONDS = 5.0
 #     ``_agent_loader_normalization`` +30,
 #     ``_agent_loader_tiered`` +25)
 #   07aedfc8ca ``sase.llm_provider.retry_config`` +1,167
-# The raise is those 80,188 attributed bytes (baseline 11,890,104). The cap
+# The raise is those 80,188 attributed bytes (baseline 11,890,104). sase-1ut.2
+# (accepted-but-failed gate attention) adds +2,176 first-paint bytes that
+# cannot be deferred: the failed-row glyph/style/label in
+# ``sase.gate_turn.status`` (+889), the awaiting-human bucket in
+# ``sase.gate_turn.state`` (+135), the snapshot loader projection in
+# ``_meta_enrichment_wire`` / ``_compact_meta_enrichment`` (+99/+99), row
+# styling in ``_agent_list_styling`` (+276), the gate-section lazy stubs
+# (+143), the gate-row recovery entry in ``_agent_enter_action`` (+318),
+# plus sudo-label, badge, and agent-field deltas (+74/+72/+46/+25).
+# Deferral was considered: the gate-section detail, the recovery modal, and
+# the loader helper bodies are all use-site imports, and the diff adds zero
+# new closure modules. Baseline 11,892,280. The cap
 # is that baseline plus a fixed 4,096-byte allowance with a strict ``<``.
 # The allowance is an absolute number, not a
 # percentage of the ~23 MB raw source tree: it covers the small source
@@ -99,7 +110,7 @@ _MAX_ELAPSED_SECONDS = 5.0
 # modules already imported) and defer the new edges with use-site or
 # ``TYPE_CHECKING`` imports.
 _FOOTPRINT_METRIC_VERSION = 1
-_FOOTPRINT_BASELINE_BYTES = 11_890_104
+_FOOTPRINT_BASELINE_BYTES = 11_892_280
 _FOOTPRINT_ALLOWANCE_BYTES = 4_096
 _MAX_SASE_SOURCE_FOOTPRINT_BYTES = (
     _FOOTPRINT_BASELINE_BYTES + _FOOTPRINT_ALLOWANCE_BYTES
@@ -266,7 +277,7 @@ def _measure_tui_app_import(
 def test_footprint_cap_is_the_measured_baseline_plus_the_fixed_allowance() -> None:
     assert footprint.FOOTPRINT_METRIC_VERSION == _FOOTPRINT_METRIC_VERSION
     assert _FOOTPRINT_ALLOWANCE_BYTES == 4_096
-    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_894_200
+    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_896_376
 
 
 def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
@@ -287,7 +298,7 @@ def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
 
 def test_footprint_cap_uses_strict_less_than() -> None:
     _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES - 1))
-    with pytest.raises(AssertionError, match="against the 11,894,200 cap"):
+    with pytest.raises(AssertionError, match="against the 11,896,376 cap"):
         _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES))
 
 

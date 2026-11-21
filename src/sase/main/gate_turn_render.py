@@ -52,11 +52,14 @@ def _effective_label(record: GateTurnRecord) -> str:
         _record_status_pair(record),
         gate_state=record.gate_state,
         settled=record.is_terminal,
+        has_failure=record.execution_failure is not None,
     )
 
 
 def _label_glyph(record: GateTurnRecord) -> str:
-    glyph = gate_status_glyph(record.gate_state)
+    glyph = gate_status_glyph(
+        record.gate_state, has_failure=record.execution_failure is not None
+    )
     if glyph:
         return glyph
     return _PENDING_GLYPH
@@ -64,7 +67,12 @@ def _label_glyph(record: GateTurnRecord) -> str:
 
 def _state_cell(record: GateTurnRecord) -> Text:
     pair = _record_status_pair(record)
-    style = gate_status_style(pair, gate_state=record.gate_state, accent=record.accent)
+    style = gate_status_style(
+        pair,
+        gate_state=record.gate_state,
+        accent=record.accent,
+        has_failure=record.execution_failure is not None,
+    )
     text = Text(f"{_label_glyph(record)} {_effective_label(record)}", style=style)
     if gate_turn_followup_needs_attention(record):
         text.append(f" {_FOLLOWUP_ERROR_GLYPH}", style=_FOLLOWUP_ERROR_STYLE)

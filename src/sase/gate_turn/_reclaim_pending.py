@@ -225,6 +225,8 @@ def _reclaim_one(
         # execution stays visible for `sase gate show`/manual resume.
         return "accepted_unfinished"
     if disposition == DISPOSITION_ACCEPTED_FAILED:
+        _backfill_member_failure(record, bundle, facts)
+        _maybe_resurface_failure_notification(record, bundle, facts, now=now)
         return "accepted_failed"
     if disposition == DISPOSITION_ACCEPTED_OWNER_LOST:
         failure = record_owner_lost_outcome_if_current(
@@ -234,7 +236,11 @@ def _reclaim_one(
             deadline=deadline,
             grace_seconds=grace_seconds,
         )
-        return "accepted_owner_lost" if failure is not None else "accepted_unfinished"
+        if failure is None:
+            return "accepted_unfinished"
+        _backfill_member_failure(record, bundle, facts)
+        _maybe_resurface_failure_notification(record, bundle, facts, now=now)
+        return "accepted_owner_lost"
     if disposition == DISPOSITION_PENDING:
         return None
     if disposition == DISPOSITION_EXPIRED_REVIEW:
@@ -295,6 +301,134 @@ def _deadline(envelope: dict[str, Any]) -> float | None:
     if isinstance(created, (int, float)) and isinstance(timeout_seconds, (int, float)):
         return float(created) + float(timeout_seconds)
     return None
+
+
+def _backfill_member_failure(record: GateTurnRecord, bundle: Path, facts: Any) -> None:
+    """Persist the current journal failure onto an old-shape member.
+
+    Gates that failed before ``gate_execution_failure`` existed have a
+    durable ``attempt_failed`` journal event but no member meta object, so
+    every surface still reads them as merely running. Backfilling keeps the
+    member projection honest without reopening the bundle per row later.
+    """
+    try:
+        from sase.gate_turn.execution_failure import (
+            build_gate_execution_failure,
+            read_gate_execution_failure,
+            write_gate_execution_failure,
+        )
+        from sase.notification_gates.failure_notifications import (
+            gate_failure_action_data,
+        )
+        from sase.notification_gates.journal import current_gate_execution_failure
+
+        if read_gate_execution_failure(record.artifacts_dir) is not None:
+            return
+        receipt = facts.receipt if hasattr(facts, "receipt") else None
+        failure = current_gate_execution_failure(bundle, receipt, response_exists=False)
+        if failure is None:
+            return
+        try:
+            envelope, _adapter = load_and_verify_bundle(bundle)
+        except Exception:
+            return
+        action_data = gate_failure_action_data(bundle, envelope, failure)
+        error_report = str(action_data.get("error_report_path") or "")
+        if not error_report and failure.error_record:
+            error_report = str(bundle / failure.error_record)
+        write_gate_execution_failure(
+            record.artifacts_dir,
+            build_gate_execution_failure(
+                stage=failure.stage,
+                code=failure.code,
+                message=failure.message,
+                error_record=failure.error_record,
+                error_report_path=error_report,
+                acceptance_id=failure.acceptance_id,
+                attempt_id=failure.attempt_id,
+                outcome_id=failure.outcome_id,
+                resume_command=str(action_data.get("resume_command") or ""),
+                restart_command=str(action_data.get("restart_command") or ""),
+                cancel_command=str(action_data.get("cancel_command") or ""),
+                recovery_actions=str(action_data.get("recovery_actions") or ""),
+                bundle_path=str(bundle),
+                request_id=str(envelope.get("request_id") or ""),
+                request_kind=str(envelope.get("kind") or ""),
+                at_unix=failure.at_unix,
+            ),
+        )
+    except Exception:
+        return
+
+
+def _maybe_resurface_failure_notification(
+    record: GateTurnRecord, bundle: Path, facts: Any, *, now: float
+) -> None:
+    """Resurface a dismissed failure notification at most once per acceptance.
+
+    For ``accepted_failed`` / ``accepted_owner_lost`` gates whose
+    ``GateExecutionFailed`` notification was dismissed more than an hour ago
+    and never resurfaced, restores it once through the store's
+    un-dismiss path and records the resurface in the member meta.
+    """
+    try:
+        from sase.gate_turn.execution_failure import (
+            gate_execution_failure_resurfaced,
+            mark_gate_execution_failure_resurfaced,
+            read_gate_execution_failure,
+        )
+        from sase.notification_gates.failure_notifications import (
+            GATE_EXECUTION_FAILED_ACTION,
+        )
+        from sase.notifications.store import (
+            load_notifications,
+            mark_undismissed,
+        )
+
+        failure_meta = read_gate_execution_failure(record.artifacts_dir)
+        if not isinstance(failure_meta, dict):
+            return
+        acceptance_id = failure_meta.get("acceptance_id")
+        if not isinstance(acceptance_id, str) or not acceptance_id:
+            return
+        if gate_execution_failure_resurfaced(
+            record.artifacts_dir, acceptance_id=acceptance_id
+        ):
+            return
+        at_unix = failure_meta.get("at_unix")
+        if not isinstance(at_unix, (int, float)):
+            return
+        if now - float(at_unix) < 3600:
+            return
+        receipt = facts.receipt if hasattr(facts, "receipt") else None
+        receipt_acceptance = (
+            receipt.get("acceptance_id") if isinstance(receipt, dict) else None
+        )
+        if receipt_acceptance != acceptance_id:
+            return
+        request_id = record.gate_id
+        target_id: str | None = None
+        for notification in load_notifications(include_dismissed=True):
+            if notification.action != GATE_EXECUTION_FAILED_ACTION:
+                continue
+            if not notification.dismissed:
+                return
+            data = notification.action_data
+            if request_id and data.get("request_id") != request_id:
+                continue
+            if data.get("acceptance_id") != acceptance_id:
+                continue
+            target_id = notification.id
+            break
+        if target_id is None:
+            return
+        if not mark_undismissed(target_id):
+            return
+        mark_gate_execution_failure_resurfaced(
+            record.artifacts_dir, acceptance_id=acceptance_id
+        )
+    except Exception:
+        return
 
 
 __all__ = [
