@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 import time
 from typing import Any
@@ -34,6 +35,17 @@ from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
 _HOOD_BATCH_LIMIT = 25
+# Mirrors the artifact_link_backfill drain-phase line so both chops' logs read
+# the same way; ``publish.*`` sub-phases sit right after their parent.
+_LINK_DRAIN_PHASES = (
+    "read",
+    "evidence",
+    "eligibility",
+    "catalog",
+    "publish",
+    "rewrite",
+)
+_LINK_PUBLISH_PHASE_PREFIX = "publish."
 _LOCK_BUSY_TEXT = "agents sync lock is busy"
 _log = logging.getLogger(__name__)
 
@@ -43,12 +55,23 @@ def drain_project(
     *,
     deadline: float,
     git_runner: GitRunner,
+    progress: Callable[[str], None] | None = None,
 ) -> ProjectPass:
+    """Drain one project; *progress* gets a line before each stage starts.
+
+    Lines are emitted before the stage's work so a SIGKILL leaves the last
+    stage that began.
+    """
+
     from sase.agents_sync._commit_publication_queue import (
         drain_selected_agent_publications,
     )
     from sase.agents_sync.inventory_reuse import ProjectHoodInventoryReuse
     from sase.agents_sync.referenced_by_publication import drain_referenced_by_requests
+
+    def _stage(message: str) -> None:
+        if progress is not None:
+            progress(message)
 
     project_key = target.project_key
     parked_marker = active_diverged_replay_marker(
@@ -69,6 +92,7 @@ def drain_project(
         inventory_reuse = ProjectHoodInventoryReuse(pass_hoods)
         attempted: set[tuple[str, str]] = set()
         stop_for_repository_failure = False
+        batch_number = 0
         while time.monotonic() < deadline:
             before = tuple(
                 item for item in active_items(project_key) if publication_is_ready(item)
@@ -89,6 +113,8 @@ def drain_project(
 
             # Attempted keys stay excluded even if this batch makes no progress.
             attempted.update(batch)
+            batch_number += 1
+            _stage(f"hood batch {batch_number} ({len(batch)} keys)")
             outcome = drain_selected_agent_publications(
                 project_key,
                 tuple(batch),
@@ -140,17 +166,20 @@ def drain_project(
         link_agents = _hinted_link_agents(claim)
         if link_agents and time.monotonic() < deadline:
             try:
+                _stage("link store resolve")
                 store = resolve_machine_artifact_link_store(
                     project_key,
                     target.primary_checkout,
                     deadline=deadline,
                 )
+                _stage(f"link drain ({len(link_agents)} agents)")
                 link_report = drain_artifact_link_outbox(
                     store=store,
                     agent_names=link_agents,
                     drop_stale_terminal=False,
                     deadline=deadline,
                 )
+                _stage(_link_phase_line(link_report))
                 result.link_drained += link_report.drained
                 if link_report.selected_retained:
                     result.link_retained += link_report.selected_retained
@@ -176,6 +205,7 @@ def drain_project(
         pending_refby = safe_referenced_by_items(project_key)
         if pending_refby and time.monotonic() < deadline:
             try:
+                _stage("referenced-by drain")
                 before_count = len(pending_refby)
                 diagnostics = drain_referenced_by_requests(
                     target,
@@ -193,6 +223,7 @@ def drain_project(
                     result.outcome = "referenced_by_error"
 
         if not stop_for_repository_failure and time.monotonic() < deadline:
+            _stage("quarantine sweep")
             _sweep_quarantined_prompts(target, deadline=deadline, git_runner=git_runner)
 
         pending_active = active_items(project_key)
@@ -222,6 +253,23 @@ def drain_project(
     except BaseException:
         # Leave the renamed claim in place; the next pass re-merges it.
         raise
+
+
+def _link_phase_line(report: object) -> str:
+    """Render the link drain's per-phase timings like the backfill chop does."""
+
+    phases = dict(getattr(report, "phase_seconds", ()) or ())
+    parts: list[str] = []
+    for name in _LINK_DRAIN_PHASES:
+        value = phases.get(name)
+        parts.append(f"{name}={'skipped' if value is None else f'{value:.2f}s'}")
+        if name == "publish":
+            parts.extend(
+                f"{key}={seconds:.2f}s"
+                for key, seconds in phases.items()
+                if key.startswith(_LINK_PUBLISH_PHASE_PREFIX)
+            )
+    return "link drain phases: " + " ".join(parts)
 
 
 def _sweep_quarantined_prompts(

@@ -284,6 +284,7 @@ def _run_publication_job(
                 target,
                 deadline=deadline,
                 git_runner=git_runner,
+                progress=_drain_stage_progress(_maybe_progress, project_key),
             )
         except Exception as exc:  # noqa: BLE001 - one project cannot starve others.
             result = ProjectPass(
@@ -382,6 +383,17 @@ def _run_publication_job(
     summary.standing = open_alert_count(standing_alerts)
     save_standing_alerts(standing_alerts)
     return summary
+
+
+def _drain_stage_progress(
+    maybe_progress: Callable[[str, str | None], None], project_key: str
+) -> Callable[[str], None]:
+    """Bind one project's key onto the gated slow-pass progress callback."""
+
+    def _emit(step: str) -> None:
+        maybe_progress(step, project_key)
+
+    return _emit
 
 
 @contextmanager
