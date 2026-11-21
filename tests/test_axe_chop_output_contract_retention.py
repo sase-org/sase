@@ -12,6 +12,7 @@ from tests.test_axe_chop_output_contract_retention_flush_compact import (
     test_notification_store_compact_emits_action_summary,
     test_notification_store_compact_emits_missing_store_summary,
     test_notification_store_compact_emits_noop_summary,
+    test_notification_store_compact_reports_payload_migration_without_archive,
 )
 from tests.test_axe_chop_output_contract_retention_prune import (
     test_artifact_run_prune_busy_trash_lock_skips_notification,
@@ -61,4 +62,5 @@ __all__ = [
     "test_notification_store_compact_emits_action_summary",
     "test_notification_store_compact_emits_missing_store_summary",
     "test_notification_store_compact_emits_noop_summary",
+    "test_notification_store_compact_reports_payload_migration_without_archive",
 ]

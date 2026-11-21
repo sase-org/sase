@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 
 from sase.bead.plus_one_presentation import PLUS_ONE_SECTION_LABEL
 from sase.notifications.catalog import (
@@ -12,6 +13,11 @@ from sase.notifications.catalog import (
     notification_info_to_json,
     resolve_notification_ref,
 )
+from sase.notifications.payloads import (
+    resolve_notification_action_data,
+    resolve_notification_notes,
+)
+from sase.notifications.store import notifications_file_path
 from sase.project_display_names import (
     humanize_cl_names_in_text,
     humanize_vcs_refs_in_text,
@@ -35,6 +41,27 @@ def handle_notify_show(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(2)
+
+    try:
+        path = notifications_file_path()
+        action_data = resolve_notification_action_data(path, info.action_data)
+        notes = resolve_notification_notes(path, info.notes)
+        info = replace(
+            info,
+            action_data={
+                key: value for key, value in action_data.items() if value is not None
+            },
+            notes=[
+                resolved if resolved is not None else note
+                for resolved, note in zip(notes, info.notes, strict=True)
+            ],
+        )
+    except Exception as exc:
+        print(
+            f"sase notify show: cannot read notification payloads: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if fmt == "json":
         _print_json(info)

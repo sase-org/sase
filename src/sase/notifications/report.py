@@ -136,6 +136,9 @@ def _load_live_report(
 def _load_snapshot_report(
     raw_report: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
+    report_bytes = raw_report.encode("utf-8")
+    if len(report_bytes) > MAX_REPORT_BYTES:
+        return None, _size_error(len(report_bytes))
     try:
         return _decode_report(raw_report), None
     except (UnicodeError, ValueError) as error:
@@ -169,14 +172,28 @@ def load_notification_report(
                 )
 
         if "report" in notification.action_data:
-            document, snapshot_error = _load_snapshot_report(
-                notification.action_data["report"]
-            )
-            if document is not None:
+            raw_report = notification.action_data["report"]
+            if raw_report.startswith("sase-notification-blob:v1:"):
+                from sase.notifications.payloads import resolve_notification_value
+                from sase.notifications.store import notifications_file_path
+
+                resolved_report = resolve_notification_value(
+                    notifications_file_path(), raw_report
+                )
+                if resolved_report is None:
+                    snapshot_error: str | None = "report snapshot sidecar is missing"
+                    snapshot_document = None
+                else:
+                    snapshot_document, snapshot_error = _load_snapshot_report(
+                        resolved_report
+                    )
+            else:
+                snapshot_document, snapshot_error = _load_snapshot_report(raw_report)
+            if snapshot_document is not None:
                 return NotificationReport(
-                    document=document,
+                    document=snapshot_document,
                     source="snapshot",
-                    title=_title(notification, document),
+                    title=_title(notification, snapshot_document),
                     path=None,
                     updated_at=notification.timestamp,
                     error=None,

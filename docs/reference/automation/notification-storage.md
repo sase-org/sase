@@ -38,11 +38,10 @@ window older than the retention period still packs complete.
 
 ## Oversized payloads
 
-Notification writes keep `notes` and `action_data` inline unless the caller supplies an
-`externalize_limit_bytes` option. When enabled, each value longer than that byte limit
-is written atomically to `~/.sase/notifications/blobs/<sha256>`. Identical values share
-one file. The default is off, so existing rows and callers retain their inline JSONL
-representation.
+The Python notification-store wrappers externalize `notes` and `action_data` values
+larger than 8 KiB by default. Each value is written atomically to
+`~/.sase/notifications/blobs/<sha256>`, and identical values share one file. The Rust
+store API remains opt-in for callers outside those wrappers.
 
 The stored value uses the Rust-defined reference form
 `sase-notification-blob:v1:<sha256>:<byte-length>`. A note keeps its first 80 characters
@@ -51,11 +50,23 @@ passes ordinary values through unchanged, returns the full text for a valid refe
 and returns `None` when a referenced sidecar is missing. Readers can keep showing the
 stored note preview when resolution reports a missing sidecar.
 
-The explicit compaction pass can opt in to externalizing existing live rows with the
-same byte limit. It also removes `files` entries whose paths no longer exist and reports
-how many it dropped. Sidecar garbage collection considers references in both the live
-JSONL and its archive, and removes only unreferenced sidecars older than one hour. Fresh
-files are left in place to protect writes that are still in flight.
+The hourly `notification_store_compact` pass uses the same 8 KiB limit to migrate
+oversized values already in the live store. References are idempotent, so each value is
+migrated once; existing archive rows are left as they are. Compaction also removes
+`files` entries whose paths no longer exist and reports both counts. Sidecar garbage
+collection considers references in the live JSONL and its archive, and removes only
+unreferenced sidecars older than one hour. Fresh files are left in place to protect
+writes that are still in flight.
+
+Readers that need full content resolve the reference when the user asks for it. The TUI
+resolves report snapshots and run-prune review data, Telegram resolves completion
+prompts and notes, and `sase notify show` resolves all payload fields. Lists and mobile
+notification cards can use the stored note preview. Missing note sidecars leave that
+preview available; a missing action-data sidecar has no inline value to show.
+
+Completion notifications point to the existing raw prompt file when it exactly matches
+the prompt, avoiding a second copy. Failure summaries over 4 KiB are shortened and point
+to their full error report.
 
 The Rust store also owns every temporal semantic: it validates and normalizes snooze
 deadlines, expires due rows atomically under the same lock as the read, stamps

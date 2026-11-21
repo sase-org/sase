@@ -10,9 +10,28 @@ ReportReviewOpener = Callable[[object, Notification], bool]
 
 
 def _open_run_prune_review(app: object, notification: Notification) -> bool:
-    from sase.core.agent_artifact_run_prune_review import parse_run_prune_review
+    from sase.core.agent_artifact_run_prune_review import (
+        RUN_PRUNE_REVIEW_ACTION_DATA_KEY,
+        parse_run_prune_review,
+    )
 
-    review = parse_run_prune_review(notification.action_data)
+    action_data = notification.action_data
+    raw_review = action_data.get(RUN_PRUNE_REVIEW_ACTION_DATA_KEY)
+    if isinstance(raw_review, str) and raw_review.startswith(
+        "sase-notification-blob:v1:"
+    ):
+        from sase.notifications.payloads import resolve_notification_value
+        from sase.notifications.store import notifications_file_path
+
+        raw_review = resolve_notification_value(notifications_file_path(), raw_review)
+        if raw_review is None:
+            return False
+        action_data = {
+            **action_data,
+            RUN_PRUNE_REVIEW_ACTION_DATA_KEY: raw_review,
+        }
+
+    review = parse_run_prune_review(action_data)
     if review is None:
         return False
     from sase.ace.tui.modals.artifact_run_prune_modal import ArtifactRunPruneModal

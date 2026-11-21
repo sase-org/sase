@@ -41,6 +41,7 @@ from sase.plan_chain import (
 _COMPLETION_NOTIFICATION_SUPPRESSED_OUTCOMES = (
     frozenset({"plan_rejected"}) | SHELL_HANDOFF_OUTCOMES
 )
+_MAX_ERROR_SUMMARY_NOTE_BYTES = 4 * 1024
 
 
 def classify_exec_success(*, success: bool, outcome: str) -> bool:
@@ -328,6 +329,45 @@ def _commit_message_for_notification(
     return commit_message or step_message
 
 
+def _completion_prompt_action_data(
+    current_artifacts_dir: str | None, prompt: str
+) -> dict[str, str]:
+    """Prefer the durable prompt file over duplicating its contents in a row."""
+    if current_artifacts_dir:
+        from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+        path = resolve_raw_prompt_path(Path(current_artifacts_dir))
+        if path is not None:
+            try:
+                if path.read_text(encoding="utf-8") == prompt:
+                    return {"prompt_path": str(path)}
+            except OSError:
+                pass
+    return {"prompt": prompt}
+
+
+def _completion_error_summary_note(
+    summary: str,
+    *,
+    error_report_path: str | None,
+    output_path: str,
+) -> str:
+    """Bound the inline failure note and point to its complete report."""
+    summary_bytes = summary.encode("utf-8")
+    if len(summary_bytes) <= _MAX_ERROR_SUMMARY_NOTE_BYTES:
+        return summary
+
+    if error_report_path:
+        pointer = f"\n\nFull error report: {error_report_path}"
+    elif Path(output_path).is_file():
+        pointer = f"\n\nFull run output: {output_path}"
+    else:
+        pointer = "\n\nError summary truncated."
+    budget = max(0, _MAX_ERROR_SUMMARY_NOTE_BYTES - len(pointer.encode("utf-8")))
+    prefix = summary_bytes[:budget].decode("utf-8", errors="ignore")
+    return prefix + pointer
+
+
 def send_completion_notification(
     *,
     cl_name: str,
@@ -419,7 +459,13 @@ def send_completion_notification(
             )
         )
     if not success and error_summary:
-        notes.append(error_summary)
+        notes.append(
+            _completion_error_summary_note(
+                error_summary,
+                error_report_path=error_report_path,
+                output_path=output_path,
+            )
+        )
     if not success:
         held_staged_note = _held_staged_handoff_note(current_artifacts_dir)
         if held_staged_note:
@@ -503,7 +549,7 @@ def send_completion_notification(
             **({"bead_display": bead_display} if bead_display else {}),
             **({"model": agent_model} if agent_model else {}),
             **({"llm_provider": agent_llm_provider} if agent_llm_provider else {}),
-            "prompt": prompt,
+            **_completion_prompt_action_data(current_artifacts_dir, prompt),
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
             **runtime_data,

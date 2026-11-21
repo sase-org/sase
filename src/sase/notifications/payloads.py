@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES = 8 * 1024
+
 
 def resolve_notification_values(
     path: Path | str,
@@ -54,6 +56,7 @@ def resolve_notification_notes(
 
 
 __all__ = [
+    "DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES",
     "resolve_notification_action_data",
     "resolve_notification_note",
     "resolve_notification_notes",

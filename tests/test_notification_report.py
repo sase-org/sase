@@ -20,6 +20,7 @@ from sase.notifications import (
     is_report_notification,
     load_notification_report,
 )
+from sase.notifications.store import append_notification, load_notifications
 from sase.notifications.report import MAX_REPORT_BYTES, REPORT_ACTION
 
 
@@ -117,6 +118,33 @@ def test_inline_snapshot_falls_back_from_live_path_failure(
     assert report.path is None
     assert report.updated_at == notification.timestamp
     assert report.error is None
+
+
+def test_snapshot_report_resolves_from_notification_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.notifications.store as store
+
+    notifications_dir = tmp_path / "notifications"
+    monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(notifications_dir))
+    monkeypatch.setattr(
+        store,
+        "NOTIFICATIONS_FILE",
+        str(notifications_dir / "notifications.jsonl"),
+    )
+    document = _document()
+    document["blocks"] = [{"kind": "text", "text": "x" * 512} for _ in range(30)]
+    append_notification(_notification(action_data={"report": json.dumps(document)}))
+
+    stored = load_notifications()[0]
+    assert stored.action_data["report"].startswith("sase-notification-blob:v1:")
+    report = load_notification_report(stored)
+
+    assert report is not None
+    assert report.document is not None
+    assert report.document["title"] == document["title"]
+    assert report.source == "snapshot"
 
 
 @pytest.mark.parametrize(

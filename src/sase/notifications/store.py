@@ -9,6 +9,7 @@ from typing import Any
 
 from sase.core.paths import sase_subdir
 from sase.notifications.models import Notification
+from sase.notifications.payloads import DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def _apply_state_update(update: Any, *, include_notifications: bool = False) -> 
 def append_notification(
     n: Notification,
     *,
-    externalize_limit_bytes: int | None = None,
+    externalize_limit_bytes: int | None = DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES,
 ) -> None:
     """Append a notification as a JSON line through the Rust store."""
     _ensure_notifications_dir()
@@ -233,7 +234,7 @@ def upsert_notification(
     supersedes: str | None = None,
     plus_one_dismissed: bool = False,
     coalesce_window_seconds: int | None = None,
-    externalize_limit_bytes: int | None = None,
+    externalize_limit_bytes: int | None = DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES,
 ) -> Any:
     """Create ``n``, or +1 the row matching ``(n.sender, n.dedup_key)``.
 
@@ -278,7 +279,11 @@ def append_notification_strict(n: Notification) -> None:
     compensate an already-appended row instead of reporting partial success.
     """
     _ensure_notifications_dir()
-    _rust_append_notification(_notifications_path(), n)
+    _rust_append_notification(
+        _notifications_path(),
+        n,
+        externalize_limit_bytes=DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES,
+    )
     _invalidate_load_cache()
     from sase.notifications.pending_actions import register_notification
 
@@ -366,7 +371,7 @@ def reconcile_notification_rows(
     reversible_dismiss_marker_key: str | None = None,
     resurface_on_change_key: str | None = None,
     refresh_files: bool = False,
-    externalize_limit_bytes: int | None = None,
+    externalize_limit_bytes: int | None = DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES,
 ) -> Any:
     """Create or refresh only ``notifications`` through the Rust store.
 
@@ -405,7 +410,10 @@ def reconcile_notification_rows(
     return outcome
 
 
-def compact_notification_store(*, externalize_limit_bytes: int | None = None) -> Any:
+def compact_notification_store(
+    *,
+    externalize_limit_bytes: int | None = DEFAULT_NOTIFICATION_PAYLOAD_LIMIT_BYTES,
+) -> Any:
     """Archive old dismissed rows out of the live store.
 
     Housekeeping only: the TUI refresh path must not invoke this. The Rust

@@ -294,6 +294,38 @@ def test_view_report_dispatch_opens_prune_review_before_report() -> None:
     assert app.notices == []
 
 
+def test_view_report_dispatch_resolves_prune_review_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = _DispatchApp()
+    notification = _notification(
+        action_data={"run_prune_review": "sase-notification-blob:v1:abcd:9000"}
+    )
+    resolver_calls: list[tuple[Path | str, str]] = []
+
+    def resolve_value(path: Path | str, value: str) -> str:
+        resolver_calls.append((path, value))
+        return _prune_review_payload()
+
+    monkeypatch.setattr(
+        "sase.notifications.payloads.resolve_notification_value", resolve_value
+    )
+    monkeypatch.setattr(
+        "sase.notifications.store.notifications_file_path",
+        lambda: tmp_path / "notifications.jsonl",
+    )
+
+    handled = handle_view_report(app, notification)
+
+    assert handled is True
+    assert len(app.screens) == 1
+    assert isinstance(app.screens[0], ArtifactRunPruneModal)
+    assert resolver_calls == [
+        (tmp_path / "notifications.jsonl", "sase-notification-blob:v1:abcd:9000")
+    ]
+
+
 def test_malformed_prune_review_falls_through_to_report() -> None:
     app = _DispatchApp()
     notification = _notification(

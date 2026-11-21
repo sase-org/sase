@@ -25,6 +25,7 @@ __all__ = [
     "test_notification_store_compact_emits_action_summary",
     "test_notification_store_compact_emits_missing_store_summary",
     "test_notification_store_compact_emits_noop_summary",
+    "test_notification_store_compact_reports_payload_migration_without_archive",
 ]
 
 
@@ -88,6 +89,8 @@ def test_notification_store_compact_emits_noop_summary(
             live_bytes_after=128,
             live_rows_after=4,
             archived_count=0,
+            externalized_count=0,
+            broken_files_dropped=0,
             archive_path=str(tmp_path / "notifications-archive.jsonl"),
         ),
     )
@@ -103,6 +106,8 @@ def test_notification_store_compact_emits_noop_summary(
     assert result["reason"] == "nothing_archived"
     assert result["counters"] == {
         "archived": 0,
+        "externalized": 0,
+        "broken_files_dropped": 0,
         "live_bytes_after": 128,
         "live_bytes_before": 128,
         "live_rows": 4,
@@ -128,6 +133,8 @@ def test_notification_store_compact_emits_missing_store_summary(
             live_bytes_after=0,
             live_rows_after=0,
             archived_count=0,
+            externalized_count=0,
+            broken_files_dropped=0,
             archive_path=str(tmp_path / "notifications-archive.jsonl"),
         ),
     )
@@ -161,6 +168,8 @@ def test_notification_store_compact_emits_action_summary(
             live_bytes_after=120_000,
             live_rows_after=12,
             archived_count=1_001,
+            externalized_count=0,
+            broken_files_dropped=0,
             archive_path=str(tmp_path / "notifications-archive.jsonl"),
         ),
     )
@@ -175,7 +184,45 @@ def test_notification_store_compact_emits_action_summary(
     assert result["reason"] is None
     assert result["counters"] == {
         "archived": 1001,
+        "externalized": 0,
+        "broken_files_dropped": 0,
         "live_bytes_after": 120_000,
         "live_bytes_before": 13_600_000,
         "live_rows": 12,
     }
+
+
+def test_notification_store_compact_reports_payload_migration_without_archive(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module(
+        "sase.scripts.sase_chop_notification_store_compact"
+    )
+    result_path = tmp_path / "result.json"
+    context_path = write_output_contract_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        script,
+        "compact_notification_store",
+        lambda: SimpleNamespace(
+            live_exists=True,
+            live_bytes_before=90_000,
+            live_bytes_after=12_000,
+            live_rows_after=8,
+            archived_count=0,
+            externalized_count=3,
+            broken_files_dropped=0,
+            archive_path=str(tmp_path / "notifications-archive.jsonl"),
+        ),
+    )
+
+    run_builtin_chop("notification_store_compact", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "externalized 3 payloads" in out
+    assert "externalized=3" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["reason"] is None
+    assert result["counters"]["externalized"] == 3

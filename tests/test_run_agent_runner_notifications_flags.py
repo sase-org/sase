@@ -94,6 +94,38 @@ def test_success_completion_notification_includes_runtime(base_kwargs):
     assert action_data["runtime"] == "4m32s"
 
 
+def test_completion_notification_points_at_the_existing_prompt_file(base_kwargs):
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    prompt_path = artifacts_dir / "raw_prompt.md"
+    prompt_path.write_text(base_kwargs["prompt"], encoding="utf-8")
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["prompt_path"] == str(prompt_path)
+    assert "prompt" not in action_data
+
+
+def test_completion_notification_bounds_error_summary_with_report_pointer(
+    base_kwargs, tmp_path: Path
+):
+    report_path = tmp_path / "full-error-report.md"
+    report_path.write_text("full report", encoding="utf-8")
+    base_kwargs["success"] = False
+    base_kwargs["error_summary"] = "🚨" * 5_000
+    base_kwargs["error_report_path"] = str(report_path)
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    error_note = next(note for note in notes if "Full error report:" in note)
+    assert len(error_note.encode("utf-8")) <= 4 * 1024
+    assert error_note.endswith(f"Full error report: {report_path}")
+
+
 def test_success_completion_notification_includes_output_variables(base_kwargs):
     artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
     artifacts_dir.mkdir()

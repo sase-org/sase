@@ -12,11 +12,15 @@ from sase.core.notification_store_wire import (
 )
 from sase.notifications.store import (
     append_notification,
+    append_notification_strict,
+    compact_notification_store,
     dismiss_agent_completion_notifications_matching_agents,
     dismiss_notifications_matching_agents,
     load_notifications,
     mark_read,
+    reconcile_notification_rows,
     rewrite_notifications,
+    upsert_notification,
 )
 
 from .helpers import make_notification
@@ -85,25 +89,91 @@ class TestAppendNotification:
         from sase.core import notification_store_facade
 
         captured: list[Any] = []
-        real_counts = notification_store_facade.append_notification_counts
+        real_with_options = notification_store_facade.append_notification_with_options
 
-        def spy(path: Any, notification: Any) -> Any:
-            outcome = real_counts(path, notification)
-            captured.append(outcome)
+        def spy(path: Any, request: Any, *, counts_only: bool = False) -> Any:
+            outcome = real_with_options(path, request, counts_only=counts_only)
+            captured.append((request, outcome, counts_only))
             return outcome
 
         n = make_notification()
         with patch.object(
             notification_store_facade,
-            "append_notification_counts",
+            "append_notification_with_options",
             side_effect=spy,
         ) as mock_counts:
             append_notification(n)
 
         mock_counts.assert_called_once()
         assert len(captured) == 1
-        assert captured[0].appended_count == 1
-        assert captured[0].notifications == []
+        request, outcome, counts_only = captured[0]
+        assert request.externalize_limit_bytes == 8 * 1024
+        assert outcome.appended_count == 1
+        assert outcome.notifications == []
+        assert counts_only is True
+
+    def test_default_externalizes_oversized_values_and_resolves_them(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.payloads import (
+            resolve_notification_action_data,
+            resolve_notification_notes,
+        )
+
+        payload = "large notification payload " * 8_000
+        append_notification(
+            make_notification(notes=[payload], action_data={"prompt": payload})
+        )
+
+        path = temp_notifications_dir / "notifications" / "notifications.jsonl"
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        assert path.stat().st_size < 8 * 1024
+        assert stored["action_data"]["prompt"].startswith("sase-notification-blob:v1:")
+        assert "sase-notification-blob:v1:" in stored["notes"][0]
+        assert resolve_notification_action_data(path, stored["action_data"]) == {
+            "prompt": payload
+        }
+        assert resolve_notification_notes(path, stored["notes"]) == [payload]
+
+    def test_compaction_migrates_live_oversized_rows_once(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.store import append_notification
+
+        payload = "legacy inline payload " * 500
+        append_notification(
+            make_notification(notes=[payload], action_data={"prompt": payload}),
+            externalize_limit_bytes=None,
+        )
+
+        migrated = compact_notification_store()
+        migrated_again = compact_notification_store()
+
+        path = temp_notifications_dir / "notifications" / "notifications.jsonl"
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        assert migrated.externalized_count == 2
+        assert migrated_again.externalized_count == 0
+        assert stored["action_data"]["prompt"].startswith("sase-notification-blob:v1:")
+
+    @pytest.mark.parametrize("writer", ["upsert", "reconcile", "strict"])
+    def test_other_store_wrappers_externalize_by_default(
+        self, temp_notifications_dir: Path, writer: str
+    ) -> None:
+        payload = "large writer payload " * 500
+        notification = make_notification(action_data={"payload": payload})
+        if writer == "upsert":
+            upsert_notification(notification)
+        elif writer == "reconcile":
+            reconcile_notification_rows([notification])
+        else:
+            append_notification_strict(notification)
+
+        stored = json.loads(
+            (
+                temp_notifications_dir / "notifications" / "notifications.jsonl"
+            ).read_text(encoding="utf-8")
+        )
+        assert stored["action_data"]["payload"].startswith("sase-notification-blob:v1:")
 
 
 class TestLoadNotifications:
