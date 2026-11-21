@@ -288,7 +288,7 @@ Options:
 usage: sase service run [-h]
 ```
 
-Run the service host in the foreground. This command owns the host lock for its entire lifetime, supervises configured daemon service procs as direct children, and exits on SIGTERM, SIGINT, or Ctrl-C.
+Run the service host in the foreground. This command owns the host lock for its entire lifetime, supervises configured daemon service procs as direct children, and exits on SIGTERM, SIGINT, or Ctrl-C. It registers in the account-wide host registry and refuses to start while another live host runs on the account, whatever its SASE home, unless SASE_SERVICE_ALLOW_SECOND_HOST holds a reason.
 
 Options:
 
@@ -302,6 +302,8 @@ Options:
 usage: sase service start [-h] [-j]
 ```
 
+Start the service host through the installed native unit, or detached when none is installed. Refuses inside a SASE agent (SASE_AGENT, SASE_AGENT_NAME, or SASE_MONITOR_ID set) unless SASE_SERVICE_AGENT_BYPASS holds a reason.
+
 Options:
 
 | Option         | Description                         | Default |
@@ -314,6 +316,8 @@ Options:
 ```text
 usage: sase service status [-h] [-j]
 ```
+
+Show the service host and every configured proc, plus every other live service host on the account (from the host registry and `sase-service-*` systemd scopes) with the command that stops it.
 
 Options:
 

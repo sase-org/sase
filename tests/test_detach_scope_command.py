@@ -94,6 +94,7 @@ def test_detach_scope_wraps_inside_sase_cgroup(
         method="systemd-run",
         parent_unit="sase.service",
         escape_reason="sase_unit",
+        unit="sase-agent-123-456.scope",
     )
 
 

@@ -170,7 +170,13 @@ def _sase_command() -> tuple[str, ...]:
     return (sys.executable, "-m", "sase")
 
 
+@functools.cache
 def package_version() -> str | None:
+    """Return the installed ``sase`` version, read once per process.
+
+    The host reports it on every heartbeat and status write; a code swap
+    restarts the host, so the running process's version cannot change.
+    """
     try:
         from importlib.metadata import version
 

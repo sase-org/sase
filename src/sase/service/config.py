@@ -14,7 +14,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any
 
-from sase.config.core import ConfigLayer, current_config_token, load_config_layers
+from sase.config.core import (
+    ConfigLayer,
+    config_source_identity,
+    current_config_token,
+    load_config_layers,
+)
 from sase.config.inventory import (
     ConfigBackendError,
     ConfigDiagnostic,
@@ -201,10 +206,19 @@ def _compose_service_config(
 _service_config_cache_lock = threading.RLock()
 _service_config_cache_token: tuple[Any, ...] | None = None
 _service_config_cache_value: ServiceConfigComposition | None = None
+_service_config_identity: tuple[Any, ...] | None = None
 
 
 def load_service_config() -> ServiceConfigComposition:
     """Load and fail-closed validate the effective `service.procs` config.
+
+    The service host calls this on every reconcile tick, so an unchanged
+    config must stay cheap. While every config source file keeps its
+    identity (path, ``mtime_ns``, size, inode) and the shared config token
+    is unchanged, the cached composition is returned without reading,
+    serializing, or recomposing any layer. Any change falls through to the
+    full load, which still reuses the composition when the serialized layers
+    are identical.
 
     Raises:
         ServiceConfigError: when the composition reports a section-level
@@ -212,20 +226,22 @@ def load_service_config() -> ServiceConfigComposition:
             entry `available=False` and does not raise.
     """
     global _service_config_cache_token, _service_config_cache_value
+    global _service_config_identity
 
-    layers = load_config_layers()
-    layer_inputs = [serialize_config_layer(layer) for layer in layers]
-    token = (*current_config_token(), json.dumps(layer_inputs, sort_keys=True))
+    # The shared token also covers the cached overlay selection, so a
+    # selection change converges on the token's next revalidation.
+    identity = (config_source_identity(), current_config_token())
     with _service_config_cache_lock:
-        if (
-            _service_config_cache_token == token
-            and _service_config_cache_value is not None
-        ):
-            composition = _service_config_cache_value
-        else:
-            composition = _compose_service_config(layers)
-            _service_config_cache_token = token
-            _service_config_cache_value = composition
+        composition = _service_config_cache_value
+        if composition is None or _service_config_identity != identity:
+            layers = load_config_layers()
+            layer_inputs = [serialize_config_layer(layer) for layer in layers]
+            token = (*identity[1], json.dumps(layer_inputs, sort_keys=True))
+            if composition is None or _service_config_cache_token != token:
+                composition = _compose_service_config(layers)
+                _service_config_cache_token = token
+                _service_config_cache_value = composition
+            _service_config_identity = identity
 
     if composition.fatal:
         raise ServiceConfigError(composition.diagnostics)

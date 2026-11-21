@@ -18,6 +18,11 @@ from typing import Any
 from sase.ace.hooks.processes import is_process_running
 from sase.detach_scope import detach_scope
 from sase.procs import ACTIVE_PROC_STATUSES, TERMINAL_PROC_STATUSES, read_procs
+from sase.service.agent_guard import (
+    SERVICE_AGENT_BYPASS_ENV,
+    service_agent_guard,
+    service_agent_refusal_message,
+)
 from sase.service.config import ServiceConfigComposition, load_service_config
 from sase.service.paths import (
     service_host_lock_path,
@@ -159,6 +164,22 @@ def nudge_service_host() -> bool:
     return True
 
 
+def agent_start_refusal() -> _ServiceHostActionResult | None:
+    """Return the refusal for a user-facing host start inside an agent.
+
+    ``sase service start`` and the TUI start key refuse on every path, the
+    native unit included, unless ``SASE_SERVICE_AGENT_BYPASS`` holds a reason.
+    """
+    guard = service_agent_guard()
+    if not guard.refused:
+        return None
+    return _ServiceHostActionResult(
+        ok=False,
+        changed=False,
+        message=service_agent_refusal_message("start", guard),
+    )
+
+
 def start_service_host(
     *, wait_seconds: float = _START_WAIT_SECONDS
 ) -> _ServiceHostActionResult:
@@ -191,6 +212,14 @@ def start_service_host(
                 ok=False,
                 changed=False,
                 message="service host lock is held but no fresh heartbeat appeared",
+            )
+
+        guard = service_agent_guard()
+        if guard.refused:
+            return _ServiceHostActionResult(
+                ok=False,
+                changed=False,
+                message=service_agent_refusal_message("start", guard),
             )
 
         if service_lifecycle_blocked_in_tests():
@@ -231,9 +260,24 @@ def start_service_host(
         return _ServiceHostActionResult(
             ok=True,
             changed=True,
-            message="running detached (no platform unit installed)",
+            message=_detached_start_message(command.unit, guard.bypass_reason),
             pid=running.record.pid,
         )
+
+
+def _detached_start_message(unit: str | None, bypass_reason: str | None) -> str:
+    """Describe a detached start, naming how to stop it when an agent asked."""
+    message = "running detached (no platform unit installed)"
+    if unit:
+        message += f" in {unit}"
+    if bypass_reason is None:
+        return message
+    stop = f"`systemctl --user stop {unit}`" if unit else "`sase service stop`"
+    return (
+        f"{message}; started inside a SASE agent because "
+        f"{SERVICE_AGENT_BYPASS_ENV}='{bypass_reason}'. Stop it when done with "
+        f"{stop} (or `sase service stop` from this same HOME and SASE_HOME)."
+    )
 
 
 def stop_service_host(
@@ -283,6 +327,14 @@ def restart_service_host() -> _ServiceHostActionResult:
     native = _native_lifecycle_action("restart")
     if native is not None:
         return native
+    # The detached start would refuse, so refuse before stopping anything.
+    guard = service_agent_guard()
+    if guard.refused:
+        return _ServiceHostActionResult(
+            ok=False,
+            changed=False,
+            message=service_agent_refusal_message("restart", guard),
+        )
     stopped = stop_service_host()
     if not stopped.ok:
         return stopped
@@ -456,6 +508,7 @@ def _installed_platform_unit() -> str | None:
 
 __all__ = [
     "ServiceHostLock",
+    "agent_start_refusal",
     "current_service_status",
     "latest_service_log_lines",
     "nudge_service_host",

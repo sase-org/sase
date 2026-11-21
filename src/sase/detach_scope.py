@@ -49,6 +49,7 @@ class _DetachScopeCommand:
     parent_unit: str | None = None
     escape_reason: str | None = None
     slice_name: str | None = None
+    unit: str | None = None
 
 
 def detach_scope(
@@ -129,6 +130,7 @@ def detach_scope(
         parent_unit=parent_unit,
         escape_reason=escape_reason,
         slice_name=slice_name,
+        unit=f"{unit_name}.scope",
     )
 
 
@@ -262,6 +264,12 @@ def unit_from_cgroup_path(path: str) -> str | None:
     return _unit_from_cgroup_path(path)
 
 
+def process_systemd_unit(pid: int, *, proc_root: Path = Path("/proc")) -> str | None:
+    """Return *pid*'s cgroup-v2 systemd unit or scope name, when parseable."""
+
+    return _process_systemd_unit(pid, proc_root=proc_root)
+
+
 def detach_scope_disabled() -> bool:
     """Return whether scope escaping is disabled via environment."""
 
@@ -278,5 +286,6 @@ __all__ = [
     "DETACH_SCOPE_DISABLE_ENV",
     "detach_scope",
     "detach_scope_disabled",
+    "process_systemd_unit",
     "unit_from_cgroup_path",
 ]

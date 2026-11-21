@@ -172,6 +172,46 @@ Bare `sase init` offers this machine-scoped initializer at most once per batch. 
 decline is remembered for future broad onboarding runs on that machine, but it does not
 disable the service feature or suppress an explicit `sase service init`.
 
+## One host per account
+
+An account runs at most one service host. The per-home `host.lock` cannot promise that
+alone, because it, `state.json`, and `sase service status` are keyed to one SASE home
+(`$SASE_HOME` or `$HOME/.sase`). On 2026-11-16 an agent measured the TUI under a
+throwaway `HOME` without `--no-service`. The TUI auto-started a detached host in a
+`sase-service-<pid>-<ns>.scope` outside the agent's scope, and nothing could see it: it
+ran for five days at about 0.28 cores until it was stopped by hand.
+
+- **Agents do not start hosts.** When `SASE_AGENT`, `SASE_AGENT_NAME`, or
+  `SASE_MONITOR_ID` is set, the TUI skips its startup auto-start as if `--no-service`
+  were passed and shows a one-line notice. `sase service start` and the TUI start key
+  refuse on every platform path. The detached start path refuses for any caller, and so
+  does a detached `sase service restart`, before it stops anything. An installed native
+  unit still serves other callers' start and restart. Set
+  `SASE_SERVICE_AGENT_BYPASS='<reason>'` to start a host deliberately; the refusal and
+  the bypassed start both say how to stop it afterwards.
+- **A registry sees every home.** `sase service run` registers under
+  `$XDG_RUNTIME_DIR/sase/service-hosts/`, falling back to
+  `/run/user/<uid>/sase/service-hosts/` or `/tmp/sase-<uid>/service-hosts/`. Each host
+  owns one flocked JSON entry with its pid, process start identity, SASE home, native
+  unit or scope, and the launching `SASE_AGENT_NAME`. The host removes its entry on
+  exit. Entries whose pid is gone, whose start identity changed, or whose lock is free
+  are ignored and removed.
+- **A second host is refused.** `sase service run` exits `1` while another live host is
+  registered, whatever its SASE home, and names that host's pid, home, unit, and stop
+  command. Under a native unit, systemd retries the refused host on its restart policy
+  until the other host stops. Set `SASE_SERVICE_ALLOW_SECOND_HOST='<reason>'` to run
+  both; the host then logs a warning naming the other one. The per-home `host.lock`
+  still refuses a second host for the same home.
+- **Status shows strays.** `sase service status` lists every other live host from the
+  registry and from `systemctl --user list-units 'sase-service-*'`, which also catches
+  hosts started before the registry existed. It marks hosts with a different SASE home
+  and prints a stop command for each: `systemctl --user stop <unit>` for a SASE unit or
+  scope, otherwise `kill <pid>`. `status -j` carries the same list as `other_hosts`.
+
+The host's 1 second reconcile tick reuses the composed `service.procs` configuration
+while every config file keeps its path, `mtime_ns`, size, and inode, and it reads the
+installed `sase` version once per process.
+
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
@@ -214,7 +254,9 @@ sase service proc run -- just check
 terminal. `logs -n N` prints the bounded host log. `status -j` emits the host and every
 configured proc as JSON and exits `0` while the host is running or starting, otherwise
 `1`. When a native unit is installed, lifecycle commands use that platform manager;
-otherwise `start` uses the detached host path.
+otherwise `start` uses the detached host path. Inside a SASE agent, `start` refuses; see
+[one host per account](#one-host-per-account) for the guard, the stray-host list that
+`status` prints (`other_hosts` in `status -j`), and the bypass variables.
 
 `sase service status` prints the host summary (plus the host config error when one is
 set) and a proc table with `Restarts` and `Last exit` columns; the proc `State` column

@@ -159,6 +159,17 @@ class AxeServiceMixin:
         """Start the service host in a background worker thread."""
         if self._axe_worker is not None:
             return
+        # Stdlib-only module: the key press stays off the heavy control import.
+        from sase.service.agent_guard import (
+            service_agent_guard,
+            service_agent_refusal_message,
+        )
+
+        guard = service_agent_guard()
+        if guard.refused:
+            message = service_agent_refusal_message("start", guard)
+            self.notify(message, severity="error")  # type: ignore[attr-defined]
+            return
         self._set_axe_starting(True)  # type: ignore[attr-defined]
         self._axe_worker_operation = "start"
 

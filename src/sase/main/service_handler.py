@@ -17,6 +17,7 @@ from sase.procs import ProcSubmitError
 from sase.procs.oneshot import submit_oneshot
 from sase.service.config import ServiceConfigError, load_service_config
 from sase.service.control import (
+    agent_start_refusal,
     current_service_status,
     latest_service_log_lines,
     persisted_or_current_status,
@@ -25,6 +26,7 @@ from sase.service.control import (
     stop_service_host,
 )
 from sase.service.host import run_service_host
+from sase.service.host_registry import OtherServiceHost, other_service_hosts
 from sase.service.env import load_service_environment
 from sase.service.paths import service_host_log_path, service_proc_output_log_path
 from sase.service.actions import (
@@ -74,7 +76,8 @@ def _handle_service_command(args: argparse.Namespace) -> int:
     if subcommand == "run":
         return run_service_host()
     if subcommand == "start":
-        return _print_action(start_service_host(), args)
+        refusal = agent_start_refusal()
+        return _print_action(refusal or start_service_host(), args)
     if subcommand == "status":
         return _handle_service_status(args)
     if subcommand == "stop":
@@ -90,14 +93,18 @@ def _handle_service_command(args: argparse.Namespace) -> int:
 
 def _handle_service_status(args: argparse.Namespace) -> int:
     snapshot = persisted_or_current_status()
+    others = _other_service_hosts(snapshot.host.pid)
     if bool(getattr(args, "json", False)):
-        json.dump(snapshot.to_wire(), sys.stdout, indent=2, sort_keys=True)
+        payload = snapshot.to_wire()
+        payload["other_hosts"] = [other.to_wire() for other in others]
+        json.dump(payload, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
         return 0
     console = Console()
     console.print(f"[bold]Service host:[/bold] {snapshot.host.summary}")
     if snapshot.host.platform_unit:
         console.print(f"[dim]Native unit:[/dim] {snapshot.host.platform_unit}")
+    _print_other_service_hosts(console, others)
     if snapshot.host.error:
         console.print(f"[bold red]Host error:[/bold red] {snapshot.host.error}")
     table = Table(title="Service procs")
@@ -123,6 +130,44 @@ def _handle_service_status(args: argparse.Namespace) -> int:
     for diagnostic in (*plan.blockers, *plan.warnings):
         console.print(f"[yellow]{diagnostic}[/yellow]")
     return 0 if snapshot.host.state in {"running", "starting"} else 1
+
+
+def _other_service_hosts(current_pid: int | None) -> list[OtherServiceHost]:
+    """Return stray hosts; a failed probe never breaks ``status``."""
+    try:
+        return other_service_hosts(current_pid=current_pid)
+    except Exception:  # noqa: BLE001 - status stays available without strays.
+        return []
+
+
+def _print_other_service_hosts(
+    console: Console, others: list[OtherServiceHost]
+) -> None:
+    if not others:
+        return
+    console.print(
+        f"[bold yellow]Other service hosts on this account ({len(others)}):[/bold yellow]"
+    )
+    for other in others:
+        line = Text("  ")
+        parts: list[str] = []
+        if other.pid is not None:
+            parts.append(f"pid {other.pid}")
+        if other.sase_home is not None:
+            home = f"home {other.sase_home}"
+            if other.home_differs:
+                home += " (a different SASE home)"
+            parts.append(home)
+        if other.unit:
+            parts.append(f"unit {other.unit}")
+        if other.agent_name:
+            parts.append(f"launched by agent {other.agent_name}")
+        if other.source == "systemd":
+            parts.append("not registered")
+        line.append(" · ".join(parts), style="yellow")
+        # Never wrap: the home path and stop command must stay copyable.
+        console.print(line, soft_wrap=True)
+        console.print(Text(f"    stop: {other.stop_command}"), soft_wrap=True)
 
 
 def _handle_service_init(args: argparse.Namespace) -> int:

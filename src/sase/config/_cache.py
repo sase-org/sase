@@ -144,6 +144,61 @@ def _compute_current_config_token() -> tuple[Any, ...]:
     return tuple(parts)
 
 
+def _file_identity(path: Path) -> tuple[str, int, int, int] | None:
+    """Return ``(path, mtime_ns, size, inode)`` or ``None`` when *path* is missing.
+
+    The inode catches an atomic replace (write-to-temp then rename) that
+    lands with the same size inside one mtime tick.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino)
+
+
+def config_source_identity() -> tuple[Any, ...]:
+    """Return a synchronous identity for every file the config layers read.
+
+    Unlike :func:`current_config_token`, this never serves a stale value: it
+    stats each source on every call, keyed by path, ``mtime_ns``, size, and
+    inode, plus the cache generation, the local-config switch, and the
+    plugin-config switch. Bundled and plugin defaults are process-static.
+    Long-lived loops that must see an edit on their next tick (the service
+    host's reconcile) compare it to skip re-reading and re-serializing
+    unchanged layers, which would otherwise rescan package entry points.
+    """
+    from sase.main.plugin_discovery import is_plugin_disabled
+
+    core = _facade()
+    config_dir = core.CONFIG_DIR
+    parts: list[Any] = [
+        config_cache_generation,
+        include_local_config,
+        is_plugin_disabled("CONFIG"),
+        str(config_dir),
+        _file_identity(config_dir / "sase.yml"),
+        _file_identity(machine_name_path()),
+        tuple(_file_identity(path) for path in overlay_paths()),
+    ]
+    # The cwd names the (absent) local layer's fallback path even when local
+    # config is off, so it stays part of the identity either way.
+    try:
+        parts.append(str(core.Path.cwd()))
+    except OSError:
+        parts.append(None)
+    if not include_local_config:
+        parts.append(None)
+        return tuple(parts)
+    project_root = discover_project_root()
+    if project_root is None:
+        parts.append(None)
+    else:
+        config = resolve_project_layout(project_root).config
+        parts.append(tuple(_file_identity(path) for path in config.candidates))
+    return tuple(parts)
+
+
 def _publish_revalidator_token(
     token: tuple[Any, ...] | None,
     *,

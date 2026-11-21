@@ -11,6 +11,8 @@ from ._refresh_collect import AxeRefreshCollectMixin
 class AxeRefreshFullMixin(AxeRefreshCollectMixin):
     """Mixin running the guarded full AXE refresh and startup load."""
 
+    _auto_start_axe: bool
+
     async def _load_axe_status_async(
         self,
         *,
@@ -252,6 +254,20 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
             if callable(schedule_restart):
                 schedule_restart()
         elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
+            from sase.service.agent_guard import service_auto_start_notice
+
+            notice = service_auto_start_notice()
+            if notice is not None:
+                # Inside a SASE agent, behave like --no-service: a host started
+                # here would escape the agent's scope and outlive it.
+                self._auto_start_axe = False
+                notify = getattr(self, "notify", None)
+                if callable(notify):
+                    try:
+                        notify(notice, severity="warning")
+                    except Exception:
+                        pass
+                return
             from sase.service.control import start_service_host
 
             await asyncio.to_thread(start_service_host)

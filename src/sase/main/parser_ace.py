@@ -118,7 +118,8 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         "--no-axe",
         dest="no_axe",
         action="store_true",
-        help="Disable auto-starting the service host on startup",
+        help="Disable auto-starting the service host on startup (always "
+        "skipped inside a SASE agent unless SASE_SERVICE_AGENT_BYPASS is set)",
     )
     ace_parser.add_argument(
         "-v",

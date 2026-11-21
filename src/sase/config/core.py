@@ -32,6 +32,7 @@ from typing import Any
 from sase.config._cache import (
     CONFIG_TOKEN_REFRESH_THREAD_NAME,
     clear_config_cache,
+    config_source_identity,
     current_config_token,
     set_include_local_config,
     stat_token,
@@ -290,6 +291,7 @@ def get_max_running_agents(now: float | None = None) -> int:
 # original facade after the split.
 for _facade_symbol in (
     clear_config_cache,
+    config_source_identity,
     current_config_token,
     get_agent_owner_config_snapshot,
     get_local_config_path,

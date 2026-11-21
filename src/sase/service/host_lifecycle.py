@@ -12,6 +12,12 @@ from sase.config.core import set_include_local_config
 from sase.procs.oneshot import settle_orphaned_oneshots
 from sase.service.control import ServiceHostLock
 from sase.service.env import load_service_environment
+from sase.service.host_registry import (
+    SERVICE_ALLOW_SECOND_HOST_ENV,
+    ServiceHostRegistrationResult,
+    current_host_unit,
+    register_service_host,
+)
 from sase.service.host_reporting import write_current_host_status
 from sase.service.state import clear_service_host
 
@@ -27,7 +33,13 @@ def run_host(host: Any, reconcile_seconds: float) -> int:
     if lock is None:
         print("sase service run: service host is already running", file=sys.stderr)
         return 1
+    registration = None
     try:
+        registered = _register_account_host()
+        if registered.refused:
+            print(registered.message, file=sys.stderr)
+            return 1
+        registration = registered.registration
         lock.write_holder_pid()
         _install_signal_handlers(host)
         _settle_orphaned_oneshots_at_startup()
@@ -46,7 +58,38 @@ def run_host(host: Any, reconcile_seconds: float) -> int:
         clear_service_host(os.getpid())
         return 130
     finally:
+        if registration is not None:
+            registration.release()
         lock.release()
+
+
+def _register_account_host() -> ServiceHostRegistrationResult:
+    """Register in the account-wide host registry, or refuse a second host.
+
+    The per-home ``host.lock`` already refuses a second host for the same
+    SASE home; the registry also sees hosts running against other homes.
+    An unusable registry directory never stops the host from starting.
+    """
+    try:
+        result = register_service_host(
+            unit=current_host_unit(),
+            agent_name=_env_text("SASE_AGENT_NAME"),
+            allow_second_reason=_env_text(SERVICE_ALLOW_SECOND_HOST_ENV),
+        )
+    except OSError as exc:
+        print(
+            f"sase service host: account host registry unavailable ({exc}); "
+            "starting unregistered",
+            file=sys.stderr,
+        )
+        return ServiceHostRegistrationResult(registration=None)
+    if result.message and not result.refused:
+        print(result.message, file=sys.stderr)
+    return result
+
+
+def _env_text(name: str) -> str | None:
+    return (os.environ.get(name) or "").strip() or None
 
 
 def _settle_orphaned_oneshots_at_startup() -> None:

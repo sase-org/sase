@@ -1,6 +1,7 @@
 """Filesystem and environment isolation fixtures shared by the test suite."""
 
 from collections.abc import Iterator
+import itertools
 import os
 import tempfile
 import warnings
@@ -9,6 +10,7 @@ from pathlib import Path
 import pytest
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV, WORKSPACE_PIN_ENV_VARS
+from sase.service.host_registry import SERVICE_HOST_REGISTRY_DIR_ENV
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -436,6 +438,28 @@ def _clear_console_color_override_env_vars(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("TERM", _DEFAULT_TEST_TERM)
     for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(key, raising=False)
+
+
+_SERVICE_HOST_REGISTRY_SEQUENCE = itertools.count()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_service_host_registry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Give each test a private account-wide service-host registry.
+
+    ``sase service run`` refuses to start while another live host is
+    registered, and the real registry lives under ``$XDG_RUNTIME_DIR``. A
+    test host must neither see the developer's live ``sase.service`` nor
+    leave an entry for a later test. The directory is created lazily.
+    """
+    root = tmp_path_factory.getbasetemp() / "service-host-registry"
+    monkeypatch.setenv(
+        SERVICE_HOST_REGISTRY_DIR_ENV,
+        str(root / str(next(_SERVICE_HOST_REGISTRY_SEQUENCE))),
+    )
 
 
 @pytest.fixture(autouse=True)
