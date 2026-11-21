@@ -110,6 +110,14 @@ def _install_session_lookups(
     monkeypatch.setattr("sase.agent.running.named_agent_project_fields", project_fields)
 
 
+_RUNNING_DISPLAY_ALIAS_CASES = (
+    ("WORKING TALE", "code"),
+    ("WORKING PLAN", "code"),
+    ("EPIC APPROVED", "epic"),
+    ("PLAN COMMITTED", "commit"),
+)
+
+
 def _named(member: AgentSessionMember, *, done: bool = False) -> NamedAgent:
     return NamedAgent(
         name=member.name,
@@ -525,3 +533,116 @@ def test_loader_rows_match_cli_explain_decisions(
             _decision_key(local.decision, local.occupant_name)
             == default_keys[row.agent_name]
         ), row.agent_name
+
+
+@pytest.mark.parametrize(("row_status", "role"), _RUNNING_DISPLAY_ALIAS_CASES)
+def test_working_plan_display_labels_match_cli_running(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    row_status: str,
+    role: str,
+) -> None:
+    """TUI display aliases on a live coder/epic/commit member hijack as RUNNING."""
+    live_timestamp = "20261115164100"
+    live_pid = 424244
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(
+                4,
+                "ace(run)-20261115_164100",
+                "fixture",
+                pid=live_pid,
+                artifacts_timestamp=live_timestamp,
+            )
+        ],
+    )
+    session_name = "bob-cli-o6.4.1.2"
+    plan, _plan_path = _write_member(
+        tmp_path,
+        name=f"{session_name}--plan",
+        timestamp="20261115164000",
+        meta={
+            "name": f"{session_name}--plan",
+            "agent_session": session_name,
+            "agent_session_role": "root",
+        },
+        outcome="succeeded",
+    )
+    live, live_path = _write_member(
+        tmp_path,
+        name=f"{session_name}--{role}",
+        timestamp=live_timestamp,
+        meta={
+            "name": f"{session_name}--{role}",
+            "agent_session": session_name,
+            "agent_session_role": role,
+            "lifecycle_phase": "provider_running",
+            "runner_capabilities": ["hijack"],
+            "llm_provider": "fakey",
+            "model": "fakey-large",
+            "pid": live_pid,
+        },
+        parent_timestamp=plan.timestamp,
+    )
+    members = (plan, live)
+    session = AgentSession(
+        base_name=session_name,
+        root=plan,
+        members=members,
+    )
+    _install_session_lookups(
+        monkeypatch,
+        session=session,
+        members=members,
+        project_file=project_file,
+    )
+    named = {
+        plan.name: _named(plan, done=True),
+        live.name: _named(live),
+        session.base_name: _named(plan, done=True),
+    }
+    tui_row = _tui_agent(
+        name=live.name,
+        status=row_status,
+        artifacts_dir=str(live_path),
+        suffix=live.timestamp,
+        pid=live_pid,
+    )
+    tui_row.agent_session = session_name
+    tui_row.agent_session_role = role
+    cli_running = SimpleNamespace(
+        name=live.name,
+        artifacts_dir=str(live_path),
+        status="RUNNING",
+        pid=live_pid,
+        agent_session=session_name,
+    )
+    tui_deps = StopDeps(
+        find_agent=lambda name: named.get(name),
+        list_running=lambda: [tui_row],
+        process_alive=lambda *_: True,
+    )
+    cli_deps = StopDeps(
+        find_agent=lambda name: named.get(name),
+        list_running=lambda: [cli_running],
+        process_alive=lambda *_: True,
+    )
+
+    tui = compute_hijack_decision(tui_row, deps=tui_deps)
+    assert tui.mode == "immediate"
+    assert tui.code != "ineligible_status"
+    assert tui.occupant_name == live.name
+
+    cli_subject, cli_decision = resolve_and_decide(live.name, deps=cli_deps)
+    assert _decision_key(tui.decision, tui.occupant_name) == _decision_key(
+        cli_decision, cli_subject.occupant_name
+    )
+
+    dead_deps = StopDeps(
+        find_agent=lambda name: named.get(name),
+        list_running=lambda: [tui_row],
+        process_alive=lambda *_: False,
+    )
+    dead = compute_hijack_decision(tui_row, deps=dead_deps)
+    assert dead.mode == "refused"

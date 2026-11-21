@@ -12,6 +12,7 @@ import pytest
 from sase.agent.hijack._stop_models import StopDeps
 from sase.agent.hijack.facts import _build_hijack_facts, resolve_and_decide
 from sase.agent.names import AgentSession, AgentSessionMember, NamedAgent
+from sase.agent.status_buckets import RUNNING_DISPLAY_ALIAS_STATUSES
 from sase.running_field import WorkspaceClaim
 from tests._running_field_helpers import create_project_file_with_running
 
@@ -165,6 +166,30 @@ def test_stale_live_row_is_not_an_occupying_member() -> None:
     row = SimpleNamespace(status="RUNNING")
 
     assert _status(row, process_alive=False) == "LOST"
+
+
+@pytest.mark.parametrize(
+    ("row", "process_alive", "expected"),
+    [
+        *(
+            (SimpleNamespace(status=label), True, "RUNNING")
+            for label in sorted(RUNNING_DISPLAY_ALIAS_STATUSES)
+        ),
+        *(
+            (SimpleNamespace(status=label), False, label)
+            for label in sorted(RUNNING_DISPLAY_ALIAS_STATUSES)
+        ),
+        (SimpleNamespace(status="RUNNING"), False, "LOST"),
+        (SimpleNamespace(status="DONE"), True, "DONE"),
+        (None, True, "RUNNING"),
+    ],
+)
+def test_status_normalizes_running_display_aliases(
+    row: Any, process_alive: bool, expected: str
+) -> None:
+    from sase.agent.hijack._facts_resolve import _status
+
+    assert _status(row, process_alive=process_alive) == expected
 
 
 def _write_pending_delivery(artifacts: Path, *, disposition: str = "pending") -> None:

@@ -17,11 +17,17 @@ from sase.ace.tui.models._loaders._meta_enrichment_wire import (
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_status_agent_session_policy import (
+    active_approved_plan_handoff_status,
+)
 from sase.ace.tui.models._agent_status_apply import (
     apply_status_overrides as _apply_status_overrides,
 )
 from sase.ace.tui.models.finalizer_row_state import presented_status_label
-from sase.agent.status_buckets import agent_status_bucket
+from sase.agent.status_buckets import (
+    RUNNING_DISPLAY_ALIAS_STATUSES,
+    agent_status_bucket,
+)
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     AgentSessionTurnGateWire,
@@ -127,19 +133,23 @@ def _gate_member(
 
 
 def _coder(*, status: str) -> Agent:
+    return _handoff_member(status=status, role="code")
+
+
+def _handoff_member(*, status: str, role: str) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{_AGENT_SESSION}--code",
+        cl_name=f"{_AGENT_SESSION}--{role}",
         project_file="/tmp/test.sase",
         status=status,
         start_time=_CODE_START,
         run_start_time=_CODE_START,
         raw_suffix=_CODE_SUFFIX,
         parent_timestamp=_ROOT_SUFFIX,
-        role_suffix="--code",
-        agent_name=f"{_AGENT_SESSION}--code",
+        role_suffix=f"--{role}",
+        agent_name=f"{_AGENT_SESSION}--{role}",
         agent_session=_AGENT_SESSION,
-        agent_session_role="code",
+        agent_session_role=role,
     )
 
 
@@ -380,6 +390,20 @@ def test_running_coder_still_shows_working_tale() -> None:
 
     assert root.status == "WORKING TALE"
     assert coder.status == "WORKING TALE"
+
+
+def test_running_handoff_display_labels_are_hijack_aliases() -> None:
+    """A future RUNNING-member display label must stay in the hijack alias set."""
+    cases = (
+        (_root(plan_action="tale"), _coder(status="RUNNING")),
+        (_root(plan_action="approve"), _coder(status="RUNNING")),
+        (_root(), _handoff_member(status="RUNNING", role="epic")),
+        (_root(), _handoff_member(status="RUNNING", role="commit")),
+    )
+    for parent, child in cases:
+        label = active_approved_plan_handoff_status(parent, child)
+        assert label is not None
+        assert label in RUNNING_DISPLAY_ALIAS_STATUSES
 
 
 def test_done_json_backed_root_keeps_done_even_when_runner_live() -> None:

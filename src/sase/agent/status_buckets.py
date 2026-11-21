@@ -76,6 +76,13 @@ HANDOFF_SETTLED_STATUSES: frozenset[str] = APPROVED_PLAN_STATUSES | frozenset(
 WORKING_PLAN_STATUSES: frozenset[str] = frozenset(
     {WORKING_PLAN_STATUS, WORKING_TALE_STATUS}
 )
+#: Display labels the Agents tab paints over a live session member whose runner
+#: status is ``RUNNING`` (see ``active_approved_plan_handoff_status``).
+#: ``EPIC APPROVED`` and ``PLAN COMMITTED`` also label settled rows, so a label
+#: here is evidence of ``RUNNING`` only together with a live process.
+RUNNING_DISPLAY_ALIAS_STATUSES: frozenset[str] = WORKING_PLAN_STATUSES | frozenset(
+    {EPIC_APPROVED_STATUS, PLAN_COMMITTED_STATUS}
+)
 ACTIVE_PLAN_HANDOFF_STATUSES: frozenset[str] = (
     APPROVED_PLAN_STATUSES | WORKING_PLAN_STATUSES
 )

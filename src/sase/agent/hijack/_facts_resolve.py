@@ -18,6 +18,7 @@ from sase.agent.hijack._facts_common import (
 )
 from sase.agent.hijack._stop_models import HijackTarget, StopDeps, read_done_marker
 from sase.agent.hijack._stop_target import classify_turn, resolve_direct_target
+from sase.agent.status_buckets import RUNNING_DISPLAY_ALIAS_STATUSES
 
 _LIVE_STATUSES = frozenset({"STARTING", "RUNNING", "RETRYING"})
 _WAITING_STATUSES = frozenset({"WAITING", "QUEUED"})
@@ -494,6 +495,8 @@ def _status(row: Any | None, process_alive: bool) -> str:
         status = status.upper()
         if not process_alive and status in _LIVE_STATUSES:
             return "LOST"
+        if status in RUNNING_DISPLAY_ALIAS_STATUSES and process_alive:
+            return "RUNNING"
         return status
     return "RUNNING" if process_alive else "DONE"
 
