@@ -1,4 +1,4 @@
-{"count": 3720, "rev": "1505e46ed81f", "schema": "sase.footprint.catalog/1"}
+{"count": 3721, "rev": "a1820750e0c9", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2683,6 +2683,7 @@
 {"area": "config.agent_hold_max_ttl", "id": "config:agent_hold_max_ttl", "kind": "config", "label": "Agent hold max ttl", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_names", "id": "config:agent_names.registry_tmp_horizon_seconds", "kind": "config", "label": "Registry tmp horizon seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_names", "id": "config:agent_names.registry_tmp_max_removals", "kind": "config", "label": "Registry tmp max removals", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.agent_scope", "id": "config:agent_scope.slice", "kind": "config", "label": "Slice", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_scope_teardown", "id": "config:agent_scope_teardown.enabled", "kind": "config", "label": "Enabled", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_scope_teardown", "id": "config:agent_scope_teardown.reaper_min_scope_age_seconds", "kind": "config", "label": "Reaper min scope age seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_scope_teardown", "id": "config:agent_scope_teardown.spare_process_patterns", "kind": "config", "label": "Spare process patterns", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

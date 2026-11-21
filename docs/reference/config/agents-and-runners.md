@@ -190,10 +190,36 @@ configuration errors do propagate: a bad value here must never strand a runner.
 
 Bounded deference is not priority aging and not preemption. A running agent is never
 stopped to make room, and a deferred waiter's own priority does not improve while it
-<a id="agentscopeteardown"></a> waits. See
-[Agent waiting for a runner slot](../runner-slots.md) for diagnosis, and
+waits. See [Agent waiting for a runner slot](../runner-slots.md) for diagnosis, and
 [`%queue(priority=N)`](../macros/directive-syntax.md#supported-directives) for the
 directive itself.
+
+## agent_scope
+
+Systemd slice for the transient scopes that hold agent runners, monitor supervisors, and
+proc supervisors (`sase-agent-*`, `sase-monitor-*`, and `sase-proc-*`). It is unset by
+default, which keeps every scope in the user manager's default slice (`app.slice`) and
+leaves the `systemd-run` command unchanged. No other scope (the service host, federation
+workers, scheduler runners) ever uses it.
+
+```yaml
+agent_scope:
+  slice: sase-agents.slice
+```
+
+[Generated reference for `agent_scope`](agents.md#agent_scope)
+
+systemd nests slices at each dash, so `sase-agents.slice` runs inside `sase.slice`. CPU
+weight only competes among siblings, so put `CPUWeight=` and `MemoryHigh=` on the
+top-level slice (a `sase.slice` user unit), not on the nested one.
+
+The value must be a valid slice name ending in `.slice`; an invalid value is logged and
+ignored. Each process proves the slice once with a throwaway scope before using it. If
+systemd rejects it (masked, malformed, or otherwise unusable), scopes launch without the
+slice, a warning is logged, and the slice is tried again five minutes later. A slice
+problem never blocks a launch. The orphaned-scope reaper searches deep enough to find
+scopes in the configured slice and scopes launched before it was set. Linux only.
+<a id="agentscopeteardown"></a>
 
 ## agent_scope_teardown
 
@@ -201,7 +227,9 @@ Lifetime of processes an agent starts. An agent runner's `sase-agent-*` scope bo
 every process the agent starts: leftovers are swept at runner exit and between
 in-process successor turns, and long-lived work must escape via `detach_scope` into its
 own scope. Members matching a spare pattern (plus their descendants) are never killed,
-so shared user daemons survive.
+so shared user daemons survive. The one exception is a tmux server started on a private
+socket (`tmux -L <name>` or `tmux -S <path>`, other than the default socket): only the
+agent can reach it, so it is swept like any other leftover.
 
 ```yaml
 agent_scope_teardown:
@@ -223,7 +251,7 @@ ignored. The sweep is Linux/cgroup-v2 only and a no-op elsewhere.
 <a id="agentautorestart"></a>
 
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
-`src/sase/agent/scope_sweep.py`
+`src/sase/scope_slice.py`, `src/sase/agent/scope_sweep.py`
 
 ## agent_auto_restart
 

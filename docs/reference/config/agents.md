@@ -52,6 +52,13 @@ dash means the schema has no finite allowed-value list.
 | --------------------------------------------------- | ------ | ------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | <a id="agent_hold_max_ttl"></a>`agent_hold_max_ttl` | string | `"12h"` | —              | Maximum TTL accepted by `sase agent hold create`/`run --ttl`. Same duration syntax as agent_hold_default_ttl. |
 
+## `agent_scope`
+
+| Config key                                        | Type           | Default                  | Allowed values | Description                                                                                                                                                                        |
+| ------------------------------------------------- | -------------- | ------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="agent_scope"></a>`agent_scope`             | object         | {`slice`} (values below) | —              | Systemd placement for the scopes that hold agent runners, monitor supervisors, and proc supervisors.                                                                               |
+| <a id="agent_scope-slice"></a>`agent_scope.slice` | string \| null | `null`                   | —              | Systemd slice for sase-agent, sase-monitor, and sase-proc scopes (for example sase-agents.slice). Null keeps the default slice; a slice systemd rejects is skipped with a warning. |
+
 ## `agent_scope_teardown`
 
 | Config key                                                                                                        | Type    | Default                                                                                                    | Allowed values | Description                                                                                                              |

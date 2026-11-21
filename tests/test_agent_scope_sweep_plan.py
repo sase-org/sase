@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.agent._scope_sweep_core import (
     is_agent_runner,
     plan_scope_sweep,
@@ -99,3 +101,57 @@ def test_invalid_spare_regex_is_ignored() -> None:
     leak = _member(700)
     plan = plan_scope_sweep([leak], protect_root=None, spare_patterns=("[bad",))
     assert [m.pid for m in plan.targets] == [700]
+
+
+_DEFAULT_SPARES = (
+    "^ssh-agent$",
+    "^gpg-agent$",
+    "^tmux: server$",
+    r"^ssh: .*\[mux\]$",
+)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("tmux", "-L", "sase1tb-dbg-1955698", "-f", "/dev/null", "new-session"),
+        ("tmux", "-Lprobe", "new-session", "-d"),
+        ("/usr/bin/tmux", "-u", "-S", "/tmp/agent/tmux.sock", "new-session"),
+        ("tmux", "-uS/tmp/agent/sock", "new-session"),
+        ("tmux", "-f", "/dev/null", "-L", "default", "-L", "probe", "new"),
+    ],
+)
+def test_private_socket_tmux_server_is_not_spared(argv: tuple[str, ...]) -> None:
+    server = _member(800, comm="tmux: server", argv=argv)
+    pane_shell = _member(801, ppid=800, comm="sh", argv=("/bin/sh",))
+    plan = plan_scope_sweep(
+        [server, pane_shell], protect_root=None, spare_patterns=_DEFAULT_SPARES
+    )
+    assert plan.spared == ()
+    assert [m.pid for m in plan.targets] == [800, 801]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("tmux",),
+        ("tmux", "new-session", "-d", "-s", "main"),
+        ("tmux", "-L", "default", "new-session"),
+        ("tmux", "-S", "/tmp/tmux-1000/default", "attach"),
+        ("tmux", "display-menu", "-S", "fg=red", "-T", "x"),
+        ("tmux", "-2", "-f", "/home/u/.tmux.conf", "new-session"),
+    ],
+)
+def test_default_socket_tmux_server_stays_spared(argv: tuple[str, ...]) -> None:
+    server = _member(900, comm="tmux: server", argv=argv)
+    plan = plan_scope_sweep([server], protect_root=None, spare_patterns=_DEFAULT_SPARES)
+    assert [m.pid for m in plan.spared] == [900]
+    assert plan.targets == ()
+
+
+def test_private_socket_tmux_client_is_not_a_server() -> None:
+    client = _member(950, comm="tmux", argv=("tmux", "-L", "probe", "send-keys", "q"))
+    plan = plan_scope_sweep(
+        [client], protect_root=None, spare_patterns=("^tmux -L probe",)
+    )
+    assert [m.pid for m in plan.spared] == [950]

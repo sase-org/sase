@@ -6,6 +6,9 @@ turns, and a reaper backstop covers scopes whose runner died without
 cleaning up. Work that must outlive the runner must therefore escape through
 :func:`detach_scope` into its own scope; shared user daemons (ssh-agent,
 gpg-agent, ssh ControlMaster, tmux server) are spared by the sweep.
+
+The ``sase-agent``, ``sase-monitor``, and ``sase-proc`` scopes may also join
+a configured systemd slice; see :mod:`sase.scope_slice`.
 """
 
 from __future__ import annotations
@@ -45,6 +48,7 @@ class _DetachScopeCommand:
     method: str | None = None
     parent_unit: str | None = None
     escape_reason: str | None = None
+    slice_name: str | None = None
 
 
 def detach_scope(
@@ -104,6 +108,12 @@ def detach_scope(
         f"--unit={unit_name}",
         f"--description={description}",
     ]
+    # Imported lazily to keep the TUI startup import closure lean.
+    from sase.scope_slice import accepted_workload_slice
+
+    slice_name = accepted_workload_slice(systemd_run, unit_prefix)
+    if slice_name is not None:
+        scope_argv.append(f"--slice={slice_name}")
     systemd_version = _systemd_run_version(systemd_run)
     if (
         systemd_version is not None
@@ -118,6 +128,7 @@ def detach_scope(
         method="systemd-run",
         parent_unit=parent_unit,
         escape_reason=escape_reason,
+        slice_name=slice_name,
     )
 
 

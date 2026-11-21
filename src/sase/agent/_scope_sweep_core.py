@@ -35,6 +35,12 @@ _SWEEP_POLL_SECONDS = 0.05
 _SWEEP_OVERRUN_SECONDS = 5.0
 #: Characters of argv shown per listed entry.
 _SWEEP_ARGV_WIDTH = 120
+#: ``comm`` tmux sets on its server process.
+_TMUX_SERVER_COMM = "tmux: server"
+#: tmux global options that take a value: ``-c``, ``-f``, ``-L``, ``-S``, ``-T``.
+_TMUX_VALUE_FLAGS = frozenset("cfLST")
+_TMUX_DEFAULT_SOCKET_NAME = "default"
+_TMUX_DEFAULT_SOCKET_DIR_RE = re.compile(r"^tmux-\d+$")
 
 
 def _read_stat_fields(proc_root: Path, pid: int) -> tuple[int, str, int] | None:
@@ -145,6 +151,57 @@ def is_agent_runner(member: ScopeMember) -> bool:
     return False
 
 
+def _tmux_socket_option(argv: tuple[str, ...]) -> tuple[str, str] | None:
+    """Return the last ``-L``/``-S`` global option in a tmux *argv*.
+
+    Global options precede the tmux command, so parsing stops at the first
+    non-option word (``-S`` after ``display-menu`` is a command flag).
+    """
+    found: tuple[str, str] | None = None
+    args = list(argv[1:])
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--" or arg == "-" or not arg.startswith("-"):
+            break
+        for position in range(1, len(arg)):
+            flag = arg[position]
+            if flag not in _TMUX_VALUE_FLAGS:
+                continue
+            value = arg[position + 1 :]
+            if not value:
+                index += 1
+                value = args[index] if index < len(args) else ""
+            if flag in {"L", "S"}:
+                found = (flag, value)
+            break
+        index += 1
+    return found
+
+
+def _is_private_tmux_server(member: ScopeMember) -> bool:
+    """Whether *member* is a tmux server on a non-default socket.
+
+    The spare list keeps the user's shared tmux server alive when an agent
+    happens to start it. A server started with ``tmux -L <name>`` or
+    ``tmux -S <path>`` serves only that private socket, so it is the
+    agent's own leftover and is never spared.
+    """
+    if member.comm != _TMUX_SERVER_COMM:
+        return False
+    option = _tmux_socket_option(member.argv)
+    if option is None:
+        return False
+    flag, value = option
+    if flag == "L":
+        return value not in {"", _TMUX_DEFAULT_SOCKET_NAME}
+    path = PurePosixPath(value)
+    return not (
+        path.name == _TMUX_DEFAULT_SOCKET_NAME
+        and _TMUX_DEFAULT_SOCKET_DIR_RE.match(path.parent.name) is not None
+    )
+
+
 def _compile_spare_patterns(patterns: tuple[str, ...]) -> list[re.Pattern[str]]:
     compiled: list[re.Pattern[str]] = []
     for pattern in patterns:
@@ -177,7 +234,8 @@ def plan_scope_sweep(
 
     The protect root (plus its live ``ppid`` descendants in the member set)
     is protected; members matching a spare pattern (plus their descendants)
-    are spared; everything else is a target.
+    are spared, except a tmux server on a private socket
+    (:func:`_is_private_tmux_server`); everything else is a target.
     """
     member_list = list(members)
     patterns = tuple(spare_patterns)
@@ -200,6 +258,7 @@ def plan_scope_sweep(
         member.pid
         for member in member_list
         if member.pid not in protected_ids
+        and not _is_private_tmux_server(member)
         and any(
             rx.search(member.comm) or rx.search(" ".join(member.argv))
             for rx in compiled

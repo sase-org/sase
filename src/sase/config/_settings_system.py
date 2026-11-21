@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sase.config import _settings as _settings_facade
+
+log = logging.getLogger(__name__)
 
 
 def _merged_config() -> dict[str, Any]:
@@ -275,6 +278,11 @@ DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_EPISODE = 12
 DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M = 20
 
 
+def _agent_scope_config() -> dict[str, Any]:
+    value = _merged_config().get("agent_scope", {})
+    return value if isinstance(value, dict) else {}
+
+
 def _agent_scope_teardown_config() -> dict[str, Any]:
     value = _merged_config().get("agent_scope_teardown", {})
     return value if isinstance(value, dict) else {}
@@ -349,6 +357,23 @@ def get_agent_auto_restart_storm_max_per_30m() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M
+
+
+def get_agent_scope_slice() -> str | None:
+    """Return the systemd slice for agent, monitor, and proc scopes.
+
+    ``None`` (the default) keeps the user manager's default slice. A value
+    that is not a valid slice unit name is logged and ignored.
+    """
+    value = _agent_scope_config().get("slice")
+    if value is None:
+        return None
+    from sase.scope_slice import is_valid_slice_name
+
+    if isinstance(value, str) and is_valid_slice_name(value.strip()):
+        return value.strip()
+    log.warning("Ignoring invalid agent_scope.slice %r", value)
+    return None
 
 
 def get_agent_scope_teardown_enabled() -> bool:
@@ -452,6 +477,7 @@ __all__ = [
     "get_agent_auto_restart_quiescence_seconds",
     "get_agent_auto_restart_storm_max_per_30m",
     "get_agent_auto_restart_storm_max_per_episode",
+    "get_agent_scope_slice",
     "get_agent_scope_teardown_enabled",
     "get_agent_scope_teardown_reaper_min_scope_age_seconds",
     "get_agent_scope_teardown_spare_process_patterns",

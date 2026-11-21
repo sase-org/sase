@@ -5544,6 +5544,20 @@
         }
       }
     },
+    "agent_scope": {
+      "type": "object",
+      "description": "Systemd placement for the scopes that hold agent runners, monitor supervisors, and proc supervisors.",
+      "additionalProperties": false,
+      "properties": {
+        "slice": {
+          "type": ["string", "null"],
+          "description": "Systemd slice for sase-agent, sase-monitor, and sase-proc scopes (for example sase-agents.slice). Null keeps the default slice; a slice systemd rejects is skipped with a warning.",
+          "pattern": "^[A-Za-z0-9:_.\\\\]+(?:-[A-Za-z0-9:_.\\\\]+)*\\.slice$",
+          "maxLength": 255,
+          "default": null
+        }
+      }
+    },
     "agent_scope_teardown": {
       "type": "object",
       "description": "Sweeps leaked processes from agent-owned scopes at runner exit and reaps abandoned scopes.",

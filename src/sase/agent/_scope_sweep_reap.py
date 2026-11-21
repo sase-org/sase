@@ -34,7 +34,9 @@ log = logging.getLogger(__name__)
 
 #: Basename identifying the pre-exec ``systemd-run`` window.
 _SYSTEMD_RUN_BASENAME = "systemd-run"
-#: How deep below the user-manager root scope discovery descends.
+#: How deep below the user-manager root scope discovery descends at least.
+#: Three levels covers ``app.slice/<scope>`` and a two-level configured slice
+#: such as ``sase.slice/sase-agents.slice/<scope>``.
 _REAPER_MAX_DISCOVERY_DEPTH = 3
 #: Per-scope entries recorded for a reaped scope.
 _REAPER_ENTRY_LIMIT = 5
@@ -105,6 +107,21 @@ def _user_manager_root(
     return cgroup_base / "user.slice" / f"user-{uid}.slice" / f"user@{uid}.service"
 
 
+def _discovery_depth(slice_name: str | None = None) -> int:
+    """Return the search depth that reaches scopes in the configured slice.
+
+    Scopes launched into ``agent_scope.slice`` sit one level below that
+    slice's nested cgroup path; scopes launched before the slice was set
+    still sit in ``app.slice``, inside the default depth.
+    """
+    from sase.scope_slice import configured_workload_slice, slice_cgroup_components
+
+    name = configured_workload_slice() if slice_name is None else slice_name
+    if name is None:
+        return _REAPER_MAX_DISCOVERY_DEPTH
+    return max(_REAPER_MAX_DISCOVERY_DEPTH, len(slice_cgroup_components(name)) + 1)
+
+
 def _iter_scope_dirs(search_root: Path, *, max_depth: int = 3) -> list[Path]:
     """Return ``sase-agent-*.scope`` directories at most *max_depth* deep."""
     found: list[Path] = []
@@ -150,9 +167,11 @@ def _discover_agent_scopes(
     from ``/proc/self/cgroup``, falling back to the conventional
     ``user.slice/user-<uid>.slice/user@<uid>.service`` path.
 
-    At most 3 levels deep are searched. Returns nothing on non-Linux hosts
-    or without unified cgroup v2. Under pytest an unfiltered scan of the
-    real tree is refused: pass an explicit fake root or unit filter.
+    At least 3 levels deep are searched, deeper when ``agent_scope.slice``
+    nests further (see :func:`_discovery_depth`). Returns nothing on
+    non-Linux hosts or without unified cgroup v2. Under pytest an unfiltered
+    scan of the real tree is refused: pass an explicit fake root or unit
+    filter.
     """
     from sase.core.state_write_guard import pytest_context_detected
 
@@ -175,9 +194,7 @@ def _discover_agent_scopes(
         search_root = _user_manager_root(cgroup_text, uid=uid)
     wanted = set(only_units) if only_units is not None else None
     scopes: list[AgentScope] = []
-    for scope_dir in _iter_scope_dirs(
-        search_root, max_depth=_REAPER_MAX_DISCOVERY_DEPTH
-    ):
+    for scope_dir in _iter_scope_dirs(search_root, max_depth=_discovery_depth()):
         if wanted is not None and scope_dir.name not in wanted:
             continue
         scopes.append(

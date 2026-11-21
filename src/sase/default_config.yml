@@ -80,13 +80,24 @@ runner_slots:
   deference_seconds_per_step: 3
   deference_max_seconds: 60
 
+# Systemd slice for the scopes that hold agent runners, monitor supervisors,
+# and proc supervisors (`sase-agent-*`, `sase-monitor-*`, `sase-proc-*`).
+# Unset (null) keeps the user manager's default slice. systemd nests slices at
+# each dash, so `sase-agents.slice` lives inside `sase.slice`; put CPU and
+# memory limits on the top-level slice. If systemd rejects the slice, scopes
+# launch without it and a warning is logged. Linux only. This is a config
+# field, not a feature flag.
+agent_scope:
+  slice: null
+
 # Lifetime of processes an agent starts. An agent runner's `sase-agent-*`
 # scope bounds every process the agent starts: leftovers are swept at runner
 # exit and between in-process successor turns, and long-lived work must
 # escape via `detach_scope` into its own scope. Shared user daemons matching
 # `spare_process_patterns` (ssh-agent, gpg-agent, ssh ControlMaster, tmux
-# server) are never killed. This is a config field, not a feature flag:
-# users may permanently disable it or extend the spare list.
+# server) are never killed, except a tmux server on a private `-L`/`-S`
+# socket, which only the agent can use. This is a config field, not a
+# feature flag: users may permanently disable it or extend the spare list.
 agent_scope_teardown:
   enabled: true
   term_grace_seconds: 3

@@ -79,6 +79,7 @@ FAMILIES: dict[str, tuple[str, str, tuple[str, ...]]] = {
             "agent_hold_confirm_capture_threshold",
             "agent_hold_default_ttl",
             "agent_hold_max_ttl",
+            "agent_scope",
             "agent_scope_teardown",
             "autonomy",
             "finalizers",
