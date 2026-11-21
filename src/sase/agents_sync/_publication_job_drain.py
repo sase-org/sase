@@ -31,21 +31,11 @@ from sase.agents_sync.publication_doorbell import (
 )
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.publication_outbox_models import publication_sort_key
+from sase.sdd._artifact_link_outbox_drain_support import render_drain_phase_seconds
 from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
 _HOOD_BATCH_LIMIT = 25
-# Mirrors the artifact_link_backfill drain-phase line so both chops' logs read
-# the same way; ``publish.*`` sub-phases sit right after their parent.
-_LINK_DRAIN_PHASES = (
-    "read",
-    "evidence",
-    "eligibility",
-    "catalog",
-    "publish",
-    "rewrite",
-)
-_LINK_PUBLISH_PHASE_PREFIX = "publish."
 _LOCK_BUSY_TEXT = "agents sync lock is busy"
 _log = logging.getLogger(__name__)
 
@@ -258,18 +248,8 @@ def drain_project(
 def _link_phase_line(report: object) -> str:
     """Render the link drain's per-phase timings like the backfill chop does."""
 
-    phases = dict(getattr(report, "phase_seconds", ()) or ())
-    parts: list[str] = []
-    for name in _LINK_DRAIN_PHASES:
-        value = phases.get(name)
-        parts.append(f"{name}={'skipped' if value is None else f'{value:.2f}s'}")
-        if name == "publish":
-            parts.extend(
-                f"{key}={seconds:.2f}s"
-                for key, seconds in phases.items()
-                if key.startswith(_LINK_PUBLISH_PHASE_PREFIX)
-            )
-    return "link drain phases: " + " ".join(parts)
+    phases = getattr(report, "phase_seconds", ()) or ()
+    return "link drain phases: " + render_drain_phase_seconds(phases)
 
 
 def _sweep_quarantined_prompts(

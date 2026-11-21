@@ -14,7 +14,10 @@ from pathlib import Path
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.scripts._artifact_link_backfill_schedule import BackfillSchedule
 from sase.scripts._artifact_link_backfill_state import write_sweep_state
-from sase.sdd._artifact_link_outbox_drain_support import AgentTerminalTimes
+from sase.sdd._artifact_link_outbox_drain_support import (
+    AgentTerminalTimes,
+    render_drain_phase_seconds,
+)
 from sase.sdd._artifact_link_publication_retry import (
     ArtifactLinkPublicationRetryDetail,
     sweep_artifact_link_publication_retries,
@@ -31,8 +34,6 @@ from sase.sdd.artifact_link_store import (
 
 CHOP_NAME = "artifact_link_backfill"
 _SWEEP_BATCH_SIZE = 500
-_DRAIN_PHASES = ("read", "evidence", "eligibility", "catalog", "publish", "rewrite")
-_PUBLISH_PHASE_PREFIX = "publish."
 _RECONCILE_CUT_SHORT_DIAGNOSTIC = "reconcile deadline expired"
 
 
@@ -91,27 +92,11 @@ def _drain_phase_line(
     catalog and ``shared`` when an earlier project in this run built it.
     """
 
-    phases = dict(getattr(report, "phase_seconds", ()) or ())
-    parts: list[str] = []
-    for name in _DRAIN_PHASES:
-        value = phases.get(name)
-        if value is None:
-            rendered = "skipped"
-        elif name == "catalog" and catalog_built_before:
-            rendered = "shared"
-        else:
-            rendered = f"{value:.2f}s"
-        parts.append(f"{name}={rendered}")
-        if name == "publish":
-            # Publish sub-phases only exist when a publish ran, so they never
-            # print ``skipped``; they sit right after their parent in
-            # the order the publisher recorded them.
-            parts.extend(
-                f"{key}={seconds:.2f}s"
-                for key, seconds in phases.items()
-                if key.startswith(_PUBLISH_PHASE_PREFIX)
-            )
-    return f"[{CHOP_NAME}] {project_key}: drain phases: " + " ".join(parts)
+    rendered = render_drain_phase_seconds(
+        getattr(report, "phase_seconds", ()) or (),
+        catalog_shared=catalog_built_before,
+    )
+    return f"[{CHOP_NAME}] {project_key}: drain phases: {rendered}"
 
 
 def _publication_detail_line(detail: ArtifactLinkPublicationRetryDetail) -> str:

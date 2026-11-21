@@ -1,8 +1,9 @@
 """Shared helpers for the artifact-link outbox drain.
 
 Holds the lazily built agent catalog view the stale-terminal drop consults,
-plus the cooperative deadline check the drain's per-row loops use, so the
-drain module stays focused on partitioning and publication.
+the cooperative deadline check the drain's per-row loops use, and the
+phase-timing renderer both draining chops log, so the drain module stays
+focused on partitioning and publication.
 """
 
 from __future__ import annotations
@@ -15,6 +16,43 @@ _TERMINAL_AGENT_STATES = frozenset({"completed", "failed", "stopped", "dismissed
 _TERMINAL_AGENT_STATUSES = frozenset({"DONE", "FAILED", "STOPPED", "CANCELED"})
 # Per-row loops consult the monotonic clock only this often.
 _DEADLINE_CHECK_STRIDE = 256
+# The drain's top-level phases, in the order it records them.
+_DRAIN_PHASES = ("read", "evidence", "eligibility", "catalog", "publish", "rewrite")
+_PUBLISH_PHASE_PREFIX = "publish."
+
+
+def render_drain_phase_seconds(
+    phase_seconds: Iterable[tuple[str, float]],
+    *,
+    catalog_shared: bool = False,
+) -> str:
+    """Render a drain report's ``phase_seconds`` as ``name=1.23s`` tokens.
+
+    A top-level phase the drain never reached reads ``skipped``; ``catalog``
+    reads ``shared`` when *catalog_shared* says an earlier drain in the same
+    run built the agent catalog. ``publish.*`` sub-phases only exist when a
+    publish ran, so they never read ``skipped``; they follow ``publish`` in
+    the order the publisher recorded them.
+    """
+
+    phases = dict(phase_seconds)
+    parts: list[str] = []
+    for name in _DRAIN_PHASES:
+        value = phases.get(name)
+        if value is None:
+            rendered = "skipped"
+        elif name == "catalog" and catalog_shared:
+            rendered = "shared"
+        else:
+            rendered = f"{value:.2f}s"
+        parts.append(f"{name}={rendered}")
+        if name == "publish":
+            parts.extend(
+                f"{key}={seconds:.2f}s"
+                for key, seconds in phases.items()
+                if key.startswith(_PUBLISH_PHASE_PREFIX)
+            )
+    return " ".join(parts)
 
 
 class DrainDeadlineExceeded(Exception):
@@ -106,4 +144,5 @@ __all__ = [
     "AgentTerminalTimes",
     "DrainDeadlineExceeded",
     "check_drain_deadline",
+    "render_drain_phase_seconds",
 ]
