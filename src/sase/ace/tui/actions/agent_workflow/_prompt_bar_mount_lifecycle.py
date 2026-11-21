@@ -18,6 +18,25 @@ if TYPE_CHECKING:
     from ...widgets.prompt_input_bar import PromptInputBar
 
 
+def unlink_prompt_bar_from_parent(bar: object) -> None:
+    """Drop *bar* from its parent immediately and request a compositor rebuild.
+
+    Textual rebuilds ``Compositor.visible_widgets`` only on a layout pass.
+    Synchronous ``_nodes._remove`` frees the bar's id, but a full repaint
+    before that pass still renders the pruned subtree (whose TextAreas have
+    already cleared ``COMPONENT_CLASSES``). Requesting layout here matches
+    Textual's own ``post_mount`` refresh, just at unlink time, so the next
+    timer-driven paint rebuilds the map from ``_nodes`` before compositing.
+    """
+    parent = getattr(bar, "_parent", None)
+    if parent is None:
+        return
+    parent._nodes._remove(bar)
+    refresh = getattr(parent, "refresh", None)
+    if callable(refresh):
+        refresh(layout=True)
+
+
 class PromptBarLifecycleMixin:
     """Mount, cancelled-save, unmount, and synchronous detach for the bar."""
 
@@ -247,9 +266,7 @@ class PromptBarLifecycleMixin:
         # Synchronously detach from parent's node list so the ID is freed
         # immediately. Without this, bar.remove() only schedules async
         # removal and a subsequent mount() would hit DuplicateIds.
-        parent = bar._parent  # type: ignore[attr-defined]
-        if parent is not None:
-            parent._nodes._remove(bar)
+        unlink_prompt_bar_from_parent(bar)
         bar.remove()  # type: ignore[attr-defined]
         # Phase ``space-hot-spare``: the revealed bar is never recycled.
         # Schedule the next idle spare only after this removal, and only

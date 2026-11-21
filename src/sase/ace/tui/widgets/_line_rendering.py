@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from rich.segment import Segment
 from rich.style import Style
+from textual.geometry import Region
 from textual.strip import Strip
 from textual.worker import Worker
 
@@ -73,8 +74,37 @@ class LineRenderingMixin(_MixinBase):
         for class_name in self._VIM_CURSOR_CLASSES:
             self.set_class(class_name == active_class, class_name)
 
+    def _detached_blank_strip(self, width: int) -> Strip:
+        """Blank strip styled with the editor background when a theme is set."""
+        style = getattr(getattr(self, "_theme", None), "base_style", None)
+        return Strip.blank(width, style)
+
+    def render_lines(self, crop: Region) -> list[Strip]:
+        """Render cropped lines, skipping Textual's theme CSS after detach.
+
+        Textual's prune path detaches a widget (``_parent = None``) and
+        clears ``_component_styles`` before the screen compositor map is
+        rebuilt. A full repaint in that window still calls
+        ``TextArea.render_lines`` → ``theme.apply_css``, which looks up
+        ``text-area--gutter`` and raises ``KeyError``. Returning blank
+        strips here keeps that stale frame from crashing the app.
+        ``self.parent is None`` is O(1) and flips at the same moment
+        Textual clears component styles.
+        """
+        if self.parent is None:
+            return [self._detached_blank_strip(crop.width) for _ in range(crop.height)]
+        return super().render_lines(crop)
+
     def render_line(self, y: int) -> Strip:
-        """Bypass cache in NORMAL mode so relative line numbers stay current."""
+        """Bypass cache in NORMAL mode so relative line numbers stay current.
+
+        The compositor's mouse path calls ``render_line`` directly, and
+        ``TextArea._render_line`` reads ``text-area--suggestion`` when a
+        suggestion is set. A pruned widget has already lost that component
+        style, so return a blank strip instead of delegating.
+        """
+        if self.parent is None:
+            return self._detached_blank_strip(self.size.width)
         if self._vim_mode == "normal" and self.show_line_numbers:
             return self._render_line(y)
         if self._vim_mode != "normal" and self.show_line_numbers:

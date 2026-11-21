@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._prompt_bar_mount_lifecycle import unlink_prompt_bar_from_parent
+
 if TYPE_CHECKING:
     from ...widgets.prompt_input_bar import PromptInputBar
 
@@ -186,12 +188,10 @@ class PromptBarSpareMixin:
         except Exception:  # noqa: BLE001 - spare state is best-effort.
             pass
         try:
-            parent = getattr(spare, "_parent", None)
-            if parent is not None:
-                try:
-                    parent._nodes._remove(spare)
-                except Exception:  # noqa: BLE001 - already detached.
-                    pass
+            try:
+                unlink_prompt_bar_from_parent(spare)
+            except Exception:  # noqa: BLE001 - already detached.
+                pass
             try:
                 spare.remove()  # type: ignore[attr-defined]
             except Exception:  # noqa: BLE001 - removal is best-effort.
