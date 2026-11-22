@@ -109,8 +109,13 @@ from .bindings import DEFAULT_BINDINGS
 from .exit_action import AceExitAction
 from .models.fold_state import FoldLevel
 from .tab_order import TabInput, TabName, normalize_tab_name
+from .util.textual_cycle_guards import install_textual_cycle_guards
 
 log = logging.getLogger(__name__)
+
+# Feature-probed Strip self-cycle workaround. Idempotent; a no-op when
+# Textual no longer caches [self] in divide/crop_extend.
+install_textual_cycle_guards()
 
 __all__ = [
     "AceApp",
