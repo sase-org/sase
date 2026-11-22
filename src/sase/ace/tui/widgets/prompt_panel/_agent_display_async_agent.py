@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, cast
@@ -28,6 +29,28 @@ from ._agent_display_state import (
 )
 from ._messages import AgentDetailHeaderEnriched
 from ..file_panel._messages import LinkedDeltasRefreshed
+
+
+def _weak_agent_worker[T](
+    agent: Agent, work: Callable[[Agent], T]
+) -> Callable[[], T | None]:
+    """Run *work* on *agent* without letting a finished Worker pin the row.
+
+    Textual keeps the worker callable after cancel/replace. A nested function
+    that closes over the ``Agent`` then forms an unreachable Worker↔callable
+    cycle that SAVEALL reports as leftover session graphs. The weakref lets
+    roster replacement release the old row; a collected agent skips the body.
+    """
+
+    agent_ref = weakref.ref(agent)
+
+    def body() -> T | None:
+        current = agent_ref()
+        if current is None:
+            return None
+        return work(current)
+
+    return body
 
 
 class AgentDisplayAgentWorkerMixin:
@@ -145,14 +168,15 @@ class AgentDisplayAgentWorkerMixin:
                 return
             current_worker.cancel()
 
-        def enrich_task() -> object:
-            return self._build_detail_header_summary(  # type: ignore[attr-defined,no-any-return]
-                agent, lanes=lanes
-            )
-
         self._agent_detail_header_request = request  # type: ignore[attr-defined]
         self._agent_detail_header_worker = run_worker(  # type: ignore[attr-defined]
-            enrich_task, thread=True
+            _weak_agent_worker(
+                agent,
+                lambda current: self._build_detail_header_summary(  # type: ignore[attr-defined,no-any-return]
+                    current, lanes=lanes
+                ),
+            ),
+            thread=True,
         )
 
     def _cancel_agent_detail_header_worker_for_selection_change(
@@ -266,12 +290,13 @@ class AgentDisplayAgentWorkerMixin:
                 return
             current_worker.cancel()
 
-        def resolve_task() -> object:
-            return self._compute_linked_delta_groups(agent)  # type: ignore[attr-defined,no-any-return]
-
         self._agent_linked_delta_request = request  # type: ignore[attr-defined]
         self._agent_linked_delta_worker = run_worker(  # type: ignore[attr-defined]
-            resolve_task, thread=True
+            _weak_agent_worker(
+                agent,
+                lambda current: self._compute_linked_delta_groups(current),  # type: ignore[attr-defined]
+            ),
+            thread=True,
         )
 
     def _cancel_agent_linked_delta_worker_for_selection_change(
@@ -328,12 +353,13 @@ class AgentDisplayAgentWorkerMixin:
                 return
             current_worker.cancel()
 
-        def resolve_task() -> str | None:
-            return self._resolve_bead_display(agent)  # type: ignore[attr-defined,no-any-return]
-
         self._agent_bead_display_request = request  # type: ignore[attr-defined]
         self._agent_bead_display_worker = run_worker(  # type: ignore[attr-defined]
-            resolve_task, thread=True
+            _weak_agent_worker(
+                agent,
+                lambda current: self._resolve_bead_display(current),  # type: ignore[attr-defined]
+            ),
+            thread=True,
         )
 
     def _cancel_agent_bead_display_worker_for_selection_change(
