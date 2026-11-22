@@ -56,6 +56,8 @@ class PatchInfoPanel(Static):
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._reveal_label: str | None = None
         self._reveal_accent: str = "#87D7FF"
+        # Last Text handed to ``update``; identical renders are not republished.
+        self._published_content: Text | None = None
 
     @property
     def _fold_commits(self) -> FoldLevel:
@@ -242,5 +244,14 @@ class PatchInfoPanel(Static):
         return text
 
     def _refresh_content(self) -> None:
-        """Refresh the panel display."""
-        self.update(self._build_content())
+        """Republish the panel only when its rendered content changed.
+
+        Each countdown tick re-sends the unchanged position alongside the
+        new countdown; an identical ``Static.update`` would still rebuild
+        the visual and request a layout refresh.
+        """
+        content = self._build_content()
+        if self._published_content is not None and content == self._published_content:
+            return
+        self.update(content)
+        self._published_content = content

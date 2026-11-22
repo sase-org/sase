@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from sase.agent.status_buckets import QUEUED_STATUS
 
 from ._live_watch_coverage import MAX_LIVE_AGENT_WATCHES
 from ._loading_state import AgentLoadingStateMixin
+from ._roster_generation import get_roster_generation
 from ..event_refresh._constants import _LIVE_FILE_REFRESH_STATUSES
 from ...models._agent_loader_artifacts import artifact_index_lock_busy_reason
 from ...models.agent_session_members import agent_row_is_in_flight
@@ -82,6 +84,36 @@ def _first_observation_needs_refresh(
     if status not in _QUESTION_STATUSES and marker["pending_question.json"] is not None:
         return True
     return status != "RETRYING" and marker["retry_state.json"] is not None
+
+
+@dataclass(frozen=True, slots=True)
+class _InFlightCandidateMemo:
+    """The in-flight poll's candidates for one roster state (memory only).
+
+    ``key`` is the roster generation plus roster identity/length and the
+    watch cap -- the same O(1) key the info-strip metrics cache trusts,
+    because every roster assignment and in-place status mutation bumps the
+    generation. ``unresolved`` holds in-flight rows whose artifacts
+    directory did not exist yet; they are re-resolved every tick so a
+    freshly created directory joins the poll exactly as fast as before.
+    """
+
+    key: tuple[object, ...]
+    candidates: tuple[_InFlightPollCandidate, ...]
+    unresolved: tuple[Any, ...]
+
+
+def _inflight_candidate_memo_key(app: Any, roster: list[Any]) -> tuple[object, ...]:
+    return (
+        get_roster_generation(app),
+        id(roster),
+        len(roster),
+        MAX_LIVE_AGENT_WATCHES,
+    )
+
+
+def _any_artifacts_dir_resolves(agents: tuple[Any, ...]) -> bool:
+    return any(agent.get_artifacts_dir() for agent in agents)
 
 
 def _collect_inflight_poll_results(
@@ -298,13 +330,46 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
     def _inflight_agent_transition_poll_candidates(
         self,
     ) -> tuple[_InFlightPollCandidate, ...]:
-        agents = list(getattr(self, "_agents_with_children", None) or self._agents)
+        """Return the capped newest in-flight marker-poll candidates.
+
+        Called every countdown tick (and again after each poll's await), so
+        an unchanged roster reuses the memoized tuple instead of walking the
+        whole roster and resolving -- and ``stat()``-ing -- every in-flight
+        artifacts directory on the UI thread. Only rows whose directory was
+        still missing are re-resolved per tick; one resolving recomputes.
+        The marker stats themselves still run off-thread every tick.
+        """
+        roster = getattr(self, "_agents_with_children", None) or self._agents
+        key = _inflight_candidate_memo_key(self, roster)
+        memo: _InFlightCandidateMemo | None = getattr(
+            self, "_inflight_poll_candidate_memo", None
+        )
+        if (
+            memo is not None
+            and memo.key == key
+            and not _any_artifacts_dir_resolves(memo.unresolved)
+        ):
+            return memo.candidates
+        candidates, unresolved = self._compute_inflight_poll_candidates(roster)
+        self._inflight_poll_candidate_memo = _InFlightCandidateMemo(
+            key=key,
+            candidates=candidates,
+            unresolved=unresolved,
+        )
+        return candidates
+
+    def _compute_inflight_poll_candidates(
+        self,
+        roster: list[Any],
+    ) -> tuple[tuple[_InFlightPollCandidate, ...], tuple[Any, ...]]:
         by_dir: dict[str, tuple[tuple[str, str], _InFlightPollCandidate]] = {}
-        for agent in agents:
+        unresolved: list[Any] = []
+        for agent in list(roster):
             if not _poll_agent_status_is_inflight(agent):
                 continue
             artifacts_dir = agent.get_artifacts_dir()
             if not artifacts_dir:
+                unresolved.append(agent)
                 continue
             artifacts_path = Path(artifacts_dir)
             cache_key = (agent.identity, str(artifacts_path.expanduser()))
@@ -326,7 +391,7 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
                 reverse=True,
             )
         ]
-        return tuple(ordered[:MAX_LIVE_AGENT_WATCHES])
+        return tuple(ordered[:MAX_LIVE_AGENT_WATCHES]), tuple(unresolved)
 
     def _apply_inflight_agent_transition_poll_results(
         self,

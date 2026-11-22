@@ -230,6 +230,9 @@ class AgentLoadingStateMixin:
         tuple[tuple[int, int] | None, ...],
     ]
     _inflight_poll_scheduled: bool
+    # Roster-keyed memo of the poll's candidates; see
+    # ``_loading_refresh_polling._InFlightCandidateMemo``.
+    _inflight_poll_candidate_memo: Any
 
     # Navigation gate (set up in startup.py). Used to defer the post-await
     # apply/render leg of `_run_agents_async_refresh` while the user is

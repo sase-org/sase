@@ -53,6 +53,8 @@ class AxeInfoPanel(Static):
         self._host: ServiceStatusHost | None = None
         self._host_start_hint = "!x"
         self._service_status_error: str | None = None
+        # Last Text handed to ``update``; identical renders are not republished.
+        self._published_text: Text | None = None
 
     @property
     def content_width(self) -> int:
@@ -233,8 +235,10 @@ class AxeInfoPanel(Static):
         if self._loading:
             text.append("Services ", style="bold")
             text.append("…", style="dim italic")
+            if self._unchanged(text):
+                return
             self._content_width = cell_len(text.plain)
-            self.update(text)
+            self._publish(text)
             return
 
         self._append_host_chrome(text)
@@ -302,9 +306,25 @@ class AxeInfoPanel(Static):
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
 
+        if self._unchanged(text):
+            return
         self._content_width = cell_len(text.plain)
         parent = self.parent
         fit = getattr(parent, "fit_launch_context_bar", None)
         if callable(fit):
             fit()
+        self._publish(text)
+
+    def _unchanged(self, text: Text) -> bool:
+        """Return True when *text* matches the last published render.
+
+        A countdown tick calls three ``update_*`` methods; only the one that
+        changes the rendered text (normally the countdown) republishes. An
+        identical ``Static.update`` would still request a layout refresh and
+        refit the launch-context row.
+        """
+        return self._published_text is not None and text == self._published_text
+
+    def _publish(self, text: Text) -> None:
         self.update(text)
+        self._published_text = text

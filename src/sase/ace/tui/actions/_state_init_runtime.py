@@ -312,6 +312,9 @@ def init_runtime_state(
     # file appearance still triggers an exact refresh nudge.
     self._inflight_poll_marker_cache = {}
     self._inflight_poll_scheduled = False
+    # Roster-keyed memo of that poll's candidates, so an unchanged roster
+    # skips the per-tick roster walk and artifacts-dir resolution.
+    self._inflight_poll_candidate_memo = None
     # ToolRun glance snapshot service (epic sase-1bt phase glance-row-chips).
     # Coalesced worker state for the app-level immutable glance snapshot;
     # the render paths read the snapshot plus ``now`` and never touch disk.
