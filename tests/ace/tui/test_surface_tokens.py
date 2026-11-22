@@ -227,7 +227,7 @@ def test_lumberjack_status_is_hidden_off_services_tab(tmp_path: Path) -> None:
     assert axe_token_consumer_drifted(second, first, consume_details=False) is False
     assert axe_token_consumer_drifted(second, first, consume_details=True) is True
     assert axe_token_changed_kinds(second, first, consume_details=False) == ()
-    assert axe_token_changed_kinds(second, first, consume_details=True) == ("service",)
+    assert axe_token_changed_kinds(second, first, consume_details=True) == ("status",)
 
 
 def test_surface_token_equality_ignores_part_kinds() -> None:
