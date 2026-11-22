@@ -7,6 +7,8 @@ from typing import Any
 
 from sase.core.agent_scan_wire_markers import FinalizerStatusSummaryWire
 
+from .failure_focus import FailureFocus
+
 
 @dataclass
 class AgentStateOperationsFields:
@@ -138,3 +140,7 @@ class AgentStateOperationsFields:
     # members in memory), so later readers must not treat a set value as a
     # container aggregate.
     finalizer_status: FinalizerStatusSummaryWire | None = None
+
+    # Load-time rollup for failed session and clan rows. Renderers format this
+    # record only; it is derived from the current in-memory projection.
+    failure_focus: FailureFocus | None = field(default=None, compare=False, repr=False)

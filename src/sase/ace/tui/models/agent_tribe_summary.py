@@ -39,7 +39,6 @@ from .agent_session_members import (
     agent_session_running_monitor_row,
     concrete_agent_session_member_rows,
     is_sequential_agent_session_container,
-    monitor_row_is_settled,
 )
 from .agent_nodes import is_agents_tab_agent_node
 from .agent_panels import PanelKey, agent_panel_label
@@ -391,20 +390,29 @@ def _unit_snapshot(
         projection.agent.identity: projection.bucket
         for projection in agent_status_projections((unit,))
     }
-    base_entries = tuple(
-        (row.status, bucket)
-        for row in rows
-        if (bucket := effective_bucket_by_identity.get(row.identity)) is not None
-    )
+    if unit.is_clan_container:
+        base_entries = tuple(
+            (member.status, agent_status_bucket(member))
+            for member in clan_members(unit)
+        )
+    else:
+        base_entries = tuple(
+            (row.status, bucket)
+            for row in rows
+            if (bucket := effective_bucket_by_identity.get(row.identity)) is not None
+        )
     lanes = clan_members(unit) if unit.is_clan_container else (unit,)
     monitor_entries = tuple(
         (monitor.status, "Running")
         for lane in lanes
         if (monitor := agent_session_running_monitor_row(lane)) is not None
     )
-    unit_bucket = aggregate_agent_group_bucket(
-        (*base_entries, *monitor_entries)
-    ) or agent_status_bucket(unit)
+    unit_bucket = (
+        agent_status_bucket(unit)
+        if unit_is_agent_session
+        else aggregate_agent_group_bucket((*base_entries, *monitor_entries))
+        or agent_status_bucket(unit)
+    )
     children = tuple(
         _TribeUnitChild(
             identity=row.identity,
@@ -532,11 +540,7 @@ def build_agent_tribe_summary_snapshot(
         for root, unit in zip(roots, units, strict=True)
         if unit.status_bucket in {"Failed", "Stopped", "Waiting"}
     )
-    aggregate_entries = tuple(
-        (row.status, agent_status_bucket(row))
-        for row in real_rows
-        if not (row.is_monitor and monitor_row_is_settled(row))
-    )
+    aggregate_entries = tuple((unit.status, unit.status_bucket) for unit in units)
     status = aggregate_agent_group_effective_status(aggregate_entries) or "EMPTY"
     status_bucket = aggregate_agent_group_bucket(aggregate_entries) or "Running"
     agent_session_identities = {

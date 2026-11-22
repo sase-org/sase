@@ -171,7 +171,7 @@ def test_clan_roster_lights_session_with_nested_running_monitor() -> None:
     )
 
 
-def test_settled_monitor_keeps_session_dim() -> None:
+def test_settled_monitor_uses_session_root_status_and_bucket() -> None:
     ordered = _clan_shape(
         monitor_state="completed",
         monitor_stop=datetime(2026, 10, 1, 9, 20, 0),
@@ -183,7 +183,7 @@ def test_settled_monitor_keeps_session_dim() -> None:
     session = next(entry for entry in entries if entry.label == ".9")
 
     assert session.effective_bucket == "Done"
-    assert session.status == "DONE"
+    assert session.status == "TALE DONE"
 
 
 def test_root_parented_monitor_stays_lit() -> None:

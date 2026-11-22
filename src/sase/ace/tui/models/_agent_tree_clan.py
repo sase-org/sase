@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import replace
 
 from sase.core.agent_clan_context import (
     effective_clan_attributes,
@@ -10,8 +11,10 @@ from sase.core.agent_clan_context import (
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from ._agent_clan import apply_clan_container_status, clan_member_status_priority
+from ._agent_status_agent_session import child_launch_time
 from ._agent_tree_fold import clan_fold_key
 from .agent import Agent, AgentType
+from .failure_focus import failure_focus_for_agent
 
 ClanKey = tuple[str, str | None]
 
@@ -417,6 +420,46 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
             status_buckets=member_buckets,
         )
         container.clan_waves = wave_summary
+        failed_units = [
+            unit[0]
+            for unit in units
+            if unit and member_buckets.get(id(unit[0])) == "Failed"
+        ]
+        if container.status_bucket == "Failed" and failed_units:
+            failed_member = max(failed_units, key=child_launch_time)
+            focus = failure_focus_for_agent(failed_member)
+            failed_key = clan_wave_identity_key(failed_member)
+            wave_rows_by_identity = {
+                clan_wave_identity_key(unit[0]): unit[0] for unit in units if unit
+            }
+            wave_member = next(
+                (item for item in wave_summary.members if item.identity == failed_key),
+                None,
+            )
+            if focus is not None:
+                blocked = (
+                    tuple(
+                        _clan_member_short_label(
+                            wave_rows_by_identity[item.identity],
+                            clan_name,
+                        )
+                        for item in wave_summary.members
+                        if failed_key in item.predecessors
+                        and item.identity in wave_rows_by_identity
+                    )
+                    if wave_member is not None
+                    else ()
+                )
+                container.failure_focus = replace(
+                    focus,
+                    member_label=(
+                        _clan_member_short_label(failed_member, clan_name)
+                        if wave_member is not None
+                        else focus.member_label
+                    ),
+                    blocked=blocked,
+                    extra_failed=focus.extra_failed + len(failed_units) - 1,
+                )
         for unit in units:
             if unit:
                 unit[0].clan_wave_slot = wave_slots.get(clan_wave_identity_key(unit[0]))
@@ -462,6 +505,13 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
         projected.append(containers[clan])
         projected.extend(rows_by_clan[clan])
     return projected
+
+
+def _clan_member_short_label(agent: Agent, clan_name: str) -> str:
+    """Return the short clan roster label for an already-loaded member."""
+    name = agent.presented_agent_name or agent.agent_name or agent.display_name
+    prefix = f"{clan_name}."
+    return name[len(clan_name) :] if name.startswith(prefix) else name
 
 
 def project_mixed_agent_tree(

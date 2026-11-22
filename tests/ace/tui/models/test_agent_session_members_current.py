@@ -6,6 +6,8 @@ map to lane status entries.
 
 from __future__ import annotations
 
+from sase.agent.status_buckets import agent_status_bucket
+from sase.ace.tui.models._agent_status_apply import apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_session_members import (
     agent_session_running_monitor_row,
@@ -23,9 +25,10 @@ __all__ = [
     "test_current_agent_session_turn_selects_later_serial_continuation",
     "test_current_agent_session_turn_selects_nested_running_monitor",
     "test_current_agent_session_turn_uses_newest_active_candidate_in_chain_order",
-    "test_lane_entries_keep_failed_bucket_when_followup_errored",
-    "test_lane_entries_map_final_launched_monitor_to_running",
-    "test_lane_entries_skip_non_final_failed_monitor_with_launched_followup",
+    "test_plain_agent_session_root_mirrors_newest_failed_member",
+    "test_root_rollup_keeps_failed_bucket_when_followup_errored",
+    "test_root_rollup_maps_final_launched_monitor_to_running_lane",
+    "test_root_rollup_skips_failed_monitor_handed_to_later_continuation",
     "test_running_monitor_row_returns_nested_running_monitor",
     "test_running_monitor_row_returns_none_for_agent_turn",
     "test_running_monitor_row_returns_none_for_settled_monitor",
@@ -46,6 +49,25 @@ def test_current_agent_session_turn_selects_active_promoted_root() -> None:
     root.followup_agents = [waiting_child]
 
     assert current_agent_session_turn_row(root) is root
+
+
+def test_plain_agent_session_root_mirrors_newest_failed_member() -> None:
+    root = make_agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    failed = make_agent(
+        "alpha--1",
+        role="first",
+        parent_timestamp=root.raw_suffix,
+        status="FAILED",
+        status_bucket="Failed",
+        start_offset=1,
+        stop_offset=2,
+    )
+    root.runtime_children = [failed]
+
+    apply_status_overrides([root, failed])
+
+    assert root.status == "FAILED"
+    assert agent_status_bucket(root) == "Failed"
 
 
 def test_current_agent_session_turn_selects_later_serial_continuation() -> None:
@@ -183,12 +205,8 @@ def _failed_monitor(
     return monitor
 
 
-def test_lane_entries_skip_non_final_failed_monitor_with_launched_followup() -> None:
-    """A handed-off monitor never contributes a Failed lane entry."""
-    from sase.ace.tui.models.agent_session_members import (
-        agent_session_lane_status_entries,
-    )
-
+def test_root_rollup_skips_failed_monitor_handed_to_later_continuation() -> None:
+    """A later successful continuation supersedes a failed monitor."""
     root = make_agent("alpha--0", role="root", status="DONE", status_bucket="Done")
     monitor = _failed_monitor("alpha--mon", root=root, followup_outcome="launched")
     continuation = make_agent(
@@ -199,25 +217,23 @@ def test_lane_entries_skip_non_final_failed_monitor_with_launched_followup() -> 
         status_bucket="Done",
         start_offset=3,
     )
+    root.runtime_children = [monitor, continuation]
 
-    entries = agent_session_lane_status_entries((root, monitor, continuation))
+    apply_status_overrides([root, monitor, continuation])
 
-    assert entries
-    assert all(bucket != "Failed" for _status, bucket in entries)
+    assert agent_status_bucket(root) == "Done"
 
 
-def test_lane_entries_map_final_launched_monitor_to_running() -> None:
+def test_root_rollup_maps_final_launched_monitor_to_running_lane() -> None:
     """A final failed monitor with a launched follow-up yields Running."""
-    from sase.ace.tui.models.agent_session_members import (
-        agent_session_lane_status_entries,
-    )
-
     root = make_agent("alpha--0", role="root", status="DONE", status_bucket="Done")
     monitor = _failed_monitor("alpha--mon", root=root, followup_outcome="launched")
+    root.runtime_children = [monitor]
 
-    entries = agent_session_lane_status_entries((root, monitor))
+    apply_status_overrides([root, monitor])
 
-    assert entries[-1] == ("TESTED", "Running")
+    assert root.status == "TESTED"
+    assert agent_status_bucket(root) == "Running"
 
 
 def test_running_monitor_row_returns_nested_running_monitor() -> None:
@@ -300,12 +316,8 @@ def test_running_monitor_row_returns_none_for_clan_container() -> None:
     assert agent_session_running_monitor_row(clan) is None
 
 
-def test_lane_entries_keep_failed_bucket_when_followup_errored() -> None:
+def test_root_rollup_keeps_failed_bucket_when_followup_errored() -> None:
     """A follow-up that failed to launch preserves the Failed entry."""
-    from sase.ace.tui.models.agent_session_members import (
-        agent_session_lane_status_entries,
-    )
-
     root = make_agent("alpha--0", role="root", status="DONE", status_bucket="Done")
     monitor = _failed_monitor(
         "alpha--mon",
@@ -313,7 +325,9 @@ def test_lane_entries_keep_failed_bucket_when_followup_errored() -> None:
         followup_outcome="launched",
         followup_error="boom",
     )
+    root.runtime_children = [monitor]
 
-    entries = agent_session_lane_status_entries((root, monitor))
+    apply_status_overrides([root, monitor])
 
-    assert entries[-1] == ("TESTED", "Failed")
+    assert root.status == "TESTED"
+    assert agent_status_bucket(root) == "Failed"

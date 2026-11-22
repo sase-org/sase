@@ -60,6 +60,7 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "runner_is_live",
             "pid_liveness_unverified",
             "monitor_settling",
+            "failure_focus",
             "from_running_claim",
             "is_clan_container",
             "is_imported_agent_session_container",

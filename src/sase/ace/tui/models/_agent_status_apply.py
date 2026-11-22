@@ -39,7 +39,9 @@ from .agent_session_members import (
     agent_row_is_in_flight,
     monitor_row_lane_bucket,
     row_is_agent_session_turn,
+    row_is_not_adopted_handoff,
 )
+from .failure_focus import failure_focus_for_agent
 from .finalizer_row_state import row_status_is_finalizing
 
 
@@ -187,7 +189,11 @@ def _descendant_agent_session_turns(
         if id(row) in seen_ids:
             continue
         seen_ids.add(id(row))
-        if row_is_agent_session_turn(row) and row.identity not in seen_identities:
+        if (
+            row_is_agent_session_turn(row)
+            and not row_is_not_adopted_handoff(row)
+            and row.identity not in seen_identities
+        ):
             seen_identities.add(row.identity)
             found.append(row)
         suffix = row.raw_suffix
@@ -250,7 +256,9 @@ def _override_live_handoff_done_status(
         children = [
             child
             for child in children_by_parent.get(parent.raw_suffix, [])
-            if child is not parent and is_agent_session_child(child, parent)
+            if child is not parent
+            and is_agent_session_child(child, parent)
+            and not row_is_not_adopted_handoff(child)
         ]
         frontier = _live_handoff_frontier(parent, children)
         if _is_done_json_backed(parent) or _is_done_json_backed(frontier):
@@ -285,6 +293,7 @@ def apply_status_overrides(
     for agent in all_agents:
         agent.followup_agents.clear()
         agent.wait_display_source = None
+        agent.failure_focus = None
 
     completed_statuses = {
         "DONE",
@@ -451,7 +460,9 @@ def apply_status_overrides(
         children = [
             child
             for child in children_by_parent.get(parent.raw_suffix, [])
-            if child is not parent and is_agent_session_child(child, parent)
+            if child is not parent
+            and is_agent_session_child(child, parent)
+            and not row_is_not_adopted_handoff(child)
         ]
         if not children:
             continue
@@ -540,11 +551,34 @@ def apply_status_overrides(
             continue
 
         newest_pool = [*children, *descendant_turns]
+        if not newest_pool:
+            continue
         newest = max(newest_pool, key=child_launch_time)
-        if is_plan_root or row_is_agent_session_turn(newest):
+        newest_bucket = agent_status_bucket(newest)
+        newest_is_failure_frontier = (
+            newest_bucket == "Failed"
+            and newest.retried_as_timestamp is None
+            and not row_is_not_adopted_handoff(newest)
+        )
+        if (
+            is_plan_root
+            or row_is_agent_session_turn(newest)
+            or newest_is_failure_frontier
+            or (
+                agent_status_bucket(parent) == "Failed"
+                and child_launch_time(newest) > child_launch_time(parent)
+            )
+        ):
             _mirror_root_from_child(parent, newest)
 
     _override_live_handoff_done_status(parent_by_suffix, children_by_parent)
+
+    for parent in parent_by_suffix.values():
+        if (
+            parent.is_agent_session_root_entry
+            and agent_status_bucket(parent) == "Failed"
+        ):
+            parent.failure_focus = failure_focus_for_agent(parent)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a
     # backward pointer (retry_of_timestamp) to its immediate parent; we

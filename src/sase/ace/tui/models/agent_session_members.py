@@ -124,6 +124,11 @@ def row_is_agent_session_turn(row: Agent) -> bool:
     return row.is_monitor or row.is_gate
 
 
+def row_is_not_adopted_handoff(row: Agent) -> bool:
+    """Return whether *row* is a held monitor proposal, not started work."""
+    return row.is_monitor and row.monitor_state == MONITOR_HELD_STATE
+
+
 class _TurnLaneTally:
     """Shared traversal state for partitioning turn rows into two lanes.
 
@@ -529,29 +534,6 @@ def monitor_row_lane_bucket(row: Agent) -> str:
     )
 
 
-def agent_session_lane_status_entries(
-    rows: Sequence[Agent],
-) -> tuple[tuple[str, str], ...]:
-    """Return ``(status, bucket)`` entries for a session lane, handoff-aware.
-
-    Starts from :func:`agent_session_member_status_buckets`. A settled monitor
-    that is not the final row already handed its result to a later row, so it
-    is skipped. A final settled monitor contributes its lane bucket from
-    :func:`monitor_row_lane_bucket`. Every other row keeps its bucket.
-    """
-    buckets = agent_session_member_status_buckets(rows)
-    entries: list[tuple[str, str]] = []
-    final_index = len(rows) - 1
-    for index, (row, bucket) in enumerate(zip(rows, buckets, strict=True)):
-        if row.is_monitor and monitor_row_is_settled(row):
-            if index != final_index:
-                continue
-            entries.append((row.status, monitor_row_lane_bucket(row)))
-        else:
-            entries.append((row.status, bucket))
-    return tuple(entries)
-
-
 def agent_session_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
     """Return effective buckets for an ordered sequential agent session.
 
@@ -664,7 +646,6 @@ __all__ = [
     "NO_TURN_LANES",
     "TurnLaneCounts",
     "agent_row_is_in_flight",
-    "agent_session_lane_status_entries",
     "concrete_agent_statuses",
     "concrete_agent_session_member_rows",
     "concrete_agent_session_turn_rows",
@@ -680,5 +661,6 @@ __all__ = [
     "panel_turn_lane_counts",
     "root_represents_member",
     "row_is_agent_session_turn",
+    "row_is_not_adopted_handoff",
     "turn_lane_counts",
 ]
