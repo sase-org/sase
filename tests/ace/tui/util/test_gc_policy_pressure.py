@@ -6,7 +6,8 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.util import _gc_policy_policy as policy_module
+from sase.ace.tui.util import _gc_policy_gate as gate_module
+from sase.ace.tui.util import _gc_policy_sweep as sweep_module
 from sase.ace.tui.util import gc_policy
 from sase.ace.tui.util._gc_policy_pressure import paging_pressure
 from tests.ace.tui.util._gc_policy_test_support import (
@@ -38,7 +39,7 @@ def recorder() -> Recorder:
 def emitted(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        policy_module,
+        sweep_module,
         "queue_row",
         lambda event, row: rows.append({"event": event, **row}),
     )
@@ -192,7 +193,8 @@ def test_automatic_gen2_refreshes_cost_estimate(
 ) -> None:
     rss = {"now": 1_000}
     blocks = {"value": 1_000_000}
-    monkeypatch.setattr(policy_module, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(gate_module, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(sweep_module, "latest_rss_bytes", lambda: rss["now"])
     policy = idle_policy(
         clock,
         collector,

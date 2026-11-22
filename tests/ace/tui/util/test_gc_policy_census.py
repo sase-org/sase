@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.util import _gc_policy_census as census_module
-from sase.ace.tui.util import _gc_policy_policy as policy_module
+from sase.ace.tui.util import _gc_policy_sweep as sweep_module
 from sase.ace.tui.util import gc_policy
 from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.ace.tui.util.gc_policy import GCPolicy
@@ -82,8 +82,8 @@ def test_census_rate_limited_on_idle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
-    monkeypatch.setattr(policy_module, "survivor_census_safe", lambda: True)
+    monkeypatch.setattr(sweep_module, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(sweep_module, "survivor_census_safe", lambda: True)
     emitted: list[dict[str, Any]] = []
     policy = idle_policy(clock, collector, recorder)
     policy._census_emit = emitted.append
@@ -115,8 +115,8 @@ def test_survivor_census_skipped_on_unsafe_python(
 ) -> None:
     collector.objects = [object(), object()]
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
-    monkeypatch.setattr(policy_module, "survivor_census_safe", lambda: False)
+    monkeypatch.setattr(sweep_module, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(sweep_module, "survivor_census_safe", lambda: False)
     _policy, emitted = _run_idle_census(clock, collector, recorder)
     assert collector.get_objects_calls == 0
     row = emitted[0]
@@ -134,8 +134,8 @@ def test_survivor_census_runs_when_safe(
 ) -> None:
     collector.objects = [object(), object(), object()]
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
-    monkeypatch.setattr(policy_module, "survivor_census_safe", lambda: True)
+    monkeypatch.setattr(sweep_module, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(sweep_module, "survivor_census_safe", lambda: True)
     _policy, emitted = _run_idle_census(clock, collector, recorder)
     assert collector.get_objects_calls == 1
     row = emitted[0]
@@ -151,8 +151,8 @@ def test_survivor_census_skip_warning_logged_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
-    monkeypatch.setattr(policy_module, "survivor_census_safe", lambda: False)
+    monkeypatch.setattr(sweep_module, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(sweep_module, "survivor_census_safe", lambda: False)
     emitted: list[dict[str, Any]] = []
     policy = idle_policy(clock, collector, recorder)
     policy._census_emit = emitted.append
@@ -220,8 +220,8 @@ def test_census_payload_includes_owner_fields(
 ) -> None:
     collector.objects = [object(), object()]
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
-    monkeypatch.setattr(policy_module, "survivor_census_safe", lambda: True)
+    monkeypatch.setattr(sweep_module, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(sweep_module, "survivor_census_safe", lambda: True)
     _policy, emitted = _run_idle_census(clock, collector, recorder)
     row = emitted[0]
     assert "bytes" in row["survivor_top"][0]

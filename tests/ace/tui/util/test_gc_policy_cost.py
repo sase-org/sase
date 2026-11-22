@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.util import _gc_policy_policy as policy_module
+from sase.ace.tui.util import _gc_policy_sweep as sweep_module
 from sase.ace.tui.util import gc_policy
 from sase.ace.tui.util._gc_policy_pressure import CostDeferral
 from sase.ace.tui.util.gc_policy import GCPolicy
@@ -45,7 +45,7 @@ def tags(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         seen.append(name)
         yield
 
-    monkeypatch.setattr(policy_module, "gc_trigger", recording)
+    monkeypatch.setattr(sweep_module, "gc_trigger", recording)
     return seen
 
 
@@ -53,7 +53,7 @@ def tags(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def emitted(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        policy_module,
+        sweep_module,
         "queue_row",
         lambda event, row: rows.append({"event": event, **row}),
     )
@@ -395,7 +395,7 @@ def test_active_user_two_hours_sweeps_at_bounded_intervals(
     policy.apply_thresholds()
     rows: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        policy_module,
+        sweep_module,
         "queue_row",
         lambda event, row: rows.append({"event": event, **row}),
     )
@@ -406,7 +406,7 @@ def test_active_user_two_hours_sweeps_at_bounded_intervals(
         seen.append(name)
         yield
 
-    monkeypatch.setattr(policy_module, "gc_trigger", recording)
+    monkeypatch.setattr(sweep_module, "gc_trigger", recording)
 
     predictions: list[tuple[float, float | None]] = []
     original_predict = policy._predicted_pause_s

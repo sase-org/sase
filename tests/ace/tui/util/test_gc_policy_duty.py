@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.tui.util import _gc_policy_policy as policy_module
+from sase.ace.tui.util import _gc_policy_gate as gate_module
+from sase.ace.tui.util import _gc_policy_sweep as sweep_module
 from sase.ace.tui.util import gc_policy
 from tests.ace.tui.util._gc_policy_test_support import (
     Clock,
@@ -137,7 +138,8 @@ def test_rss_backstop_honors_duty_floor(
     recorder = Recorder()
     collector = SlowCollector(clock, pause_s=5.0)
     rss = {"now": 1_000}
-    monkeypatch.setattr(policy_module, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(gate_module, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(sweep_module, "latest_rss_bytes", lambda: rss["now"])
     policy = _run_startup(clock, collector, recorder)
     assert policy.duty_floor_s() == pytest.approx(150.0)
 
