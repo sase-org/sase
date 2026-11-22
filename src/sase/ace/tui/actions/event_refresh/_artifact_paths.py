@@ -10,6 +10,7 @@ from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from ._constants import (
     _AGENTS_RELEVANT_ARTIFACT_MARKERS,
     _LIVE_FILE_REFRESH_STATUSES,
+    _LIVE_REPLY_ARTIFACT_NAMES,
 )
 
 if TYPE_CHECKING:
@@ -58,6 +59,34 @@ def _is_sharded_ace_run_dir_path(relative_parts: tuple[str, ...]) -> bool:
 def _is_prompt_step_marker(path: Path) -> bool:
     name = path.name
     return name.startswith("prompt_step_") and name.endswith(".json")
+
+
+def artifact_watch_path_is_relevant(path: Path) -> bool:
+    """Return True when a watcher event path may be consumed downstream.
+
+    Name-only: no ``stat`` / ``is_dir``. Fail open for paths outside an
+    ``artifacts`` tree (project specs, beads, notifications). Keep live
+    replies, loader-visible markers, refresh pulses, and suffixless
+    directory-like paths so create/move/delete of agent trees still
+    dispatch. Unconsumed artifact files such as logs and diffs are
+    dropped before the UI callback is armed.
+    """
+    if path.name in _LIVE_REPLY_ARTIFACT_NAMES:
+        return True
+    if path.suffix in {".gp", ".sase"}:
+        return True
+    relative_parts = _artifact_relative_parts(path)
+    if relative_parts is None or not relative_parts:
+        return True
+    if path.name == ".ace_refresh_pulse":
+        return True
+    if path.name in _AGENTS_RELEVANT_ARTIFACT_MARKERS:
+        return True
+    if _is_prompt_step_marker(path):
+        return True
+    if len(relative_parts) <= 2 or _is_sharded_ace_run_dir_path(relative_parts):
+        return path.suffix == ""
+    return False
 
 
 def artifact_path_affects_agents(path: Path) -> bool:

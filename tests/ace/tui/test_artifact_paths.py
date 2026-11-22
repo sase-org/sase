@@ -8,6 +8,7 @@ from sase.ace.tui.actions.event_refresh._artifact_paths import (
     artifact_dir_from_known_marker_path,
     artifact_path_affects_agents,
     artifact_path_is_project_refresh_pulse,
+    artifact_watch_path_is_relevant,
 )
 
 
@@ -75,4 +76,26 @@ def test_agent_directory_refresh_pulse_names_its_exact_row(tmp_path: Path) -> No
     legacy_dir = tmp_path / "proj" / "artifacts" / "workflow" / "20260828120000"
     assert artifact_dir_from_known_marker_path(legacy_dir / ".ace_refresh_pulse") == (
         legacy_dir
+    )
+
+
+def test_artifact_watch_path_is_relevant_keeps_consumers_and_drops_logs() -> None:
+    agent = Path("/home/u/.sase/projects/p/artifacts/ace-run/202608/28/20260828120000")
+    assert artifact_watch_path_is_relevant(agent / "agent_meta.json") is True
+    assert artifact_watch_path_is_relevant(agent / "live_reply.md") is True
+    assert (
+        artifact_watch_path_is_relevant(agent / "live_reply_timestamps.jsonl") is True
+    )
+    assert artifact_watch_path_is_relevant(agent / ".ace_refresh_pulse") is True
+    assert artifact_watch_path_is_relevant(agent) is True
+    assert artifact_watch_path_is_relevant(agent / "output.log") is False
+    assert artifact_watch_path_is_relevant(agent / "commit_diffs" / "001.diff") is False
+    assert (
+        artifact_watch_path_is_relevant(Path("/home/u/.sase/notifications/n.json"))
+        is True
+    )
+    assert artifact_watch_path_is_relevant(Path("/home/u/proj/foo.sase")) is True
+    assert (
+        artifact_watch_path_is_relevant(Path("/home/u/.sase/sdd/beads/events/x"))
+        is True
     )

@@ -36,11 +36,12 @@ def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
     beads_dir.mkdir(parents=True)
     set_sdd_policy(monkeypatch, "local")
     captured_paths: list[Path] = []
+    captured_kwargs: list[dict[str, Any]] = []
 
     class _FakeWatcher:
         def __init__(self, watch_paths: list[Path], **kwargs: Any) -> None:
-            del kwargs
             captured_paths.extend(watch_paths)
+            captured_kwargs.append(kwargs)
 
         def start(self) -> bool:
             return True
@@ -55,6 +56,7 @@ def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
 
     assert app._sdd_beads_dir == beads_dir
     assert beads_dir in captured_paths
+    assert captured_kwargs[-1]["is_relevant"] is not None
 
 
 def test_artifact_watcher_targets_plans_sidecar_beads_dir(
@@ -87,11 +89,12 @@ def test_artifact_watcher_targets_plans_sidecar_beads_dir(
     beads_dir = tmp_path / "sase" / "repos" / "plans" / "beads"
     beads_dir.mkdir(parents=True)
     captured_paths: list[Path] = []
+    captured_kwargs: list[dict[str, Any]] = []
 
     class _FakeWatcher:
         def __init__(self, watch_paths: list[Path], **kwargs: Any) -> None:
-            del kwargs
             captured_paths.extend(watch_paths)
+            captured_kwargs.append(kwargs)
 
         def start(self) -> bool:
             return True
@@ -106,3 +109,29 @@ def test_artifact_watcher_targets_plans_sidecar_beads_dir(
 
     assert app._sdd_beads_dir == beads_dir
     assert beads_dir in captured_paths
+    assert captured_kwargs[-1]["is_relevant"] is not None
+
+
+def test_artifact_watcher_start_false_leaves_polling_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    (tmp_path / "sase_home" / "projects" / "demo").mkdir(parents=True)
+    set_sdd_policy(monkeypatch, "local")
+
+    class _FakeWatcher:
+        def __init__(self, watch_paths: list[Path], **kwargs: Any) -> None:
+            del watch_paths, kwargs
+
+        def start(self) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions._startup_watchers.ArtifactWatcher",
+        _FakeWatcher,
+    )
+    app = _Harness()
+    app._start_artifact_watcher()
+    assert app._fs_watcher is None

@@ -9,7 +9,7 @@ from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._artifact_delta import EventArtifactDeltaMixin
 from ._artifact_paths import artifact_path_affects_agents
-from ._constants import PROMPT_INPUT_DEFER_SECONDS
+from ._constants import PROMPT_INPUT_DEFER_SECONDS, _LIVE_REPLY_ARTIFACT_NAMES
 from ._sdd_paths import cached_sdd_beads_dir
 
 
@@ -101,8 +101,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
     ) -> None:
         """Send selected reply-file events to the prompt panel's local follower."""
         if not changed_paths or not any(
-            path.name in {"live_reply.md", "live_reply_timestamps.jsonl"}
-            for path in changed_paths
+            path.name in _LIVE_REPLY_ARTIFACT_NAMES for path in changed_paths
         ):
             return
         query_one = getattr(self, "query_one", None)

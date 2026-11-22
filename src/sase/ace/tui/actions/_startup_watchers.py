@@ -64,10 +64,13 @@ class StartupWatchersMixin:
             watch_paths.append(notifications_dir)
         if not watch_paths:
             return
+        from .event_refresh._artifact_paths import artifact_watch_path_is_relevant
+
         watcher = ArtifactWatcher(
             watch_paths,
             on_change=self._on_artifact_change,
             schedule_callback=self.call_from_thread,
+            is_relevant=artifact_watch_path_is_relevant,
         )
         if watcher.start():
             self._fs_watcher = watcher
@@ -87,7 +90,10 @@ class StartupWatchersMixin:
         """Spin up an inotify watcher on editable prompt/snippet sources."""
         if self._prompt_source_watcher is not None:
             return
-        from ..prompt_catalog import prompt_source_watch_paths
+        from ..prompt_catalog import (
+            prompt_source_path_is_relevant,
+            prompt_source_watch_paths,
+        )
 
         watch_paths = prompt_source_watch_paths(self._prompt_catalog_projects)
         if not watch_paths:
@@ -97,6 +103,7 @@ class StartupWatchersMixin:
             watch_paths,
             on_change=self._on_prompt_source_change,
             schedule_callback=self.call_from_thread,
+            is_relevant=prompt_source_path_is_relevant,
         )
         if watcher.start():
             self._prompt_source_watcher = watcher

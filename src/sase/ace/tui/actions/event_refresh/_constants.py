@@ -33,6 +33,12 @@ _AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(
         "retry_state.json",
     }
 )
+_LIVE_REPLY_ARTIFACT_NAMES = frozenset(
+    {
+        "live_reply.md",
+        "live_reply_timestamps.jsonl",
+    }
+)
 
 _LIVE_FILE_REFRESH_STATUSES = frozenset(
     {

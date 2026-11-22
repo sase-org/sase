@@ -8,7 +8,16 @@ from typing import Any
 from sase.ace.tui import prompt_catalog
 from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMixin
 from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
+from sase.ace.tui.prompt_catalog import prompt_source_path_is_relevant
 from tests.ace.tui._prompt_catalog_test_helpers import entry
+
+
+def test_prompt_source_path_is_relevant_keeps_catalog_suffixes() -> None:
+    assert prompt_source_path_is_relevant(Path("/tmp/macros/foo.md")) is True
+    assert prompt_source_path_is_relevant(Path("/tmp/config/sase.yml")) is True
+    assert prompt_source_path_is_relevant(Path("/tmp/snippets")) is True
+    assert prompt_source_path_is_relevant(Path("/tmp/macros/foo.py")) is False
+    assert prompt_source_path_is_relevant(Path("/tmp/macros/foo.pyc")) is False
 
 
 def test_config_watcher_burst_carries_dirty_signal_to_rebuild() -> None:

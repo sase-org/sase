@@ -38,6 +38,19 @@ PROMPT_SOURCE_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
 PROMPT_SOURCE_DEBOUNCE_S = 0.3
 
 
+def prompt_source_path_is_relevant(path: Path) -> bool:
+    """Return True when a prompt-source watcher path may rebuild the catalog.
+
+    Suffixless paths stay relevant so directory create/move/delete still
+    dispatch. Config filenames are included even when their suffix would
+    otherwise be ignored, matching :func:`prompt_source_change_touches_config`.
+    """
+    if prompt_source_change_touches_config((path,)):
+        return True
+    suffix = path.suffix.lower()
+    return (not suffix) or suffix in PROMPT_SOURCE_SUFFIXES
+
+
 @dataclass(frozen=True, slots=True)
 class PromptCatalogSnapshot:
     """App-owned prompt/snippet catalog snapshot."""
@@ -269,5 +282,6 @@ __all__ = [
     "build_prompt_catalog_snapshot",
     "compose_pending_snippet_saves",
     "prompt_source_change_touches_config",
+    "prompt_source_path_is_relevant",
     "prompt_source_watch_paths",
 ]

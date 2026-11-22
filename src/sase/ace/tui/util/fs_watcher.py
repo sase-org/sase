@@ -3,17 +3,21 @@
 Phase 5 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.5). The TUI
 historically polled disk every 10 s to discover new agents, status flips,
 done.json markers, etc.  This module wakes the UI on actual file-system
-events instead, so external changes surface within ~50 ms while the auto-
+events instead, so external changes surface quickly while the auto-
 refresh timer can fall back to a slow safety-net cadence.
 
 The watcher uses Linux inotify directly via ``ctypes`` so we don't add a
 runtime dependency. On platforms without inotify the watcher silently
 declines to start; callers continue to rely on the polling fallback.
 
-Events from the worker thread are coalesced through a small idle delay
-before the UI-thread callback runs so a burst of writes (e.g. a child
-agent emitting many JSON files in quick succession) produces exactly one
-reconciliation.
+Unconsumed names (editor swap files, bytecode, sqlite sidecars) are
+dropped before a path is armed for dispatch. Callers may also pass an
+``is_relevant`` predicate so artifact policy stays separate from the
+generic prompt-source watcher. Remaining events coalesce on a ~200 ms
+trailing burst window with a hard deadline of one second from the first
+pending relevant event, so a continuous writer cannot starve the UI.
+When nothing is pending the stop self-pipe lets ``select`` block; a
+bounded timeout remains only as a fallback when that pipe is missing.
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ _IN_CREATE = 0x00000100
 _IN_DELETE = 0x00000200
 _IN_DELETE_SELF = 0x00000400
 _IN_MOVE_SELF = 0x00000800
+_IN_Q_OVERFLOW = 0x00004000
 _IN_IGNORED = 0x00008000
 _IN_ISDIR = 0x40000000
 
@@ -76,7 +81,58 @@ MAX_INOTIFY_WATCHES = 4096
 _EVENT_HEADER = struct.Struct("iIII")
 _EVENT_HEADER_SIZE = _EVENT_HEADER.size
 
-DEFAULT_COALESCE_S = 0.05
+DEFAULT_COALESCE_S = 0.2
+DEFAULT_DISPATCH_DEADLINE_S = 1.0
+PIPE_IDLE_FALLBACK_S = 0.5
+
+_IGNORED_WATCH_NAMES = frozenset(
+    {
+        ".DS_Store",
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "4913",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
+)
+_IGNORED_WATCH_SUFFIXES = (
+    ".bak",
+    ".pyc",
+    ".pyo",
+    ".swn",
+    ".swo",
+    ".swp",
+    ".swx",
+    ".temp",
+    ".tmp",
+)
+
+
+def _is_ignored_watch_name(name: str) -> bool:
+    """Return True for names no TUI consumer reads.
+
+    Applied before a path is armed for dispatch and before a newly created
+    directory grows the watch table. Empty names (the watched path itself)
+    stay relevant so deletion/rename of a watch root still surfaces.
+    """
+    if not name:
+        return False
+    if name in _IGNORED_WATCH_NAMES:
+        return True
+    if name.endswith("~"):
+        return True
+    if name.startswith(".#"):
+        return True
+    if name.startswith("#") and name.endswith("#"):
+        return True
+    if name.endswith(("-journal", "-shm", "-wal")):
+        return True
+    lowered = name.lower()
+    return lowered.endswith(_IGNORED_WATCH_SUFFIXES)
 
 
 def _path_is_dir(path: Path) -> bool:
@@ -129,7 +185,9 @@ class ArtifactWatcher:
     down.  Events from the worker are delivered to ``on_change`` via
     ``schedule_callback`` (typically Textual's ``call_from_thread``) after
     a short coalesce window so a burst of file activity collapses to one
-    reconciliation.
+    reconciliation. A hard deadline still dispatches during sustained
+    writes. ``is_relevant`` is the caller-specific consumed-path filter;
+    generic ignored names are dropped even when it is omitted.
     """
 
     def __init__(
@@ -140,6 +198,10 @@ class ArtifactWatcher:
         *,
         mask: int = DEFAULT_EVENT_MASK,
         coalesce_s: float = DEFAULT_COALESCE_S,
+        deadline_s: float = DEFAULT_DISPATCH_DEADLINE_S,
+        is_relevant: Callable[[Path], bool] | None = None,
+        clock: Callable[[], float] | None = None,
+        selector: Callable[..., tuple[list[int], list[int], list[int]]] | None = None,
     ) -> None:
         self._paths: list[Path] = [Path(p) for p in paths]
         self._on_change = on_change
@@ -147,6 +209,10 @@ class ArtifactWatcher:
         self._schedule_callback = schedule_callback
         self._mask = mask
         self._coalesce_s = coalesce_s
+        self._deadline_s = deadline_s
+        self._is_relevant = is_relevant
+        self._clock = clock or time.monotonic
+        self._select = selector or select.select
         self._fd: int = -1
         self._watch_paths_by_wd: dict[int, Path] = {}
         self._wd_by_path: dict[str, int] = {}
@@ -156,11 +222,33 @@ class ArtifactWatcher:
         # Created in :meth:`start`; ``-1`` when unavailable or stopped.
         self._wake_r: int = -1
         self._wake_w: int = -1
+        self._first_pending_mono: float = 0.0
         self._last_event_mono: float = 0.0
         self._pending_paths: set[Path] = set()
         self._lock = threading.Lock()
         self._watch_lock = threading.Lock()
         self._watch_cap_warning_emitted = False
+        self._stat_select_timeout_wakeups = 0
+        self._stat_inotify_readable_wakeups = 0
+        self._stat_raw_events = 0
+        self._stat_accepted_events = 0
+        self._stat_ignored_events = 0
+        self._stat_rejected_events = 0
+        self._stat_ui_dispatches = 0
+        self._stat_dispatched_paths = 0
+
+    def stats(self) -> dict[str, int]:
+        """Return inexpensive wakeup/dispatch counters for this instance."""
+        return {
+            "select_timeout_wakeups": self._stat_select_timeout_wakeups,
+            "inotify_readable_wakeups": self._stat_inotify_readable_wakeups,
+            "raw_events": self._stat_raw_events,
+            "accepted_events": self._stat_accepted_events,
+            "ignored_events": self._stat_ignored_events,
+            "rejected_events": self._stat_rejected_events,
+            "ui_dispatches": self._stat_ui_dispatches,
+            "dispatched_paths": self._stat_dispatched_paths,
+        }
 
     def start(self) -> bool:
         """Start the watcher thread.
@@ -294,21 +382,15 @@ class ArtifactWatcher:
 
     def _loop(self) -> None:
         """Worker loop: read events, coalesce, dispatch to UI."""
-        idle_timeout = 0.5
         while not self._stop_event.is_set():
             fd = self._fd
             if fd < 0:
                 return
             wake_r = self._wake_r
-            # If a pending event is waiting to be flushed, shorten the
-            # select timeout so the dispatch runs within the coalesce
-            # window once the event burst quiesces.
-            with self._lock:
-                pending = self._last_event_mono != 0.0
-            timeout = self._coalesce_s if pending else idle_timeout
+            timeout = self._pending_select_timeout()
             read_fds = [fd] if wake_r < 0 else [fd, wake_r]
             try:
-                ready, _, _ = select.select(read_fds, [], [], timeout)
+                ready, _, _ = self._select(read_fds, [], [], timeout)
             except (OSError, ValueError):
                 # fd was closed under us — shutdown path.
                 return
@@ -321,19 +403,61 @@ class ArtifactWatcher:
                 if self._stop_event.is_set():
                     return
             if not ready:
+                self._stat_select_timeout_wakeups += 1
                 self._maybe_flush()
                 continue
+            if fd in ready:
+                self._stat_inotify_readable_wakeups += 1
             try:
                 data = os.read(fd, 4096)
             except (BlockingIOError, OSError):
                 continue
             changed_paths = self._collect_relevant_events(data)
-            if not changed_paths:
-                continue
-            with self._lock:
-                self._last_event_mono = time.monotonic()
-                self._pending_paths.update(changed_paths)
+            if changed_paths:
+                self._note_relevant_paths(changed_paths)
             self._maybe_flush()
+
+    def _pending_select_timeout(self) -> float | None:
+        """Return the next ``select`` timeout from pending coalescing state.
+
+        Idle with a stop self-pipe blocks until an event. Idle without a
+        pipe uses :data:`PIPE_IDLE_FALLBACK_S`. Pending events use the
+        sooner of the trailing coalesce window and the hard dispatch
+        deadline measured from the first relevant path.
+        """
+        with self._lock:
+            first = self._first_pending_mono
+            last = self._last_event_mono
+        if first == 0.0:
+            if self._wake_r >= 0:
+                return None
+            return PIPE_IDLE_FALLBACK_S
+        now = self._clock()
+        remaining_coalesce = self._coalesce_s - (now - last)
+        remaining_deadline = self._deadline_s - (now - first)
+        remaining = min(remaining_coalesce, remaining_deadline)
+        return remaining if remaining > 0.0 else 0.0
+
+    def _note_relevant_paths(self, paths: set[Path]) -> None:
+        """Arm coalesced dispatch for *paths* without resetting the deadline."""
+        now = self._clock()
+        with self._lock:
+            if self._first_pending_mono == 0.0:
+                self._first_pending_mono = now
+            self._last_event_mono = now
+            self._pending_paths.update(paths)
+
+    def _path_is_consumed(self, path: Path) -> bool:
+        """Return whether *path* should arm a UI dispatch."""
+        if _is_ignored_watch_name(path.name):
+            return False
+        if self._is_relevant is None:
+            return True
+        try:
+            return bool(self._is_relevant(path))
+        except Exception:
+            log.debug("is_relevant failed for %s; failing open", path, exc_info=True)
+            return True
 
     def _add_watch_path(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
         """Install one watch without walking existing descendants."""
@@ -446,7 +570,9 @@ class ArtifactWatcher:
                 continue
             try:
                 children = tuple(
-                    child for child in current.iterdir() if _path_is_dir(child)
+                    child
+                    for child in current.iterdir()
+                    if _path_is_dir(child) and not _is_ignored_watch_name(child.name)
                 )
             except OSError:
                 continue
@@ -456,56 +582,76 @@ class ArtifactWatcher:
     def _collect_relevant_events(self, data: bytes) -> set[Path]:
         offset = 0
         paths: set[Path] = set()
+        overflow = False
         libc = _libc()
         while offset + _EVENT_HEADER_SIZE <= len(data):
             wd, mask, _, name_len = _EVENT_HEADER.unpack_from(data, offset)
             offset += _EVENT_HEADER_SIZE
             raw_name = data[offset : offset + name_len].split(b"\0", 1)[0]
             offset += name_len
+            self._stat_raw_events += 1
             # ``IN_IGNORED`` arrives without ``self._mask`` bits set after
             # the kernel auto-detaches a watch — handle it regardless so we
             # always reclaim the tracking entry.
             if mask & _IN_IGNORED:
                 self._remove_watch(libc, self._fd, wd)
+                self._stat_ignored_events += 1
                 continue
-            if mask & self._mask:
-                with self._watch_lock:
-                    base_path = self._watch_paths_by_wd.get(wd)
-                if base_path is None:
-                    continue
-                try:
-                    name = raw_name.decode("utf-8", errors="replace")
-                except UnicodeDecodeError:
-                    name = ""
-                event_path = base_path / name if name else base_path
-                paths.add(event_path)
-                if (
-                    libc is not None
-                    and mask & _IN_ISDIR
-                    and mask & (_IN_CREATE | _IN_MOVED_TO)
-                ):
-                    self._add_watch_tree(libc, self._fd, event_path)
-                if mask & (_IN_DELETE_SELF | _IN_MOVE_SELF):
-                    # Drop the bookkeeping entry; the kernel will follow up
-                    # with ``IN_IGNORED`` to free the wd, but removing the
-                    # path mapping here keeps the dict bounded immediately.
-                    self._remove_watch(libc, self._fd, wd)
+            if mask & _IN_Q_OVERFLOW:
+                overflow = True
+                continue
+            if not (mask & self._mask):
+                self._stat_rejected_events += 1
+                continue
+            with self._watch_lock:
+                base_path = self._watch_paths_by_wd.get(wd)
+            if base_path is None:
+                self._stat_rejected_events += 1
+                continue
+            try:
+                name = raw_name.decode("utf-8", errors="replace")
+            except UnicodeDecodeError:
+                name = ""
+            event_path = base_path / name if name else base_path
+            ignored_name = _is_ignored_watch_name(name or event_path.name)
+            if (
+                libc is not None
+                and mask & _IN_ISDIR
+                and mask & (_IN_CREATE | _IN_MOVED_TO)
+                and not ignored_name
+            ):
+                self._add_watch_tree(libc, self._fd, event_path)
+            if mask & (_IN_DELETE_SELF | _IN_MOVE_SELF):
+                # Drop the bookkeeping entry; the kernel will follow up
+                # with ``IN_IGNORED`` to free the wd, but removing the
+                # path mapping here keeps the dict bounded immediately.
+                self._remove_watch(libc, self._fd, wd)
+            if ignored_name or not self._path_is_consumed(event_path):
+                self._stat_ignored_events += 1
+                continue
+            paths.add(event_path)
+            self._stat_accepted_events += 1
+        if overflow:
+            self._stat_accepted_events += 1
+            if not paths:
+                paths.update(self._paths)
         return paths
 
     def _maybe_flush(self) -> None:
-        """Dispatch coalesced events to the UI thread once idle."""
+        """Dispatch coalesced events to the UI thread once idle or due."""
         if self._stop_event.is_set():
             return
+        now = self._clock()
         with self._lock:
+            first = self._first_pending_mono
             last = self._last_event_mono
-        if last == 0.0:
-            return
-        elapsed = time.monotonic() - last
-        if elapsed < self._coalesce_s:
-            return
-        with self._lock:
-            if self._last_event_mono == 0.0:
+            if first == 0.0:
                 return
+            coalesce_ready = (now - last) >= self._coalesce_s
+            deadline_ready = (now - first) >= self._deadline_s
+            if not (coalesce_ready or deadline_ready):
+                return
+            self._first_pending_mono = 0.0
             self._last_event_mono = 0.0
             changed_paths = tuple(sorted(self._pending_paths))
             self._pending_paths.clear()
@@ -525,6 +671,8 @@ class ArtifactWatcher:
             log.exception("artifact watcher callback dispatch failed")
 
     def _dispatch_change(self, changed_paths: tuple[Path, ...]) -> None:
+        self._stat_ui_dispatches += 1
+        self._stat_dispatched_paths += len(changed_paths)
         if self._on_change_accepts_paths:
             self._on_change(changed_paths)
         else:
