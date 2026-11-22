@@ -62,12 +62,12 @@
 - [Workspaces](reference/agents/workspaces.md) — Look up workspace storage, repository commands, and workspace commands.
 - [Artifact Links](reference/artifact-links.md) — Typed relationships between durable SASE artifacts.
 - [Artifact References](reference/artifact-references.md) — Typed @kind:argument citations that expand in launch prompts.
+- [Gate Debug](reference/automation/gate-debug.md) — Inspect a gate bundle, hashes, and execution errors from sase's TUI.
 - [Automation](reference/automation/index.md) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](reference/automation/mentors.md) — Configure and use automated review mentors for Patches.
 - [Monitor operations](reference/automation/monitor-operations.md) — Inspect, stop, hijack, and recover monitors in the SASE TUI.
 - [Monitors](reference/automation/monitors.md) — Start and supervise commands that outlive the SASE agent that launched them.
 - [Notification CLI](reference/automation/notification-cli.md) — Command-line operations for listing and managing notifications.
-- [Command-backed interaction gates](reference/automation/notification-gates.md) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
 - [Notification storage](reference/automation/notification-storage.md) — Storage behavior for SASE notifications.
 - [Notification tags](reference/automation/notification-tags.md) — Notification tags and the colors and icons used in notification tabs.
 - [Notification types](reference/automation/notification-types.md) — Notification payloads, fields, and silent notification behavior.
@@ -367,6 +367,7 @@
 - [Monitors](monitors.md) — This page has moved to its new home.
 - [Notifications](notifications.md) — This page has moved to its new home.
 - [Plugin System](plugins.md) — This page has moved to its new home.
+- [Command-backed interaction gates](reference/automation/notification-gates.md) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
 - [Spec-Driven Development (SDD)](sdd.md) — This page has moved to its new home.
 - [Named Tools and ToolRuns](tool.md) — This page has moved to its new home.
@@ -433,3 +434,4 @@
 | `/artifact_links/` | [`/reference/artifact-links/`](reference/artifact-links.md) |
 | `/pager/` | [`/reference/tui/pager/`](reference/tui/pager.md) |
 | `/cli/` | [`/reference/cli/`](reference/cli/index.md) |
+| `/reference/automation/notification-gates/` | [`/reference/automation/notification-gates/`](reference/automation/notification-gates.md) |

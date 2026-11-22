@@ -231,7 +231,7 @@ This page has moved. See [Notifications](reference/automation/notifications.md).
 
 <a id="debugging-a-gate"></a>
 
-- [Debugging a gate](reference/automation/notification-gates.md#debugging-a-gate)
+- [Debugging a gate](reference/automation/gate-debug.md#debugging-a-gate)
 
 <a id="compatibility-window"></a>
 

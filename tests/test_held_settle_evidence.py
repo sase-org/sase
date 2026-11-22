@@ -29,7 +29,7 @@ from sase.workspace_provider.retention_record import (
     read_workspace_retention_record,
 )
 
-from tests.test_stale_running_cleanup_monitor_claims import (
+from tests._stale_running_cleanup_monitor_claims_retention import (
     _make_leaked_monitor,
     _run_cleanup_sweep,
 )

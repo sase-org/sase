@@ -18,6 +18,7 @@ tools, mentors, and sudo requests.
 - [Notification CLI](notification-cli.md) — notification commands.
 - [Command-backed interaction gates](notification-gates.md) — gate behavior and
   lifecycle.
+- [Gate Debug](gate-debug.md) — inspect a gate bundle, hashes, and execution errors.
 - [Notification storage](notification-storage.md) — how notifications are stored.
 
 ## Scheduler

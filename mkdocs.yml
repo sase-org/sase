@@ -42,6 +42,7 @@ not_in_nav: |
   monitors.md
   notifications.md
   plugins.md
+  reference/automation/notification-gates.md
   rust_backend.md
   sdd.md
   tool.md
@@ -327,6 +328,7 @@ nav:
               - Notification tags: reference/automation/notification-tags.md
               - Notification CLI: reference/automation/notification-cli.md
               - Interaction gates: reference/automation/notification-gates.md
+              - Gate Debug: reference/automation/gate-debug.md
               - Notification storage: reference/automation/notification-storage.md
           - Scheduler:
               - Scheduler: reference/automation/scheduler.md

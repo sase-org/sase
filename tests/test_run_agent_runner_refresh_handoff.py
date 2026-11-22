@@ -178,7 +178,8 @@ def test_prompt_rewrite_failure_skips_refresh(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
-    prompt_file = tmp_path / "missing" / "prompt.md"
+    prompt_file = tmp_path / "blocked-prompt"
+    prompt_file.mkdir()
     with (
         patch(
             "sase.axe.run_agent_runner_refresh.runner_code_identity",
@@ -196,7 +197,7 @@ def test_prompt_rewrite_failure_skips_refresh(
 
     execv.assert_not_called()
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
-    assert "Skipping sase runner code refresh" in capsys.readouterr().err
+    assert "Skipping runner re-exec" in capsys.readouterr().err
 
 
 def test_exec_failure_continues_without_refresh_guard_or_prompt_file(

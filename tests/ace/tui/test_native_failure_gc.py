@@ -55,12 +55,6 @@ def _failure_counts(counts) -> dict[str, int]:
 def test_failed_native_build_releases_snapshot_and_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        native_link_index,
-        "_compile",
-        lambda *_args: (_ for _ in ()).throw(RuntimeError("boom-controlled")),
-    )
-
     def attempt() -> None:
         snapshot = _synthetic_snapshot()
         try:
@@ -70,7 +64,13 @@ def test_failed_native_build_releases_snapshot_and_state(
         finally:
             del snapshot
 
-    counts = collect_cyclic_garbage(attempt, repeat=3)
+    with monkeypatch.context() as mp:
+        mp.setattr(
+            native_link_index,
+            "_compile",
+            lambda *_args: (_ for _ in ()).throw(RuntimeError("boom-controlled")),
+        )
+        counts = collect_cyclic_garbage(attempt, repeat=3)
     observed = _failure_counts(counts)
     assert observed["sase.ace.tui.relations._native_link_index._Inflight"] == 0
     assert observed["builtins.traceback"] == 0
@@ -79,7 +79,6 @@ def test_failed_native_build_releases_snapshot_and_state(
     assert observed["sase.ace.tui.relations.artifact_links.ArtifactLinksSnapshot"] == 0
 
     # Retry with a real build succeeds after the detached failure.
-    monkeypatch.undo()
     snapshot = _synthetic_snapshot()
     try:
         handle = native_link_index.native_handle_for_snapshot(snapshot)

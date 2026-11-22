@@ -257,3 +257,70 @@ def test_wait_checks_job_imports_no_scheduler_tui_or_agents_sync() -> None:
         assert not present, present
         """
     )
+
+
+_CYCLE_EDGE_MODULES = (
+    "sase.core.agent_launch_claims",
+    "sase.workspace_provider.inventory",
+    "sase.workspace_provider.occupancy_conflicts",
+)
+
+
+def test_agent_launch_claims_imports_before_running_field() -> None:
+    """Importing the claims module first must not hit the running_field cycle."""
+    _run_probe(
+        """
+        import sase.core.agent_launch_claims
+        import sase.workspace_provider.inventory
+        import sase.workspace_provider.occupancy_conflicts
+        import sase.running_field
+
+        assert callable(sase.running_field.claim_workspace)
+        """
+    )
+
+
+@pytest.mark.parametrize("module", _CYCLE_EDGE_MODULES)
+def test_cycle_edge_module_imports_in_isolation(module: str) -> None:
+    _run_probe(
+        f"""
+        import {module}
+        import sase.running_field
+
+        assert callable(sase.running_field.claim_workspace)
+        """
+    )
+
+
+def test_running_field_model_stays_a_leaf() -> None:
+    _run_probe(
+        """
+        import sys
+        import sase.running_field._model
+
+        assert "sase.running_field._claim" not in sys.modules
+        assert "sase.core.agent_launch_claims" not in sys.modules
+        """
+    )
+
+
+def _discover_chop_script_modules() -> tuple[str, ...]:
+    import pkgutil
+
+    import sase.scripts
+
+    names = tuple(
+        sorted(
+            f"sase.scripts.{mod.name}"
+            for mod in pkgutil.iter_modules(sase.scripts.__path__)
+            if mod.name.startswith("sase_chop_")
+        )
+    )
+    assert names, "expected at least one sase_chop_* script module"
+    return names
+
+
+@pytest.mark.parametrize("script_module", _discover_chop_script_modules())
+def test_every_chop_script_module_imports_cleanly(script_module: str) -> None:
+    """Fresh-interpreter import of every sase_chop_* entry point must succeed."""
+    _run_probe(f"import {script_module}")

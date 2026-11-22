@@ -62,12 +62,12 @@ def collect_ace_run_retention_candidates(
     now: datetime,
     keep_recent_months: int,
 ) -> tuple[list[dict[str, Any]], set[str]]:
-    """Scan out-of-window artifact dirs into Rust-bound candidates.
+    """Scan artifact dirs into Rust-bound candidates.
 
-    Runs in the keep-recent window can never be selected (the Rust owner
-    adds ``recent_month`` itself), so they are passed through with empty
-    Python reasons and skip the record scan, continuation planning, and
-    per-candidate protection checks.
+    Runs in the keep-recent window skip the record scan and per-candidate
+    protection checks (the Rust owner adds ``recent_month`` itself).
+    Continuation planning still sees those dirs so a live in-window
+    successor can protect older ancestry.
     """
 
     unavailable: set[str] = set()
@@ -84,8 +84,9 @@ def collect_ace_run_retention_candidates(
         )
         for project in project_names
     }
-    # Split recent-window dirs out before any expensive scan: they need no
-    # continuation planning, record scan, or protection reasons.
+    # Split recent-window dirs out before the record scan. Continuation
+    # planning still includes them so in-window live successors protect
+    # older ancestry.
     out_of_window_by_project: dict[str, list[Path]] = {p: [] for p in project_names}
     is_recent: dict[str, bool] = {}
     for project in project_names:
@@ -99,16 +100,16 @@ def collect_ace_run_retention_candidates(
             else:
                 is_recent[key] = False
                 out_of_window_by_project[project].append(artifact_dir)
-    out_of_window_dirs = tuple(
+    all_dirs = tuple(
         artifact_dir
         for project in project_names
-        for artifact_dir in out_of_window_by_project[project]
+        for artifact_dir in project_dirs[project]
     )
     continuation_reasons: dict[str, tuple[str, ...]] = {}
     continuation_unavailable = False
     try:
         continuation_plan = plan_continuation_run_retention(
-            out_of_window_dirs, projects_root=projects_root
+            all_dirs, projects_root=projects_root
         )
     except ValueError as exc:
         unavailable.add(f"continuation retention: {exc}")
@@ -137,12 +138,16 @@ def collect_ace_run_retention_candidates(
             if info is None:
                 continue
             if is_recent.get(str(artifact_dir), False):
+                dir_key = normalized_path(artifact_dir)
+                reasons = list(continuation_reasons.get(dir_key, ()))
+                if continuation_unavailable:
+                    reasons.append("continuation_unavailable")
                 candidates.append(
                     {
                         "artifact_dir": str(artifact_dir),
                         "project": project,
                         "timestamp": info.timestamp,
-                        "protected_reasons": [],
+                        "protected_reasons": _dedupe(reasons),
                     }
                 )
                 continue

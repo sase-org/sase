@@ -937,7 +937,7 @@ moves:
       gate-turns-and-continuation: reference/automation/notification-gates.md#gate-turns-and-continuation
       gate-inputs: reference/automation/notification-gates.md#gate-inputs
       gate-actions: reference/automation/notification-gates.md#gate-actions
-      debugging-a-gate: reference/automation/notification-gates.md#debugging-a-gate
+      debugging-a-gate: reference/automation/gate-debug.md#debugging-a-gate
       compatibility-window: reference/automation/notification-gates.md#compatibility-window
       storage: reference/automation/notification-storage.md#storage
     title: Notifications
@@ -1588,3 +1588,9 @@ moves:
       operations-and-diagnostics: reference/diagnostics.md#operations-and-diagnostics
       doctor-support-reports: reference/diagnostics.md#doctor-support-reports
     title: CLI Reference
+  - from: reference/automation/notification-gates.md
+    to: reference/automation/notification-gates.md
+    kind: stub
+    anchors:
+      debugging-a-gate: reference/automation/gate-debug.md#debugging-a-gate
+    title: Command-backed interaction gates

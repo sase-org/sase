@@ -520,8 +520,9 @@ def test_recent_window_short_circuit_skips_scans_but_stays_protected(
     )
 
     assert str(recent) not in seen_scan_dirs
-    assert str(recent) not in seen_continuation_dirs
+    assert str(recent) in seen_continuation_dirs
     assert str(old) in seen_scan_dirs
+    assert str(old) in seen_continuation_dirs
     # Recent-window dirs are still counted and reported protected.
     assert plan.counts.candidates == 2
     assert {item.artifact_dir for item in plan.selected} == {str(old)}

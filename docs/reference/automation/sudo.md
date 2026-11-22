@@ -174,8 +174,8 @@ than `Gates`. Selecting the notification opens the **Sudo Request** review modal
 | `g` / `G`           | Jump to the top / bottom                     |
 | `q` / `Esc`         | Close without answering                      |
 
-Inside this modal `d` denies the request. To open Gate Debug, press `d` on the
-notification row instead.
+Inside this modal `d` denies the request. To open [Gate Debug](gate-debug.md), press `d`
+on the notification row instead.
 
 The approve action is **Authenticate & run**. It suspends sase's TUI, prints a banner
 naming the request and the selected command IDs, and runs

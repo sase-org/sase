@@ -19,11 +19,10 @@ from typing import Any
 from sase.running_field._model import WorkspaceClaim
 from sase.running_field._query import get_claimed_workspaces
 
-# Must come after the running_field imports above: sase.core.agent_launch_claims
-# and sase.running_field import each other, and running_field's own __init__
-# is what resolves that cycle safely. Importing agent_launch_claims first (as
-# this module's very first sase import) reliably crashes with a circular
-# ImportError instead.
+# Leaf running_field imports stay first: sase.core.agent_launch_claims and
+# sase.running_field import each other. Package-level running_field names
+# resolve lazily (PEP 562), so a claims-first import is also safe; leaf-first
+# keeps this module off the package cycle.
 from sase.core.agent_launch_claims import decide_workspace_occupant_conflict
 from sase.workspace_provider.occupant import read_occupant_record
 

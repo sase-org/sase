@@ -278,16 +278,16 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/axe/run_agent_wait.py:_remove_wait_markers": Review(
+        mutation_calls=("unlink",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/axe/run_agent_wait.py:wait_for_dependencies": Review(
-        mutation_calls=(
-            "unlink",
-            "open",
-            "dump",
-            "unlink",
-            "open",
-            "dump",
-            "unlink",
-        ),
+        mutation_calls=("open", "dump", "open", "dump"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
+    "src/sase/axe/run_agent_runner.py:_restore_killed_lean_wait_state": Review(
+        mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/runner_artifacts.py:write_done_marker": Review(

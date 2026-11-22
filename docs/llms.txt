@@ -64,12 +64,12 @@
 - [Workspaces](https://sase.sh/reference/agents/workspaces/) — Look up workspace storage, repository commands, and workspace commands.
 - [Artifact Links](https://sase.sh/reference/artifact-links/) — Typed relationships between durable SASE artifacts.
 - [Artifact References](https://sase.sh/reference/artifact-references/) — Typed @kind:argument citations that expand in launch prompts.
+- [Gate Debug](https://sase.sh/reference/automation/gate-debug/) — Inspect a gate bundle, hashes, and execution errors from sase's TUI.
 - [Automation](https://sase.sh/reference/automation/) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](https://sase.sh/reference/automation/mentors/) — Configure and use automated review mentors for Patches.
 - [Monitor operations](https://sase.sh/reference/automation/monitor-operations/) — Inspect, stop, hijack, and recover monitors in the SASE TUI.
 - [Monitors](https://sase.sh/reference/automation/monitors/) — Start and supervise commands that outlive the SASE agent that launched them.
 - [Notification CLI](https://sase.sh/reference/automation/notification-cli/) — Command-line operations for listing and managing notifications.
-- [Command-backed interaction gates](https://sase.sh/reference/automation/notification-gates/) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
 - [Notification storage](https://sase.sh/reference/automation/notification-storage/) — Storage behavior for SASE notifications.
 - [Notification tags](https://sase.sh/reference/automation/notification-tags/) — Notification tags and the colors and icons used in notification tabs.
 - [Notification types](https://sase.sh/reference/automation/notification-types/) — Notification payloads, fields, and silent notification behavior.
@@ -369,6 +369,7 @@
 - [Monitors](https://sase.sh/monitors/) — This page has moved to its new home.
 - [Notifications](https://sase.sh/notifications/) — This page has moved to its new home.
 - [Plugin System](https://sase.sh/plugins/) — This page has moved to its new home.
+- [Command-backed interaction gates](https://sase.sh/reference/automation/notification-gates/) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
 - [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — This page has moved to its new home.
 - [Named Tools and ToolRuns](https://sase.sh/tool/) — This page has moved to its new home.
@@ -433,3 +434,4 @@
 - https://sase.sh/artifact_links/ → https://sase.sh/reference/artifact-links/
 - https://sase.sh/pager/ → https://sase.sh/reference/tui/pager/
 - https://sase.sh/cli/ → https://sase.sh/reference/cli/
+- https://sase.sh/reference/automation/notification-gates/ → https://sase.sh/reference/automation/notification-gates/

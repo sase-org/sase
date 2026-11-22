@@ -156,12 +156,10 @@ class TestRetryLoop:
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
 
-        kill_calls = 0
-
         def mock_was_killed() -> bool:
-            nonlocal kill_calls
-            kill_calls += 1
-            return kill_calls >= 2
+            # Extra pre-execute was_killed probes (refresh handoff) must not
+            # abort before the first attempt; kill only once retry wait starts.
+            return execute_mock.call_count >= 1
 
         patches[f"{RUNNER}.was_killed"] = mock_was_killed
         patches[f"{EXEC}.was_killed"] = mock_was_killed

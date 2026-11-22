@@ -11,10 +11,6 @@ from sase.core.agent_scan_facade import (
     read_agent_artifact_index_meta,
     write_agent_artifact_index_meta,
 )
-from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
-from sase.core.agent_scan_wire_records import (
-    SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS,
-)
 from sase.main.var_handler import handle_var_command
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.var_cli_helpers import (
@@ -59,10 +55,11 @@ def test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs(
         hidden=True,
     )
     index = rebuild_home_index(home, projects)
+    live_schema = int(read_agent_artifact_index_meta(index, "schema_version"))
     write_agent_artifact_index_meta(
         index,
         "schema_version",
-        str(AGENT_ARTIFACT_INDEX_SCHEMA_VERSION - 1),
+        str(live_schema - 1),
     )
 
     assert (
@@ -70,9 +67,7 @@ def test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs(
     )
     upgraded = json.loads(capsys.readouterr().out)
     assert upgraded["groups"][0]["key"] == "status"
-    assert int(read_agent_artifact_index_meta(index, "schema_version")) in (
-        SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
-    )
+    assert int(read_agent_artifact_index_meta(index, "schema_version")) == live_schema
 
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "worker")

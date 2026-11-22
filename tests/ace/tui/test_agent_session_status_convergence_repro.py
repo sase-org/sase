@@ -20,7 +20,10 @@ from sase.ace.tui.actions.agents._notification_utils import (
     request_notification_agents_refresh,
 )
 from sase.ace.tui.actions.event_refresh._auto_refresh import EventAutoRefreshMixin
-from sase.ace.tui.actions.event_refresh._surface_tokens import probe_surface_tokens
+from sase.ace.tui.actions.event_refresh._surface_tokens import (
+    SurfaceTokenSnapshot,
+    probe_surface_tokens,
+)
 from sase.ace.tui.data_providers import AgentsViewport
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
@@ -114,6 +117,12 @@ class _PreparedApplyHarness(AgentLoadingApplyMixin):
 
     def _schedule_diff_badge_classification(self, *, source: str = "unknown") -> None:
         del source
+
+    def _last_surface_token(self, surface: str) -> object:
+        return EventAutoRefreshMixin._last_surface_token(self, surface)
+
+    def _agents_token_reload_kind(self, snapshot: SurfaceTokenSnapshot | None) -> str:
+        return EventAutoRefreshMixin._agents_token_reload_kind(self, snapshot)
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

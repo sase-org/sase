@@ -320,7 +320,7 @@ def _run_runner_with_wait_result(
                 side_effect=finalize_runner_shutdown,
             )
         )
-        stack.enter_context(
+        was_killed = stack.enter_context(
             patch.object(run_agent_runner, "was_killed", return_value=False)
         )
         with pytest.raises(SystemExit) as exc_info:
@@ -338,6 +338,7 @@ def _run_runner_with_wait_result(
         "shutdown_states": shutdown_states,
         "wait_for_dependencies": wait_for_dependencies,
         "refresh_runner_code_after_wait": refresh_runner_code_after_wait,
+        "was_killed": was_killed,
     }
 
 
@@ -376,7 +377,7 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         agent_name="foo--reviewer",
         artifacts_dir=str(tmp_path / "artifacts"),
         local_macros={},
-        is_killed=run_agent_runner.was_killed,
+        is_killed=result["was_killed"],
     )
 
 
