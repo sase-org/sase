@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import os
 import random
 import sys
 import time
@@ -39,7 +38,6 @@ SWEEP_SECONDS = 5.0
 #: Store errors that persist this long fall open.
 STORE_ERROR_GRACE_SECONDS = 30.0
 _BUSY_TIMEOUT_MS = 2000
-_PARENT_ENV = "SASE_TOOL_RUN_ID"
 _UNSETTLED_STATES = frozenset({"created", "running"})
 
 
@@ -56,6 +54,17 @@ class _AdmissionResult:
     waited: bool = False
     stop_requested: bool = False
     timeout_requested: bool = False
+    unavailable: _UnavailableAdmission | None = None
+
+
+@dataclass
+class _UnavailableAdmission:
+    """Evidence needed to recover an unavailable fail-open admission."""
+
+    key: str
+    limit: int
+    bypass_ts_ms: int
+    recorded: bool = False
 
 
 _PROCEED = _AdmissionResult()
@@ -92,7 +101,7 @@ def admit_before_spawn(
     limit = policy.limit_for(tool)
     if limit is None:
         return _PROCEED
-    if _is_nested_run(ctx.run_id):
+    if _is_nested_run(ctx.parent_run_id, ctx.run_id):
         return _PROCEED
     if not ctx.recorded:
         _unavailable(tool, "run not recorded", show_header)
@@ -108,18 +117,18 @@ def admit_before_spawn(
     try:
         return gate.run()
     except _AdmissionUnavailable as exc:
-        _unavailable(tool, str(exc), show_header)
-        return _AdmissionResult(waited=gate.entered)
+        return gate._unavailable_result(str(exc))
 
 
-def _is_nested_run(run_id: str) -> bool:
-    """Return whether an inherited ``SASE_TOOL_RUN_ID`` names a live parent.
+def _is_nested_run(parent_id: str | None, run_id: str) -> bool:
+    """Return whether the effective owner names a live parent ToolRun.
 
-    An unreadable parent counts as nested: the variable is strong evidence
-    of nesting, and exempting a run can only fail open.
+    ``parent_id`` comes from resolved ownership (or the adopted run's stored
+    owner fields), so an inherited id that ownership cleared for a new agent
+    cannot exempt that agent. An unreadable effective parent counts as nested:
+    exempting a run can only fail open.
     """
 
-    parent_id = (os.environ.get(_PARENT_ENV) or "").strip()
     if not parent_id or parent_id == run_id:
         return False
     try:
@@ -333,6 +342,24 @@ class _AdmissionWait:
 
     def _admitted(self, result: dict[str, Any]) -> _AdmissionResult:
         waited_seconds = _wait_seconds(result, self.started)
+        admission = result.get("admission")
+        admitted_by = (
+            str(admission.get("admitted_by") or "")
+            if isinstance(admission, dict)
+            else ""
+        )
+        if admitted_by == "max_wait":
+            self._say_max_wait(waited_seconds)
+            _count("forced", waited_seconds)
+            return _AdmissionResult(waited=True)
+        if admitted_by == "unavailable":
+            self._say_unavailable_committed()
+            _count("unavailable", waited_seconds)
+            return _AdmissionResult(waited=True)
+        if admitted_by != "slot":
+            return self._unavailable_result(
+                f"admission grant has unknown reason {admitted_by or 'missing'}"
+            )
         if self._last_counts is not None:
             _say(
                 f"sase: {self.tool} slot granted after "
@@ -342,26 +369,66 @@ class _AdmissionWait:
         return _AdmissionResult(waited=True)
 
     def _force(self) -> _AdmissionResult:
-        result: dict[str, Any] | None = None
-        try:
-            result = self._call(
-                "tool_run_admission_force",
-                {
-                    "schema_version": 1,
-                    "run_id": self.ctx.run_id,
-                    "reason": "max_wait",
-                },
-            )
-        except _AdmissionUnavailable:
-            result = None
-        waited_seconds = _wait_seconds(result or {}, self.started)
+        request = {
+            "schema_version": 1,
+            "run_id": self.ctx.run_id,
+            "reason": "max_wait",
+        }
+        while True:
+            stopped = self._stop_check(fast=False)
+            if stopped is not None:
+                return stopped
+            try:
+                result = self._call(
+                    "tool_run_admission_force",
+                    request,
+                )
+            except _AdmissionUnavailable as exc:
+                return self._unavailable_result(str(exc))
+            if result is None:
+                stopped = self._sleep_until_next_poll()
+                if stopped is not None:
+                    return stopped
+                continue
+            outcome = str(result.get("outcome") or "")
+            if outcome == "settled":
+                return self._abandon("the run settled", stop=True)
+            if outcome == "not_found":
+                return self._unavailable_result("run not found in core")
+            if outcome != "admitted":
+                return self._unavailable_result(
+                    f"force returned {outcome or 'no outcome'}"
+                )
+            return self._admitted(result)
+
+    def _say_max_wait(self, waited_seconds: float) -> None:
         _say(
             f"sase: no {self.tool} slot after {_format_seconds(waited_seconds)} "
             f"(max_wait_seconds {self.max_wait_seconds}); "
             f"running over the limit of {self.limit}"
         )
-        _count("forced", waited_seconds)
-        return _AdmissionResult(waited=True)
+
+    def _say_unavailable_committed(self) -> None:
+        self.show_header()
+        _say(
+            f"sase: {self.tool} admission unavailable; "
+            "running through the recorded bypass"
+        )
+
+    def _unavailable_result(self, reason: str) -> _AdmissionResult:
+        waited_seconds = time.monotonic() - self.started
+        _unavailable(
+            self.tool,
+            reason,
+            self.show_header,
+            waited_seconds=waited_seconds,
+        )
+        evidence = _UnavailableAdmission(
+            key=self.tool,
+            limit=self.limit,
+            bypass_ts_ms=time.time_ns() // 1_000_000,
+        )
+        return _AdmissionResult(waited=self.entered, unavailable=evidence)
 
     def _abandon(
         self, reason: str, *, stop: bool = False, timeout: bool = False
@@ -428,10 +495,71 @@ def _say(line: str) -> None:
     write_display(sys.stderr, f"{line}\n".encode())
 
 
-def _unavailable(tool: str, why: str, show_header: Callable[[], None]) -> None:
+def record_unavailable_admission(
+    ctx: RecordedRunContext, evidence: _UnavailableAdmission | None
+) -> bool:
+    """Try to record a fail-open run as a holder using its pre-spawn time.
+
+    Each call is bounded by the core busy timeout. The caller retries at the
+    existing spawn, demand-recording, and settlement points, never by delaying
+    the child until the store recovers.
+    """
+
+    if evidence is None:
+        return True
+    if evidence.recorded:
+        return True
+    if not ctx.recorded:
+        return False
+    try:
+        from sase.core.tool_run import tool_run_admission_force
+
+        result = tool_run_admission_force(
+            {
+                "schema_version": 1,
+                "run_id": ctx.run_id,
+                "reason": "unavailable",
+                "now_ms": evidence.bypass_ts_ms,
+                "key": evidence.key,
+                "limit": evidence.limit,
+            },
+            busy_timeout_ms=_BUSY_TIMEOUT_MS,
+        )
+    except Exception:  # noqa: BLE001 - recovery never delays child/settlement.
+        return False
+    if not isinstance(result, dict) or str(result.get("outcome") or "") != "admitted":
+        return False
+    # Core preserves any existing real slot/max-wait grant. Either way, an
+    # admitted result proves the ledger no longer says this executed run was
+    # abandoned.
+    evidence.recorded = True
+    return True
+
+
+def unavailable_admission_diagnostic(
+    evidence: _UnavailableAdmission | None,
+) -> str | None:
+    """Return the durable diagnostic needed when recovery never succeeded."""
+
+    if evidence is None or evidence.recorded:
+        return None
+    return "admission bypass evidence incomplete: unavailable run was executed"
+
+
+def _unavailable(
+    tool: str,
+    why: str,
+    show_header: Callable[[], None],
+    *,
+    waited_seconds: float | None = None,
+) -> None:
     show_header()
     _say(f"sase: {tool} admission unavailable ({why}); running without a slot")
-    _count("unavailable")
+    _count("unavailable", waited_seconds)
 
 
-__all__ = ["admit_before_spawn"]
+__all__ = [
+    "admit_before_spawn",
+    "record_unavailable_admission",
+    "unavailable_admission_diagnostic",
+]

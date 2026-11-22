@@ -274,7 +274,7 @@ def tool_run_admission_force(
     store_path: str | None = None,
     busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
-    """Admit a waiting run over its limit (``reason: max_wait``)."""
+    """Force admission for ``max_wait`` or recover an ``unavailable`` bypass."""
 
     return dict(
         _binding()("tool_run_admission_force")(

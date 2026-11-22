@@ -134,6 +134,33 @@ def test_show_prints_settled_admission_lines(
     assert "ADMISSION admitted over limit after max wait (limit 1)" in out
 
 
+def test_show_names_an_unavailable_bypass(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.core.tool_run import tool_run_admission_force
+    from sase.tool.query import ToolShowCliRequest, handle_show
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    _holder, _waiter = _hold_and_queue()
+    bypass = _seed_running()
+    _enter(bypass)
+    result = tool_run_admission_force(
+        {
+            "schema_version": 1,
+            "run_id": bypass,
+            "reason": "unavailable",
+            "key": "check",
+            "limit": 1,
+        }
+    )
+    assert result["admission"]["admitted_by"] == "unavailable"
+
+    assert handle_show(ToolShowCliRequest(run_id=bypass, json=False, logs=False)) == 0
+    assert "ADMISSION admitted through unavailable bypass" in capsys.readouterr().out
+
+
 def test_show_json_carries_demand_admission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -243,6 +270,35 @@ def test_follower_lines_fire_once_per_change() -> None:
     assert emitted[-1] == "sase: check slot granted after 1m 30s"
 
 
+@pytest.mark.parametrize(
+    ("admitted_by", "expected"),
+    [
+        ("max_wait", "sase: no check slot after max wait"),
+        (
+            "unavailable",
+            "sase: check admission unavailable; running through the recorded bypass",
+        ),
+    ],
+)
+def test_follower_bypass_copy_names_its_reason(admitted_by: str, expected: str) -> None:
+    from sase.tool.admission_display import follower_granted_line
+
+    run = {
+        "state": "running",
+        "demand": {
+            "admission": {
+                "state": "admitted",
+                "key": "check",
+                "wait_ms": 90000,
+                "admitted_by": admitted_by,
+            }
+        },
+    }
+    line = follower_granted_line(run)
+    assert line is not None and line.startswith(expected)
+    assert "slot granted" not in line
+
+
 def test_stats_admission_cell() -> None:
     from sase.tool.stats_report_render import _format_admission_waits
 
@@ -258,8 +314,9 @@ def test_stats_admission_cell() -> None:
             "wait_ms_p95": 60000,
             "wait_ms_max": 90000,
             "forced": 1,
+            "unavailable": 2,
             "abandoned": 2,
         }
     )
     assert "admission waits 4/10 runs" in cell
-    assert "1 forced, 2 abandoned" in cell
+    assert "1 max-wait, 2 unavailable, 2 abandoned" in cell

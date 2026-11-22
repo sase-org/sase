@@ -463,34 +463,37 @@ entered the queue, so a changed cap applies to new runs.
   as stopped, signaled, interrupted, or timed out with `command was not run`, and the
   queue moves on.
 - **Max wait.** A run still waiting after `max_wait_seconds` is admitted over the cap
-  with one warning line, so a hung holder whose wrapper is still alive cannot block the
-  host's runs indefinitely. Its record says `admitted_by: max_wait`, and it counts as a
-  holder until it settles.
+  with one warning once core confirms `admitted_by: max_wait`, so a hung holder whose
+  wrapper is still alive cannot block the host indefinitely. It counts as a holder until
+  it settles.
 - **Exemptions.** Ad-hoc runs (`sase tool run -- ARGV...`) are never capped. A nested
-  run (one started inside another unsettled ToolRun, which it learns from an inherited
-  `SASE_TOOL_RUN_ID`) never waits, so a capped tool that runs itself cannot deadlock. A
-  `-J` join only follows a run and never takes a slot. A raw guarded-recipe run with
+  run (its resolved parent is a live ToolRun) never waits, so a capped tool that runs
+  itself cannot deadlock; a new agent's inherited parent does not count. A `-J` join
+  only follows a run and never takes a slot. A raw guarded-recipe run with
   `SASE_TOOL_BYPASS` is outside `sase tool run` and escapes the cap.
 - **Fail-open.** Admission shapes load and is never a correctness gate. When the
   installed `sase_core_rs` lacks the admission bindings, the store keeps failing for
   about 30 seconds, the `tool_runs.admission` config is invalid (the line names the
-  field), or the run is not recorded, the wrapper prints
+  field), or admission is missing, the wrapper prints
   `sase: check admission unavailable (<why>); running without a slot` and runs the
-  command.
+  command. A recovered store records it as an `admitted_by: unavailable` holder at its
+  pre-spawn time; otherwise its diagnostics flag incomplete evidence.
 - **Duration versus wait.** `duration_ms` still measures from the command's spawn, so
   TYPICAL, triage, and receipts never include queueing. The wait is recorded separately
   in the run's demand as `demand.admission` (`state`, `limit`, `seq`, `requested_ts_ms`,
-  `admitted_ts_ms`, `admitted_by`, and `wait_ms`); `sase tool show RUN -j` carries it. A
-  run that settles while waiting records `state: abandoned` with the time it waited.
+  `admitted_ts_ms`, `admitted_by` (`slot`, `max_wait`, or `unavailable`), and
+  `wait_ms`); `sase tool show RUN -j` carries it. A run that settles while waiting
+  records `state: abandoned` with the time it waited.
 - **Finding a wait.** `sase tool runs` marks queued runs `(waiting, N ahead)` with a
   live queue position. `sase tool show` adds an `ADMISSION` line: live runs read
   `waiting for a check slot since 16:21 (limit 3, 1 ahead)`; settled runs read
-  `admitted after 2m 14s (limit 3)`, `admitted over limit after max wait`, or
-  `abandoned after 40s`. `sase tool wait` and the escalation block say
-  `still waiting for a check slot (N ahead)` instead of `still running`, and `wait -j`
-  carries an `admission` object (`schema_version` stays 1). Followers (`show -F`, the
-  compact inline follower, and `-J` joins writing into the monitor log) print the
-  waiting line once per position change and the grant line once. `sase monitor show`
+  `admitted after 2m 14s (limit 3)`, `admitted over limit after max wait`,
+  `admitted through unavailable bypass`, or `abandoned after 40s`. `sase tool wait` and
+  the escalation block say `still waiting for a check slot (N ahead)` instead of
+  `still running`, and `wait -j` carries an `admission` object (`schema_version` stays
+  1). Followers (`show -F`, the compact inline follower, and `-J` joins writing into the
+  monitor log) print the waiting line once per position change and the outcome once,
+  never repeating lines a streamed wrapper log already holds. `sase monitor show`
   appends the wait to its `Tool run <id> (joined)` line, and single-tool
   `sase tool stats` adds an admission-waits cell beside the token-waits cell.
 - **In the TUI.** A queued run renders as `waiting` with its queue position: an amber

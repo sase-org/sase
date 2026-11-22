@@ -16,7 +16,11 @@ from sase.telemetry.metrics import (
     TOOL_RUN_SETTLEMENTS,
 )
 from sase.tool._executor_shared import default_continuation_mode
-from sase.tool.admission import admit_before_spawn
+from sase.tool.admission import (
+    admit_before_spawn,
+    record_unavailable_admission,
+    unavailable_admission_diagnostic,
+)
 from sase.tool.demand import (
     build_resource_usage,
     demand_file_path,
@@ -127,7 +131,11 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 signal_num=sig,
                 interruption_reason=reason,
                 duration_ms=0,
-                diagnostics=["command was not run"] if admission.waited else None,
+                diagnostics=(
+                    ["command was not run"]
+                    if admission.waited or admission.unavailable is not None
+                    else None
+                ),
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved) if recorded else None,
                 terminal_cause=cause,
@@ -140,6 +148,12 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         if signals.sigint and not (stop or timeout):
             return 130
         return 143 if (signals.sigterm or stop or timeout) else 130
+
+    # Fail-open execution is recorded as an unavailable holder when the
+    # ledger recovers. This bounded write uses the gate's pre-spawn timestamp;
+    # its failure never delays the child beyond the core busy timeout.
+    admission_evidence = admission.unavailable
+    record_unavailable_admission(ctx, admission_evidence)
 
     child_env_map = child_env(
         recorded=recorded,
@@ -169,6 +183,10 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         show_header()
         print(diagnostic, file=sys.stderr)
         if recorded:
+            record_unavailable_admission(ctx, admission_evidence)
+            evidence_diagnostic = unavailable_admission_diagnostic(admission_evidence)
+            if evidence_diagnostic:
+                warn_once(f"sase: {evidence_diagnostic}")
             # Core rejects an exit code alongside launch_failed, and the
             # existing ledger contract records 127/126 for spawn failures,
             # so a spawn failure settles failed/exited (the CLI still
@@ -178,7 +196,10 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 run_id,
                 state="failed",
                 exit_code=exit_code,
-                diagnostics=[diagnostic],
+                diagnostics=[
+                    diagnostic,
+                    *([evidence_diagnostic] if evidence_diagnostic else []),
+                ],
                 duration_ms=duration_ms_since(started),
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved),
@@ -205,6 +226,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         if sampler.write_failures:
             inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
     if recorded:
+        record_unavailable_admission(ctx, admission_evidence)
         _observe_spawned_child(
             run_id,
             child_pid=child_pid,
@@ -213,6 +235,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         )
         if ctx.demand_context is not None:
             record_run_demand(run_id, context=dict(ctx.demand_context))
+        record_unavailable_admission(ctx, admission_evidence)
 
     policy = log_policy()
     budget = RunLogBudget(int(policy.get("run_log_max_bytes") or 0))
@@ -349,6 +372,10 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         recorded_signal = None
     if recorded:
         _record_run_usage(run_id, wait_exit, sampler, ctx.events_path)
+        record_unavailable_admission(ctx, admission_evidence)
+        evidence_diagnostic = unavailable_admission_diagnostic(admission_evidence)
+        if evidence_diagnostic:
+            warn_once(f"sase: {evidence_diagnostic}")
         fingerprint_after = observe_fingerprint(resolved)
         finished = finish_tool_run(
             run_id,
@@ -359,7 +386,13 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             duration_ms=duration_ms,
             child_pid=child_pid,
             child_pgid=child_pgid,
-            diagnostics=[*ingest_diagnostics, *truncation, *log_write_facts] or None,
+            diagnostics=[
+                *ingest_diagnostics,
+                *truncation,
+                *log_write_facts,
+                *([evidence_diagnostic] if evidence_diagnostic else []),
+            ]
+            or None,
             fingerprint_before=fingerprint_before,
             fingerprint_after=fingerprint_after,
             terminal_cause=cause,

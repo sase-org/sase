@@ -37,6 +37,7 @@ from tests.ace.tui.visual._ace_tool_runs_png_snapshot_shared import (
     seed_tool_run_surfaces,
     select_agent,
     tool_run_agent,
+    tool_run_admission_view,
     tool_run_brief,
     tool_run_glance,
     tool_run_summary,
@@ -57,12 +58,18 @@ def _header_agents() -> list[Agent]:
         tool_run_agent("tr-h-killed", status="DONE"),
         tool_run_agent("tr-h-stopped", status="DONE"),
         tool_run_agent("tr-h-lost", status="DONE"),
+        tool_run_agent("tr-h-wait"),
     ]
 
 
 def _header_glances() -> list[ToolRunGlance]:
     return [
         tool_run_glance("a1" * 16, agent="tr-h-live"),
+        tool_run_glance(
+            "a3" * 16,
+            agent="tr-h-wait",
+            admission=tool_run_admission_view(ahead=1),
+        ),
         tool_run_glance(
             "a2" * 16,
             agent="tr-h-silent",
@@ -83,6 +90,9 @@ def _header_summaries(
         ),
         "agent:tr-h-silent": tool_run_summary(
             "agent:tr-h-silent", live=(live_by_agent["tr-h-silent"],)
+        ),
+        "agent:tr-h-wait": tool_run_summary(
+            "agent:tr-h-wait", live=(live_by_agent["tr-h-wait"],)
         ),
     }
     cases = [
@@ -128,6 +138,11 @@ _HEADER_CHIPS: tuple[tuple[str, str, str], ...] = (
     ("tr-h-killed", "killed", "tool_runs_header_killed_120x40"),
     ("tr-h-stopped", "stopped", "tool_runs_header_stopped_120x40"),
     ("tr-h-lost", "lost", "tool_runs_header_lost_120x40"),
+    (
+        "tr-h-wait",
+        "waiting for check (1 ahead)",
+        "tool_runs_header_waiting_120x40",
+    ),
 )
 
 
@@ -162,7 +177,7 @@ async def test_tool_runs_header_chips_png_snapshots(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 9)
+        await page.expect_state("agent_count", 10)
         prompt_panel = page.app.query_one("#agent-prompt-panel")
         detail_panel = page.app.query_one("#agent-detail-panel")
         for agent in agents:

@@ -205,11 +205,11 @@ def test_nested_run_inside_a_live_parent_is_exempt(
     _clean_env(monkeypatch, tmp_path)
     _project(tmp_path, monkeypatch, admission={"max_concurrent": {"check": 1}})
     parent = _hold_slot()
-    run_id, resolved = _begin()
-    monkeypatch.setenv("SASE_TOOL_RUN_ID", parent)
+    run_id, resolved = _begin(parent_run_id=parent)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     _forbid_core_admission(monkeypatch)
 
-    result = _admit(_ctx(run_id, resolved))
+    result = _admit(_ctx(run_id, resolved, parent_run_id=parent))
 
     assert result.proceed and not result.waited
     assert _admission(run_id) is None
@@ -226,9 +226,36 @@ def test_settled_inherited_parent_is_not_nesting(
     monkeypatch.setenv("SASE_TOOL_RUN_ID", stale)
     run_id, _ = _begin()
 
-    assert gate._is_nested_run(run_id) is False
-    monkeypatch.setenv("SASE_TOOL_RUN_ID", run_id)
-    assert gate._is_nested_run(run_id) is False
+    assert gate._is_nested_run(stale, run_id) is False
+    assert gate._is_nested_run(run_id, run_id) is False
+
+
+def test_agent_with_cleared_inherited_parent_queues_as_a_new_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.tool.ownership import resolve_ownership
+
+    _clean_env(monkeypatch, tmp_path)
+    _project(tmp_path, monkeypatch, admission={"max_concurrent": {"check": 1}})
+    parent = _hold_slot()
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", parent)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    ownership = resolve_ownership(quiet=False)
+    assert ownership.parent_run_id is None
+    run_id, resolved = _begin(parent_run_id=ownership.parent_run_id)
+    release = threading.Timer(0.08, _settle, args=(parent,))
+    release.start()
+    try:
+        result = gate.admit_before_spawn(
+            _ctx(run_id, resolved, parent_run_id=ownership.parent_run_id),
+            SignalState(),
+            show_header=lambda: None,
+        )
+    finally:
+        release.join()
+
+    assert result.proceed and result.waited
+    assert _record(run_id)["state"] == "admitted"
 
 
 def test_join_worker_takes_no_slot(
@@ -444,6 +471,260 @@ def test_max_wait_admits_over_the_limit(
     assert record["admitted_by"] == "max_wait"
     polled = tool_run_admission_poll({"schema_version": 1, "run_id": holder})
     assert {peer["run_id"] for peer in polled["holders"]} == {holder, run_id}
+
+
+def test_force_settled_stops_before_the_child_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    marker = tmp_path / "ran"
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+        script=f"touch {marker}",
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    monkeypatch.setattr(
+        core,
+        "tool_run_admission_force",
+        lambda *_args, **_kwargs: {"outcome": "settled"},
+    )
+
+    assert run_recorded_body(_ctx(run_id, resolved), SignalState()) == 143
+    run = tool_run_show(run_id)["run"]
+    assert not marker.exists()
+    assert run["state"] == "signaled"
+    assert "command was not run" in (run.get("diagnostics") or [])
+    assert _record(run_id)["state"] == "abandoned"
+
+
+def test_force_not_found_falls_open_and_recovers_unavailable_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    marker = tmp_path / "ran"
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+        script=f"touch {marker}",
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    original_force = core.tool_run_admission_force
+    outcomes: list[str] = []
+
+    def missing_max_wait(request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        if request.get("reason") == "max_wait":
+            return {"outcome": "not_found"}
+        return original_force(request, **kwargs)
+
+    monkeypatch.setattr(core, "tool_run_admission_force", missing_max_wait)
+    monkeypatch.setattr(
+        gate, "_count", lambda outcome, *_args: outcomes.append(outcome)
+    )
+
+    assert run_recorded_body(_ctx(run_id, resolved), SignalState()) == 0
+    run = tool_run_show(run_id)["run"]
+    assert marker.exists()
+    assert run["state"] == "succeeded"
+    assert _record(run_id)["admitted_by"] == "unavailable"
+    assert "forced" not in outcomes
+    assert "unavailable" in outcomes
+    err = capsys.readouterr().err
+    assert err.count("admission unavailable") == 1
+    assert "no check slot after" not in err
+
+
+def test_transient_force_error_retries_until_max_wait_is_confirmed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    original_force = core.tool_run_admission_force
+    calls = 0
+
+    def one_transient_error(request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("database is locked")
+        return original_force(request, **kwargs)
+
+    monkeypatch.setattr(core, "tool_run_admission_force", one_transient_error)
+
+    result = _admit(_ctx(run_id, resolved))
+
+    assert result.proceed
+    assert calls >= 2
+    assert _record(run_id)["admitted_by"] == "max_wait"
+
+
+def test_force_store_error_falls_open_and_recovers_before_child_settlement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    marker = tmp_path / "ran"
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+        script=f"sleep 1.5; touch {marker}",
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    original_force = core.tool_run_admission_force
+    monkeypatch.setattr(gate, "STORE_ERROR_GRACE_SECONDS", 0.15)
+
+    def unavailable_during_force(
+        request: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        if request.get("reason") == "max_wait":
+            raise RuntimeError("database is locked")
+        return original_force(request, **kwargs)
+
+    monkeypatch.setattr(core, "tool_run_admission_force", unavailable_during_force)
+
+    assert run_recorded_body(_ctx(run_id, resolved), SignalState()) == 0
+    run = tool_run_show(run_id)["run"]
+    assert marker.exists()
+    assert run["state"] == "succeeded"
+    admission = _record(run_id)
+    assert admission["admitted_by"] == "unavailable"
+    assert admission["wait_ms"] < run["duration_ms"]
+
+
+def test_poll_failure_after_entry_recovers_the_bypass_at_a_later_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    marker = tmp_path / "ran"
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}},
+        script=f"touch {marker}",
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    monkeypatch.setattr(gate, "STORE_ERROR_GRACE_SECONDS", 0.15)
+    monkeypatch.setattr(
+        core,
+        "tool_run_admission_poll",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("database is locked")
+        ),
+    )
+    original_force = core.tool_run_admission_force
+    recoveries: list[dict[str, Any]] = []
+
+    def recover_on_retry(request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        if request.get("reason") == "unavailable":
+            recoveries.append(dict(request))
+            if len(recoveries) == 1:
+                raise RuntimeError("database is locked")
+        return original_force(request, **kwargs)
+
+    monkeypatch.setattr(core, "tool_run_admission_force", recover_on_retry)
+
+    assert run_recorded_body(_ctx(run_id, resolved), SignalState()) == 0
+    run = tool_run_show(run_id)["run"]
+    admission = _record(run_id)
+    assert marker.exists()
+    assert run["state"] == "succeeded"
+    assert admission["state"] == "admitted"
+    assert admission["admitted_by"] == "unavailable"
+    # The pre-spawn bypass time survives the failed first write.
+    assert len(recoveries) == 2
+    assert {item["now_ms"] for item in recoveries} == {recoveries[0]["now_ms"]}
+    assert admission["admitted_ts_ms"] == recoveries[0]["now_ms"]
+    assert not any(
+        "evidence incomplete" in item for item in (run.get("diagnostics") or [])
+    )
+    assert capsys.readouterr().err.count("admission unavailable") == 1
+
+
+def test_unrecovered_bypass_is_named_in_settlement_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    monkeypatch.setattr(gate, "STORE_ERROR_GRACE_SECONDS", 0.12)
+    monkeypatch.setattr(
+        core,
+        "tool_run_admission_force",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("database is locked")
+        ),
+    )
+
+    assert run_recorded_body(_ctx(run_id, resolved), SignalState()) == 0
+    run = tool_run_show(run_id)["run"]
+    assert run["state"] == "succeeded"
+    assert _record(run_id)["state"] == "abandoned"
+    assert any(
+        "admission bypass evidence incomplete" in item
+        for item in (run.get("diagnostics") or [])
+    )
+
+
+@pytest.mark.parametrize(
+    ("probe_name", "expected_cause"),
+    [("stop_recorded", "stop_requested"), ("timeout_recorded", "timeout")],
+)
+def test_stop_or_timeout_during_force_retry_does_not_start_child(
+    probe_name: str,
+    expected_cause: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    marker = tmp_path / "ran"
+    _project(
+        tmp_path,
+        monkeypatch,
+        admission={"max_concurrent": {"check": 1}, "max_wait_seconds": 1},
+        script=f"touch {marker}",
+    )
+    _hold_slot()
+    run_id, resolved = _begin()
+    monkeypatch.setattr(
+        core,
+        "tool_run_admission_force",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("database is locked")
+        ),
+    )
+    calls = 0
+
+    def stop_after_retry() -> bool:
+        nonlocal calls
+        calls += 1
+        return calls >= 2
+
+    code = run_recorded_body(
+        _ctx(run_id, resolved, **{probe_name: stop_after_retry}), SignalState()
+    )
+    run = tool_run_show(run_id)["run"]
+    assert code == 143
+    assert not marker.exists()
+    assert run["terminal_cause"] == expected_cause
+    assert "command was not run" in (run.get("diagnostics") or [])
+    assert _record(run_id)["state"] == "abandoned"
 
 
 def test_dead_holder_is_reconciled_and_frees_its_slot(

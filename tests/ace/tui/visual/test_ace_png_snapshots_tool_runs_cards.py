@@ -34,6 +34,7 @@ from tests.ace.tui.visual._ace_tool_runs_png_snapshot_shared import (
     pin_tool_run_clocks,
     seed_tool_run_surfaces,
     select_agent,
+    tool_run_admission_view,
     show_runs_card,
     tool_run_agent,
     tool_run_brief,
@@ -157,6 +158,7 @@ def _card_agents() -> list[Agent]:
         tool_run_agent("tr-c-killed", status="DONE"),
         tool_run_agent("tr-c-pass", status="DONE"),
         tool_run_agent("tr-c-pruned", status="DONE"),
+        tool_run_agent("tr-c-wait"),
         tool_run_agent(
             "tr-c-mon",
             status="MONITORING",
@@ -174,6 +176,12 @@ def _card_glances() -> list[ToolRunGlance]:
             "c1" + "0" * 30,
             agent="tr-c-live",
             created_ts=TOOL_RUN_EPOCH_INT - 133,
+        ),
+        tool_run_glance(
+            "w1" + "0" * 30,
+            agent="tr-c-wait",
+            stages_done=0,
+            admission=tool_run_admission_view(ahead=1),
         ),
     ]
 
@@ -209,9 +217,16 @@ def _card_summaries() -> dict[str, ToolRunNodeSummary]:
         agent="tr-c-live",
         created_ts=TOOL_RUN_EPOCH_INT - 133,
     )
+    waiting_glance = tool_run_glance(
+        "w1" + "0" * 30,
+        agent="tr-c-wait",
+        stages_done=0,
+        admission=tool_run_admission_view(ahead=1),
+    )
     return {
         "agent:tr-c-failed": tool_run_summary("agent:tr-c-failed", (failed,)),
         "agent:tr-c-live": tool_run_summary("agent:tr-c-live", live=(live_glance,)),
+        "agent:tr-c-wait": tool_run_summary("agent:tr-c-wait", live=(waiting_glance,)),
         "agent:tr-c-killed": tool_run_summary("agent:tr-c-killed", (killed,)),
         "agent:tr-c-pass": tool_run_summary("agent:tr-c-pass", (passed,)),
         "agent:tr-c-pruned": tool_run_summary("agent:tr-c-pruned", (pruned,)),
@@ -255,6 +270,24 @@ def _card_details() -> dict[str, LoadedToolRunDetail]:
             agent="tr-c-live",
         ),
     )
+    waiting_id = "w1" + "0" * 30
+    waiting_brief = tool_run_brief(
+        waiting_id,
+        bucket="undetermined",
+        state="running",
+        created_ts=TOOL_RUN_EPOCH_INT - 133,
+        settled_ts=None,
+        duration_ms=None,
+        agent="tr-c-wait",
+        admission=tool_run_admission_view(ahead=1),
+    )
+    waiting_detail = ToolRunDetail(
+        store_exists=True,
+        found=True,
+        display_argv=("just", "check"),
+        stages=(),
+        brief=waiting_brief,
+    )
     pruned_detail = ToolRunDetail(
         store_exists=True,
         found=True,
@@ -293,6 +326,12 @@ def _card_details() -> dict[str, LoadedToolRunDetail]:
             tail=_ToolRunLogTail(),
             live=True,
         ),
+        waiting_id: LoadedToolRunDetail(
+            run_id=waiting_id,
+            detail=waiting_detail,
+            tail=_ToolRunLogTail(),
+            live=True,
+        ),
         pruned.run_id: LoadedToolRunDetail(
             run_id=pruned.run_id,
             detail=pruned_detail,
@@ -313,6 +352,11 @@ def _card_details() -> dict[str, LoadedToolRunDetail]:
 _CARD_CASES: tuple[tuple[str, str, str], ...] = (
     ("tr-c-failed", "3 NEW", "tool_runs_card_failed_120x40"),
     ("tr-c-live", "7/11", "tool_runs_card_live_120x40"),
+    (
+        "tr-c-wait",
+        "waiting for check (1 ahead)",
+        "tool_runs_card_waiting_120x40",
+    ),
     ("tr-c-killed", "killed", "tool_runs_card_killed_120x40"),
     ("tr-c-pass", "✓", "tool_runs_card_pass_120x40"),
     ("tr-c-pruned", "detail pruned", "tool_runs_card_pruned_120x40"),
@@ -356,7 +400,7 @@ async def test_tool_runs_card_png_snapshots(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 6)
+        await page.expect_state("agent_count", 7)
         for name, fragment, snapshot_name in _CARD_CASES:
             run_id = run_id_for_card(name)
             await select_agent(page, name)

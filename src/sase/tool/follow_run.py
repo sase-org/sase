@@ -68,6 +68,11 @@ def follow_run(
     offsets: dict[str, int] = {}
     notified: list[bool] = []
     state: dict[str, Any] = {"ingestor": None}
+    admission_state: dict[str, Any] = {
+        "waiting": None,
+        "granted": False,
+        "retained_wrapper_log": None,
+    }
     emit = on_stage_line or (lambda line: print(line, file=sys.stderr))
 
     ingest_stages = stream_output or compact
@@ -100,6 +105,9 @@ def follow_run(
             if stream_output:
                 _stream_output_paths(first["run"], offsets)
                 _notice_unretained_output(first["run"], notified)
+                admission_state["retained_wrapper_log"] = _has_retained_wrapper_log(
+                    first["run"]
+                )
             fresh = _follow_ingestor(first["run"], compact=compact)
             if fresh is not None:
                 state["ingestor"] = fresh
@@ -110,14 +118,21 @@ def follow_run(
 
     last: dict[str, Any] | None = None
     poll_state = WaitPollState()
-    admission_state: dict[str, Any] = {"waiting": None, "granted": False}
     announce = stream_output or compact
     orig_on_poll = _on_poll
 
     def _on_poll_with_admission(envelope: dict[str, Any]) -> None:  # noqa: F811
         orig_on_poll(envelope)
         if announce:
-            _emit_admission_lines(envelope, emit, admission_state)
+            run = envelope.get("run")
+            if (
+                admission_state["retained_wrapper_log"] is None
+                and stream_output
+                and isinstance(run, dict)
+            ):
+                admission_state["retained_wrapper_log"] = _has_retained_wrapper_log(run)
+            if not (stream_output and admission_state["retained_wrapper_log"]):
+                _emit_admission_lines(envelope, emit, admission_state)
 
     _on_poll = _on_poll_with_admission  # noqa: F811
     while True:
@@ -213,6 +228,24 @@ def _last_envelope(run_id: str) -> dict[str, Any] | None:
     except Exception:  # noqa: BLE001 - a transient read is no envelope.
         return None
     return envelope if isinstance(envelope, dict) else None
+
+
+def _has_retained_wrapper_log(run: dict[str, Any]) -> bool:
+    """Whether streamed output already carries the wrapper's admission lines.
+
+    Inline ToolRun stdout/stderr files contain child output only, so those
+    followers still synthesize admission messages. Proc and monitor owner logs
+    retain the wrapper output itself and must not receive a second copy.
+    """
+
+    if str(run.get("owner_kind") or "") not in {"proc", "monitor"}:
+        return False
+    try:
+        from sase.tool.owner import owner_retention
+
+        return owner_retention(run).get("log") == "retained"
+    except Exception:  # noqa: BLE001 - copy synthesis is best effort.
+        return False
 
 
 def _follow_ingestor(run: object, *, compact: bool = False):  # type: ignore[no-untyped-def]

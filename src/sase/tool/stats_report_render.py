@@ -314,6 +314,7 @@ def _format_admission_waits(admission: object) -> str:
         return ""
     waits = int(admission.get("waits") or 0)
     forced = int(admission.get("forced") or 0)
+    unavailable = int(admission.get("unavailable") or 0)
     abandoned = int(admission.get("abandoned") or 0)
     return (
         f" · admission waits {waits:,}/{runs:,} runs"
@@ -321,7 +322,8 @@ def _format_admission_waits(admission: object) -> str:
         f", p50 {_fmt_ms(admission.get('wait_ms_p50'))}"
         f", p95 {_fmt_ms(admission.get('wait_ms_p95'))}"
         f", max {_fmt_ms(admission.get('wait_ms_max'))}"
-        f", {forced:,} forced, {abandoned:,} abandoned)"
+        f", {forced:,} max-wait, {unavailable:,} unavailable,"
+        f" {abandoned:,} abandoned)"
     )
 
 

@@ -164,6 +164,153 @@ def test_follow_unknown_run_still_raises(monkeypatch: pytest.MonkeyPatch) -> Non
         follow_run("r" * 32, deadline_s=1.0, stream_output=False)
 
 
+def test_follow_streams_retained_wrapper_admission_lines_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    clock = _Clock()
+    _patch_clock(monkeypatch, clock)
+    log = tmp_path / "proc.log"
+    log.write_text(
+        "sase: waiting for a check slot (limit 1: 1 running, 2 ahead)\n"
+        "child output\n"
+        "sase: check slot granted after 1s\n",
+        encoding="utf-8",
+    )
+    run = {
+        "run_id": "r" * 32,
+        "state": "running",
+        "owner_kind": "proc",
+        "owner_id": "proc-retained",
+        "logs": {"owner_log_path": str(log)},
+        "demand": {
+            "admission": {
+                "state": "waiting",
+                "key": "check",
+                "limit": 1,
+                "requested_ts_ms": 1,
+            }
+        },
+    }
+    settled = {
+        "run": {
+            **run,
+            "state": "succeeded",
+            "demand": {
+                "admission": {
+                    "state": "admitted",
+                    "key": "check",
+                    "limit": 1,
+                    "wait_ms": 1000,
+                    "admitted_by": "slot",
+                }
+            },
+        }
+    }
+    waiting = {
+        "run": run,
+        "admission": {
+            "state": "waiting",
+            "key": "check",
+            "limit": 1,
+            "ahead": 2,
+            "holders": 1,
+            "requested_ts_ms": 1,
+        },
+    }
+    responses = iter([waiting, waiting, settled])
+
+    def show(_run_id: str) -> dict[str, Any]:
+        return next(responses, settled)
+
+    _patch_show(monkeypatch, show)
+    monkeypatch.setattr(
+        "sase.tool.control_wait.reconcile_unsettled_tool_runs", lambda: {}
+    )
+
+    outcome = follow_run("r" * 32, deadline_s=3.0, stream_output=True)
+
+    captured = capsys.readouterr()
+    assert outcome.kind == "settled"
+    assert captured.out.count("waiting for a check slot") == 1
+    assert captured.out.count("slot granted after") == 1
+    assert captured.out.count("child output") == 1
+    assert captured.err == ""
+
+
+def test_follow_synthesizes_wait_position_changes_without_a_wrapper_log(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    clock = _Clock()
+    _patch_clock(monkeypatch, clock)
+    child_log = tmp_path / "child.log"
+    child_log.write_text("child output\n", encoding="utf-8")
+    run = {
+        "run_id": "r" * 32,
+        "state": "running",
+        "logs": {"stdout_path": str(child_log)},
+        "demand": {
+            "admission": {
+                "state": "waiting",
+                "key": "check",
+                "limit": 1,
+                "requested_ts_ms": 1,
+            }
+        },
+    }
+
+    def waiting(ahead: int) -> dict[str, Any]:
+        return {
+            "run": run,
+            "admission": {
+                "state": "waiting",
+                "key": "check",
+                "limit": 1,
+                "ahead": ahead,
+                "holders": 1,
+                "requested_ts_ms": 1,
+            },
+        }
+
+    settled = {
+        "run": {
+            **run,
+            "state": "succeeded",
+            "demand": {
+                "admission": {
+                    "state": "admitted",
+                    "key": "check",
+                    "limit": 1,
+                    "wait_ms": 1000,
+                    "admitted_by": "max_wait",
+                }
+            },
+        }
+    }
+    responses = iter([waiting(2), waiting(2), waiting(1), settled])
+
+    def show(_run_id: str) -> dict[str, Any]:
+        return next(responses, settled)
+
+    _patch_show(monkeypatch, show)
+    monkeypatch.setattr(
+        "sase.tool.control_wait.reconcile_unsettled_tool_runs", lambda: {}
+    )
+
+    outcome = follow_run("r" * 32, deadline_s=3.0, stream_output=True)
+
+    captured = capsys.readouterr()
+    assert outcome.kind == "settled"
+    assert captured.out.count("child output") == 1
+    assert captured.err.count("2 ahead") == 1
+    assert captured.err.count("1 ahead") == 1
+    assert "no check slot after max wait" in captured.err
+    assert "slot granted" not in captured.err
+
+
 def _patch_reconcile_list(
     monkeypatch: pytest.MonkeyPatch,
     run: dict[str, Any],

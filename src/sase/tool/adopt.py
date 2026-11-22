@@ -142,6 +142,11 @@ def _claim_and_run(
         stop_recorded=_stop_probe(run_id, owner_kind, owner_id, proc_id),
         timeout_recorded=_timeout_probe(proc_id),
         continuation_mode=continuation_mode,
+        parent_run_id=(
+            str(run.get("parent_run_id") or "").strip() or None
+            if isinstance(run, dict)
+            else None
+        ),
     )
     code = run_recorded_body(ctx, signals)
     if owner_kind == "proc":

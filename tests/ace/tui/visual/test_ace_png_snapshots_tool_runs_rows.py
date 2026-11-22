@@ -24,6 +24,7 @@ from tests.ace.tui.visual._ace_tool_runs_png_snapshot_shared import (
     pin_tool_run_clocks,
     seed_tool_run_surfaces,
     tool_run_agent,
+    tool_run_admission_view,
     tool_run_glance,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -37,6 +38,7 @@ def _rows_agents() -> list[Agent]:
         tool_run_agent("tr-silent"),
         tool_run_agent("tr-start"),
         tool_run_agent("tr-plus"),
+        tool_run_agent("tr-wait"),
     ]
 
 
@@ -52,6 +54,12 @@ def _rows_glances() -> list[ToolRunGlance]:
         tool_run_glance("33" * 16, agent="tr-start", state="created", stages_done=0),
         tool_run_glance("44" * 16, agent="tr-plus", stages_done=2),
         tool_run_glance("55" * 16, agent="tr-plus", label="lint", stages_done=1),
+        tool_run_glance(
+            "66" * 16,
+            agent="tr-wait",
+            stages_done=0,
+            admission=tool_run_admission_view(ahead=2),
+        ),
     ]
 
 
@@ -80,12 +88,49 @@ async def test_tool_runs_rows_png_snapshots(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 4)
+        await page.expect_state("agent_count", 5)
         await wait_for_svg_contains(page, "⚒ check 7/11")
         await wait_for_svg_contains(page, "silent 48h")
         await wait_for_svg_contains(page, "starting")
         await wait_for_svg_contains(page, "+1")
+        await wait_for_svg_contains(page, "waiting 2")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page, snapshot_name, title=f"ACE tool run rows ({size[0]}x{size[1]})"
+        )
+
+
+async def test_tool_runs_rows_waiting_position_change_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A waiting row chip repaints when its queue position moves."""
+
+    pin_tool_run_clocks(monkeypatch)
+    patch_startup_loaders(monkeypatch, agents=_rows_agents())
+    seed_tool_run_surfaces(monkeypatch, glances=_rows_glances(), summaries={})
+
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 40)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 5)
+        await wait_for_svg_contains(page, "waiting 2")
+        moved = [
+            *_rows_glances()[:-1],
+            tool_run_glance(
+                "66" * 16,
+                agent="tr-wait",
+                stages_done=0,
+                admission=tool_run_admission_view(ahead=1),
+            ),
+        ]
+        seed_tool_run_surfaces(monkeypatch, glances=moved, summaries={})
+        page.app._schedule_tool_runs_refresh(source="visual")
+        await wait_for_svg_contains(page, "waiting 1")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "tool_runs_rows_waiting_moved_80x40",
+            title="ACE tool run rows after a queue-position change (80x40)",
         )

@@ -203,6 +203,7 @@ def _execute_resolved(
         stop_recorded=_foreground_stop_probe(run_id) if recorded else None,
         continuation_mode=continuation_mode,
         demand_context=foreground_demand,
+        parent_run_id=ownership.parent_run_id,
     )
     return run_recorded_body(ctx, signals)
 

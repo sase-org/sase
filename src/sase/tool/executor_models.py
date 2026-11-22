@@ -46,6 +46,9 @@ class RecordedRunContext:
     #: worker never fills this in, so it never overwrites the starter's
     #: record; ``None`` records nothing.
     demand_context: dict[str, Any] | None = None
+    #: Effective parent after ownership resolution; inherited ids cleared for
+    #: a new agent are deliberately absent here.
+    parent_run_id: str | None = None
 
 
 __all__ = ["RecordedRunContext", "ToolRunCliRequest"]

@@ -153,8 +153,11 @@ def show_admission_line(run: dict[str, Any], live: Any = None) -> str | None:
     wait = _format_wait_ms(admission.get("wait_ms"))
     if state == ABANDONED:
         return f"abandoned after {wait} ({limit_text})"
-    if str(admission.get("admitted_by") or "") == "max_wait":
+    admitted_by = str(admission.get("admitted_by") or "")
+    if admitted_by == "max_wait":
         return f"admitted over limit after max wait ({limit_text})"
+    if admitted_by == "unavailable":
+        return f"admitted through unavailable bypass after {wait} ({limit_text})"
     return f"admitted after {wait} ({limit_text})"
 
 
@@ -239,7 +242,7 @@ def follower_waiting_line(run: dict[str, Any], envelope: dict[str, Any]) -> str 
 
 
 def follower_granted_line(run: dict[str, Any]) -> str | None:
-    """Return the follower granted line once a queued run holds a slot."""
+    """Return truthful follower copy for an admitted run."""
 
     record = stored_admission(run)
     if not isinstance(record, dict):
@@ -247,7 +250,15 @@ def follower_granted_line(run: dict[str, Any]) -> str | None:
     if str(record.get("state") or "") != ADMITTED:
         return None
     key = waiting_key(record)
-    return f"sase: {key} slot granted after {_format_wait_ms(record.get('wait_ms'))}"
+    wait = _format_wait_ms(record.get("wait_ms"))
+    admitted_by = str(record.get("admitted_by") or "")
+    if admitted_by == "max_wait":
+        return f"sase: no {key} slot after max wait ({wait}); running over the limit"
+    if admitted_by == "unavailable":
+        return f"sase: {key} admission unavailable; running through the recorded bypass"
+    if admitted_by == "slot":
+        return f"sase: {key} slot granted after {wait}"
+    return f"sase: {key} admitted after {wait}"
 
 
 __all__ = [

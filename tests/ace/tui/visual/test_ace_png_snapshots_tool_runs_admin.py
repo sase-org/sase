@@ -23,6 +23,7 @@ from tests.ace.tui.visual._ace_tool_runs_png_snapshot_shared import (
     TOOL_RUN_EPOCH_INT,
     FakeTime,
     pin_tool_run_clocks,
+    tool_run_admission_view,
     tool_run_brief,
     tool_run_glance,
 )
@@ -38,7 +39,26 @@ def _admin_seams(monkeypatch: pytest.MonkeyPatch) -> None:
     from sase.ace.tui.modals import tool_runs_pane_loading as pane_module
     from sase.core import tool_run as core_tool_run
 
+    # Admin Runs rows come from briefs joined to the live glance by id, so
+    # each waiting glance needs a matching running brief.
+    waiting_briefs = tuple(
+        tool_run_brief(
+            run_id,
+            bucket="undetermined",
+            state="running",
+            created_ts=TOOL_RUN_EPOCH_INT - 44,
+            settled_ts=None,
+            duration_ms=None,
+            agent=agent,
+            admission=tool_run_admission_view(ahead=ahead),
+        )
+        for run_id, agent, ahead in (
+            ("c1" + "0" * 30, "tr-live", 2),
+            ("c2" + "0" * 30, "tr-waiting", 1),
+        )
+    )
     briefs = (
+        *waiting_briefs,
         tool_run_brief("6c3d5107" + "0" * 24, bucket="new_failures", new=3, known=1),
         tool_run_brief(
             "22" + "0" * 30,
@@ -48,11 +68,21 @@ def _admin_seams(monkeypatch: pytest.MonkeyPatch) -> None:
             settled_ts=TOOL_RUN_EPOCH_INT - 1500,
         ),
     )
-    live = tool_run_glance("c1" + "0" * 30)
+    live = [
+        tool_run_glance(
+            "c1" + "0" * 30,
+            admission=tool_run_admission_view(ahead=2),
+        ),
+        tool_run_glance(
+            "c2" + "0" * 30,
+            agent="tr-waiting",
+            admission=tool_run_admission_view(ahead=1),
+        ),
+    ]
     monkeypatch.setattr(
         core_tool_run,
         "tool_run_live_glance",
-        lambda *a, **kw: SimpleNamespace(runs=[live], silent_after_s=60),
+        lambda *a, **kw: SimpleNamespace(runs=list(live), silent_after_s=60),
     )
     monkeypatch.setattr(
         core_tool_run,
@@ -122,7 +152,7 @@ async def test_tool_runs_admin_pane_png_snapshots(
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         page.app.screen.action_focus_center_tab(7)
-        await wait_for_svg_contains(page, "Catalog")
+        await wait_for_svg_contains(page, "waiting")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page, "tool_runs_admin_runs_120x40", title="ACE admin tools runs"

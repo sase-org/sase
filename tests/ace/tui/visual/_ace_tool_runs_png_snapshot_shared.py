@@ -18,7 +18,12 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.tool_runs.detail import LoadedToolRunDetail
 from sase.ace.tui.tool_runs.snapshot import _build_snapshot
-from sase.core.tool_run import ToolRunBrief, ToolRunGlance, ToolRunNodeSummary
+from sase.core.tool_run import (
+    ToolRunAdmissionView,
+    ToolRunBrief,
+    ToolRunGlance,
+    ToolRunNodeSummary,
+)
 from sase.core.tool_run import ToolRunVerdictSummary
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
@@ -103,6 +108,25 @@ def tool_run_verdict(bucket: str, **counts: Any) -> ToolRunVerdictSummary:
     )
 
 
+def tool_run_admission_view(
+    ahead: int,
+    *,
+    key: str = "check",
+    limit: int = 3,
+    holders: int = 3,
+) -> ToolRunAdmissionView:
+    """Build a deterministic live waiting view for a ToolRun visual fixture."""
+
+    return ToolRunAdmissionView(
+        state="waiting",
+        key=key,
+        limit=limit,
+        ahead=ahead,
+        holders=holders,
+        requested_ts_ms=(TOOL_RUN_EPOCH_INT - 44) * 1000,
+    )
+
+
 def tool_run_brief(
     run_id: str,
     label: str = "check",
@@ -116,6 +140,7 @@ def tool_run_brief(
     agent: str | None = "tr-failed",
     owner_kind: str | None = None,
     owner_id: str | None = None,
+    admission: ToolRunAdmissionView | None = None,
     terminal_cause: str | None = None,
     tool_name: str | None = "check",
     launch_mode: str | None = "inline",
@@ -142,6 +167,7 @@ def tool_run_brief(
         settled_ts=settled_ts,
         duration_ms=duration_ms,
         typical_ms=typical_ms,
+        admission=admission,
     )
 
 
@@ -160,6 +186,7 @@ def tool_run_glance(
     parent_run_id: str | None = None,
     stop_requested: bool = False,
     typical_ms: int | None = 253000,
+    admission: ToolRunAdmissionView | None = None,
 ) -> ToolRunGlance:
     if last_activity_ts is None:
         last_activity_ts = int(local_now_ts()) - 3
@@ -179,6 +206,7 @@ def tool_run_glance(
         current_stage=None,
         stages_expected=stages_expected,
         typical_ms=typical_ms,
+        admission=admission,
     )
 
 
