@@ -84,6 +84,7 @@ class PolicySweepMixin(PolicyGateMixin):
         cost_deferral_s: float | None = None,
         cost_deferral_cap_s: float | None = None,
         deep_due: bool = False,
+        gc_tracked_objects: int | None = None,
     ) -> None:
         """Emit a rate-limited row when pressure, cost, or the collector defers.
 
@@ -116,6 +117,8 @@ class PolicySweepMixin(PolicyGateMixin):
             row["cost_deferral_cap_s"] = round(max(0.0, cost_deferral_cap_s), 3)
         if deep_due:
             row["deep_due"] = True
+        if gc_tracked_objects is not None:
+            row["gc_tracked_objects"] = gc_tracked_objects
         if pressure is not None:
             row.update(
                 {
@@ -233,6 +236,7 @@ class PolicySweepMixin(PolicyGateMixin):
             input_idle_s=input_idle_s,
             predicted_pause_s=predicted,
             deep_due=True,
+            gc_tracked_objects=self._read_gc_tracked_objects(),
         )
         return False
 
@@ -242,7 +246,7 @@ class PolicySweepMixin(PolicyGateMixin):
         """Collect, prove a full collection ran, then freeze and record it."""
         unfreeze = getattr(self._collector, "unfreeze", None)
         deep_collection = deep and callable(unfreeze)
-        blocks_before = self._read_allocated_blocks() if deep_collection else None
+        objects_before = self._read_gc_tracked_objects() if deep_collection else None
         census = tag == "idle" and self._census_due(now_mono)
         collections_before = self._full_collection_count()
         ran = False
@@ -279,7 +283,7 @@ class PolicySweepMixin(PolicyGateMixin):
             start_mono=start,
             deep=deep_collection,
             census=census,
-            blocks_before=blocks_before,
+            objects_before=objects_before,
         )
         if deep_collection:
             self._last_deep_full_mono = self._own_last_full_mono
@@ -300,7 +304,7 @@ class PolicySweepMixin(PolicyGateMixin):
         start_mono: float,
         deep: bool = False,
         census: bool = False,
-        blocks_before: int | None = None,
+        objects_before: int | None = None,
     ) -> None:
         """Record a verified own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
@@ -315,7 +319,7 @@ class PolicySweepMixin(PolicyGateMixin):
             end_mono=self._own_last_full_mono,
             deep=deep,
             census=census,
-            blocks_before=blocks_before,
+            objects_before=objects_before,
         )
         try:
             self._rss_at_last_full = latest_rss_bytes()

@@ -9,15 +9,15 @@ used for ordinary sweeps: refcount frees of old frozen objects shrink the net
 total while new garbage still needs scanning, which once priced a 0.647 s
 sweep as a single block and predicted a 645,427 s pause.
 
-A deep (unfreeze) sweep scans the whole heap, so it is priced per allocated
-block, from the latest deep sample or a conservative default.
+A deep (unfreeze) sweep scans GC-tracked objects (the frozen set plus the
+young generations), so it is priced per object, from the latest deep sample
+or the attribute-phase measured rate.
 
 Everything here is arithmetic over cached state; nothing runs a collection.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from ._gc_policy_common import safe_probe
@@ -26,7 +26,7 @@ from ._gc_policy_config import (
     COST_DUE_FRACTION,
     COST_MAX_DEFERRAL_S,
     COST_PREDICTION_SAFETY_FACTOR,
-    DEEP_COST_PER_BLOCK_S,
+    DEEP_COST_PER_OBJECT_S,
     FULL_GENERATION,
     MAX_PREDICTED_FULL_PAUSE_S,
     MIN_COST_SAMPLE_ACCUM_S,
@@ -39,7 +39,6 @@ class PolicyCostMixin:
 
     _collector: Any
     _recorder: Any
-    _allocated_blocks_probe: Callable[[], int | None]
     _pressure_deferral: PressureDeferral
     _cost_deferral: CostDeferral
     _froze_startup: bool
@@ -48,7 +47,7 @@ class PolicyCostMixin:
     _cost_pause_s: float | None
     _cost_accum_s: float | None
     _young_since_mono: float | None
-    _deep_cost_per_block_s: float | None
+    _deep_cost_per_object_s: float | None
 
     def _predicted_pause_s(
         self, now_mono: float, *, deep: bool = False
@@ -58,16 +57,16 @@ class PolicyCostMixin:
         Ordinary sweeps scale the latest sample's pause rate by the seconds
         accumulated since the last full collection (or the startup freeze).
         ``None`` means no post-freeze sample exists yet. A deep sweep is
-        priced per allocated block over the whole heap.
+        priced per GC-tracked object over the frozen set plus young generations.
         """
         if deep:
-            current = self._read_allocated_blocks()
+            current = self._read_gc_tracked_objects()
             if current is None:
                 return None
-            per_block = self._deep_cost_per_block_s
-            if per_block is None:
-                per_block = DEEP_COST_PER_BLOCK_S
-            return per_block * max(1, current) * COST_PREDICTION_SAFETY_FACTOR
+            per_object = self._deep_cost_per_object_s
+            if per_object is None:
+                per_object = DEEP_COST_PER_OBJECT_S
+            return per_object * max(1, current) * COST_PREDICTION_SAFETY_FACTOR
         rate = self._cost_rate_s_per_s()
         since = self._young_since_mono
         if rate is None or since is None:
@@ -109,19 +108,19 @@ class PolicyCostMixin:
         end_mono: float,
         deep: bool,
         census: bool,
-        blocks_before: int | None,
+        objects_before: int | None,
     ) -> None:
         """Store the cost evidence of one verified own full collection.
 
         A census sweep (``DEBUG_SAVEALL`` plus a survivor scan) is no cost
-        sample. A deep sweep only refreshes the per-block deep sample; the
+        sample. A deep sweep only refreshes the per-object deep sample; the
         ordinary rate keeps its last young-heap sample.
         """
         since = self._young_since_mono
         if not census:
             if deep:
-                if blocks_before is not None and blocks_before > 0:
-                    self._deep_cost_per_block_s = pause_s / blocks_before
+                if objects_before is not None and objects_before > 0:
+                    self._deep_cost_per_object_s = pause_s / objects_before
             elif since is not None:
                 self._cost_pause_s = pause_s
                 self._cost_accum_s = max(MIN_COST_SAMPLE_ACCUM_S, start_mono - since)
@@ -177,8 +176,31 @@ class PolicyCostMixin:
         after = self._full_collection_count()
         return after is None or after > before
 
-    def _read_allocated_blocks(self) -> int | None:
-        value = safe_probe(self._allocated_blocks_probe, None)
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-            return value
-        return None
+    def _read_gc_tracked_objects(self) -> int | None:
+        """Frozen-set size plus generation counts, if the collector exposes both.
+
+        A full unfreeze collection traverses the permanent generation
+        (``get_freeze_count``) and every object still in gen0/1/2
+        (``get_count``). Missing or unreadable probes make the deep sweep
+        unpriceable, so the hourly cadence stays gated.
+        """
+        freeze_fn = getattr(self._collector, "get_freeze_count", None)
+        if not callable(freeze_fn):
+            return None
+        freeze_n = safe_probe(freeze_fn, None)
+        if isinstance(freeze_n, bool) or not isinstance(freeze_n, int) or freeze_n < 0:
+            return None
+        count_fn = getattr(self._collector, "get_count", None)
+        young = 0
+        if callable(count_fn):
+            counts = safe_probe(count_fn, None)
+            if counts is None:
+                return None
+            try:
+                for n in counts:
+                    if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+                        return None
+                    young += n
+            except TypeError:
+                return None
+        return freeze_n + young

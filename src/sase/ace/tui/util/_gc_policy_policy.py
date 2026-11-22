@@ -97,7 +97,7 @@ class GCPolicy(PolicySweepMixin):
         self._cost_pause_s: float | None = None
         self._cost_accum_s: float | None = None
         self._young_since_mono: float | None = None
-        self._deep_cost_per_block_s: float | None = None
+        self._deep_cost_per_object_s: float | None = None
         self._last_deep_full_mono: float | None = None
         self._last_deferred_emit_mono: dict[str, float] = {}
         self._last_trim_mono: float | None = None

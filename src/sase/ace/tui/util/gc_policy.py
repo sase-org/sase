@@ -13,7 +13,7 @@ swap-pressure deferral, and a pause estimate:
   generation; an unfreeze-and-collect pass reclaims frozen garbage after 15
   minutes without input (no more often than every 30 minutes), and
   additionally at most hourly on an ordinary quiet window when its
-  per-block full-heap estimate fits the pause budget;
+  per-GC-tracked-object full-heap estimate fits the pause budget;
 - ``threshold2`` raised to 10_000 on the classic three-generation collector so
   automatic full collections become a rare backstop;
 - tagged full collections only while input is quiet, no prompt is active, and
@@ -60,7 +60,7 @@ from ._gc_policy_config import (
     COST_MAX_DEFERRAL_S as COST_MAX_DEFERRAL_S,
     COST_OVERRIDE_QUIET_S as COST_OVERRIDE_QUIET_S,
     COST_PREDICTION_SAFETY_FACTOR as COST_PREDICTION_SAFETY_FACTOR,
-    DEEP_COST_PER_BLOCK_S as DEEP_COST_PER_BLOCK_S,
+    DEEP_COST_PER_OBJECT_S as DEEP_COST_PER_OBJECT_S,
     DEEP_SWEEP_INTERVAL_S as DEEP_SWEEP_INTERVAL_S,
     DEFERRED_TELEMETRY_INTERVAL_S as DEFERRED_TELEMETRY_INTERVAL_S,
     DUTY_FACTOR as DUTY_FACTOR,

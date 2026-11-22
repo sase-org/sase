@@ -39,6 +39,7 @@ class Collector:
         self.busy = False
         self.freezes = 0
         self.unfreezes = 0
+        self.freeze_count = 0
         self.objects: list[object] = []
         self.get_objects_calls = 0
 
@@ -71,6 +72,9 @@ class Collector:
 
     def unfreeze(self) -> None:
         self.unfreezes += 1
+
+    def get_freeze_count(self) -> int:
+        return self.freeze_count
 
     def get_objects(self) -> list[object]:
         self.get_objects_calls += 1
