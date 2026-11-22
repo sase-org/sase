@@ -10,7 +10,6 @@ from typing import Literal, Protocol
 from rich.text import Span, Text
 
 from sase.agent.status_buckets import (
-    AGENT_STATUS_BUCKET_GLYPHS,
     status_bucket_for_values,
 )
 from sase.core.time import format_local
@@ -19,6 +18,7 @@ from ._member_in_flight import (
     in_flight_label_style,
     in_flight_tint,
     is_in_flight_jump_bucket,
+    member_status_presentation,
     member_status_style,
 )
 
@@ -177,6 +177,7 @@ class _MemberJumpTarget:
     role: MemberJumpRole = "member"
     label: str = ""
     status_bucket: str | None = None
+    status: str = ""
     legend_group: str | None = None
 
 
@@ -270,6 +271,7 @@ def append_member_roster(
                 label=entry.label,
                 status_bucket=entry.effective_bucket
                 or status_bucket_for_values(entry.status),
+                status=entry.status,
                 legend_group=entry.legend_group,
             )
         )
@@ -505,7 +507,7 @@ def _append_member_fields(
     pill_tint: str | None = None,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
-    glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
+    glyph, glyph_style = member_status_presentation(bucket, status)
     if is_marked:
         marked_style = (
             f"bold #00D700 on {pill_tint}" if pill_tint is not None else "bold #00D700"
@@ -532,7 +534,7 @@ def _append_member_fields(
     text.append(" · ", style="dim")
     text.append(kind, style=_MEMBER_KIND_STYLE)
     text.append(" · ", style="dim")
-    text.append(f"{glyph} {status}", style=member_status_style(bucket))
+    text.append(f"{glyph} {status}", style=glyph_style)
     text.append(" · ", style="dim")
     text.append(model, style=_MEMBER_MODEL_STYLE)
     text.append(" · ", style="dim")

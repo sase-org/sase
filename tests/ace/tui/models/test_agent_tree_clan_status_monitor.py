@@ -128,7 +128,7 @@ def test_clan_lone_failed_label_stays_in_failed_count_and_bucket() -> None:
         is_selected=False,
         clan_counts=ClanStatusCounts(failed=1, waiting=1, done=1),
     )[0].plain
-    assert rendered.startswith("tmp (TESTED) [W1 F1 D1]")
+    assert rendered.startswith("tmp (TESTED) · .tested ✗ [W1 F1 D1]")
 
 
 def test_clan_stays_running_when_two_members_are_running() -> None:

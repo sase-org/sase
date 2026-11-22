@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
+from sase.ace.tui.models._agent_status_apply import apply_status_overrides
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_scan_wire_markers import (
+    FinalizerStatusInstanceWire,
+    FinalizerStatusSummaryWire,
+)
+from sase.monitor_state import MONITOR_HELD_STATE, NOT_ADOPTED_STATUS
 
 
 def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
@@ -524,6 +530,124 @@ def wave_clan_agents() -> list[Agent]:
         ],
         [],
     )
+
+
+def failed_clan_incident_agents() -> list[Agent]:
+    """Incident-shaped clan: failed session, held monitor, blocked waiter."""
+    generation = "20261122120000"
+    project = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 11, 22, 12, 0, 0)
+    failed_start = datetime(2026, 11, 22, 12, 0, 0)
+    failed_stop = datetime(2026, 11, 22, 12, 8, 32)
+
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-8",
+        project_file=project,
+        status="DONE",
+        start_time=started,
+        run_start_time=started,
+        stop_time=failed_stop,
+        raw_suffix="20261122120000-8",
+        agent_name="research.8",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_session="research.8",
+        agent_session_role="root",
+        role_suffix="--plan",
+        plan_chain_root=True,
+        tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    failed = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-8-1",
+        project_file=project,
+        status="FAILED",
+        status_bucket="Failed",
+        start_time=failed_start,
+        run_start_time=failed_start,
+        stop_time=failed_stop,
+        raw_suffix="20261122120000-8-1",
+        parent_timestamp=root.raw_suffix,
+        agent_name="research.8--1",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_session="research.8",
+        agent_session_role="attempt",
+        role_suffix="--1",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    failed.finalizer_status = FinalizerStatusSummaryWire(
+        phase="complete",
+        status="failed",
+        instances=[FinalizerStatusInstanceWire(id="commit", status="failed")],
+    )
+    held = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-8-mon",
+        project_file=project,
+        status=NOT_ADOPTED_STATUS,
+        status_bucket="Failed",
+        start_time=datetime(2026, 11, 22, 12, 8, 40),
+        run_start_time=datetime(2026, 11, 22, 12, 8, 40),
+        raw_suffix="20261122120840-8-mon",
+        parent_timestamp=failed.raw_suffix,
+        agent_name="research.8--mon-0",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_session="research.8",
+        agent_session_role="monitor",
+        role_suffix="--mon-0",
+        monitor_id="m-held",
+        monitor_state=MONITOR_HELD_STATE,
+        monitor_label="just check",
+        monitor_command="just check",
+        monitor_start_status="MONITORING",
+    )
+    waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-waiter",
+        project_file=project,
+        status="WAITING",
+        status_bucket="Waiting",
+        start_time=datetime(2026, 11, 22, 12, 9, 0),
+        raw_suffix="20261122120900-waiter",
+        agent_name="research.waiter",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_session="research.waiter",
+        agent_session_role="root",
+        tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    waiter.waiting_for = ["research.8"]
+    done = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-done",
+        project_file=project,
+        status="DONE",
+        start_time=started,
+        run_start_time=started,
+        stop_time=datetime(2026, 11, 22, 12, 4, 0),
+        raw_suffix="20261122120000-done",
+        agent_name="research.done",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_session="research.done",
+        agent_session_role="root",
+        tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    failed.runtime_children = [held]
+    root.runtime_children = [failed]
+    rows = [root, failed, held, waiter, done]
+    apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])
 
 
 def decorate_clan_panel_sections(rows: list[Agent]) -> list[Agent]:

@@ -91,7 +91,11 @@ def _snapshot(widget: AgentList) -> dict[str, Any]:
         },
         "banner_row_by_key": dict(widget._banner_row_by_key),
         "ctx": {
-            idx: {k: v for k, v in ctx.items() if k != "is_selected"}
+            idx: {
+                k: v
+                for k, v in ctx.items()
+                if k not in {"is_selected", "viewport_width"}
+            }
             for idx, ctx in widget._row_render_ctx.items()
         },
         "tier_styles": dict(widget._row_tier_styles),
@@ -486,6 +490,21 @@ def test_selection_emphasis_alone_does_not_block_an_insert(
     # the painted ``is_selected`` flags lag; that must not force a rebuild.
     assert widget.try_insert_rows(
         [*base, _agent("node-zz", 30)], 4, grouping_mode=BY_STATUS
+    )
+
+
+def test_viewport_width_alone_does_not_block_an_insert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = _base()
+    widget = _built(monkeypatch, base)
+    for ctx in widget._row_render_ctx.values():
+        ctx["viewport_width"] = 80
+
+    # Chip-drop budget is layout, not membership. A stale painted width must
+    # not turn a same-width arrival into ``panel_membership_change``.
+    assert widget.try_insert_rows(
+        [*base, _agent("node-zz", 30)], 0, grouping_mode=BY_STATUS
     )
 
 

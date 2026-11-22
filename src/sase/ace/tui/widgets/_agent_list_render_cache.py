@@ -87,6 +87,28 @@ def _finalizer_summary_token(agent: Agent) -> tuple[Any, ...] | None:
     return finalizer_summary_token(agent)
 
 
+def _failure_focus_token(agent: Agent) -> tuple[Any, ...] | None:
+    """Compact FailureFocus token so cause-chip and failed-time renders cache."""
+    focus = getattr(agent, "failure_focus", None)
+    if focus is None:
+        return None
+    failed = focus.failed_row
+    not_adopted = focus.not_adopted
+    return (
+        focus.member_label,
+        failed.name,
+        failed.stop_time,
+        failed.duration_seconds,
+        focus.finalizer_chip,
+        focus.finalizer_chip_style,
+        None
+        if not_adopted is None
+        else (not_adopted.name, not_adopted.kind, not_adopted.starter_name),
+        focus.blocked,
+        focus.extra_failed,
+    )
+
+
 def _tool_run_chip_token(agent: Agent, now: datetime | None) -> tuple[Any, ...] | None:
     """Pure side-cache lookup for the live-only ⚒ chip (plan §3.6).
 
@@ -278,6 +300,7 @@ def agent_render_key(
     clan_projects: tuple[str, ...] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
     stranded_signature: tuple[Any, ...] = (),
+    width: int = 0,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -486,6 +509,8 @@ def agent_render_key(
         tier_styles,
         _runtime_signature(agent, now),
         _tool_run_chip_token(agent, now),
+        _failure_focus_token(agent),
+        width,
         lanes,
         tab_chip,
     )

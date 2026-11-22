@@ -80,6 +80,21 @@ def test_wave_heading_phrase_uses_worst_state_first(
     assert expected in detail
 
 
+def test_failed_wave_member_draws_failed_glyph() -> None:
+    _container, detail = _render(
+        [
+            _member("first", "FAILED", 0),
+            _member("second", "WAITING", 1, waits=("research.first",)),
+        ],
+        FoldLevel.COLLAPSED,
+    )
+
+    waves = detail.split("WAVES", 1)[-1]
+    assert "wave 1 failed" in waves
+    assert "✗" in waves
+    assert "▶" not in waves
+
+
 def test_seal_heading_identifies_failed_epic_land() -> None:
     _container, detail = _render(
         [

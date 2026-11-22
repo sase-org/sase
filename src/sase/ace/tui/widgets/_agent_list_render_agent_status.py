@@ -103,6 +103,34 @@ def _append_finalizer_chip(text: Text, agent: Agent) -> None:
         text.append(f" {state.chip_text}", style=state.chip_style or "dim")
 
 
+_CAUSE_LABEL_STYLE = "dim #FF5F5F"
+_CAUSE_FAIL_GLYPH_STYLE = "bold #FF5F5F"
+
+
+def _append_clan_cause_chip(text: Text, agent: Agent) -> tuple[int, int] | None:
+    """Append the Failed-clan cause chip and return its droppable plain span."""
+    if not agent.is_clan_container:
+        return None
+    focus = getattr(agent, "failure_focus", None)
+    label = getattr(focus, "member_label", None)
+    if focus is None or not label:
+        return None
+    start = len(text.plain)
+    text.append(" · ", style="dim")
+    text.append(label, style=_CAUSE_LABEL_STYLE)
+    text.append(" ")
+    chip = focus.finalizer_chip
+    if chip:
+        text.append(chip, style=focus.finalizer_chip_style or "dim")
+    elif focus.not_adopted is not None:
+        text.append(NOT_ADOPTED_GLYPH, style=f"bold {NOT_ADOPTED_COLOR}")
+    else:
+        text.append("✗", style=_CAUSE_FAIL_GLYPH_STYLE)
+    if focus.extra_failed:
+        text.append(f" +{focus.extra_failed}", style=_CAUSE_LABEL_STYLE)
+    return (start, len(text.plain))
+
+
 def _append_tool_run_chip(
     text: Text, agent: Agent, *, now: datetime | None = None
 ) -> None:
@@ -168,8 +196,12 @@ def append_agent_row_status(
     stranded_state: str | None = None,
     waiting_on_stranded: tuple[tuple[str, str], ...] = (),
     waiting_on_agents: tuple[tuple[str, str], ...] = (),
-) -> None:
-    """Append the status parenthetical and adjacent outcome badges."""
+) -> tuple[int, int] | None:
+    """Append the status parenthetical and adjacent outcome badges.
+
+    Returns the droppable clan-cause-chip span in ``text.plain``, or
+    ``None`` when that chip is absent.
+    """
     from sase.agent.auto_restart.ux import (
         RESTARTING_HINT_STYLE,
         RESTARTING_STATUS,
@@ -397,7 +429,9 @@ def append_agent_row_status(
     text.append(")", style="dim")
     if getattr(agent, "hijack_stop_failed", False):
         text.append(" ⏏ stop failed", style="bold #FF5F5F")
-    _append_finalizer_chip(text, agent)
+    cause_span = _append_clan_cause_chip(text, agent)
+    if cause_span is None:
+        _append_finalizer_chip(text, agent)
     _append_tool_run_chip(text, agent, now=now)
     if agent.is_monitor and (
         agent.monitor_followup_error
@@ -422,3 +456,4 @@ def append_agent_row_status(
             short_name = short_model_name(agent.fallback_model)
             annotation += f"▸{short_name}"
         text.append(annotation, style="bold #FF8700")  # Orange
+    return cause_span

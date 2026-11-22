@@ -9,7 +9,15 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._agent_status_apply import (
     apply_status_overrides as _apply_status_overrides,
 )
-from sase.monitor_state import monitor_state_bucket
+from sase.core.agent_scan_wire_markers import (
+    FinalizerStatusInstanceWire,
+    FinalizerStatusSummaryWire,
+)
+from sase.monitor_state import (
+    MONITOR_HELD_STATE,
+    NOT_ADOPTED_STATUS,
+    monitor_state_bucket,
+)
 
 
 def waiting_agent_session_child_agents() -> list[Agent]:
@@ -421,3 +429,77 @@ def agent_session_and_lone_planner_agents() -> list[Agent]:
     rows = [agent_session, member, lone_planner]
     _apply_status_overrides(rows)
     return rows
+
+
+def failed_session_incident_agents() -> list[Agent]:
+    """Incident-shaped session: failed turn, held monitor, finalizer chip."""
+    project = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 11, 22, 12, 0, 0)
+    failed_stop = datetime(2026, 11, 22, 12, 8, 32)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-incident-family",
+        project_file=project,
+        status="DONE",
+        start_time=started,
+        run_start_time=started,
+        stop_time=failed_stop,
+        raw_suffix="20261122120000",
+        agent_name="visual-incident-family",
+        agent_session="visual-incident-family",
+        agent_session_role="root",
+        role_suffix="--plan",
+        plan_chain_root=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    failed = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-incident-family-1",
+        project_file=project,
+        status="FAILED",
+        status_bucket="Failed",
+        start_time=started,
+        run_start_time=started,
+        stop_time=failed_stop,
+        raw_suffix="20261122120001",
+        parent_timestamp=root.raw_suffix,
+        agent_name="visual-incident-family--1",
+        agent_session="visual-incident-family",
+        agent_session_role="attempt",
+        role_suffix="--1",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    failed.finalizer_status = FinalizerStatusSummaryWire(
+        phase="complete",
+        status="failed",
+        instances=[FinalizerStatusInstanceWire(id="commit", status="failed")],
+    )
+    held = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-incident-family-mon",
+        project_file=project,
+        status=NOT_ADOPTED_STATUS,
+        status_bucket="Failed",
+        start_time=datetime(2026, 11, 22, 12, 8, 40),
+        run_start_time=datetime(2026, 11, 22, 12, 8, 40),
+        raw_suffix="20261122120840",
+        parent_timestamp=failed.raw_suffix,
+        agent_name="visual-incident-family--mon-0",
+        agent_session="visual-incident-family",
+        agent_session_role="monitor",
+        role_suffix="--mon-0",
+        monitor_id="m-held",
+        monitor_state=MONITOR_HELD_STATE,
+        monitor_label="just check",
+        monitor_command="just check",
+        monitor_start_status="MONITORING",
+    )
+    failed.runtime_children = [held]
+    failed.followup_agents = [held]
+    root.runtime_children = [failed]
+    root.followup_agents = [failed]
+    rows = [root, failed, held]
+    _apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])

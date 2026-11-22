@@ -8,6 +8,7 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     IN_FLIGHT_STATUS_BUCKETS,
 )
+from sase.monitor_state import NOT_ADOPTED_COLOR, NOT_ADOPTED_GLYPH, NOT_ADOPTED_STATUS
 
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 
@@ -38,6 +39,18 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
 def member_status_style(bucket: str) -> str:
     """Return the roster status color for a status bucket."""
     return _MEMBER_STATUS_STYLES.get(bucket, "bold #FFFFFF")
+
+
+def member_status_presentation(
+    bucket: str | None,
+    status: str | None = None,
+) -> tuple[str, str]:
+    """Return ``(glyph, style)`` for a roster or jump-legend status cell."""
+    if status == NOT_ADOPTED_STATUS:
+        return NOT_ADOPTED_GLYPH, f"bold {NOT_ADOPTED_COLOR}"
+    if bucket is None:
+        return "", "bold #FFFFFF"
+    return AGENT_STATUS_BUCKET_GLYPHS.get(bucket, ""), member_status_style(bucket)
 
 
 def is_in_flight_jump_bucket(
@@ -77,13 +90,16 @@ def append_member_status_cell(
     *,
     bucket: str | None,
     dismissed: bool = False,
+    status: str | None = None,
 ) -> None:
     """Append one label and status glyph using the jump-legend cell styling."""
-    lit = is_in_flight_jump_bucket(bucket, dismissed=dismissed)
+    glyph, glyph_style = member_status_presentation(bucket, status)
+    lit = is_in_flight_jump_bucket(bucket, dismissed=dismissed) and (
+        status != NOT_ADOPTED_STATUS
+    )
     if lit and bucket is not None:
         text.append(" ", style=_in_flight_pad_style(bucket))
         text.append(label, style=in_flight_label_style(bucket))
-        glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
         if glyph:
             text.append(" ", style=_in_flight_pad_style(bucket))
             text.append(glyph, style=_in_flight_glyph_style(bucket))
@@ -99,11 +115,9 @@ def append_member_status_cell(
             else _AGENT_NAME_ANNOTATION_STYLE
         ),
     )
-    if bucket is not None:
-        glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
-        if glyph:
-            text.append(" ")
-            text.append(glyph, style=member_status_style(bucket))
+    if glyph:
+        text.append(" ")
+        text.append(glyph, style=glyph_style)
 
 
 __all__ = [
@@ -114,5 +128,6 @@ __all__ = [
     "in_flight_label_style",
     "in_flight_tint",
     "is_in_flight_jump_bucket",
+    "member_status_presentation",
     "member_status_style",
 ]

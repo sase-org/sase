@@ -67,6 +67,15 @@ def compute_row_runtime(
     ``run_start_time`` fall back to ``start_time`` for compatibility.
     """
     reference = now if now is not None else local_now()
+    focus = getattr(agent, "failure_focus", None)
+    if focus is not None:
+        stop = focus.failed_row.stop_time
+        duration = focus.failed_row.duration_seconds
+        ts_pair = (
+            _format_finish_timestamp(stop, now=reference) if stop is not None else None
+        )
+        elapsed = format_compact_duration(duration) if duration is not None else None
+        return (ts_pair, elapsed)
     interval = _runtime_interval(agent, reference)
     if interval is None:
         return (None, None)
@@ -143,6 +152,8 @@ def runtime_suffix_ticks(
     if agent_id in _seen:
         return False
     _seen.add(agent_id)
+    if getattr(agent, "failure_focus", None) is not None:
+        return False
 
     include_monitor_turns = (
         _aggregates_agent_session_turns(agent)

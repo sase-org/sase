@@ -8,11 +8,13 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_fixtures import (
     agent_session_and_lone_planner_agents,
+    failed_session_incident_agents,
     parallel_agent_session_agents,
     parent_navigation_agent_session_agents,
     renamed_generic_agent_session_agents,
@@ -286,4 +288,43 @@ async def test_agent_session_and_lone_planner_color_png_snapshot(
             page,
             "agents_session_and_lone_planner_color_120x40",
             title="ACE session and lone planner color contrast",
+        )
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot"),
+    (
+        ((120, 40), "agents_failed_session_incident_by_status_expanded_120x40"),
+        ((80, 40), "agents_failed_session_incident_by_status_expanded_80x40"),
+    ),
+)
+async def test_failed_session_incident_by_status_expanded_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    size: tuple[int, int],
+    snapshot: str,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 22, 12, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=failed_session_incident_agents())
+
+    async with AcePage(
+        query='"visual-incident"',
+        size=size,
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.press("o", "s")
+        await page.expect_state("agent_count", 1)
+        await page.press("l")
+        await wait_for_visual_idle(page)
+        assert page.app._grouping_mode is GroupingMode.BY_STATUS
+        assert_page_svg_contains(page, "visual-incident-family")
+        assert_page_svg_contains(page, "FAILED")
+        assert_page_svg_contains(page, "NOT ADOPTED")
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot,
+            title="ACE failed session incident by status expanded",
         )

@@ -174,6 +174,7 @@ def format_agent_option(
     clan_projects: tuple[str, ...] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
     stranded_view: Any | None = None,
+    width: int = 0,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     # Deferred so the clan-wave modules stay off the TUI startup import path;
@@ -202,7 +203,7 @@ def format_agent_option(
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
     )
-    append_agent_row_status(
+    cause_span = append_agent_row_status(
         text,
         agent,
         now=now,
@@ -397,7 +398,22 @@ def format_agent_option(
         runtime_with_file_change = runtime_suffix
 
     suffix = runtime_with_file_change
+    if width > 0 and cause_span is not None:
+        gap = 2 if suffix.cell_len else 0
+        if text.cell_len + gap + suffix.cell_len > width:
+            text = _drop_plain_span(text, cause_span)
     return text, suffix, agent_option_id(index, agent)
+
+
+def _drop_plain_span(text: Text, span: tuple[int, int]) -> Text:
+    """Return *text* with the ``[start, end)`` plain-text span removed."""
+    start, end = span
+    if start >= end:
+        return text
+    dropped = Text()
+    dropped.append_text(text[:start])
+    dropped.append_text(text[end:])
+    return dropped
 
 
 def _derive_agent_option_inputs(
@@ -471,6 +487,7 @@ def _agent_option_key_from_derived(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
+    width: int = 0,
 ) -> tuple[Any, ...]:
     """Build the cache key from already-derived agent inputs.
 
@@ -512,6 +529,7 @@ def _agent_option_key_from_derived(
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
         stranded_signature=getattr(stranded_view, "signature", ()),
+        width=width,
     )
 
 
@@ -560,6 +578,7 @@ def cached_format_agent_option(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
+    width: int = 0,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -592,6 +611,7 @@ def cached_format_agent_option(
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
         clan_wave_gutter=clan_wave_gutter,
+        width=width,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -630,6 +650,7 @@ def cached_format_agent_option(
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
         stranded_view=stranded_view,
+        width=width,
     )
     cache.put_agent(key, parts)
     return parts

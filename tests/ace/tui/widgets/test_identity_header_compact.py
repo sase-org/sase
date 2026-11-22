@@ -314,7 +314,7 @@ def test_clan_rows_carry_name_status_and_count_chip() -> None:
     assert "@epic" in second_row
     assert "@review" in second_row
     assert "2 agents" in second_row
-    assert "2m" in second_row
+    assert "45s" in second_row
     assert "▸ 1/3" in second_row
 
 

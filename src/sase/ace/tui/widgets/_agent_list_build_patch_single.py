@@ -17,7 +17,10 @@ from ..agent_completion import (
 )
 from ..models.agent import AgentType
 from ..models.agent_nodes import is_agents_tab_agent_node
-from ._agent_list_build_rows import agent_wait_status_maps_for_build
+from ._agent_list_build_rows import (
+    agent_wait_status_maps_for_build,
+    widget_viewport_width,
+)
 from ._agent_list_rendering import (
     agent_option_id,
     assemble_padded_option,
@@ -118,6 +121,7 @@ def patch_row(
         "show_machine_chip": bool(ctx.get("show_machine_chip", False)),
         "tab_chip": ctx.get("tab_chip"),
         "clan_wave_gutter": wave_gutter,
+        "width": widget_viewport_width(widget) or int(ctx.get("viewport_width") or 0),
     }
     # Skip unchanged rows: a cache hit means the visible row is
     # byte-identical to the cached triple, so re-rendering would only

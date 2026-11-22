@@ -56,7 +56,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         "Project: tmp\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
-        "Runtime: 2m\n"
+        "Runtime: 45s\n"
         "Members: 2 agents\n"
         "Fold: 1/3"
     )

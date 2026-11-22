@@ -436,7 +436,7 @@ def test_clan_non_detached_document_is_unchanged() -> None:
         "Project: tmp\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
-        "Runtime: 2m\n"
+        "Runtime: 45s\n"
         "Members: 2 agents\n"
         "Fold: 1/3"
     )

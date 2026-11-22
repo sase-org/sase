@@ -285,6 +285,8 @@ def test_incident_failure_focus_has_finalizer_handoff_and_blocker() -> None:
     assert focus.member_label == ".8"
     assert focus.failed_row.name == "research.8--1"
     assert focus.finalizer_chip == "⊛✗ commit"
+    assert focus.finalizer_chip_style == "bold #FF5F5F"
+    assert focus.failed_row.duration_seconds == 60.0
     assert focus.not_adopted is not None
     assert focus.not_adopted.name == "research.8--mon-0"
     assert focus.not_adopted.kind == "monitor"

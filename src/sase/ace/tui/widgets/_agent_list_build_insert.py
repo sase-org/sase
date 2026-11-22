@@ -80,15 +80,22 @@ def _is_plain_leaf_row(agent: Agent) -> bool:
     )
 
 
+_ROW_CONTEXT_LAYOUT_KEYS = frozenset({"is_selected", "viewport_width"})
+
+
 def _same_row_context(old: Mapping[str, Any], new: Mapping[str, Any]) -> bool:
     """Whether two row contexts would paint the same row.
 
     ``is_selected`` is skipped: j/k moves the highlight without repainting rows,
     so a painted row's emphasis already lags the selection until its next
     patch or rebuild, and an insert must not repaint every row to fix that.
+    ``viewport_width`` is the chip-drop budget, not membership: a column
+    resize must still reach the ``width_growth`` gate for a wider arrival.
     """
     return all(
-        old.get(key) == value for key, value in new.items() if key != "is_selected"
+        old.get(key) == value
+        for key, value in new.items()
+        if key not in _ROW_CONTEXT_LAYOUT_KEYS
     )
 
 

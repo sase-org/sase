@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
+    failed_clan_incident_agents,
     multi_project_clan_agents,
     queued_clan_agents,
     running_clan_runtime_agents,
@@ -25,6 +26,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_absent,
     assert_page_svg_styled_text_contains,
+    page_svg_text,
     pin_agents_visual_now,
     prompt_header_and_body_text,
 )
@@ -359,4 +361,45 @@ async def test_multi_project_clan_png_snapshot(
             page,
             "agents_clan_multi_project_120x40",
             title="ACE multi-project clan",
+        )
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot"),
+    (
+        ((120, 40), "agents_failed_clan_incident_by_status_collapsed_120x40"),
+        ((80, 40), "agents_failed_clan_incident_by_status_collapsed_80x40"),
+    ),
+)
+async def test_failed_clan_incident_by_status_collapsed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    size: tuple[int, int],
+    snapshot: str,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 22, 12, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=failed_clan_incident_agents())
+
+    async with AcePage(
+        query='"visual-research"',
+        size=size,
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.press("o", "s")
+        await wait_for_visual_idle(page)
+        assert page.app._grouping_mode is GroupingMode.BY_STATUS
+        assert page.app._agents[0].is_clan_container is True
+        assert_page_svg_contains(page, "research")
+        assert_page_svg_contains(page, "FAILED")
+        if size[0] >= 120:
+            assert_page_svg_contains(page, "⊛✗ commit")
+        else:
+            assert "⊛✗ commit" not in page_svg_text(page)
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot,
+            title="ACE failed clan incident by status collapsed",
         )

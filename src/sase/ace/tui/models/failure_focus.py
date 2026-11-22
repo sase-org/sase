@@ -18,6 +18,7 @@ class _FailureRowFocus:
 
     name: str
     stop_time: datetime | None
+    duration_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,7 @@ class FailureFocus:
     not_adopted: _NotAdoptedHandoffFocus | None
     blocked: tuple[str, ...] = ()
     extra_failed: int = 0
+    finalizer_chip_style: str | None = None
 
 
 def failure_focus_for_agent(
@@ -72,7 +74,15 @@ def failure_focus_for_agent(
         return None
 
     failed_row = max(failed_rows, key=child_launch_time)
-    finalizer_chip = glance_finalizer_state(failed_row).chip_text
+    finalizer_state = glance_finalizer_state(failed_row)
+    finalizer_chip = finalizer_state.chip_text
+    start = failed_row.run_start_time or failed_row.start_time
+    stop = failed_row.stop_time
+    duration_seconds = (
+        max(0.0, (stop - start).total_seconds())
+        if start is not None and stop is not None
+        else None
+    )
 
     held_rows = [row for row in descendants if row_is_not_adopted_handoff(row)]
     held_row = max(held_rows, key=child_launch_time) if held_rows else None
@@ -99,11 +109,13 @@ def failure_focus_for_agent(
         failed_row=_FailureRowFocus(
             name=_row_name(failed_row),
             stop_time=failed_row.stop_time,
+            duration_seconds=duration_seconds,
         ),
         finalizer_chip=finalizer_chip,
         not_adopted=not_adopted,
         blocked=blocked,
         extra_failed=(len(failed_rows) - 1 if extra_failed is None else extra_failed),
+        finalizer_chip_style=finalizer_state.chip_style,
     )
 
 

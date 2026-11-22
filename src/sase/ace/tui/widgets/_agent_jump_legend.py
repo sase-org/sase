@@ -114,13 +114,16 @@ def _build_cell(
     bucket: str | None,
     dismissed: bool,
     show_archive_hint: bool,
+    status: str | None = None,
 ) -> Text:
     """Build one legend cell matching the roster row styling."""
     cell = Text()
     if dismissed:
         cell.append("⊘ ", style=_DISMISSED_PREFIX_STYLE)
     cell.append(number, style=f"bold black on {accent}")
-    append_member_status_cell(cell, label, bucket=bucket, dismissed=dismissed)
+    append_member_status_cell(
+        cell, label, bucket=bucket, dismissed=dismissed, status=status
+    )
     if show_archive_hint and dismissed:
         cell.append(" archive", style=_DIM_STYLE)
     return cell
@@ -292,6 +295,7 @@ class JumpLegendRenderable:
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
                 show_archive_hint=True,
+                status=target.status,
             )
             for index, target in matches
         ]
@@ -352,6 +356,7 @@ class JumpLegendRenderable:
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
                 show_archive_hint=False,
+                status=target.status,
             )
             clamped = cell.copy()
             clamped.truncate(max(1, width))
@@ -416,6 +421,7 @@ def _collapsed_cells(
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
                 show_archive_hint=False,
+                status=target.status,
             )
         )
     hidden = len(jump_map.targets) - len(selection)

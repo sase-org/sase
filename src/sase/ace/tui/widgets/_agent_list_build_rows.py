@@ -68,6 +68,7 @@ class _RowInputs:
     tab_chips: dict[int, tuple[str, str]] | None
     wait_status_maps: AgentWaitStatusMaps
     now: datetime | None
+    viewport_width: int = 0
 
 
 def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
@@ -142,6 +143,34 @@ def widget_app_or_none(widget: Any) -> Any:
         return getattr(widget, "app", None)
     except Exception:  # noqa: BLE001 - unmounted widgets have no app.
         return None
+
+
+def widget_viewport_width(widget: Any) -> int:
+    """Return the list's visible width, or 0 when unmounted.
+
+    The agent-list column is sized from painted content, so
+    ``widget.size.width`` can exceed a narrower parent clip (a small
+    terminal, or a collapsed split). Cap by each ancestor with a known
+    size so a Failed-clan cause chip still drops under that clip.
+    """
+    try:
+        width = max(0, int(getattr(getattr(widget, "size", None), "width", 0) or 0))
+    except Exception:  # noqa: BLE001 - unmounted widgets have no size.
+        return 0
+    node = getattr(widget, "parent", None)
+    for _ in range(8):
+        if node is None:
+            break
+        try:
+            parent_w = max(
+                0, int(getattr(getattr(node, "size", None), "width", 0) or 0)
+            )
+        except Exception:  # noqa: BLE001 - ancestors may be unmounted.
+            parent_w = 0
+        if parent_w > 0:
+            width = parent_w if width <= 0 else min(width, parent_w)
+        node = getattr(node, "parent", None)
+    return width
 
 
 def agent_wait_status_maps_for_build(
@@ -249,6 +278,7 @@ def build_row_inputs(
         tab_chips=_all_tabs_row_chips(widget, agents),
         wait_status_maps=agent_wait_status_maps_for_build(widget, agents),
         now=now,
+        viewport_width=widget_viewport_width(widget),
     )
 
 
@@ -314,6 +344,7 @@ def agent_row_context(inputs: _RowInputs, agent: Agent, index: int) -> dict[str,
         "show_machine_chip": inputs.show_machine_chip,
         "tab_chip": (inputs.tab_chips or {}).get(index),
         "clan_wave_gutter": None,
+        "viewport_width": inputs.viewport_width,
     }
 
 
@@ -350,6 +381,7 @@ def format_agent_row(
         show_machine_chip=ctx["show_machine_chip"],
         tab_chip=ctx.get("tab_chip"),
         clan_wave_gutter=ctx.get("clan_wave_gutter"),
+        width=int(ctx.get("viewport_width") or inputs.viewport_width or 0),
     )
 
 
