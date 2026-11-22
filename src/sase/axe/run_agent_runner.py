@@ -393,7 +393,10 @@ def _run_agent(state: RunnerRunState) -> None:
         agent_name=state.agent_name,
         artifacts_dir=state.artifacts_dir,
         local_macros=bootstrap.info.local_macros,
+        is_killed=was_killed,
     )
+    if was_killed():
+        raise SystemExit(128 + signal.SIGTERM)
 
     repeat_stop: RepeatStopDecision | None = None
     if bootstrap.has_dependency_wait:

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+import sase.axe.run_agent_runner_refresh as refresh
 from sase.axe.run_agent_runner_refresh import (
     RUNNER_CODE_REFRESHED_ENV,
     refresh_runner_code_after_wait,
@@ -115,8 +116,12 @@ def test_refresh_exec_failure_restores_prior_local_macros_value(
 
     real_serialize = macro_module.serialize_local_macros
 
-    def tracking_serialize(payload: object) -> str:
-        path = real_serialize(payload)  # type: ignore[arg-type]
+    def tracking_serialize(
+        payload: object,
+        *,
+        directory: str | os.PathLike[str] | None = None,
+    ) -> str:
+        path = real_serialize(payload, directory=directory)  # type: ignore[arg-type]
         created.append(path)
         return path
 
@@ -145,6 +150,45 @@ def test_refresh_exec_failure_restores_prior_local_macros_value(
 
     assert os.environ[LOCAL_MACROS_ENV] == str(prior)
     assert created and not os.path.exists(created[0])
+
+
+def test_refresh_cancels_after_a_handled_kill_during_preparation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.multi_prompt_macros import LOCAL_MACROS_ENV
+    from sase.macro.models import Macro
+
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    monkeypatch.delenv(LOCAL_MACROS_ENV, raising=False)
+    prompt_file = tmp_path / "managed-tmp" / "prompt.md"
+    prompt_file.parent.mkdir()
+    prompt_file.write_text("old prompt", encoding="utf-8")
+    prior_macros = tmp_path / "prior.json"
+    prior_macros.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv(LOCAL_MACROS_ENV, str(prior_macros))
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch.object(refresh.os, "execv") as execv,
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_prompt="new prompt",
+            local_macros={"_x": Macro(name="_x", content="body")},
+            is_killed=lambda: True,
+        )
+
+    execv.assert_not_called()
+    assert prompt_file.read_text(encoding="utf-8") == "old prompt"
+    assert os.environ[LOCAL_MACROS_ENV] == str(prior_macros)
+    assert RUNNER_CODE_REFRESHED_ENV not in os.environ
 
 
 @pytest.mark.parametrize("local_macros", [None, {}])

@@ -12,6 +12,7 @@ starts its workflow.
 
 import json
 import os
+import signal
 import sys
 import time
 from collections.abc import Callable, Mapping
@@ -140,6 +141,8 @@ def _resume_lean_wait_result(
             wait_released_at=released_at,
         )
     _remove_wait_markers(artifacts_dir)
+    if was_killed():
+        raise SystemExit(128 + signal.SIGTERM)
     print(f"Lean waiter returned to runner (outcome=released, source={source})")
     return True
 

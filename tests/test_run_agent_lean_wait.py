@@ -28,7 +28,10 @@ from sase.env_contracts import (
     SASE_RUNNER_LEAN_WAIT_SPEC_ENV,
 )
 from tests._lean_wait_helpers import (
+    PENDING_AT_RETURN_WRAPPER,
+    PENDING_RETURN_RUNNER,
     PENDING_SIGTERM_WRAPPER,
+    RUNNER_REENTRY_HARNESS,
     STUB_PROBE_WRAPPER,
     WAITER_PATH,
     LeanWaitRig,
@@ -196,6 +199,126 @@ def test_sigterm_pending_across_the_hop_is_a_kill_on_arrival(
     result = lean_rig.result(proc, timeout=10)
 
     assert result["outcome"] == "killed"
+
+
+def test_sigterm_pending_at_return_is_delivered_to_runner_handler(
+    lean_rig: LeanWaitRig,
+) -> None:
+    runner_script = lean_rig.tmp_path / "pending_return_runner.py"
+    runner_script.write_text(PENDING_RETURN_RUNNER, encoding="utf-8")
+    lean_rig.ready_path.write_text(json.dumps({"released_by": "wait_checks"}))
+    spec = lean_rig.spec(runner_argv=[sys.executable, str(runner_script)])
+
+    proc = lean_rig.start(spec, wrapper=PENDING_AT_RETURN_WRAPPER)
+    dump = lean_rig.finish(proc)
+    result = json.loads(dump["environ"][SASE_RUNNER_LEAN_WAIT_RESULT_ENV])
+
+    assert dump["pid"] == proc.pid
+    assert SIGTERM in dump["blocked_before"]
+    assert dump["pending_kill_delivered"] is True
+    # It was pending at the exec decision; the runner's installed handler owns it.
+    assert result["outcome"] == "released"
+
+
+def test_lean_waiter_reenters_runner_once_with_live_waiting_projection(
+    lean_rig: LeanWaitRig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.running_listing import list_running_agents
+    from sase.core.process_identity import process_identity_token
+
+    sase_home = lean_rig.tmp_path / ".sase"
+    artifacts = (
+        sase_home / "projects" / "proj" / "artifacts" / "ace-run" / "20261122010101"
+    )
+    artifacts.mkdir(parents=True)
+    lean_rig.artifacts_dir = artifacts
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+
+    runner_script = lean_rig.tmp_path / "runner_reentry.py"
+    runner_script.write_text(RUNNER_REENTRY_HARNESS, encoding="utf-8")
+    state_path = lean_rig.tmp_path / "runner_state.json"
+    continue_path = lean_rig.tmp_path / "continue_runner"
+    spec = lean_rig.spec(
+        project_name=None,
+        runner_argv=[sys.executable, str(runner_script)],
+    )
+    proc = lean_rig.start(
+        spec,
+        extra_env={
+            "SASE_HOME": str(sase_home),
+            "SASE_TEST_ARTIFACTS": str(artifacts),
+            "SASE_TEST_EVENTS": str(state_path),
+            "SASE_TEST_CONTINUE": str(continue_path),
+        },
+    )
+    (artifacts / "submitted_prompt.md").write_text("Do work", encoding="utf-8")
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "worker.lean",
+                "pid": proc.pid,
+                "process_identity": process_identity_token(proc.pid),
+                "model": "@small",
+                "llm_provider": "codex",
+                "output_path": str(artifacts / "output.log"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    lean_rig.waiting_path.write_text(
+        json.dumps(
+            {
+                "waiting_for": ["dependency"],
+                "patch_name": "lean-reentry",
+                "timestamp": "20261122010101",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def running_row() -> object | None:
+        rows = list_running_agents(project="proj", index_freshness="revalidate")
+        return next((row for row in rows if row.name == "worker.lean"), None)
+
+    lean_rig.wait_for(lambda: running_row() is not None, what="WAITING projection")
+    waiting = running_row()
+    assert waiting is not None
+    assert waiting.status == "WAITING"
+    assert waiting.pid == proc.pid
+
+    satisfied_at = time.time()
+    lean_rig.ready_path.write_text(
+        json.dumps(
+            {
+                "released_by": "test",
+                "dependencies_satisfied_at": satisfied_at,
+            }
+        ),
+        encoding="utf-8",
+    )
+    lean_rig.wait_for(
+        lambda: Path(str(state_path) + ".launch").exists(),
+        what="runner launch after waiter return",
+    )
+
+    started_meta = json.loads((artifacts / "agent_meta.json").read_text())
+    launch_event = json.loads(Path(str(state_path) + ".launch").read_text())
+    running = running_row()
+    assert running is not None
+    assert running.status == "RUNNING"
+    assert running.pid == proc.pid == launch_event["pid"]
+    assert started_meta["pid"] == proc.pid
+    assert started_meta["wait_release_source"] == "ready_json"
+    assert started_meta["wait_release_latency_s"] < 6
+    assert started_meta["admission_latency_s"] < 6
+    assert launch_event["run_started_at"] == started_meta["run_started_at"]
+    assert json.loads(state_path.read_text())["slot_calls"] == 1
+
+    continue_path.write_text("continue", encoding="utf-8")
+    assert proc.wait(timeout=10) == 0
+    assert not lean_rig.waiting_path.exists()
+    assert not lean_rig.ready_path.exists()
 
 
 def test_stale_or_missing_heartbeat_probes_at_the_short_interval(

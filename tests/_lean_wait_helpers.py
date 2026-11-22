@@ -60,6 +60,124 @@ os.kill(os.getpid(), signal.SIGTERM)
 os.execv(sys.executable, [sys.executable, sys.argv[1], "label"])
 """
 
+PENDING_AT_RETURN_WRAPPER = """\
+import os, signal, sys
+import sase.axe.run_agent_lean_wait as waiter
+real_execve = os.execve
+def inject_sigterm(path, argv, env):
+    os.kill(os.getpid(), signal.SIGTERM)
+    real_execve(path, argv, env)
+waiter.os.execve = inject_sigterm
+sys.exit(waiter.main())
+"""
+
+PENDING_RETURN_RUNNER = """\
+import json, os, signal
+was_killed = False
+def handle_sigterm(_signum, _frame):
+    global was_killed
+    was_killed = True
+signal.signal(signal.SIGTERM, handle_sigterm)
+blocked_before = sorted(int(s) for s in signal.pthread_sigmask(signal.SIG_BLOCK, []))
+signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+payload = {
+    "pid": os.getpid(),
+    "environ": dict(os.environ),
+    "blocked_before": blocked_before,
+    "pending_kill_delivered": was_killed,
+}
+out = os.environ["FAKE_RUNNER_OUT"]
+tmp = out + ".tmp"
+with open(tmp, "w") as handle:
+    json.dump(payload, handle)
+os.replace(tmp, out)
+"""
+
+RUNNER_REENTRY_HARNESS = """\
+import json, os, time
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+from sase.axe import run_agent_runner
+from sase.axe.run_agent_runner_state import RunnerRunState
+from sase.agent import scope_sweep
+
+artifacts = Path(os.environ['SASE_TEST_ARTIFACTS'])
+events_path = Path(os.environ['SASE_TEST_EVENTS'])
+continue_path = Path(os.environ['SASE_TEST_CONTINUE'])
+meta = json.loads((artifacts / 'agent_meta.json').read_text())
+state = RunnerRunState(
+    cl_name='lean-reentry',
+    project_file=str(artifacts.parents[2] / 'proj.sase'),
+    prompt_file=str(artifacts / 'submitted_prompt.md'),
+    output_path=str(artifacts / 'output.log'),
+    workflow_name='ace(run)-20261122010101',
+    timestamp='20261122010101',
+    update_target='',
+    is_home_mode=False,
+    workspace_dir=str(artifacts / 'workspace'),
+    workspace_num=0,
+    project_name='proj',
+    artifacts_timestamp='20261122010101',
+    artifacts_dir=str(artifacts),
+    current_artifacts_dir=str(artifacts),
+    prompt='Do work',
+    submitted_prompt='Do work',
+    agent_name='worker.lean',
+)
+info = SimpleNamespace(
+    wait_names=['dependency'], wait_identity_deps=[], wait_fork_sources=[],
+    wait_beads=[], wait_hoods=[], wait_duration=None, wait_until=None,
+    wait_for_epics_of=None, wait_runners=None, queue_capacity_multiplier=None,
+    wait_priority=None, queue_weight=1.0, queue_weight_explicit=False,
+    local_macros=None, hold=None,
+)
+bootstrap = SimpleNamespace(
+    info=info, agent_meta=meta, has_dependency_wait=True, has_wait=True,
+)
+
+def wait_for_slot(*args, claim, **kwargs):
+    started = claim()
+    payload = {'slot_calls': 1, 'pid': os.getpid(), 'run_started_at': started}
+    tmp = str(events_path) + '.tmp'
+    Path(tmp).write_text(json.dumps(payload))
+    os.replace(tmp, events_path)
+    return started
+
+def launch(current_state, current_bootstrap):
+    payload = {
+        'pid': os.getpid(),
+        'run_started_at': current_state.run_started_at,
+        'wait_completed_at': current_bootstrap.agent_meta.get('wait_completed_at'),
+    }
+    tmp = str(events_path) + '.launch.tmp'
+    Path(tmp).write_text(json.dumps(payload))
+    os.replace(tmp, str(events_path) + '.launch')
+    deadline = time.monotonic() + 15
+    while not continue_path.exists() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if not continue_path.exists():
+        raise RuntimeError('test did not release runner continuation')
+    current_state.success = True
+    current_state.exec_outcome = 'completed'
+
+with (
+    patch.object(run_agent_runner, '_defer_start_across_code_swap'),
+    patch.object(run_agent_runner, '_build_run_state', return_value=state),
+    patch.object(run_agent_runner, 'bootstrap_agent_run', return_value=bootstrap),
+    patch.object(run_agent_runner, 'expand_deferred_launch_macros', side_effect=lambda prompt, *args, **kwargs: prompt),
+    patch.object(run_agent_runner, 'wait_for_runner_slot', side_effect=wait_for_slot),
+    patch.object(run_agent_runner, 'launch_agent_run', side_effect=launch),
+    patch.object(run_agent_runner, 'detect_repeat_stop', return_value=None),
+    patch.object(run_agent_runner, 'finalize_runner_shutdown'),
+    patch.object(run_agent_runner, 'record_completion_metrics'),
+    patch.object(run_agent_runner, 'cleanup_launch_scratch'),
+    patch.object(scope_sweep, 'sweep_own_agent_scope'),
+    patch('sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation'),
+):
+    run_agent_runner.main()
+"""
+
 STUB_PROBE = """\
 import json, os, sys, time
 log = os.environ["LEAN_WAIT_TEST_PROBE_LOG"]

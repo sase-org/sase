@@ -44,7 +44,7 @@ identity check and ``os.execv``) but in the refreshed pass's bootstrap, via
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import os
 import signal
@@ -227,21 +227,37 @@ def prepare_runner_exec_handoff(
     )
 
 
-def execv_with_sigterm_mask(path: str, argv: list[str]) -> None:
-    """Keep SIGTERM pending until the exec'd program installs its handler."""
+def execv_with_sigterm_mask(
+    path: str,
+    argv: list[str],
+    *,
+    before_exec: Callable[[], bool] | None = None,
+) -> bool:
+    """Keep SIGTERM pending and make one final handled-kill decision.
+
+    The callable runs after SIGTERM is blocked, so a kill already handled by
+    this interpreter can cancel the hop while a new signal stays pending for
+    the exec'd program. Return ``False`` when the callable declines the exec.
+    """
     blocker = getattr(signal, "pthread_sigmask", None)
-    if callable(blocker):
-        blocker(signal.SIG_BLOCK, {signal.SIGTERM})
+    old_mask = (
+        blocker(signal.SIG_BLOCK, {signal.SIGTERM}) if callable(blocker) else None
+    )
     try:
+        if before_exec is not None and not before_exec():
+            if callable(blocker) and old_mask is not None:
+                blocker(signal.SIG_SETMASK, old_mask)
+            return False
         os.execv(path, argv)
     except BaseException:
-        if callable(blocker):
-            blocker(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        if callable(blocker) and old_mask is not None:
+            blocker(signal.SIG_SETMASK, old_mask)
         raise
     # Real execv does not return. This branch keeps unit-test substitutions
     # from leaking the temporary signal mask into the test process.
-    if callable(blocker):
-        blocker(signal.SIG_UNBLOCK, {signal.SIGTERM})
+    if callable(blocker) and old_mask is not None:
+        blocker(signal.SIG_SETMASK, old_mask)
+    return True
 
 
 def _editable_sase_source_root() -> Path | None:
@@ -331,6 +347,7 @@ def refresh_runner_code_after_wait(
     agent_name: str | None = None,
     artifacts_dir: str | None = None,
     local_macros: Mapping[str, Any] | None = None,
+    is_killed: Callable[[], bool] | None = None,
 ) -> None:
     """Re-exec the runner when its editable source HEAD moved during a wait.
 
@@ -377,7 +394,14 @@ def refresh_runner_code_after_wait(
                 stream.flush()
             except (AttributeError, OSError, ValueError):
                 pass
-        execv_with_sigterm_mask(sys.executable, [sys.executable, *sys.argv])
+        exec_attempted = execv_with_sigterm_mask(
+            sys.executable,
+            [sys.executable, *sys.argv],
+            before_exec=(lambda: not is_killed()) if is_killed is not None else None,
+        )
+        if exec_attempted is False:
+            prepared.rollback()
+            return
     except OSError as exc:
         prepared.rollback()
         print(

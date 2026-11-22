@@ -376,6 +376,7 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         agent_name="foo--reviewer",
         artifacts_dir=str(tmp_path / "artifacts"),
         local_macros={},
+        is_killed=run_agent_runner.was_killed,
     )
 
 

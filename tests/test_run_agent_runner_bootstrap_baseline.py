@@ -22,6 +22,7 @@ from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
 from sase.axe import run_agent_runner, run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_bootstrap import _capture_commit_finalizer_baseline
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+from sase.bead.claims import read_bead_claim_marker
 from sase.core.agent_hold_facade import list_agent_holds_without_liveness
 from sase.core.agent_hold_types import PendingCapture
 from sase.feature_flags import override_flags
@@ -431,7 +432,6 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
         hold=HoldFields(pending=True),
         meta={"agent_name": "bootstrap.agent"},
     )
-    events: list[str] = []
     pending_dir = str(tmp_path / "waiting-agent")
 
     def load_prompt(current: object) -> None:
@@ -440,25 +440,17 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
 
     def extract_directives(*args: object, **kwargs: object) -> object:
         del args, kwargs
-        (artifacts_dir / "agent_meta.json").write_text(
-            json.dumps(
-                {
-                    "name": "bootstrap.agent",
-                    "pid": os.getpid(),
-                    "agent_session": "bootstrap",
-                    "output_path": state.output_path,
-                }
-            ),
-            encoding="utf-8",
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta.update(
+            {
+                "name": "bootstrap.agent",
+                "agent_session": "bootstrap",
+                "output_path": state.output_path,
+            }
         )
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
         return info
-
-    def claim_before_wait(*args: object, **kwargs: object) -> None:
-        del args, kwargs
-        holds = list_agent_holds_without_liveness()
-        assert [hold["armer"]["key"] for hold in holds] == ["agent:bootstrap.agent"]
-        assert holds[0]["selectors"]["artifact_dirs"] == [pending_dir]
-        events.append("claim")
 
     with (
         override_flags(),
@@ -514,14 +506,45 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
         ),
         patch.object(
             run_agent_runner_bootstrap,
-            "_claim_bead_before_wait",
-            side_effect=claim_before_wait,
-        ),
+            "claim_bead_for_waiting_agent",
+            return_value=True,
+        ) as claim_bead,
     ):
         bootstrap = run_agent_runner_bootstrap.bootstrap_agent_run(state)
+        first_meta = json.loads(
+            (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        first_claim = read_bead_claim_marker(artifacts_dir)
+        first_holds = list_agent_holds_without_liveness()
+        assert [hold["armer"]["key"] for hold in first_holds] == [
+            "agent:bootstrap.agent"
+        ]
+        assert first_holds[0]["selectors"]["artifact_dirs"] == [pending_dir]
+        first_anchor = first_holds[0]["armer"]
+
+        monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+        resumed = run_agent_runner_bootstrap.bootstrap_agent_run(state)
+        resumed_meta = json.loads(
+            (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        resumed_holds = list_agent_holds_without_liveness()
 
     assert bootstrap.has_dependency_wait is True
-    assert events == ["claim"]
+    assert resumed.has_dependency_wait is True
+    assert first_meta["pid"] == resumed_meta["pid"] == os.getpid()
+    assert first_meta["process_identity"] == resumed_meta["process_identity"]
+    assert first_claim is not None
+    assert (first_claim.bead_id, first_claim.agent_name, first_claim.project_name) == (
+        "sase-1",
+        "bootstrap.agent",
+        "sase",
+    )
+    assert read_bead_claim_marker(artifacts_dir) == first_claim
+    assert len(resumed_holds) == 1
+    assert resumed_holds[0]["armer"] == first_anchor
+    claim_bead.assert_any_call(
+        project_name="sase", bead_id="sase-1", agent_name="bootstrap.agent"
+    )
     assert LAUNCH_HOLD_KEY_ENV not in os.environ
 
 

@@ -15,6 +15,7 @@ from sase.axe.run_agent_runner_refresh import (
     execv_with_sigterm_mask,
     prepare_runner_exec_handoff,
 )
+from sase.axe.runner_signals import was_killed
 from sase.env_contracts import (
     SASE_RUNNER_LEAN_WAIT_ENV,
     SASE_RUNNER_LEAN_WAIT_RESULT_ENV,
@@ -123,10 +124,18 @@ def try_handoff_to_lean_waiter(
         pass
 
     try:
-        execv_with_sigterm_mask(
+        exec_attempted = execv_with_sigterm_mask(
             sys.executable,
             [sys.executable, waiter_path, artifacts_timestamp],
+            before_exec=lambda: not was_killed(),
         )
+        if exec_attempted is False:
+            if old_spec is None:
+                os.environ.pop(SASE_RUNNER_LEAN_WAIT_SPEC_ENV, None)
+            else:
+                os.environ[SASE_RUNNER_LEAN_WAIT_SPEC_ENV] = old_spec
+            prepared.rollback()
+            return False
     except OSError as exc:
         if old_spec is None:
             os.environ.pop(SASE_RUNNER_LEAN_WAIT_SPEC_ENV, None)

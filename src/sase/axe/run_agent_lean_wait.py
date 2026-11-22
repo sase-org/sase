@@ -546,23 +546,33 @@ def _exec_back(
 ) -> None:
     """``exec`` the runner with the result; return only if every attempt failed."""
     for attempt in range(1 + EXEC_RETRIES):
-        env = dict(os.environ)
-        env.pop(SASE_RUNNER_LEAN_WAIT_SPEC_ENV, None)
-        env[SASE_RUNNER_LEAN_WAIT_RESULT_ENV] = json.dumps(result)
-        env[SASE_RUNNER_CODE_REFRESHED_ENV] = "1"
-        sys.stdout.flush()
-        sys.stderr.flush()
-        # A kill that lands during the hop stays pending until the exec'd
-        # program installs its handler and unblocks.
-        signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+        old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
         try:
+            # A signal handled after release selection belongs to the old
+            # interpreter and must be serialized as a kill. A new SIGTERM
+            # arriving after this check stays pending across exec.
+            if sigterm.killed_at is not None and result["outcome"] != "killed":
+                result = _killed_result(spec, sigterm)
+            env = dict(os.environ)
+            env.pop(SASE_RUNNER_LEAN_WAIT_SPEC_ENV, None)
+            env[SASE_RUNNER_LEAN_WAIT_RESULT_ENV] = json.dumps(result)
+            env[SASE_RUNNER_CODE_REFRESHED_ENV] = "1"
+            sys.stdout.flush()
+            sys.stderr.flush()
             os.execve(spec.runner_argv[0], list(spec.runner_argv), env)
-        except (OSError, ValueError) as exc:
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        except BaseException as exc:
+            signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+            if not isinstance(exc, (OSError, ValueError)):
+                raise
             _log(
                 f"Lean waiter: failed to exec runner ({exc}); "
                 f"attempt {attempt + 1} of {1 + EXEC_RETRIES}"
             )
+        else:
+            # Real execve does not return; restore the caller's mask when a
+            # test substitution does so the test process is not left blocked.
+            signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+            return
         if attempt == EXEC_RETRIES:
             return
         deadline = time.monotonic() + EXEC_RETRY_INTERVAL_SECONDS
