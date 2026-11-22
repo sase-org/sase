@@ -11,6 +11,7 @@ from sase.agent.status_buckets import (
     is_pending_plan_review_status,
 )
 from sase.core.time import local_now
+from sase.monitor_state import MONITOR_HELD_STATE
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_session_role_for_suffix,
@@ -190,6 +191,8 @@ def leaf_runtime_interval(agent: "Agent", now: datetime) -> RuntimeInterval | No
             return None
         effective_start = agent.start_time
 
+    if agent.is_monitor and agent.monitor_state == MONITOR_HELD_STATE:
+        return None
     if agent.is_monitor and agent.monitor_state == "running":
         return RuntimeInterval(
             elapsed_seconds=(now - effective_start).total_seconds(),

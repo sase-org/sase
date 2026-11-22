@@ -150,6 +150,27 @@ def evaluate_staged_monitor_membership(
         raise StagedHandoffContractError(str(exc)) from exc
 
 
+def project_monitor_turn_state(
+    monitor_state: str | None,
+    stage_held: bool = False,
+) -> str | None:
+    """Project a monitor turn state from durable monitor facts.
+
+    A ``staged`` state with a truthy held flag projects as ``held``; every
+    other state passes through unchanged. Filesystem fallback loaders call
+    this so both load paths agree with the Rust scanner.
+    """
+    binding = require_rust_binding("project_monitor_turn_state")
+    projected = binding(monitor_state, stage_held)
+    if projected is None:
+        return None
+    if not isinstance(projected, str):
+        raise TypeError(
+            "project_monitor_turn_state binding returned a non-string state"
+        )
+    return projected
+
+
 def evaluate_staged_owner_liveness(request: dict[str, Any]) -> dict[str, Any]:
     """Decide whether a staged monitor remains a pending owner."""
     binding = require_rust_binding("evaluate_staged_owner_liveness")

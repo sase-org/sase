@@ -10,7 +10,11 @@ from sase.agent.status_buckets import (
     agent_status_bucket,
 )
 from sase.gate_turn.state import gate_state_is_terminal
-from sase.monitor_state import monitor_lane_status_bucket, monitor_state_is_terminal
+from sase.monitor_state import (
+    MONITOR_HELD_STATE,
+    monitor_lane_status_bucket,
+    monitor_state_is_terminal,
+)
 from .agent import Agent, AgentType
 
 
@@ -49,7 +53,12 @@ def monitor_row_is_settled(row: Agent) -> bool:
 
     Shared by the ``⚙N`` lane counts and the per-row gear style so a grey
     gear on a row and the grey count it feeds can never drift apart.
+
+    A held staged monitor is Failed but nonterminal: it never ran, so it
+    belongs in the settled (grey) lane rather than the in-flight orange one.
     """
+    if row.monitor_state == MONITOR_HELD_STATE:
+        return True
     return monitor_state_is_terminal(row.monitor_state) or row.stop_time is not None
 
 

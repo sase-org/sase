@@ -155,6 +155,19 @@ def test_status_and_state_helpers_are_parameterized() -> None:
     )
 
 
+def test_nonterminal_states_stay_open_when_bucket_is_not_running() -> None:
+    state = TurnStateConfig(
+        agent_session_role="monitor",
+        buckets={"staged": "Running", "held": "Failed", "failed": "Failed"},
+        nonterminal_states=frozenset({"held"}),
+    )
+
+    assert turn_state_bucket("held", state) == "Failed"
+    assert turn_state_is_terminal("held", state) is False
+    assert turn_state_is_terminal("failed", state) is True
+    assert turn_state_is_terminal("staged", state) is False
+
+
 def test_fork_target_prefers_the_agent_session_transcript() -> None:
     assert (
         fork_target_for_settled_starter(

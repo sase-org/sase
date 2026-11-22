@@ -13,6 +13,7 @@ from sase.core.staged_handoff import (
     evaluate_recovery_decision,
     evaluate_stage_admission,
     gate_staged_payload_schema_version,
+    project_monitor_turn_state,
     receipt_authorizes,
     receipt_transition_allowed,
     recovery_adoption_lock_filename,
@@ -228,3 +229,13 @@ def test_recovery_decision_and_transition_through_binding() -> None:
     assert receipt_transition_allowed(None, adopted, STAGED_ID) is True
     assert receipt_transition_allowed(adopted, held, STAGED_ID) is False
     assert receipt_transition_allowed(held, adopted, STAGED_ID) is True
+
+
+def test_project_monitor_turn_state_binding() -> None:
+    assert project_monitor_turn_state("staged", True) == "held"
+    assert project_monitor_turn_state("staged", False) == "staged"
+    assert project_monitor_turn_state("running", True) == "running"
+    assert project_monitor_turn_state("failed", True) == "failed"
+    assert project_monitor_turn_state(None, True) is None
+    binding = require_rust_binding("project_monitor_turn_state")
+    assert binding("staged", True) == "held"

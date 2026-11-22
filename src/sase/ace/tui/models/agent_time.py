@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import APPROVED_PLAN_STATUSES
 from sase.core.time import local_now
+from sase.monitor_state import MONITOR_HELD_STATE
 
 from ._agent_time_aggregate import (
     aggregates_agent_session_turns as _aggregates_agent_session_turns,
@@ -159,6 +160,8 @@ def runtime_suffix_ticks(
         ):
             return True
     if agent.stop_time is not None:
+        return False
+    if agent.is_monitor and agent.monitor_state == MONITOR_HELD_STATE:
         return False
     if agent.is_monitor and agent.monitor_state == "running":
         return agent.run_start_time is not None

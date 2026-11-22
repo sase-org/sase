@@ -15,6 +15,12 @@ from sase.agent.status_buckets import (
     WORKING_TALE_STATUS,
     agent_status_bucket,
 )
+from sase.monitor_state import (
+    MONITOR_HELD_STATE,
+    NOT_ADOPTED_COLOR,
+    NOT_ADOPTED_GLYPH,
+    NOT_ADOPTED_STATUS,
+)
 from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
 
 from ..agent_completion import WaitDependencyStatusCounts
@@ -227,6 +233,13 @@ def append_agent_row_status(
         text.append(
             f"{STOPPED_GLYPH} {display_status}",
             style=f"bold {STOPPED_COLOR}",
+        )
+    elif agent.status == NOT_ADOPTED_STATUS or (
+        agent.is_monitor and agent.monitor_state == MONITOR_HELD_STATE
+    ):
+        text.append(
+            f"{NOT_ADOPTED_STATUS} {NOT_ADOPTED_GLYPH}",
+            style=f"bold {NOT_ADOPTED_COLOR}",
         )
     elif agent.status == "FAILED":
         text.append(display_status, style="bold #FF5F5F")  # Red

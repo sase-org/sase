@@ -592,9 +592,10 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
         raise MonitorError(str(exc)) from exc
     timer.mark("spawn_and_ack")
     if context.member_state == "staged":
-        update_meta_field(artifacts_dir, "monitor_state", "running")
+        from .start_metadata import persist_monitor_running_state
         from .staged_owner import clear_staged_owner_index
 
+        persist_monitor_running_state(artifacts_dir)
         clear_staged_owner_index(monitor_id)
 
     record = MonitorRecord(

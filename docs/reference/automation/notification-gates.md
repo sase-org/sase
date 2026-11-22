@@ -50,26 +50,24 @@ here. Reaping triage bundles does not change `agent_stats` aggregates, which onl
 `plan`, `epic_plan`, and `question` bundles.
 
 sase's TUI, Telegram, and mobile derive gate-kind capabilities from the shared adapter
-registry and render branches in query order from the same normalized envelope structure.
-Registering a new branch-actionable kind therefore makes it actionable on every surface
-without adding per-surface action or kind allowlists. Singleton branches are buttons.
-AND branches expose one toggle per option and a configurable submit control; the primary
-AND branch starts expanded. Top-level branches have fixed one-based digit selectors in
-canonical query order, while AND members remain unnumbered and use Space to toggle.
-sase's TUI Decision column shows those branches and toggles only — typed fields live in
-a dedicated input panel, not in the left pane. Enter submits the declared primary
-branch, Ctrl+S submits the active branch, and `q` or Escape cancels the modal. A
-selection that needs typed input — any declared `inputs` field, a raw `input_schema`
-with a property the host does not already collect, or `feedback: required` — opens the
-panel first; confirming the panel submits the branch, and cancelling returns to the gate
-with the selection and whatever was typed intact. An option that declares only
-`feedback: optional`, or nothing at all, still answers on Enter or its digit. Press `i`
-on the focused option first to open the same panel for an optional note. For an AND
-group, the panel opens when the group's submit control is activated, not when a member
-is toggled, and then shows one section per selected option that declares input. Surfaces
-submit `selected_option_ids`, feedback, and each selected option's declared input (see
-[Gate inputs](#gate-inputs) below), and the shared executor runs the selected commands
-in query order.
+registry and render branches in query order from the same envelope. Registering a new
+branch-actionable kind makes it actionable on every surface. Singleton branches are
+buttons. AND branches expose one toggle per option and a configurable submit control;
+the primary AND branch starts expanded. Top-level branches have fixed one-based digit
+selectors in query order; AND members stay unnumbered and use Space to toggle. The TUI
+Decision column shows those branches and toggles only — typed fields live in a dedicated
+input panel. Enter submits the declared primary branch, Ctrl+S submits the active
+branch, and `q` or Escape cancels the modal. A selection that needs typed input — any
+declared `inputs` field, a raw `input_schema` with a property the host does not already
+collect, or `feedback: required` — opens the panel first; confirming submits, cancelling
+returns to the gate with the selection and typed values intact. An option that declares
+only `feedback: optional`, or nothing, still answers on Enter or its digit. Press `i` on
+the focused option to open the same panel for an optional note. For an AND group, the
+panel opens when the group's submit control is activated, not when a member is toggled,
+and then shows one section per selected option that declares input. Surfaces submit
+`selected_option_ids`, feedback, and each selected option's declared input (see
+[Gate inputs](#gate-inputs)), and the shared executor runs the selected commands in
+query order.
 
 Custom gates with a preview and sudo reviews show decision controls on the left and
 content on the right. The controls column grows with the terminal up to a maximum width.
@@ -288,24 +286,20 @@ slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a 
 queue never delays the decision itself.
 
 An accepted-but-failed gate turn is a non-terminal gate whose accepted option command
-failed before publishing a response. The durable `attempt_failed` journal event stays
-the source of truth, and the member's `agent_meta.json` mirrors a small
-`gate_execution_failure` object (stage, code, message, error report path, acceptance and
-attempt ids, plus the resume / restart / cancel commands). The member clears its live
-settler pid at the same time, so the row no longer reads as running.
+failed before publishing a response. The durable `attempt_failed` journal event is the
+source of truth; `agent_meta.json` mirrors a `gate_execution_failure` object (stage,
+code, message, error report path, acceptance and attempt ids, and the resume / restart /
+cancel commands) and clears the live settler pid so the row no longer reads as running.
 
-Every surface projects the persisted object without reopening the bundle: the shared
-`gate_turn_runtime_json` shape carries `execution_failure`, a combined
-`needs_attention`, and `recovery_commands`, while `followup_needs_attention` keeps its
-existing meaning. A failed non-terminal member shows the `✗` failure glyph and
-`GATE_STATUS_FAILURE_STYLE`, its label appends `✗` to the pending status, and its bucket
-stays in the awaiting-human bucket (`Stopped`, the same bucket as `pending`) instead of
-`Running`. `sase gate list` shows the failure in its state cell and `sase gate show`
-renders the failure line with the error report and each recovery command. The ACE GATE
-section shows the same failure and commands, and pressing `Enter` on the failed gate row
-reuses the `GateExecutionFailed` recovery dialog, so recovery does not depend on finding
-the dismissed notification. A later `--resume` success, supersede, cancellation,
-successful side effects, or terminal settlement clears the object.
+Every surface projects that object through `gate_turn_runtime_json`
+(`execution_failure`, combined `needs_attention`, `recovery_commands`) without reopening
+the bundle; `followup_needs_attention` is unchanged. The member shows the `✗` failure
+glyph and `GATE_STATUS_FAILURE_STYLE`, appends `✗` to the pending status, and stays in
+the awaiting-human bucket (`Stopped`, same as `pending`). `sase gate list`,
+`sase gate show`, and the ACE GATE section all render the failure plus recovery
+commands; `Enter` on the failed row reuses the `GateExecutionFailed` dialog, so recovery
+does not depend on the dismissed notification. A later `--resume` success, supersede,
+cancellation, successful side effects, or terminal settlement clears the object.
 
 Agents waiting for the [agent session](../glossary.md#sase-agent-session) to finish stay
 pending while the gate's follow-up agent is being launched. Accepting the decision does
@@ -327,40 +321,35 @@ still running (its session's gate-creation lock is held), so an `%auto` gate tha
 still executing its selected commands is never marked lost; a turn whose creator died
 before recording a bundle is still settled lost on a later pass.
 
-Reclaim also backfills `gate_execution_failure` for members that failed before the
-object existed, when it sees an `accepted_failed` or `accepted_owner_lost` gate whose
-meta lacks it. Backfill and resurface run serialized under the lane lock with a fresh
-re-read: a stale reclaim never overwrites a resumed owner, restores a resolved
-notification, or replaces a newer failure. A dismissed `GateExecutionFailed`
-notification resurfaces at most once per acceptance: the request kind, gate ID and
-acceptance must match before any other notification's state is considered, the failure
-must still be current, and the row must still be dismissed. The hour is measured from
-dismissal, never from failure time: the store persists `dismissed_at` on every dismiss
-(single, bulk, and agent-matching paths) and clears it on undismiss, and both human
-`list` formats render the same failure summary and resume/restart/cancel commands as
-`show`. Rows dismissed before tracking carry no timestamp; reclaim records the first
-observation in the member meta and waits a full hour from that observation. Once an
-acceptance resurfaces, repeating the same acceptance (identical retries replay it) never
-earns a second allowance; the history is kept separate from the transient failure object
-so recovery clearing it does not reset the allowance, and a genuinely new acceptance
-starts a new one. Only a changed un-dismiss write proves restoration and earns the mark.
+Reclaim backfills `gate_execution_failure` for an `accepted_failed` or
+`accepted_owner_lost` gate whose meta lacks it. Backfill and resurface serialize under
+the lane lock with a fresh re-read, so a stale pass never overwrites a resumed owner,
+restores a resolved notification, or replaces a newer failure. A dismissed
+`GateExecutionFailed` row resurfaces at most once per acceptance when request kind, gate
+ID, and acceptance match, the failure is still current, and the row is still dismissed.
+The hour is measured from dismissal (`dismissed_at` on every dismiss path, cleared on
+undismiss), never from failure time. Rows dismissed before tracking wait a full hour
+from the first observation recorded in member meta. Identical retries of a resurfaced
+acceptance never earn a second allowance: history is stored apart from the transient
+failure object so recovery does not reset it, and a new acceptance starts a new one.
+Only a changed undismiss write proves restoration. Both human `list` formats show the
+same failure summary and resume/restart/cancel commands as `show`.
 
-Immediate agent-side gate creation also writes a per-process intent marker before slow
-setup work starts. A clean creation error or the normal runner handoff clears it. If the
-provider turn ends while a marker remains, the host waits up to 60 seconds for a creator
-that is still running to hand off. Otherwise it writes `gate_intent_lost.json` evidence
-to the agent's artifacts and fails the run with a `gate intent lost:` error. The error
-names the gate kind and request ID and points at `sase gate list --all`
-(`sase sudo list --all` for a sudo gate). That failed run is never retried.
+Immediate agent-side gate creation writes a per-process intent marker before slow setup.
+A clean creation error or the normal runner handoff clears it. If the provider turn ends
+while a marker remains, the host waits up to 60 seconds for a still-running creator to
+hand off. Otherwise it writes `gate_intent_lost.json` to the agent's artifacts and fails
+the run with a `gate intent lost:` error naming the gate kind and request ID and
+pointing at `sase gate list --all` (`sase sudo list --all` for a sudo gate). That failed
+run is never retried.
 
-The exception is a lost intent that the agent outlived: if the agent's latest accepted
-final declaration was accepted strictly after the intent was written, the host honors
-the declaration instead of failing the run. It writes the same evidence file with
-`superseded_by_final_submission: true` and the submission digest, discards the intent,
-settles the gate's turn `lost` (withdrawing its notification and pending action), posts
-a warning notification naming the request, and runs finalizers, so the turn ends `DONE`.
-An intent written after the declaration, or with no accepted declaration, still fails
-the run.
+If the agent's latest accepted final declaration was accepted strictly after the intent
+was written, the host honors the declaration instead of failing. It writes the same
+evidence with `superseded_by_final_submission: true` and the submission digest, discards
+the intent, settles the gate's turn `lost` (withdrawing its notification and pending
+action), posts a warning naming the request, and runs finalizers so the turn ends
+`DONE`. An intent written after the declaration, or with no accepted declaration, still
+fails the run.
 
 The built-in front doors choose statuses and continuation policy for their domain:
 
@@ -382,21 +371,17 @@ The built-in front doors choose statuses and continuation policy for their domai
 For a custom handoff, pass `--turn` to `sase gate create`. `--next` supplies the default
 answered-branch prompt; `--next-fork session|turn|none`, `--next-model`, and repeatable
 `--next-output none|results|tail|file` control its context, model, and output channels.
-The retired shell spellings still work: `--shell`, `--shell-status`,
-`--shell-stop-status`, and the `--next-fork` shell value on `sase gate create`; a gate
-spec's `"shell"` block, the `"fork"` key set to `"shell"`, and
-`"continuation_mode": "gate_shell"`; and `--shell` on `sase proc list` or
-`sase proc run` (where `--name` replaces it). Use the turn spellings for gates and
-`--name` for proc commands. Stored records still read. Supplying both names for the same
-option or block is an error. See
+Retired shell spellings still work (`--shell`, `--shell-status`, `--shell-stop-status`,
+`--next-fork shell`; spec `"shell"` / `"fork": "shell"` /
+`"continuation_mode": "gate_shell"`; `--shell` on `sase proc list|run`, replaced by
+`--name`). Use turn spellings for gates. Stored records still read. Supplying both names
+for the same option is an error. See
 [feature_flags](../config/feature-flags.md#featureflags).
 
-For an `inherit` gate turn, dirty repositories are carried into the gate uncommitted
-when the starter omits its final declaration. The staged descriptor and final-context
-output identify those repositories. The starter may still submit an explicit `commit`
-declaration through `/sase_final`; do so when an option command or the successor needs
-committed source. Without it, an option command that requires committed source will
-fail.
+For an `inherit` gate turn, omitting the final declaration carries dirty repositories
+into the gate uncommitted. The staged descriptor and final-context output name them.
+Submit an explicit `commit` declaration through `/sase_final` when an option command or
+the successor needs committed source; otherwise that command fails.
 
 Branch policy in the specification may override or suppress that default. A turn block
 without an explicit `continuation_mode` records the derived `gate_turn` mode; pairing a
@@ -657,15 +642,11 @@ descriptor with the request identity, owned paths, continuation/auto state, and 
 error report path and exact safe recovery commands. A CLI timeout can shorten but not
 extend the request timeout.
 
-`--turn` creates a processless session member that owns the pending decision and ends an
-agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
-branch-specific policy may override or suppress it, and non-answered terminal branches
-need their own explicit follow-up. `--next-fork session|turn|none` chooses inherited
-context, `--next-model` pins the successor model, and repeatable
-`--next-output none|results|tail|file` chooses what gate-command evidence reaches it.
-Use `sase gate wait` from non-agent automation; an agent that created a turn-backed gate
-must hand off rather than hold a provider process open. `-p/--panel` places the gate's
-notification in a named notification-panel tab and requires `-P/--panel-icon`. For
-`sase gate answer`, per-option input (`-s/--set`, `-O/--option-input`) and the legacy
-shared `-I/--input` value are mutually exclusive; a gate turn answers through a
-supervised background proc unless `-D/--no-detach` is given.
+`--turn`, `--next`, `--next-fork`, `--next-model`, and `--next-output` are documented
+under [Gate turns and continuation](#gate-turns-and-continuation). Use `sase gate wait`
+from non-agent automation; an agent that created a turn-backed gate must hand off rather
+than hold a provider process open. `-p/--panel` places the gate's notification in a
+named notification-panel tab and requires `-P/--panel-icon`. For `sase gate answer`,
+per-option input (`-s/--set`, `-O/--option-input`) and the legacy shared `-I/--input`
+value are mutually exclusive; a gate turn answers through a supervised background proc
+unless `-D/--no-detach` is given.

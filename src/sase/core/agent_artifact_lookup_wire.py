@@ -1,7 +1,7 @@
 """Wire records for targeted agent-artifact identity lookups.
 
 Mirrors ``sase_core::agent_scan``'s ``AgentArtifactLookup*Wire`` family
-(artifact-index schema 38). Later named/session/clan cutover phases
+(artifact-index schema 39). Later named/session/clan cutover phases
 translate these hits into the existing public dataclasses.
 """
 

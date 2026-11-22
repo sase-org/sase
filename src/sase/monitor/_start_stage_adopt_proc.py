@@ -129,8 +129,9 @@ def _finalize_adopted_proc(
     """
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
-    from .staged_owner import clear_staged_owner_index
     from .start_continuation import persist_monitor_start_intent_after_ack
+    from .start_metadata import persist_monitor_running_state
+    from .staged_owner import clear_staged_owner_index
 
     if proc is None:
         raise MonitorError(
@@ -156,7 +157,7 @@ def _finalize_adopted_proc(
         update_meta_field(
             artifacts_dir, "monitor_supervisor_identity", proc.supervisor_id
         )
-    update_meta_field(artifacts_dir, "monitor_state", "running")
+    persist_monitor_running_state(artifacts_dir)
     monitor_id = str(payload.get("monitor_id") or context.monitor_id)
     clear_staged_owner_index(monitor_id)
     record = MonitorRecord(

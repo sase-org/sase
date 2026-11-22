@@ -18,6 +18,18 @@ def read_start_meta(artifacts_dir: str) -> dict[str, Any]:
     return data
 
 
+def persist_monitor_running_state(artifacts_dir: str) -> None:
+    """Mark the member running and clear any not-adopted held flag."""
+    from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+
+    update_meta_fields(
+        artifacts_dir,
+        {"monitor_state": "running"},
+        remove_keys=("monitor_stage_held",),
+    )
+
+
 __all__ = [
+    "persist_monitor_running_state",
     "read_start_meta",
 ]

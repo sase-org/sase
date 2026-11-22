@@ -300,6 +300,11 @@ def test_held_cleanup_keeps_outer_record(
     assert record.monitor_state == "running"
     assert record.tool_run_id
     assert record.tool_run_id != run_id
+    adopted_meta = json.loads(
+        (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
+    )
+    assert adopted_meta["monitor_state"] == "running"
+    assert "monitor_stage_held" not in adopted_meta
     done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
 

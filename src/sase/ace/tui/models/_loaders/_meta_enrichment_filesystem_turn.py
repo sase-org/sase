@@ -16,6 +16,7 @@ def apply_filesystem_turn_meta(agent: Agent, data: dict[str, object]) -> None:
         agent,
         monitor_id=data.get("monitor_id"),
         monitor_state=data.get("monitor_state"),
+        monitor_stage_held=data.get("monitor_stage_held"),
         monitor_command=data.get("monitor_command"),
         monitor_label=data.get("monitor_label"),
         monitor_start_status=data.get("monitor_start_status"),

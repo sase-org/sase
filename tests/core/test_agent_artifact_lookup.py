@@ -20,7 +20,7 @@ from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 
 def test_lookup_schema_and_budget_are_pinned() -> None:
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 38
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 39
     assert AGENT_ARTIFACT_LOOKUP_FALLBACK_BUDGET == 200
 
 

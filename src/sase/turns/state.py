@@ -15,6 +15,9 @@ class TurnStateConfig:
     agent_session_role: str
     buckets: Mapping[str, str]
     running_bucket: str = "Running"
+    #: States that stay open even when their bucket is not ``running_bucket``.
+    #: A held staged monitor buckets as Failed but is not finished.
+    nonterminal_states: frozenset[str] = frozenset()
 
 
 def turn_state_bucket(shell_state: str | None, config: TurnStateConfig) -> str:
@@ -26,7 +29,14 @@ def turn_state_is_terminal(
     shell_state: str | None,
     config: TurnStateConfig,
 ) -> bool:
-    """Return whether *shell_state* has reached a terminal bucket."""
+    """Return whether *shell_state* has reached a terminal bucket.
+
+    ``nonterminal_states`` stay open even when their bucket is not the
+    running bucket, so a held staged monitor can bucket as Failed without
+    reading as finished.
+    """
+    if shell_state in config.nonterminal_states:
+        return False
     return turn_state_bucket(shell_state, config) != config.running_bucket
 
 

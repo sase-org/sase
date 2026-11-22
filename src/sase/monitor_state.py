@@ -18,10 +18,19 @@ MONITOR_GLYPH_COLOR = "#FFAF5F"
 MONITOR_SETTLED_GLYPH_COLOR = "#9E9E9E"
 MONITOR_PROC_ORIGIN = "monitor"
 MONITOR_TIMEOUT_GLYPH = "⧖"
+#: Projected state for a staged monitor the host refused to adopt.
+MONITOR_HELD_STATE = "held"
+#: Row word for a held staged monitor.
+NOT_ADOPTED_STATUS = "NOT ADOPTED"
+#: U+2016 DOUBLE VERTICAL LINE; single-width in the bundled visual fonts.
+NOT_ADOPTED_GLYPH = "‖"
+#: Salmon: failure-family, recoverable by the operator.
+NOT_ADOPTED_COLOR = "#FF875F"
 
 MONITOR_STATE_BUCKETS: dict[str, str] = {
     "staged": "Running",
     "running": "Running",
+    MONITOR_HELD_STATE: "Failed",
     "completed": "Done",
     "failed": "Failed",
     "timeout": "Failed",
@@ -43,6 +52,7 @@ _NO_CONTINUATION_MONITOR_STATES = frozenset({"lost", "stopped"})
 _MONITOR_STATE_CONFIG = TurnStateConfig(
     agent_session_role=MONITOR_AGENT_SESSION_ROLE,
     buckets=MONITOR_STATE_BUCKETS,
+    nonterminal_states=frozenset({MONITOR_HELD_STATE}),
 )
 
 
@@ -59,10 +69,12 @@ def monitor_state_bucket(monitor_state: str | None) -> str:
 def monitor_state_is_terminal(monitor_state: str | None) -> bool:
     """Return whether ``monitor_state`` has reached a terminal bucket.
 
-    Delegates to :func:`monitor_state_bucket` so the terminal-state set can
+    Delegates to :func:`turn_state_is_terminal` so the terminal-state set can
     never drift from the bucket map: an unrecognized or missing state
     buckets as ``Running`` and is therefore not terminal, so a monitor that
-    has not (yet) reported never reads as finished.
+    has not (yet) reported never reads as finished. ``held`` buckets as
+    Failed but stays nonterminal: the host refused to adopt the stage, and
+    the member is waiting on a human, not finished.
     """
     return turn_state_is_terminal(monitor_state, _MONITOR_STATE_CONFIG)
 
@@ -162,12 +174,16 @@ __all__ = [
     "MONITOR_GLYPH",
     "MONITOR_GLYPH_COLOR",
     "MONITOR_HANDOFF_FOLLOWUP_OUTCOMES",
+    "MONITOR_HELD_STATE",
     "MONITOR_HOST_COMPLETED_OUTCOME",
     "MONITOR_HOST_COMPLETED_STATUS",
     "MONITOR_PROC_ORIGIN",
     "MONITOR_SETTLED_GLYPH_COLOR",
     "MONITOR_STATE_BUCKETS",
     "MONITOR_TIMEOUT_GLYPH",
+    "NOT_ADOPTED_COLOR",
+    "NOT_ADOPTED_GLYPH",
+    "NOT_ADOPTED_STATUS",
     "is_monitor_member_role",
     "is_real_monitor_member",
     "monitor_lane_status_bucket",

@@ -12,6 +12,8 @@ from textual.widgets.option_list import Option
 
 from sase.agent.status_buckets import agent_is_asking, agent_status_bucket
 
+from sase.monitor_state import MONITOR_HELD_STATE
+
 from ..models import agent_time as agent_time_model
 from ..models._agent_clan import clan_running_lane_rows
 from ..models.agent import (
@@ -80,6 +82,23 @@ def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
     return gutter
 
 
+def _held_never_ran_suffix(agent: Agent, now: datetime) -> Text:
+    """Return the dim ``staged <time> · never ran`` suffix for a held monitor."""
+    suffix = Text()
+    staged_at = agent.start_time or agent.run_start_time
+    if staged_at is not None:
+        suffix.append("staged ", style="dim")
+        if staged_at.date() == now.date():
+            suffix.append(staged_at.strftime("%H:%M"), style="dim")
+        elif staged_at.year == now.year:
+            suffix.append(staged_at.strftime("%b %-d %H:%M"), style="dim")
+        else:
+            suffix.append(staged_at.strftime("%b %-d '%y %H:%M"), style="dim")
+        suffix.append(" · ", style="dim")
+    suffix.append("never ran", style="dim")
+    return suffix
+
+
 def build_runtime_suffix(
     agent: Agent,
     now: datetime | None = None,
@@ -88,6 +107,8 @@ def build_runtime_suffix(
 ) -> Text:
     """Return a Rich ``Text`` for the right-side runtime suffix (may be empty)."""
     reference = now if now is not None else agent_time_model.local_now()
+    if agent.is_monitor and agent.monitor_state == MONITOR_HELD_STATE:
+        return _held_never_ran_suffix(agent, reference)
     ts_pair, elapsed = compute_row_runtime(agent, now=reference)
     suffix = Text()
     is_ticking = agent_time_model.runtime_suffix_ticks(agent)

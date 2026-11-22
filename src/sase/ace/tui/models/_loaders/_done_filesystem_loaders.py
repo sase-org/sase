@@ -270,6 +270,7 @@ def load_done_agent_for_dir(
             apply_monitor_done(
                 agent,
                 monitor_state=data.get("monitor_state"),
+                monitor_stage_held=data.get("monitor_stage_held"),
                 monitor_exit_code=data.get("monitor_exit_code"),
                 status_label=data.get("status_label"),
                 monitor_followup_outcome=data.get("monitor_followup_outcome"),
