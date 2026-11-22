@@ -313,6 +313,69 @@ def _agent_session_turn_anchors(agent: Agent) -> _AgentSessionTurnAnchors:
     )
 
 
+class _TurnExpansion:
+    """Acyclic traversal state for :func:`_expand_nested_agent_session_turns`.
+
+    The walk used to be a pair of mutually recursive local functions. Their
+    closure cells formed a reference cycle that pinned every visited row (and
+    the result list) until the cyclic collector ran, once per concrete-turn
+    projection. This holder keeps the same state on a plain object and
+    descends with an explicit stack, so dropping the result frees the rows by
+    refcount and a pathological graph cannot hit the recursion limit.
+    """
+
+    __slots__ = ("anchor_identities", "emitted", "result", "walked_ids")
+
+    def __init__(self, anchors: Sequence[Agent]) -> None:
+        self.result: list[Agent] = []
+        self.walked_ids: set[int] = set()
+        self.emitted: set[tuple[AgentType, str, str | None]] = set()
+        self.anchor_identities = {row.identity for row in anchors}
+
+    def _admit(self, row: Agent) -> bool:
+        """Record *row* as a session turn; return whether its links are walked."""
+        if id(row) in self.walked_ids:
+            return False
+        self.walked_ids.add(id(row))
+        if row.identity in self.emitted or _is_excluded_agent_session_turn(row):
+            return False
+        self.emitted.add(row.identity)
+        self.result.append(row)
+        return True
+
+    def emit(self, row: Agent) -> None:
+        """Emit *row*, then its causal turns, in depth-first link order."""
+        if self._admit(row):
+            self.walk_turns(row)
+
+    def walk_turns(self, row: Agent) -> None:
+        """Emit the turns reachable from *row*'s links, depth-first."""
+        pending = [iter(_turn_links(row))]
+        while pending:
+            for child in pending[-1]:
+                child_id = id(child)
+                if child_id in self.walked_ids:
+                    continue
+                if child.identity in self.emitted:
+                    self.walked_ids.add(child_id)
+                    continue
+                if _is_excluded_agent_session_turn(child):
+                    self.walked_ids.add(child_id)
+                    continue
+                if row_is_agent_session_turn(child):
+                    if self._admit(child):
+                        pending.append(iter(_turn_links(child)))
+                        break
+                    continue
+                if child.identity in self.anchor_identities:
+                    continue
+                self.walked_ids.add(child_id)
+                pending.append(iter(_turn_links(child)))
+                break
+            else:
+                pending.pop()
+
+
 def _expand_nested_agent_session_turns(
     container: Agent,
     anchors: Sequence[Agent],
@@ -329,58 +392,25 @@ def _expand_nested_agent_session_turns(
     agent-turn continuations stay in the anchor sequence; their turns are
     not stolen while walking an earlier starter.
     """
-    result: list[Agent] = []
-    walked_ids: set[int] = set()
-    emitted: set[tuple[AgentType, str, str | None]] = set()
-    anchor_identities = {row.identity for row in anchors}
-
-    def emit(row: Agent) -> None:
-        if id(row) in walked_ids:
-            return
-        walked_ids.add(id(row))
-        if row.identity in emitted or _is_excluded_agent_session_turn(row):
-            return
-        emitted.add(row.identity)
-        result.append(row)
-        walk_turns(row)
-
-    def walk_turns(row: Agent) -> None:
-        for child in _turn_links(row):
-            child_id = id(child)
-            if child_id in walked_ids:
-                continue
-            if child.identity in emitted:
-                walked_ids.add(child_id)
-                continue
-            if _is_excluded_agent_session_turn(child):
-                walked_ids.add(child_id)
-                continue
-            if row_is_agent_session_turn(child):
-                emit(child)
-                continue
-            if child.identity in anchor_identities:
-                continue
-            walked_ids.add(child_id)
-            walk_turns(child)
-
+    walk = _TurnExpansion(anchors)
     proxy = container_proxy
     if proxy is not None and proxy.identity == container.identity:
         proxy = None  # emit(container) already walks the container's turns
     pending_container_walk = proxy is not None
-    if proxy is None and container.identity not in anchor_identities:
-        walk_turns(container)  # nothing represents the container
+    if proxy is None and container.identity not in walk.anchor_identities:
+        walk.walk_turns(container)  # nothing represents the container
     for anchor in anchors:
-        emit(anchor)
+        walk.emit(anchor)
         if (
             pending_container_walk
             and proxy is not None
             and anchor.identity == proxy.identity
         ):
-            walk_turns(container)
+            walk.walk_turns(container)
             pending_container_walk = False
     if pending_container_walk:
-        walk_turns(container)  # proxy absent from anchors: never drop a row
-    return tuple(result)
+        walk.walk_turns(container)  # proxy absent from anchors: never drop a row
+    return tuple(walk.result)
 
 
 def concrete_agent_session_turn_rows(agent: Agent) -> tuple[Agent, ...]:

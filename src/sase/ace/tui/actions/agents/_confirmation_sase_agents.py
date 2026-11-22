@@ -170,21 +170,21 @@ def _loaded_tree_rows(
     """Return each already-loaded row once, including attached child lists."""
     rows: list[Agent] = []
     seen: set[int] = set()
-
-    def visit(row: Agent) -> None:
+    # Explicit stack, children pushed reversed so they pop in link order: a
+    # self-recursive local function would close a cell cycle that pins every
+    # visited row until the cyclic collector runs.
+    pending = list(reversed((*loaded_agents, *targets)))
+    while pending:
+        row = pending.pop()
         row_id = id(row)
         if row_id in seen:
-            return
+            continue
         seen.add(row_id)
         rows.append(row)
-        for attr in ("runtime_children", "followup_agents"):
+        for attr in ("followup_agents", "runtime_children"):
             children = getattr(row, attr, ())
             if children:
-                for child in children:
-                    visit(child)
-
-    for row in (*loaded_agents, *targets):
-        visit(row)
+                pending.extend(reversed(children))
     return tuple(rows)
 
 

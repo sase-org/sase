@@ -145,35 +145,8 @@ def filter_agents_by_fold_state(
 
     visibility: dict[int, bool] = {}
 
-    def is_visible(agent: Agent, visiting: set[int]) -> bool:
-        agent_id = id(agent)
-        if agent_id in visibility:
-            return visibility[agent_id]
-        if agent_id in visiting:
-            visibility[agent_id] = False
-            return False
-
-        own_key = _fold_key(agent, agent_id)
-        if own_key in hidden_only_parents:
-            visibility[agent_id] = False
-            return False
-
-        parent_key = _parent_key(agent, agent_id)
-        if parent_key is None:
-            visibility[agent_id] = True
-            return True
-        parent = owners_by_key.get(parent_key)
-        if parent is None:
-            visibility[agent_id] = False
-            return False
-
-        visiting.add(agent_id)
-        parent_visible = is_visible(parent, visiting)
-        visiting.discard(agent_id)
-        if not parent_visible:
-            visibility[agent_id] = False
-            return False
-
+    def fold_permits(agent: Agent, agent_id: int, parent_key: str) -> bool:
+        """Apply the fold-level gates that need the parent row to be visible."""
         # The hidden-step/FULLY_EXPANDED rule below stays keyed on the
         # immediate parent; a session turn is never a hidden step, so only the
         # COLLAPSED gate needs its own key for turn rows.
@@ -184,20 +157,55 @@ def filter_agents_by_fold_state(
             # An unresolvable gating chain (a malformed projection) falls
             # back to visible-with-parent rather than hiding the row.
             if gating_level == FoldLevel.COLLAPSED:
-                visibility[agent_id] = False
                 return False
         elif level == FoldLevel.COLLAPSED:
-            visibility[agent_id] = False
             return False
-        if (
+        return not (
             not parent_key.startswith("clan:")
             and _is_hidden(agent, agent_id)
             and level != FoldLevel.FULLY_EXPANDED
-        ):
-            visibility[agent_id] = False
-            return False
+        )
 
-        visibility[agent_id] = True
-        return True
+    def is_visible(agent: Agent) -> bool:
+        # Climb the parent chain with an explicit list instead of recursing: a
+        # self-recursive local function would close a cell cycle that pins the
+        # whole roster (every row, the fold tables, and every helper closure)
+        # until the cyclic collector runs, once per refresh.
+        chain: list[tuple[Agent, str]] = []
+        chain_ids: set[int] = set()
+        current = agent
+        while True:
+            current_id = id(current)
+            if current_id in visibility:
+                resolved = visibility[current_id]
+                break
+            if current_id in chain_ids:
+                visibility[current_id] = False
+                resolved = False
+                break
+            if _fold_key(current, current_id) in hidden_only_parents:
+                visibility[current_id] = False
+                resolved = False
+                break
+            parent_key = _parent_key(current, current_id)
+            if parent_key is None:
+                visibility[current_id] = True
+                resolved = True
+                break
+            parent = owners_by_key.get(parent_key)
+            if parent is None:
+                visibility[current_id] = False
+                resolved = False
+                break
+            chain.append((current, parent_key))
+            chain_ids.add(current_id)
+            current = parent
+        while chain:
+            row, row_parent_key = chain.pop()
+            row_id = id(row)
+            chain_ids.discard(row_id)
+            resolved = resolved and fold_permits(row, row_id, row_parent_key)
+            visibility[row_id] = resolved
+        return resolved
 
-    return [agent for agent in agents if is_visible(agent, set())], fold_counts
+    return [agent for agent in agents if is_visible(agent)], fold_counts

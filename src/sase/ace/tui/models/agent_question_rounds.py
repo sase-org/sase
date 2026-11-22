@@ -91,18 +91,19 @@ def _walk_own_turns(agent: Agent) -> tuple[Agent, ...]:
     ordered: list[Agent] = []
     seen_identities: set[object] = set()
     visited_ids: set[int] = set()
-
-    def visit(row: Agent) -> None:
+    # Explicit stack, children pushed reversed so they pop in link order: a
+    # self-recursive local function would close a cell cycle that pins every
+    # visited row until the cyclic collector runs.
+    pending = [agent]
+    while pending:
+        row = pending.pop()
         if id(row) in visited_ids:
-            return
+            continue
         visited_ids.add(id(row))
         if row.identity not in seen_identities:
             seen_identities.add(row.identity)
             ordered.append(row)
-        for child in (*row.runtime_children, *row.followup_agents):
-            visit(child)
-
-    visit(agent)
+        pending.extend(reversed((*row.runtime_children, *row.followup_agents)))
     return tuple(ordered)
 
 

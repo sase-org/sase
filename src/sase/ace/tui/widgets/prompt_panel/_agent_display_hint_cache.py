@@ -143,11 +143,15 @@ def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
     """Collect source values once so a cache hit can avoid repr-ing large text."""
     parts: list[tuple[str, object]] = []
     seen: set[int] = set()
-
-    def visit(candidate: Agent) -> None:
+    # Depth-first preorder over ``followup_agents`` with an explicit stack: a
+    # self-recursive local function would close a cell cycle that pins every
+    # visited row until the cyclic collector runs.
+    pending = [agent]
+    while pending:
+        candidate = pending.pop()
         candidate_id = id(candidate)
         if candidate_id in seen:
-            return
+            continue
         seen.add(candidate_id)
         parts.extend(
             (
@@ -162,10 +166,7 @@ def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
                 ("chat_response", candidate.get_chat_response_content()),
             )
         )
-        for followup in candidate.followup_agents:
-            visit(followup)
-
-    visit(agent)
+        pending.extend(reversed(candidate.followup_agents))
     return parts
 
 

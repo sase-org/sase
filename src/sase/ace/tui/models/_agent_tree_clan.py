@@ -69,30 +69,39 @@ def _assign_clan_tree_links(
     row_ids = {id(row) for row in rows}
     assigned: set[int] = set()
 
-    def assign(row: Agent, visiting: set[int]) -> None:
-        row_id = id(row)
-        if row_id in assigned:
-            return
-        if row_id in visiting:
-            row.tree_depth = 1
-            row.tree_parent_key = fold_key
-            assigned.add(row_id)
-            return
-        parent = parent_by_suffix.get(row.parent_timestamp or "")
-        if parent is None or id(parent) not in row_ids:
-            row.tree_depth = 1
-            row.tree_parent_key = fold_key
-            assigned.add(row_id)
-            return
-        visiting.add(row_id)
-        assign(parent, visiting)
-        visiting.discard(row_id)
-        row.tree_parent_key = parent.raw_suffix
-        row.tree_depth = parent.tree_depth + 1
-        assigned.add(row_id)
+    def assign(row: Agent) -> None:
+        # Climb the parent chain with an explicit list instead of recursing: a
+        # self-recursive local function would close a cell cycle that pins every
+        # clan row until the cyclic collector runs, once per roster build.
+        chain: list[tuple[Agent, Agent]] = []
+        visiting: set[int] = set()
+        current = row
+        while True:
+            current_id = id(current)
+            if current_id in assigned:
+                break
+            if current_id in visiting:
+                current.tree_depth = 1
+                current.tree_parent_key = fold_key
+                assigned.add(current_id)
+                break
+            parent = parent_by_suffix.get(current.parent_timestamp or "")
+            if parent is None or id(parent) not in row_ids:
+                current.tree_depth = 1
+                current.tree_parent_key = fold_key
+                assigned.add(current_id)
+                break
+            visiting.add(current_id)
+            chain.append((current, parent))
+            current = parent
+        while chain:
+            child, parent = chain.pop()
+            child.tree_parent_key = parent.raw_suffix
+            child.tree_depth = parent.tree_depth + 1
+            assigned.add(id(child))
 
     for row in rows:
-        assign(row, set())
+        assign(row)
 
 
 def _nearest_direct_clan_unit(

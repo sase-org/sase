@@ -166,7 +166,12 @@ def _collect_aggregate_member_rows(
     """Collect member rows in the same order ``_aggregate_runtime`` wires them."""
     members: list[Agent] = []
 
-    def collect(child: "Agent") -> None:
+    # Post-order walk with an explicit stack of (row, eligible children, next
+    # child index): a self-recursive local function would close a cell cycle
+    # that pins every visited row until the cyclic collector runs.
+    pending: list[tuple[Agent, tuple[Agent, ...], int]] = []
+
+    def enter(child: "Agent") -> None:
         child_id = id(child)
         if child_id in seen:
             return
@@ -176,16 +181,21 @@ def _collect_aggregate_member_rows(
         eligible = runtime_child_rows(
             child, include_monitor_turns=include_monitor_turns
         )
-        for grandchild in eligible:
-            collect(grandchild)
-        if getattr(child, "runtime_children", ()) and _represented_by_descendants(
-            child, eligible
-        ):
-            return
-        members.append(child)
+        pending.append((child, eligible, 0))
 
-    for child in runtime_child_rows(agent, include_monitor_turns=include_monitor_turns):
-        collect(child)
+    for top in runtime_child_rows(agent, include_monitor_turns=include_monitor_turns):
+        enter(top)
+        while pending:
+            child, eligible, index = pending.pop()
+            if index < len(eligible):
+                pending.append((child, eligible, index + 1))
+                enter(eligible[index])
+                continue
+            if getattr(child, "runtime_children", ()) and _represented_by_descendants(
+                child, eligible
+            ):
+                continue
+            members.append(child)
     if members and not any(not row.is_monitor for row in members):
         if not agent.is_clan_container:
             members.append(agent)

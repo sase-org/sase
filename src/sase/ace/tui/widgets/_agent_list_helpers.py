@@ -43,17 +43,23 @@ def _row_launch_time(agent: Agent) -> datetime:
 def ordered_row_providers(agent: Agent) -> tuple[str, ...]:
     """Return distinct row provider names in first-launch order."""
     candidates: list[Agent] = []
-
-    def collect(current: Agent, seen: set[int]) -> None:
+    # Depth-first preorder with an explicit stack. Each entry carries only its
+    # ancestors, so a row reachable through two parents is still listed twice
+    # (as before) while a loop back to an ancestor terminates. A self-recursive
+    # local function would close a cell cycle that pins every row until the
+    # cyclic collector runs.
+    pending: list[tuple[Agent, frozenset[int]]] = [(agent, frozenset())]
+    while pending:
+        current, seen = pending.pop()
         current_id = id(current)
         if current_id in seen:
-            return
+            continue
         candidates.append(current)
         child_seen = seen | {current_id}
-        for child in getattr(current, "runtime_children", ()):
-            collect(child, child_seen)
-
-    collect(agent, set())
+        pending.extend(
+            (child, child_seen)
+            for child in reversed(getattr(current, "runtime_children", ()))
+        )
 
     providers: list[str] = []
     seen_providers: set[str] = set()

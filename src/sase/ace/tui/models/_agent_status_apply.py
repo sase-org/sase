@@ -174,24 +174,25 @@ def _descendant_agent_session_turns(
     seen_ids: set[int] = set()
     seen_identities: set[tuple[AgentType, str, str | None]] = set()
 
-    def visit(row: Agent) -> None:
+    # Depth-first preorder with an explicit stack (children pushed reversed so
+    # they pop in link order): a self-recursive local function would close a
+    # cell cycle that pins every visited row until the cyclic collector runs.
+    pending: list[Agent] = []
+    for root in reversed(roots):
+        suffix = root.raw_suffix
+        if suffix:
+            pending.extend(reversed(children_by_parent.get(suffix, ())))
+    while pending:
+        row = pending.pop()
         if id(row) in seen_ids:
-            return
+            continue
         seen_ids.add(id(row))
         if row_is_agent_session_turn(row) and row.identity not in seen_identities:
             seen_identities.add(row.identity)
             found.append(row)
         suffix = row.raw_suffix
         if suffix:
-            for child in children_by_parent.get(suffix, ()):
-                visit(child)
-
-    for root in roots:
-        suffix = root.raw_suffix
-        if not suffix:
-            continue
-        for child in children_by_parent.get(suffix, ()):
-            visit(child)
+            pending.extend(reversed(children_by_parent.get(suffix, ())))
     return found
 
 

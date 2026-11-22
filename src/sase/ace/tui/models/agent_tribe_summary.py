@@ -222,17 +222,17 @@ def _member_kind(agent: Agent) -> str:
 def _descendant_rows(agent: Agent) -> tuple[Agent, ...]:
     rows: list[Agent] = []
     seen: set[AgentIdentity] = set()
-
-    def visit(row: Agent) -> None:
+    # Explicit stack, children pushed reversed so they pop in link order: a
+    # self-recursive local function would close a cell cycle that pins every
+    # visited row until the cyclic collector runs.
+    pending = list(reversed((*agent.runtime_children, *agent.followup_agents)))
+    while pending:
+        row = pending.pop()
         if row.is_clan_container or row.identity in seen:
-            return
+            continue
         seen.add(row.identity)
         rows.append(row)
-        for child in (*row.runtime_children, *row.followup_agents):
-            visit(child)
-
-    for child in (*agent.runtime_children, *agent.followup_agents):
-        visit(child)
+        pending.extend(reversed((*row.runtime_children, *row.followup_agents)))
     return tuple(rows)
 
 
