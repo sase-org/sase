@@ -375,8 +375,98 @@ class AgentListRailMixin:
             pass
 
     def on_resize(self, _event: Resize) -> None:
-        """Recompute the overflow subtitle when the viewport changes."""
+        """Recompute the overflow subtitle and cause-chip drops on resize."""
         try:
             self._refresh_rail_overflow()
         except Exception:
             pass
+        try:
+            self._schedule_cause_chip_resize_repatch()
+        except Exception:
+            pass
+
+    def _schedule_cause_chip_resize_repatch(self) -> None:
+        """Queue one coalesced repatch when a chip row's width went stale.
+
+        Thin and synchronous: scans the painted row contexts for a
+        chip-capable row whose recorded ``viewport_width`` differs from the
+        current list width, and schedules a single ``call_after_refresh``
+        repatch. Healthy lists schedule nothing.
+        """
+        if bool(getattr(self, "_cause_chip_resize_scheduled", False)):
+            return
+        from ._agent_list_build_rows import widget_viewport_width
+        from ._agent_list_render_agent_status import row_has_droppable_cause_chip
+
+        try:
+            current = widget_viewport_width(self)
+        except Exception:
+            return
+        try:
+            agents = getattr(self, "_agents", [])
+            row_ctx = getattr(self, "_row_render_ctx", {})
+        except Exception:
+            return
+        stale = False
+        for local_idx, ctx in row_ctx.items():
+            try:
+                if ctx.get("viewport_width") == current:
+                    continue
+                agent = agents[local_idx]
+            except Exception:
+                continue
+            try:
+                if row_has_droppable_cause_chip(agent):
+                    stale = True
+                    break
+            except Exception:
+                continue
+        if not stale:
+            return
+        self._cause_chip_resize_scheduled = True
+        try:
+            self.call_after_refresh(self._repatch_cause_chips_for_width)  # type: ignore[attr-defined]
+        except Exception:
+            self._cause_chip_resize_scheduled = False
+
+    def _repatch_cause_chips_for_width(self) -> None:
+        """Re-patch chip-capable rows whose recorded width went stale.
+
+        Runs on the refresh callback (still thin and synchronous:
+        one :func:`patch_row` per stale chip row, no rebuild). The first
+        real sizing after mount is a resize, so this also corrects rows
+        built while the width was 0. Follows ``patch_row``'s existing
+        width contract: a row that no longer fits the established column
+        declines there and waits for the next grouping rebuild.
+        """
+        self._cause_chip_resize_scheduled = False
+        from ._agent_list_build_patch_single import patch_row
+        from ._agent_list_build_rows import widget_viewport_width
+        from ._agent_list_render_agent_status import row_has_droppable_cause_chip
+
+        try:
+            current = widget_viewport_width(self)
+        except Exception:
+            return
+        try:
+            agents = getattr(self, "_agents", [])
+            row_ctx = getattr(self, "_row_render_ctx", {})
+        except Exception:
+            return
+        for local_idx in list(row_ctx.keys()):
+            try:
+                ctx = row_ctx.get(local_idx)
+                if ctx is None or ctx.get("viewport_width") == current:
+                    continue
+                agent = agents[local_idx]
+            except Exception:
+                continue
+            try:
+                if not row_has_droppable_cause_chip(agent):
+                    continue
+            except Exception:
+                continue
+            try:
+                patch_row(self, local_idx)
+            except Exception:
+                continue

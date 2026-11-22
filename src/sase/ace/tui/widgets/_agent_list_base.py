@@ -114,6 +114,10 @@ class AgentListBase(OptionList, inherit_bindings=False):
         # with the same alignment width / mark / fold annotation it had
         # at full-rebuild time.
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
+        # Coalescing guard for the resize-driven cause-chip repatch: set
+        # while a ``call_after_refresh`` repatch is queued, cleared when it
+        # runs (or when scheduling fails).
+        self._cause_chip_resize_scheduled: bool = False
         self._target_width: int = 0
         # Widest ``left`` and ``suffix`` column of the emitted agent rows.
         # ``_target_width`` is derived from them, so a row inserted in place

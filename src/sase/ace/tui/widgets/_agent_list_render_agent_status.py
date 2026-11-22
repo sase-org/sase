@@ -107,14 +107,21 @@ _CAUSE_LABEL_STYLE = "dim #FF5F5F"
 _CAUSE_FAIL_GLYPH_STYLE = "bold #FF5F5F"
 
 
+def row_has_droppable_cause_chip(agent: Agent) -> bool:
+    """Whether *agent* can render a Failed-clan cause chip that drops by width."""
+    if not agent.is_clan_container:
+        return False
+    focus = getattr(agent, "failure_focus", None)
+    return focus is not None and bool(getattr(focus, "member_label", None))
+
+
 def _append_clan_cause_chip(text: Text, agent: Agent) -> tuple[int, int] | None:
     """Append the Failed-clan cause chip and return its droppable plain span."""
-    if not agent.is_clan_container:
+    if not row_has_droppable_cause_chip(agent):
         return None
     focus = getattr(agent, "failure_focus", None)
     label = getattr(focus, "member_label", None)
-    if focus is None or not label:
-        return None
+    assert focus is not None and label
     start = len(text.plain)
     text.append(" · ", style="dim")
     text.append(label, style=_CAUSE_LABEL_STYLE)

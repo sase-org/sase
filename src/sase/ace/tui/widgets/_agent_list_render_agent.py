@@ -42,7 +42,10 @@ from ._agent_list_render_agent_prefix import (
     append_agent_row_prefix,
     tribe_style,
 )
-from ._agent_list_render_agent_status import append_agent_row_status
+from ._agent_list_render_agent_status import (
+    append_agent_row_status,
+    row_has_droppable_cause_chip,
+)
 from ._agent_list_render_cache import (
     AgentRenderCache,
     agent_file_change_hint,
@@ -457,6 +460,17 @@ def _derive_agent_option_inputs(
     )
 
 
+def _effective_cause_chip_width(agent: Agent, width: int) -> int:
+    """Return the width that keys *agent*'s render, dropping it when inert.
+
+    Only Failed-clan rows with a cause chip change output with *width*
+    (the chip drops under a narrow clip in :func:`format_agent_option`);
+    every other row renders identically, so keying them on ``0`` keeps the
+    render cache hot across column-width changes.
+    """
+    return width if row_has_droppable_cause_chip(agent) else 0
+
+
 def _agent_option_key_from_derived(
     agent: Agent,
     index: int,
@@ -529,7 +543,7 @@ def _agent_option_key_from_derived(
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
         stranded_signature=getattr(stranded_view, "signature", ()),
-        width=width,
+        width=_effective_cause_chip_width(agent, width),
     )
 
 
@@ -588,6 +602,7 @@ def cached_format_agent_option(
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
     derived = _derive_agent_option_inputs(agent, tribe_label, unread_agent_ids)
+    effective_width = _effective_cause_chip_width(agent, width)
     key = _agent_option_key_from_derived(
         agent,
         index,
@@ -611,7 +626,7 @@ def cached_format_agent_option(
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
         clan_wave_gutter=clan_wave_gutter,
-        width=width,
+        width=effective_width,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -650,7 +665,7 @@ def cached_format_agent_option(
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
         stranded_view=stranded_view,
-        width=width,
+        width=effective_width,
     )
     cache.put_agent(key, parts)
     return parts

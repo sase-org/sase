@@ -128,6 +128,7 @@ def patch_row(
     # rebuild Text/Strip trees and replace an identical prompt. The
     # padding is part of the skip condition via the painted width the
     # full rebuild recorded: a changed target width repaints.
+    applied_width = int(render_kwargs["width"] or 0)
     hit = peek_cached_agent_option(
         widget._agent_render_cache, agent, agent_idx, **render_kwargs
     )
@@ -137,6 +138,7 @@ def patch_row(
         ctx["is_selected"] = sel
         ctx["wait_dependency_counts"] = counts
         ctx["clan_unknown_wait_count"] = clan_unknown
+        ctx["viewport_width"] = applied_width
         try:
             last_left = getattr(widget, "_row_last_left_by_identity", None)
             last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
@@ -176,6 +178,7 @@ def patch_row(
     ctx["wait_dependency_counts"] = counts
     ctx["clan_unknown_wait_count"] = clan_unknown
     ctx["render_width"] = widget._target_width
+    ctx["viewport_width"] = applied_width
     try:
         last_left = getattr(widget, "_row_last_left_by_identity", None)
         last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
