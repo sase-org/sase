@@ -375,6 +375,15 @@ def _add_axe_routine_group(
         help="Maximum concurrent agent runners",
     )
     run_parser.add_argument(
+        "-t",
+        "--tick-now",
+        action="store_true",
+        help=(
+            "Tick at once on start, even when a routine with an interval of 60s "
+            "or more is not due yet by its persisted cadence"
+        ),
+    )
+    run_parser.add_argument(
         "-z",
         "--zombie-timeout",
         type=int,

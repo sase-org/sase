@@ -8796,7 +8796,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "f3149836a9061618",
+                "description_digest": "897a99b1ccde8c10",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "run",
@@ -8864,6 +8864,22 @@
                     ],
                     "takes_value": true,
                     "value_hint": "int"
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "tick_now",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-t",
+                      "--tick-now"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
                   },
                   {
                     "choices": null,

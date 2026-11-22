@@ -22,7 +22,13 @@ _AXE_ENTRY_KIND_LABELS: dict[AxeEntryKind, str] = {
 }
 
 _BASICS_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
-    "lumberjack": ("description", "interval", "job_timeout", "wait_runners"),
+    "lumberjack": (
+        "description",
+        "interval",
+        "job_timeout",
+        "wait_runners",
+        "max_concurrent_jobs",
+    ),
     "chop": ("description", "script", "enabled", "run_every", "timeout"),
 }
 _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {

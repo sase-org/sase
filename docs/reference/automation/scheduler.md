@@ -163,7 +163,23 @@ Use these related commands according to intent:
 ## Routine Ticks {#routine-ticks}
 
 Each tick, a routine writes a shared job context under `tick/` and runs its eligible
-jobs concurrently. Ticks are kept cheap:
+jobs concurrently. Ticks are kept cheap and bounded:
+
+- **Bounded concurrency.** One tick runs at most the routine's `max_concurrent_jobs`
+  jobs at once (default `4`; see
+  [Routine Fields](scheduler-configuration.md#routine-fields)). Extra eligible jobs wait
+  for a free slot, longest last-observed wall time first, so a long job does not queue
+  behind short ones. Ties and jobs with no recorded run keep their configured order. A
+  job's timeout starts when it starts, not when it is queued. A shutdown request stops
+  queued jobs from starting. A tick that overruns its interval because of the cap says
+  so in its "Tick overrun" log line.
+- **Persisted cadence.** A routine whose interval is at least 60 seconds records when
+  each tick that reaches job dispatch started, in `cadence.json` in its state directory.
+  After a restart, whether of the service host, the scheduler, or a code swap, it waits
+  until that tick plus one interval instead of re-running every job at once. A tick
+  skipped for maintenance or held for a code swap does not count. Shorter routines still
+  tick at start. `sase axe routine run ROUTINE -t/--tick-now` forces the first tick, and
+  `sase axe job run` is unaffected.
 
 - **Patch files only where read.** A routine serializes `all_changespecs.json` and
   `filtered_changespecs.json` only when an enabled job reads them: a job with a `patch`

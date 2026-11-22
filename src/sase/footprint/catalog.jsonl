@@ -1,4 +1,4 @@
-{"count": 3722, "rev": "ecc640909450", "schema": "sase.footprint.catalog/1"}
+{"count": 3724, "rev": "ec057d525965", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -442,6 +442,7 @@
 {"area": "cli.axe", "id": "cli:axe.lumberjack.run#max_agent_runners", "kind": "option", "label": "Option --max_agent_runners of cli:axe.lumberjack.run", "ns": "cli", "parent": "cli:axe.lumberjack.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.lumberjack.run#max_hook_runners", "kind": "option", "label": "Option --max_hook_runners of cli:axe.lumberjack.run", "ns": "cli", "parent": "cli:axe.lumberjack.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.lumberjack.run#query", "kind": "option", "label": "Option --query of cli:axe.lumberjack.run", "ns": "cli", "parent": "cli:axe.lumberjack.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
+{"area": "cli.axe", "id": "cli:axe.lumberjack.run#tick_now", "kind": "option", "label": "Option --tick_now of cli:axe.lumberjack.run", "ns": "cli", "parent": "cli:axe.lumberjack.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.lumberjack.run#zombie_timeout", "kind": "option", "label": "Option --zombie_timeout of cli:axe.lumberjack.run", "ns": "cli", "parent": "cli:axe.lumberjack.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.lumberjack.status", "kind": "command", "label": "Show status of all routines", "ns": "cli", "parent": null, "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.maintenance", "kind": "command", "label": "Manage axe maintenance mode", "ns": "cli", "parent": null, "src": "sase/main/parser_ace.py:register_axe_parser"}
@@ -457,6 +458,7 @@
 {"area": "cli.axe", "id": "cli:axe.routine.run#max_agent_runners", "kind": "option", "label": "Option --max_agent_runners of cli:axe.routine.run", "ns": "cli", "parent": "cli:axe.routine.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.routine.run#max_hook_runners", "kind": "option", "label": "Option --max_hook_runners of cli:axe.routine.run", "ns": "cli", "parent": "cli:axe.routine.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.routine.run#query", "kind": "option", "label": "Option --query of cli:axe.routine.run", "ns": "cli", "parent": "cli:axe.routine.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
+{"area": "cli.axe", "id": "cli:axe.routine.run#tick_now", "kind": "option", "label": "Option --tick_now of cli:axe.routine.run", "ns": "cli", "parent": "cli:axe.routine.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.routine.run#zombie_timeout", "kind": "option", "label": "Option --zombie_timeout of cli:axe.routine.run", "ns": "cli", "parent": "cli:axe.routine.run", "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.routine.status", "kind": "command", "label": "Show status of all routines", "ns": "cli", "parent": null, "src": "sase/main/parser_ace.py:register_axe_parser"}
 {"area": "cli.axe", "id": "cli:axe.start", "kind": "command", "label": "Ask the service host to start the scheduler proc (alias of `sase scheduler start`)", "ns": "cli", "parent": null, "src": "sase/main/parser_ace.py:register_axe_parser"}

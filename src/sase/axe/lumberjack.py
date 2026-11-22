@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import schedule
@@ -38,8 +38,15 @@ from .chop_script_context import ChopScriptContext
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .maintenance import clear_stale_maintenance, read_maintenance
 from .patch_filtering import filter_axe_candidate_patches
+from .routine_cadence import (
+    first_tick_delay,
+    persists_cadence,
+    read_last_tick_at,
+    write_last_tick_at,
+)
 from .spawn_rate import spawn_rate_window_seconds
 from .tick_context import TickContextWriter, routine_reads_tick_patches
+from .tick_dispatch import dispatch_order, seed_durations
 from .state import (
     AxeMetrics,
     LumberjackMetrics,
@@ -59,6 +66,15 @@ from .state import (
 )
 
 LogCallback = Callable[[str, str | None], None]
+
+
+def _schedule_clock_after(seconds: float) -> datetime:
+    """Return ``schedule``'s naive process-local clock ``seconds`` from now.
+
+    ``schedule`` compares ``Job.next_run`` against bare ``datetime.now()``, so a
+    deferred first tick must use that same clock; the value is never displayed.
+    """
+    return datetime.now() + timedelta(seconds=seconds)
 
 
 @dataclass
@@ -81,6 +97,8 @@ class _ChopResult:
     subprocess_diagnostic: dict[str, object] | None = None
     skip_reason: str | None = None
     no_op: bool = False
+    #: Wall seconds spent in the job's dispatch; ``None`` when it never ran.
+    duration_seconds: float | None = None
 
 
 class Lumberjack:
@@ -88,7 +106,10 @@ class Lumberjack:
 
     Each lumberjack runs as a separate process, invoking its configured
     chops at a fixed interval.  Cross-process runner limits are
-    coordinated via ``SharedRunnerPool``.
+    coordinated via ``SharedRunnerPool``.  One tick runs at most
+    ``config.max_concurrent_jobs`` chops at once, and a routine whose interval
+    is at least a minute resumes its persisted cadence after a restart (see
+    :mod:`sase.axe.routine_cadence`).
     """
 
     def __init__(
@@ -134,6 +155,10 @@ class Lumberjack:
         # earlier (see sase.axe.spawn_rate).
         self._metrics.spawn_window_seconds = spawn_rate_window_seconds(config.interval)
         self._metrics.spawn_rate_since = time.time() - config.interval
+        # Last observed wall seconds per chop, for longest-first dispatch.
+        # Seeded from run history the first time a tick exceeds the cap.
+        self._chop_durations: dict[str, float] = {}
+        self._chop_durations_seeded = False
         # Load persisted chop last-run timestamps for time-based run_every
         self._chop_timestamps: dict[str, datetime] = {}
         for chop_name, ts_str in read_chop_timestamps(name).items():
@@ -191,6 +216,7 @@ class Lumberjack:
         """Execute one tick: refresh patches, serialize context, invoke chop scripts."""
         if self._held_for_code_swap():
             return
+        tick_started_at = time.time()
         from sase.project_display_names import refresh_project_display_snapshot
 
         try:
@@ -254,6 +280,12 @@ class Lumberjack:
         ):
             return
         tick_dir.mkdir(parents=True, exist_ok=True)
+        if persists_cadence(self.config.interval):
+            write_last_tick_at(
+                self.name,
+                started_at=tick_started_at,
+                interval=self.config.interval,
+            )
         context_file = self._tick_context.write(
             self._build_chop_context,
             include_patches=routine_reads_tick_patches(self.config.chops),
@@ -280,11 +312,19 @@ class Lumberjack:
                         continue
             eligible_chops.append(chop)
 
-        # Script chops within one lumberjack tick run concurrently.
-        # A shutdown request prevents any new worker from starting; the
-        # current dispatch is allowed to acknowledge at its next boundary.
+        # Script chops within one lumberjack tick run concurrently, at most
+        # ``max_concurrent_jobs`` at once, longest-known first. A shutdown
+        # request prevents any new worker from starting (queued chops return
+        # a shutdown skip); the current dispatch is allowed to acknowledge at
+        # its next boundary.
         results: list[_ChopResult] = []
-        with ThreadPoolExecutor() as executor:
+        max_workers = max(1, self.config.max_concurrent_jobs)
+        if len(eligible_chops) > max_workers:
+            eligible_chops = self._dispatch_order(eligible_chops)
+        with ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix=f"routine-{self.name}",
+        ) as executor:
             futures = {}
             for chop in eligible_chops:
                 if self._stop_signal.stop_requested() or not self._running:
@@ -329,6 +369,8 @@ class Lumberjack:
             if result.update_timestamp:
                 self._chop_timestamps[result.chop_name] = now
                 timestamps_dirty = True
+            if result.executed and result.duration_seconds is not None:
+                self._chop_durations[result.chop_name] = result.duration_seconds
         if timestamps_dirty:
             write_chop_timestamps(
                 self.name,
@@ -337,8 +379,14 @@ class Lumberjack:
 
         tick_duration = time.monotonic() - _tick_start
         if tick_duration > self.config.interval:
+            capped = (
+                f" ({len(eligible_chops)} jobs, max_concurrent_jobs={max_workers})"
+                if len(eligible_chops) > max_workers
+                else ""
+            )
             self._log(
-                f"Tick overrun: took {tick_duration:.1f}s but interval is {self.config.interval}s",
+                f"Tick overrun: took {tick_duration:.1f}s but interval is "
+                f"{self.config.interval}s{capped}",
                 style="yellow",
             )
 
@@ -352,6 +400,15 @@ class Lumberjack:
         self._update_metrics()
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
+
+    def _dispatch_order(self, chops: list[ChopConfig]) -> list[ChopConfig]:
+        """Order *chops* longest last-observed wall time first."""
+        if not self._chop_durations_seeded:
+            self._chop_durations_seeded = True
+            seeded = seed_durations(self.name, self.config.chop_names)
+            seeded.update(self._chop_durations)
+            self._chop_durations = seeded
+        return dispatch_order(chops, self._chop_durations)
 
     def _build_chop_context(
         self, all_patches_file: str, filtered_patches_file: str
@@ -413,6 +470,7 @@ class Lumberjack:
                 log_lines=[],
                 skip_reason="shutdown",
             )
+        started = time.monotonic()
         outcome = run_configured_chop_once(
             lumberjack_name=self.name,
             chop=chop,
@@ -423,7 +481,9 @@ class Lumberjack:
             source="scheduled",
             pause_requested_fn=self._stop_signal.as_pause_fn(),
         )
-        return self._outcome_to_result(chop, outcome)
+        result = self._outcome_to_result(chop, outcome)
+        result.duration_seconds = time.monotonic() - started
+        return result
 
     def _outcome_to_result(
         self, chop: ChopConfig, outcome: ChopRunOutcome
@@ -609,6 +669,16 @@ class Lumberjack:
         refresh_spawn_rate(self._metrics)
         write_lumberjack_metrics(self.name, self._metrics)
 
+    def _first_tick_delay(self) -> float:
+        """Seconds until this routine's first tick is due after a restart."""
+        if not persists_cadence(self.config.interval):
+            return 0.0
+        return first_tick_delay(
+            interval=self.config.interval,
+            last_tick_at=read_last_tick_at(self.name),
+            now=time.time(),
+        )
+
     def _handle_shutdown(self, _signum: int, _frame: object) -> None:
         # Signal handlers set state only; workers perform journaling and
         # notification work at safe boundaries.
@@ -619,8 +689,12 @@ class Lumberjack:
         except Exception:
             pass
 
-    def run(self) -> bool:
+    def run(self, *, tick_now: bool = False) -> bool:
         """Run the lumberjack main loop.
+
+        Args:
+            tick_now: Run the first tick at once even when the persisted
+                cadence says the routine's next tick is not due yet.
 
         Returns:
             True if exited normally.
@@ -639,7 +713,7 @@ class Lumberjack:
         self._swap_guard = long_lived_swap_guard()
 
         # Schedule the tick at the configured interval
-        self.scheduler.every(self.config.interval).seconds.do(self._run_tick)
+        tick_job = self.scheduler.every(self.config.interval).seconds.do(self._run_tick)
 
         # Status/metrics updates
         self.scheduler.every(5).seconds.do(self._update_status)
@@ -654,8 +728,17 @@ class Lumberjack:
         # Write initial status
         self._update_status()
 
-        # Run first tick immediately
-        self._run_tick()
+        # Run the first tick now, unless a long-interval routine's persisted
+        # cadence says it is not due yet (no restart burst).
+        delay = 0.0 if tick_now else self._first_tick_delay()
+        if delay > 0:
+            tick_job.next_run = _schedule_clock_after(delay)
+            self._log(
+                f"Resuming the persisted cadence: next tick in {delay:.0f}s "
+                "(run with --tick-now to tick at once)"
+            )
+        else:
+            self._run_tick()
 
         try:
             while self._running:

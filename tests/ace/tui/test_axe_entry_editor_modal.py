@@ -91,6 +91,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         "interval",
         "job_timeout",
         "wait_runners",
+        "max_concurrent_jobs",
         "env",
     ]
     assert lumberjack._form.field("description").editor_kind == "text"

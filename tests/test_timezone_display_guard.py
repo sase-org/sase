@@ -14,6 +14,8 @@ _SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "sase"
 
 _ALLOWED_CLOCK_DISPLAY_SITES = frozenset(
     {
+        # ``schedule`` compares ``next_run`` against the naive process clock; not display.
+        "axe/lumberjack.py:_schedule_clock_after",
         # Host timezone fallback must inspect the process clock; it is not display.
         "core/time.py:system_timezone",
     }

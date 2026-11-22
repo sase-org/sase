@@ -14,6 +14,11 @@ from .config_backend import AxeDeclaringSource
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
 DEFAULT_LUMBERJACK_RESTART_BACKOFF_MAX_SECONDS = 60
+#: Jobs one routine tick runs at once unless the routine sets
+#: ``max_concurrent_jobs``. The default lives here rather than in
+#: ``default_config.yml`` because a ``sase_core_rs`` older than the key rejects
+#: it as unknown, and the bundled config must load on every supported core.
+DEFAULT_ROUTINE_MAX_CONCURRENT_JOBS = 4
 
 # Diagnostic codes the Rust axe-chop config validator raises when a
 # guard/trigger provider token isn't one it recognizes, mapped to the noun
@@ -23,6 +28,7 @@ _STALE_CORE_HINT_CODES = {
     "unknown_trigger_provider": "trigger",
 }
 _PROVIDER_TOKEN_RE = re.compile(r"provider `([^`]+)`")
+_ROUTINE_KEY_PATH_RE = re.compile(r"^axe\.(?:routines|lumberjacks)\.[^.]+\.([^.\[]+)$")
 
 
 @dataclass(frozen=True)
@@ -108,6 +114,31 @@ def _advertised_chop_providers() -> frozenset[str]:
     )
 
 
+@lru_cache(maxsize=1)
+def _advertised_routine_keys() -> frozenset[str]:
+    """Return every per-routine key the bundled schema advertises.
+
+    Returns an empty set, and never raises, when the schema cannot be read.
+    """
+    try:
+        from sase.config.inventory import load_config_schema
+
+        schema = load_config_schema()
+        routine = schema["properties"]["axe"]["properties"]["lumberjacks"]
+        keys = routine["additionalProperties"]["properties"]
+    except Exception:
+        return frozenset()
+    return frozenset(key for key in keys if isinstance(key, str))
+
+
+def _rejected_routine_key(item: AxeConfigDiagnostic) -> str | None:
+    """Return the routine key an ``unknown_key`` diagnostic names, if any."""
+    if item.code != "unknown_key" or not item.path:
+        return None
+    match = _ROUTINE_KEY_PATH_RE.match(item.path)
+    return match.group(1) if match else None
+
+
 def _installed_core_version() -> str | None:
     try:
         return importlib.metadata.version("sase-core-rs")
@@ -118,26 +149,35 @@ def _installed_core_version() -> str | None:
 def _stale_core_binding_hint(
     diagnostics: tuple[AxeConfigDiagnostic, ...],
 ) -> str | None:
-    """Return a hint line when the core rejected a provider this build advertises.
+    """Return a hint line when the core rejected a provider or routine key
+    this build advertises.
 
     Deliberately does not compare the installed core version against the
     declared floor: between core releases the Cargo version does not move and
     the floor legitimately lags master, so a version comparison both misses
     real skew and fires falsely. Whether the bundled schema advertises a
-    provider the installed core just rejected is the exact signal.
+    provider or routine key the installed core just rejected is the exact
+    signal.
     """
     try:
         for item in diagnostics:
-            kind = _STALE_CORE_HINT_CODES.get(item.code)
-            if kind is None:
-                continue
-            token = _rejected_provider_token(item)
-            if not token or token not in _advertised_chop_providers():
-                continue
+            routine_key = _rejected_routine_key(item)
+            if routine_key is not None:
+                if routine_key not in _advertised_routine_keys():
+                    continue
+                subject = f"routine key {routine_key!r}"
+            else:
+                kind = _STALE_CORE_HINT_CODES.get(item.code)
+                if kind is None:
+                    continue
+                token = _rejected_provider_token(item)
+                if not token or token not in _advertised_chop_providers():
+                    continue
+                subject = f"{kind} provider {token!r}"
             version = _installed_core_version()
             version_part = f" ({version})" if version else ""
             return (
-                f"hint: this sase build advertises {kind} provider {token!r}, "
+                f"hint: this sase build advertises {subject}, "
                 f"but the installed sase_core_rs{version_part} rejects it — "
                 "the Rust core binding is older than this sase build; run "
                 "'sase update' (dev installs) or reinstall sase to rebuild "
@@ -212,6 +252,8 @@ class LumberjackConfig:
     interval: int
     chop_timeout: int | None = None
     wait_runners: int | None = None
+    #: Most jobs one tick of this routine runs at once (``>= 1``).
+    max_concurrent_jobs: int = DEFAULT_ROUTINE_MAX_CONCURRENT_JOBS
     env: dict[str, ChopEnvValue] = field(default_factory=dict)
     chops: list[ChopConfig] = field(default_factory=list)
     description_summary: str = ""

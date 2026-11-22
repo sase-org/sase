@@ -385,7 +385,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    success = lumberjack.run()
+    success = lumberjack.run(tick_now=bool(getattr(args, "tick_now", False)))
     if lumberjack.swap_restart_requested:
         from sase.axe.chop_swap_guard import ROUTINE_SWAP_RESTART_EXIT_CODE
 

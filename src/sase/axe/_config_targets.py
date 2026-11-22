@@ -20,6 +20,7 @@ from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 
 from ._config_types import (
+    DEFAULT_ROUTINE_MAX_CONCURRENT_JOBS,
     AxeConfigError,
     AxeConfigDiagnostic,
     ChopConfig,
@@ -529,6 +530,12 @@ def parse_lumberjacks(
         chop_timeout = parse_duration(cfg.get("chop_timeout"))
         raw_wait_runners = cfg.get("wait_runners")
         wait_runners = int(raw_wait_runners) if raw_wait_runners is not None else None
+        raw_max_concurrent = cfg.get("max_concurrent_jobs")
+        max_concurrent_jobs = (
+            max(1, int(raw_max_concurrent))
+            if raw_max_concurrent is not None
+            else DEFAULT_ROUTINE_MAX_CONCURRENT_JOBS
+        )
         description = str(cfg["description"])
         description_summary, description_body = split_axe_description(description)
         result[name] = LumberjackConfig(
@@ -539,6 +546,7 @@ def parse_lumberjacks(
             interval=int(cfg.get("interval", 1)),
             chop_timeout=chop_timeout,
             wait_runners=wait_runners,
+            max_concurrent_jobs=max_concurrent_jobs,
             env=lumberjack_env,
             chops=chops,
             source=routine_origin.source if routine_origin is not None else "user",

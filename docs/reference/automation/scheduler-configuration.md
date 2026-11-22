@@ -86,6 +86,12 @@ summary/body grammar in
 Routine field names, types, and defaults are on the generated
 [scheduler configuration](../config/scheduler.md) page.
 
+`max_concurrent_jobs` caps how many of a routine's jobs one tick runs at once (default
+`4`, minimum `1`); [Routine Ticks](scheduler.md#routine-ticks) describes the queue
+order. The default lives in code, so the bundled config never sets the key. Setting it
+needs a `sase_core_rs` that accepts it: an older core rejects it as `unknown_key`, and
+the error carries a hint to rebuild the core.
+
 `wait_runners` applies only to agents emitted through a script job's
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. The
 runner prepends it to each proposed prompt as `%queue(capacity=N)` unless the prompt

@@ -3718,6 +3718,12 @@
                 "minimum": 0,
                 "description": "Start a lane agent only once at most this many other agents hold a runner slot; omit to use the global max_running_agents cap"
               },
+              "max_concurrent_jobs": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 4,
+                "description": "Most jobs one tick of this routine runs at once; extra eligible jobs wait for a free slot, longest-running first. Requires a sase_core_rs that accepts the key"
+              },
               "env": {
                 "$ref": "#/definitions/axeEnv",
                 "description": "Environment values inherited by every job in this routine"

@@ -218,18 +218,19 @@ Options:
 
 ```text
 usage: sase axe routine run [-h] ROUTINE [-q QUERY] [-H MAX_HOOK_RUNNERS]
-                            [-A MAX_AGENT_RUNNERS] [-z ZOMBIE_TIMEOUT]
+                            [-A MAX_AGENT_RUNNERS] [-t] [-z ZOMBIE_TIMEOUT]
 ```
 
 Options:
 
-| Option                                                          | Description                         | Default |
-| --------------------------------------------------------------- | ----------------------------------- | ------- |
-| `-h`, `--help`                                                  | show this help message and exit     | —       |
-| `-A MAX_AGENT_RUNNERS`, `--max-agent-runners MAX_AGENT_RUNNERS` | Maximum concurrent agent runners    | —       |
-| `-H MAX_HOOK_RUNNERS`, `--max-hook-runners MAX_HOOK_RUNNERS`    | Maximum concurrent hook runners     | —       |
-| `-q QUERY`, `--query QUERY`                                     | Query string for filtering Patches  | ``      |
-| `-z ZOMBIE_TIMEOUT`, `--zombie-timeout ZOMBIE_TIMEOUT`          | Zombie detection timeout in seconds | —       |
+| Option                                                          | Description                                                                                                        | Default |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------- |
+| `-h`, `--help`                                                  | show this help message and exit                                                                                    | —       |
+| `-A MAX_AGENT_RUNNERS`, `--max-agent-runners MAX_AGENT_RUNNERS` | Maximum concurrent agent runners                                                                                   | —       |
+| `-H MAX_HOOK_RUNNERS`, `--max-hook-runners MAX_HOOK_RUNNERS`    | Maximum concurrent hook runners                                                                                    | —       |
+| `-q QUERY`, `--query QUERY`                                     | Query string for filtering Patches                                                                                 | ``      |
+| `-t`, `--tick-now`                                              | Tick at once on start, even when a routine with an interval of 60s or more is not due yet by its persisted cadence | `false` |
+| `-z ZOMBIE_TIMEOUT`, `--zombie-timeout ZOMBIE_TIMEOUT`          | Zombie detection timeout in seconds                                                                                | —       |
 
 Arguments:
 
