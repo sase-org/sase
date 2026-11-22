@@ -279,7 +279,8 @@ def test_failed_run_every_chop_waits_until_next_cadence(
     with (
         patch("sase.axe.check_cycles.find_all_patches", return_value=[]),
         patch(
-            "sase.axe.lumberjack.run_configured_chop_once", return_value=outcome
+            "sase.axe._lumberjack_chop.run_configured_chop_once",
+            return_value=outcome,
         ) as run_chop,
     ):
         lumberjack = Lumberjack("throttled_failure", config, axe_config)

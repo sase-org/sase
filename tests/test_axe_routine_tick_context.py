@@ -35,7 +35,7 @@ pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FINGERPRINT = "sase.axe.tick_context._patch_files_fingerprint"
 _FIND_ALL = "sase.axe.check_cycles.find_all_patches"
-_RUN_CHOP = "sase.axe.lumberjack.run_configured_chop_once"
+_RUN_CHOP = "sase.axe._lumberjack_chop.run_configured_chop_once"
 _SERIALIZE = "sase.axe.tick_context.serialize_patches"
 
 

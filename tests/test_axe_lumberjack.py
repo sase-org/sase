@@ -128,9 +128,9 @@ def test_run_logs_canonical_routine_start_and_stop(
         lumberjack._running = False
 
     monkeypatch.setattr(lumberjack, "_run_tick", _one_tick)
-    monkeypatch.setattr("sase.axe.lumberjack.os.chdir", lambda _path: None)
+    monkeypatch.setattr("sase.axe._lumberjack_core.os.chdir", lambda _path: None)
     monkeypatch.setattr(
-        "sase.axe.lumberjack.init_telemetry",
+        "sase.axe._lumberjack_core.init_telemetry",
         lambda *args, **kwargs: None,
     )
 
@@ -153,7 +153,7 @@ def test_tick_holds_job_starts_while_a_code_swap_is_live(
 ) -> None:
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._swap_guard = lambda: True
-    monkeypatch.setattr("sase.axe.lumberjack.code_swap_writer_live", lambda: True)
+    monkeypatch.setattr("sase.axe._lumberjack_core.code_swap_writer_live", lambda: True)
     monkeypatch.setattr(
         lumberjack,
         "_recover_pending_batches",
@@ -175,7 +175,9 @@ def test_tick_after_a_completed_swap_stops_the_routine_for_a_restart(
 ) -> None:
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._swap_guard = lambda: True
-    monkeypatch.setattr("sase.axe.lumberjack.code_swap_writer_live", lambda: False)
+    monkeypatch.setattr(
+        "sase.axe._lumberjack_core.code_swap_writer_live", lambda: False
+    )
     monkeypatch.setattr(
         lumberjack,
         "_recover_pending_batches",

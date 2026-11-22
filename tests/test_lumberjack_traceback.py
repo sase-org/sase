@@ -21,10 +21,8 @@ from sase.axe.chop_runner import (
     _capture_traceback,
 )
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.lumberjack import (
-    Lumberjack,
-    _ChopResult,
-)
+from sase.axe._lumberjack_shared import LumberjackChopResult
+from sase.axe.lumberjack import Lumberjack
 
 
 def _make_lumberjack(tmp_path: Any) -> Lumberjack:
@@ -37,7 +35,9 @@ def _make_lumberjack(tmp_path: Any) -> Lumberjack:
         chops=[chop],
     )
     axe_config = AxeConfig()
-    with patch("sase.axe.lumberjack.ensure_lumberjack_dirs", return_value=tmp_path):
+    with patch(
+        "sase.axe._lumberjack_core.ensure_lumberjack_dirs", return_value=tmp_path
+    ):
         return Lumberjack("test", lj_config, axe_config)
 
 
@@ -60,7 +60,7 @@ def test_capture_traceback_outside_except_returns_placeholder() -> None:
     ("result", "expected_traceback"),
     [
         (
-            _ChopResult(
+            LumberjackChopResult(
                 chop_name="probe",
                 executed=False,
                 success=False,
@@ -71,7 +71,7 @@ def test_capture_traceback_outside_except_returns_placeholder() -> None:
             _NO_PYTHON_TRACEBACK,
         ),
         (
-            _ChopResult(
+            LumberjackChopResult(
                 chop_name="probe",
                 executed=True,
                 success=False,
@@ -82,7 +82,7 @@ def test_capture_traceback_outside_except_returns_placeholder() -> None:
             _NO_PYTHON_TRACEBACK,
         ),
         (
-            _ChopResult(
+            LumberjackChopResult(
                 chop_name="probe",
                 executed=True,
                 success=False,
@@ -93,7 +93,7 @@ def test_capture_traceback_outside_except_returns_placeholder() -> None:
             "Traceback (most recent call last):\n  RuntimeError",
         ),
         (
-            _ChopResult(
+            LumberjackChopResult(
                 chop_name="probe",
                 executed=True,
                 success=False,
@@ -106,12 +106,12 @@ def test_capture_traceback_outside_except_returns_placeholder() -> None:
     ],
 )
 def test_handle_error_never_emits_noneType_none(
-    tmp_path: Any, result: _ChopResult, expected_traceback: str
+    tmp_path: Any, result: LumberjackChopResult, expected_traceback: str
 ) -> None:
     lj = _make_lumberjack(tmp_path)
 
     captured: list[dict[str, Any]] = []
-    with patch("sase.axe.lumberjack.append_error", side_effect=captured.append):
+    with patch("sase.axe._lumberjack_chop.append_error", side_effect=captured.append):
         assert result.error is not None
         lj._handle_error(result.chop_name, result.error, result.traceback)
 

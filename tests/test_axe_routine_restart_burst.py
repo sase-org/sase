@@ -43,7 +43,7 @@ from sase.core.time import get_timezone
 
 pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 
-_RUN_CHOP = "sase.axe.lumberjack.run_configured_chop_once"
+_RUN_CHOP = "sase.axe._lumberjack_chop.run_configured_chop_once"
 #: Hang guard only: no assertion depends on how long anything takes.
 _HANG_GUARD_SECONDS = 10.0
 
@@ -91,11 +91,13 @@ def _run_main_loop_once(routine: Lumberjack, *, tick_now: bool = False) -> Magic
 
     with (
         patch.object(routine, "_run_tick", tick),
-        patch("sase.axe.lumberjack.os.chdir"),
-        patch("sase.axe.lumberjack.signal.signal"),
-        patch("sase.axe.lumberjack.init_telemetry"),
-        patch("sase.axe.lumberjack.long_lived_swap_guard", return_value=None),
-        patch("sase.axe.lumberjack.time.sleep", side_effect=stop_after_first_pass),
+        patch("sase.axe._lumberjack_core.os.chdir"),
+        patch("sase.axe._lumberjack_core.signal.signal"),
+        patch("sase.axe._lumberjack_core.init_telemetry"),
+        patch("sase.axe._lumberjack_core.long_lived_swap_guard", return_value=None),
+        patch(
+            "sase.axe._lumberjack_core.time.sleep", side_effect=stop_after_first_pass
+        ),
     ):
         assert routine.run(tick_now=tick_now) is True
     return tick
@@ -222,7 +224,7 @@ def test_a_maintenance_skipped_tick_does_not_advance_the_cadence(
     routine = _routine("housekeeping", 3600, 2)
     with (
         patch(
-            "sase.axe.lumberjack.read_maintenance",
+            "sase.axe._lumberjack_tick.read_maintenance",
             return_value={"reason": "upgrade", "pid": 1},
         ),
         patch(_RUN_CHOP, side_effect=_stub_success) as run_chop,
@@ -375,7 +377,7 @@ def test_ticks_within_the_cap_never_read_run_history(temp_state_dir: Path) -> No
     del temp_state_dir
     routine = _routine("checks", 300, 4, max_concurrent_jobs=4)
     with (
-        patch("sase.axe.lumberjack.seed_durations") as seed,
+        patch("sase.axe._lumberjack_core.seed_durations") as seed,
         patch(_RUN_CHOP, side_effect=_stub_success),
     ):
         routine._run_tick()
@@ -387,7 +389,7 @@ def test_run_history_is_read_once_per_routine_process(temp_state_dir: Path) -> N
     del temp_state_dir
     routine = _routine("housekeeping", 3600, 6, max_concurrent_jobs=2)
     with (
-        patch("sase.axe.lumberjack.seed_durations", return_value={}) as seed,
+        patch("sase.axe._lumberjack_core.seed_durations", return_value={}) as seed,
         patch(_RUN_CHOP, side_effect=_stub_success),
     ):
         routine._run_tick()

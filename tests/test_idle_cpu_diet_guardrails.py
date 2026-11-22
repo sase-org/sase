@@ -99,7 +99,7 @@ def test_run_every_and_no_op_feed_skip_and_ratio_counters(
         reason="waiting_markers_already_ready",
     )
     with patch(
-        "sase.axe.lumberjack.run_configured_chop_once", return_value=no_op
+        "sase.axe._lumberjack_chop.run_configured_chop_once", return_value=no_op
     ) as run_chop:
         lumberjack = Lumberjack("throttled", config, axe_config)
         lumberjack._chop_timestamps["slow_chop"] = datetime.now(tz) - timedelta(
@@ -143,7 +143,9 @@ def test_inhibited_preflight_skip_is_counted(
         reason="agent_runners at max",
         skip_reason="inhibited",
     )
-    with patch("sase.axe.lumberjack.run_configured_chop_once", return_value=skipped):
+    with patch(
+        "sase.axe._lumberjack_chop.run_configured_chop_once", return_value=skipped
+    ):
         lumberjack = Lumberjack("guarded", config, axe_config)
         lumberjack._run_tick()
     assert lumberjack._metrics.chops_spawned == 0
