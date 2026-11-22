@@ -19,6 +19,107 @@ _CAPACITY_GAUGE_TELEMETRY_MIN_INTERVAL_SECONDS = 2.0
 _CAPACITY_DRIFT_TELEMETRY_MIN_INTERVAL_SECONDS = 60.0
 
 
+def _freeze_capacity_value(value: Any) -> Any:
+    """Freeze capacity inputs/outputs into hashable, value-based material."""
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (str(key), _freeze_capacity_value(item)) for key, item in value.items()
+            )
+        )
+    if isinstance(value, (tuple, list)):
+        return tuple(_freeze_capacity_value(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return tuple(sorted((_freeze_capacity_value(item) for item in value), key=repr))
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return value
+    return repr(value)
+
+
+def _capacity_override_fingerprint(
+    configured_limit: Any,
+    override: Any,
+) -> Any:
+    """Fingerprint override state without computation timestamps.
+
+    Includes configured limit, override identity/limit/expiry/source and the
+    derived effective limit. Excludes ``captured_at`` which changes on every
+    build.
+    """
+    if override is None:
+        return (configured_limit, None, configured_limit)
+    # ``EffectiveRunnerLimitSnapshot.effective_limit(now)`` needs ``now``;
+    # recompute deterministically from override state instead.
+    effective_value = configured_limit
+    try:
+        import time as _time
+
+        now_wall = _time.time()
+        if hasattr(override, "active_override"):
+            # Snapshot-shaped object; resolve via its own helper when present.
+            active = override.active_override(now_wall)
+            if active is None:
+                effective_value = configured_limit
+            else:
+                effective_value = getattr(active, "limit", configured_limit)
+        elif hasattr(override, "is_active"):
+            active = bool(override.is_active(now_wall))
+            limit = getattr(override, "limit", configured_limit)
+            effective_value = limit if active else configured_limit
+        elif hasattr(override, "limit"):
+            # Bare override record without activity helper; treat as active
+            # only when its expiry (when present) has not passed.
+            expires_at = getattr(override, "expires_at", None)
+            if isinstance(expires_at, (int, float)) and now_wall >= float(expires_at):
+                effective_value = configured_limit
+            else:
+                effective_value = override.limit
+    except Exception:
+        pass
+    return (
+        configured_limit,
+        (
+            getattr(override, "version", None),
+            getattr(override, "limit", None),
+            getattr(override, "expires_at", None),
+            getattr(override, "source", None),
+        ),
+        effective_value,
+    )
+
+
+def _capacity_report_visible_signature(report: Any) -> Any:
+    """Return the visible capacity signature, excluding computation times.
+
+    Covers claims, queues (waiters), holds-derived accounting, effective
+    limits, diagnostic/validity state, record inputs and inspector-visible
+    fields. Excludes ``computed_at``, ``scanned_at`` and ``captured_at``.
+    """
+    limit = getattr(report, "limit", None)
+    if limit is not None:
+        configured = getattr(limit, "configured_limit", None)
+        override = getattr(limit, "temporary_override", None)
+        limit_fp = _capacity_override_fingerprint(configured, override)
+    else:
+        limit_fp = (getattr(report, "effective_limit", None), None, None)
+    return (
+        getattr(report, "machine", None),
+        getattr(report, "effective_limit", None),
+        limit_fp,
+        getattr(report, "occupied_capacity", None),
+        getattr(report, "occupied_lanes", None),
+        getattr(report, "over_limit", None),
+        _freeze_capacity_value(getattr(report, "claims", ())),
+        _freeze_capacity_value(getattr(report, "waiters", ())),
+        _freeze_capacity_value(getattr(report, "accounting", ())),
+        _freeze_capacity_value(getattr(report, "diagnostics", ())),
+        bool(getattr(report, "accounting_valid", False)),
+        bool(getattr(report, "accounting_available", False)),
+        bool(getattr(report, "scan_current", False)),
+        _freeze_capacity_value(getattr(report, "record_inputs", ())),
+    )
+
+
 class _CapacityReportFeedMixin:
     """Poll capacity tokens and compute reports away from Textual's pump."""
 
@@ -68,8 +169,132 @@ class _CapacityReportFeedMixin:
         """Thin timer callback: hand work to the pump-free task (no I/O)."""
         self._request_machine_capacity_report_refresh(source="capacity_tick")
 
+    def _current_capacity_hold_snapshot(self, now_wall: float) -> Any:
+        """Return frozen holds for revalidation; tests may inject a source."""
+        source = getattr(self, "_machine_capacity_hold_source", None)
+        if callable(source):
+            return _freeze_capacity_value(source(now_wall))
+        from sase.core.agent_hold_store import peek_active_agent_holds
+
+        return _freeze_capacity_value(peek_active_agent_holds(now=now_wall))
+
+    def _current_capacity_override_snapshot(self, now_wall: float) -> Any:
+        """Return override fingerprint without timestamps; tests may inject."""
+        source = getattr(self, "_machine_capacity_override_source", None)
+        if callable(source):
+            configured, override = source(now_wall)
+            return _capacity_override_fingerprint(configured, override)
+        from sase.config.core import get_configured_max_running_agents
+        from sase.config.runner_limit_override import get_active_runner_limit_override
+
+        configured_limit = get_configured_max_running_agents()
+        try:
+            override = get_active_runner_limit_override(now_wall)
+        except Exception:
+            log.debug("Capacity override probe failed", exc_info=True)
+            return None
+        return _capacity_override_fingerprint(configured_limit, override)
+
+    def _current_capacity_liveness_snapshot(self) -> Any | None:
+        """Return frozen PID liveness; None means unknown (fail open)."""
+        source = getattr(self, "_machine_capacity_liveness_source", None)
+        if callable(source):
+            return _freeze_capacity_value(source())
+        try:
+            from sase.core.runner_slots._scan_cache import read_runner_slot_scan_cache
+            from sase.core.runner_slots._scan import record_liveness_probe
+        except Exception:
+            log.debug("Capacity liveness probe unavailable", exc_info=True)
+            return None
+        try:
+            cached = read_runner_slot_scan_cache()
+        except Exception:
+            log.debug("Capacity scan cache read failed", exc_info=True)
+            return None
+        if cached is None:
+            return None
+        try:
+            is_live = record_liveness_probe()
+            aliveness = {
+                str(getattr(record, "artifact_dir", "")): bool(is_live(record))
+                for record in cached.records
+            }
+        except Exception:
+            log.debug("Capacity liveness probe failed", exc_info=True)
+            return None
+        return _freeze_capacity_value(aliveness)
+
+    async def _fetch_capacity_revalidation_snapshot(
+        self, now_wall: float
+    ) -> tuple[Any, Any, Any | None]:
+        """Fetch holds/override/liveness off-thread for the 10s revalidation."""
+        holds, override_fp, liveness = await asyncio.to_thread(
+            lambda: (
+                self._current_capacity_hold_snapshot(now_wall),
+                self._current_capacity_override_snapshot(now_wall),
+                self._current_capacity_liveness_snapshot(),
+            )
+        )
+        return holds, override_fp, liveness
+
+    def _capacity_time_inputs_unchanged(
+        self,
+        holds: Any,
+        override_fp: Any,
+        liveness: Any | None,
+    ) -> bool:
+        """Return True when time-dependent inputs match the last build."""
+        if holds is None or override_fp is None or liveness is None:
+            return False
+        if getattr(self, "_machine_capacity_last_holds_signature", None) is None:
+            return False
+        if getattr(self, "_machine_capacity_last_override_signature", None) is None:
+            return False
+        if getattr(self, "_machine_capacity_last_liveness_signature", None) is None:
+            return False
+        return (
+            holds == getattr(self, "_machine_capacity_last_holds_signature", None)
+            and override_fp
+            == getattr(self, "_machine_capacity_last_override_signature", None)
+            and liveness
+            == getattr(self, "_machine_capacity_last_liveness_signature", None)
+        )
+
+    def _capacity_needs_time_authoritative_check(self) -> bool:
+        """Return True when time alone could change visible output.
+
+        Waiters with deference enabled can reorder with time even when files,
+        holds, override and liveness are unchanged. Retain the bounded
+        authoritative check for that case while still skipping unchanged
+        publication when the rebuild proves identical.
+        """
+        try:
+            report = getattr(self, "_machine_capacity_report", None)
+            waiters = getattr(report, "waiters", ()) if report is not None else ()
+            if not waiters:
+                return False
+            from sase.config.core import get_runner_slot_deference_max_seconds
+
+            return int(get_runner_slot_deference_max_seconds()) > 0
+        except Exception:
+            return True
+
     async def _probe_machine_capacity_refresh_due(self) -> bool:
-        """Probe the capacity token off the UI thread; True when due."""
+        """Probe the capacity token off the UI thread; True when due.
+
+        Keeps the ten-second revalidation opportunity but no longer equates
+        poll cadence with an unconditional expensive rebuild. When the token
+        is unchanged, revalidates holds/override expiry and process liveness
+        cheaply; only a detected input change or a time-dependent waiter
+        case triggers the authoritative rebuild.
+        """
+        # Clear any stale snapshot so _run never reuses a previous tick's
+        # inputs for caching after a token-change rebuild.
+        try:
+            if hasattr(self, "_machine_capacity_probe_snapshot"):
+                delattr(self, "_machine_capacity_probe_snapshot")
+        except Exception:
+            pass
         try:
             token = await asyncio.to_thread(self._probe_machine_capacity_surface_token)
         except Exception:
@@ -77,11 +302,44 @@ class _CapacityReportFeedMixin:
             token = None
         previous = getattr(self, "_machine_capacity_observed_token", None)
         self._machine_capacity_observed_token = token
-        if previous is None or token != previous:
+        if previous is None:
             return True
-        now = time.monotonic()
+        try:
+            token_changed = bool(token != previous)
+        except Exception:
+            return True
+        if token_changed:
+            return True
+        # Fail open on indeterminate tokens: a token that cannot be proven
+        # unchanged must not skip the authoritative check.
+        try:
+            indeterminate = bool(getattr(token, "indeterminate", False))
+        except Exception:
+            indeterminate = True
+        if token is None or indeterminate:
+            return True
+        now_mono = time.monotonic()
         last_report = float(getattr(self, "_machine_capacity_report_mono", 0.0))
-        return now - last_report >= _CAPACITY_REPORT_POLL_SECONDS
+        if now_mono - last_report < _CAPACITY_REPORT_POLL_SECONDS:
+            return False
+        # Ten-second boundary with unchanged token: cheap revalidation.
+        try:
+            now_wall = time.time()
+            (
+                holds,
+                override_fp,
+                liveness,
+            ) = await self._fetch_capacity_revalidation_snapshot(now_wall)
+        except Exception:
+            log.debug("Capacity revalidation snapshot failed", exc_info=True)
+            return True
+        # Stash for post-build caching without a second fetch.
+        self._machine_capacity_probe_snapshot = (holds, override_fp, liveness)
+        if not self._capacity_time_inputs_unchanged(holds, override_fp, liveness):
+            return True
+        if self._capacity_needs_time_authoritative_check():
+            return True
+        return False
 
     def _request_machine_capacity_report_refresh(self, *, source: str) -> None:
         """Coalesce report requests and retain one trailing refresh."""
@@ -103,6 +361,57 @@ class _CapacityReportFeedMixin:
         if task is None:
             self._machine_capacity_refresh_scheduled = False
 
+    def _capacity_inspector_open(self) -> bool:
+        """Return True when the capacity inspector modal is open."""
+        try:
+            screen = getattr(self, "screen", None)
+            update = getattr(screen, "update_capacity_report", None)
+            return callable(update)
+        except Exception:
+            return False
+
+    async def _cache_capacity_inputs_for_revalidation(
+        self,
+        visible_signature: Any,
+    ) -> None:
+        """Cache holds/override/liveness/visible for the next 10s check.
+
+        Reuses the probe's snapshot when the current probe already fetched
+        it; otherwise fetches fresh off-thread (token-change path).
+        """
+        snapshot = getattr(self, "_machine_capacity_probe_snapshot", None)
+        # Clear immediately so a stale snapshot never leaks into the next run.
+        try:
+            if hasattr(self, "_machine_capacity_probe_snapshot"):
+                delattr(self, "_machine_capacity_probe_snapshot")
+        except Exception:
+            pass
+        if (
+            isinstance(snapshot, tuple)
+            and len(snapshot) == 3
+            and snapshot[0] is not None
+            and snapshot[1] is not None
+            and snapshot[2] is not None
+        ):
+            holds, override_fp, liveness = snapshot
+        else:
+            try:
+                now_wall = time.time()
+                (
+                    holds,
+                    override_fp,
+                    liveness,
+                ) = await self._fetch_capacity_revalidation_snapshot(now_wall)
+            except Exception:
+                log.debug("Capacity cache refresh failed", exc_info=True)
+                return
+            if holds is None or override_fp is None or liveness is None:
+                return
+        self._machine_capacity_last_holds_signature = holds
+        self._machine_capacity_last_override_signature = override_fp
+        self._machine_capacity_last_liveness_signature = liveness
+        self._machine_capacity_last_visible_signature = visible_signature
+
     async def _run_machine_capacity_report_refresh(self, *, generation: int) -> None:
         """Compute and publish one report, then service a coalesced request."""
         self._machine_capacity_refresh_scheduled = False
@@ -118,7 +427,22 @@ class _CapacityReportFeedMixin:
                 getattr(self, "_machine_capacity_refresh_generation", 0)
             ):
                 return
+            new_visible = _capacity_report_visible_signature(report)
+            last_visible = getattr(
+                self, "_machine_capacity_last_visible_signature", None
+            )
+            if (
+                last_visible is not None
+                and new_visible == last_visible
+                and not self._capacity_inspector_open()
+            ):
+                # Unchanged publication: refresh revalidation state without
+                # invalidating metrics, repainting rows, or scheduling work.
+                self._machine_capacity_report_mono = time.monotonic()
+                await self._cache_capacity_inputs_for_revalidation(new_visible)
+                return
             self._install_machine_capacity_report(report)
+            await self._cache_capacity_inputs_for_revalidation(new_visible)
         except asyncio.CancelledError:
             raise
         except Exception:
