@@ -256,8 +256,8 @@ def test_sort_and_reorder_attaches_agent_session_container_for_workflow_shaped_a
     assert parent.agent_session_container is None
     assert planner.agent_session_container is parent
     assert coder.agent_session_container is parent
-    # A reference cycle between agent_session_container and followup_agents must not
-    # break dataclass eq/repr (compare=False, repr=False keeps it out).
+    # The roster backreference stays an ordinary Agent for callers and remains
+    # excluded from dataclass eq/repr.
     assert repr(coder)
     assert coder == coder
 

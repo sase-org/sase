@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+import weakref
 
 from sase.core.output_variable_values import VarValue
 
@@ -148,9 +149,8 @@ class AgentStateSessionFields:
     )
 
     # Session container row whose SESSION TURNS roster lists this row. Runtime
-    # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
-    # this pointer closes a cycle with ``followup_agents``/``runtime_children``
-    # and dataclass eq/repr (and the repr-based hint digest) would recurse.
+    # presentation plumbing; not serialized. The container owns its members via
+    # ``followup_agents``/``runtime_children``; this backreference is non-owning.
     agent_session_container: Agent | None = field(
         default=None, compare=False, repr=False
     )
@@ -213,3 +213,29 @@ class AgentStateSessionFields:
     # Display-only logical project name resolved from ProjectSpec PROJECT_NAME.
     # The project_file path remains the storage identity for grouping/actions.
     project_display_name: str | None = field(default=None, compare=False)
+
+
+class _WeakAgentSessionContainerReference:
+    """Store the session-roster backreference weakly behind Agent | None access."""
+
+    def __get__(self, instance: Any, owner: type[Any] | None = None) -> Any:
+        if instance is None:
+            return self
+        reference: weakref.ReferenceType[Any] | None = vars(instance).get(
+            "_agent_session_container_ref"
+        )
+        return reference() if reference is not None else None
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        vars(instance)["_agent_session_container_ref"] = (
+            weakref.ref(value) if value is not None else None
+        )
+
+
+# Keep the public dataclass field and generated constructor compatible. Installing
+# the descriptor after dataclass processing means callers still pass/read Agent | None,
+# while every assignment stores only a weak reference. Cast the class for this
+# runtime-only replacement so mypy retains the declared public field type.
+cast(
+    Any, AgentStateSessionFields
+).agent_session_container = _WeakAgentSessionContainerReference()

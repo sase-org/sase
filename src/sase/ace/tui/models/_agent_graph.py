@@ -20,6 +20,10 @@ cheap as a plain shallow copy (~7 ms per 600 rows versus ~160 ms for the full
 graph copy); the roster refresh runs twice per capacity-report install (at
 least every 10 s even when idle), so that cost matters under the TUI perf
 rules ("periodic ticks revalidate; recomputes get a longer cadence").
+
+``agent_session_container`` is a weak backreference behind its ordinary
+``Agent | None`` interface. Copy paths read and reassign that interface so a
+copied member points to its copied container, not the original.
 """
 
 from __future__ import annotations
@@ -43,8 +47,9 @@ __all__ = [
 #: ``Agent``-reference fields relinked by :func:`copy_agent_rows_relinked`.
 #: Single-``Agent`` values map through the in-batch memo; lists map
 #: element-wise into a new list so the copy never shares a list object with
-#: the live row. A reference to a row outside the batch is kept as-is
-#: (consumers only read those rows).
+#: the live row. Assigning the weak session-container backreference again
+#: installs a weak reference to the mapped row. A reference to a row outside
+#: the batch is kept as-is (consumers only read those rows).
 AGENT_RELINK_FIELDS: tuple[str, ...] = (
     "followup_agents",
     "runtime_children",
@@ -90,6 +95,11 @@ def _copy_agent(agent: Agent, memo: dict[int, Agent] | None = None) -> Agent:
     deferred: list[tuple[str, Any]] = []
     for field in fields(agent):
         present, value = projected_agent_compact_copy_value(agent, field.name)
+        if not present and field.name == "agent_session_container":
+            # This public field is stored behind a descriptor, so it is not
+            # present under its field name in ``vars(agent)``. Still copy its
+            # resolved Agent value and let the graph memo relink it.
+            present, value = True, agent.agent_session_container
         if not present:
             continue
         if _value_contains_agent(value):
@@ -224,14 +234,19 @@ def copy_agent_rows_delta_isolated(
                 continue
             value = getattr(original, field_name, None)
             if isinstance(value, list):
-                setattr(
-                    clone,
-                    field_name,
-                    [
-                        owned.get(id(item), item) if isinstance(item, Agent) else item
-                        for item in value
-                    ],
-                )
+                if "__copy__" in type(value).__dict__:
+                    setattr(clone, field_name, copy(value))
+                else:
+                    setattr(
+                        clone,
+                        field_name,
+                        [
+                            owned.get(id(item), item)
+                            if isinstance(item, Agent)
+                            else item
+                            for item in value
+                        ],
+                    )
             elif isinstance(value, dict):
                 setattr(
                     clone,
@@ -267,6 +282,10 @@ def _value_contains_agent(value: Any) -> bool:
     if isinstance(value, Agent):
         return True
     if isinstance(value, (list, tuple, set)):
+        if isinstance(value, list) and "__copy__" in type(value).__dict__:
+            # Lazy list subclasses may load while iterating. Their custom copy
+            # hook preserves their cache without materializing the payload.
+            return False
         return any(_value_contains_agent(item) for item in value)
     if isinstance(value, dict):
         return any(_value_contains_agent(item) for item in value.values())
@@ -304,6 +323,9 @@ def _copy_graph_value(value: Any, memo: dict[int, Agent]) -> Any:
 def _copy_leaf(value: Any) -> Any:
     """Copy mutable containers; share immutables and frozen values."""
     if isinstance(value, list):
+        if "__copy__" in type(value).__dict__:
+            # Lazy list subclasses can provide a non-materializing copy.
+            return copy(value)
         return [_copy_leaf(item) for item in value]
     if isinstance(value, dict):
         return {key: _copy_leaf(item) for key, item in value.items()}

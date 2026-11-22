@@ -243,7 +243,8 @@ def _attach_agent_session_containers(rows: list[Agent]) -> None:
     """Point each concrete session turn at the container row that lists it.
 
     Nested monitors keep their immediate rendered-tree parent (the starter)
-    and only gain this roster back-pointer.
+    and only gain this non-owning roster back-pointer. The container's forward
+    ``followup_agents``/``runtime_children`` links retain the member rows.
     """
     for row in rows:
         if not row.is_agent_session_container_row:

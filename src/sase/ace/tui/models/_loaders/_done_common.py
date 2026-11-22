@@ -122,6 +122,14 @@ class _LazyInstructionBundleFiles(list[str]):
         self._loader: Callable[[], list[str]] | None = loader
         self._loaded = False
 
+    def __copy__(self) -> _LazyInstructionBundleFiles:
+        """Copy the cache state without inspecting the lazy list."""
+        clone = type(self)(self._loader or (lambda: []))
+        clone._loaded = self._loaded
+        clone._loader = self._loader
+        list.extend(clone, list.copy(self))
+        return clone
+
     def _load(self) -> None:
         if self._loaded:
             return
