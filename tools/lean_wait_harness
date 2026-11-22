@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""Measure parked lean-waiter RSS and CPU against a synthetic wait.
+
+Runs the real ``run_agent_lean_wait.py`` (one or more waiters) against a
+synthetic never-satisfied dependency marker and project in a private temporary
+``SASE_HOME``, samples each waiter from ``/proc``, then ends the run with a
+release (``ready.json``) or a kill (SIGTERM) to time the way back. Nothing
+outside the temporary directory is touched, and every process it starts is
+stopped before it exits.
+
+``--heartbeat fresh`` stamps the ``wait_checks`` heartbeat every 30 s through the
+real ``stamp_wait_checks_heartbeat`` like a healthy scheduler (the waiter probes
+only at the 1,800 s safety interval);
+``--heartbeat stale`` never stamps it (the waiter probes every 60 s, today's
+outage-mode cost). Probes are real, but resolve a tiny synthetic project, so
+their CPU is a lower bound for a busy host: pair this with the tribe-scope
+first-resolution measurement for a real marker.
+
+Per waiter it reports VmRSS / RssAnon / Pss, CPU ticks (own plus reaped probe
+children), CPU percent over the steady window, probes observed, the peak RSS of
+a probe child, release latency, and kill latency. ``--json PATH`` writes the
+same numbers as JSON.
+
+    tools/lean_wait_harness --heartbeat fresh --minutes 10
+    tools/lean_wait_harness --heartbeat stale --minutes 10 --end-action term
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+WAITER = REPO_ROOT / "src" / "sase" / "axe" / "run_agent_lean_wait.py"
+SPEC_ENV = "SASE_RUNNER_LEAN_WAIT_SPEC"
+PROJECT = "harness_project"
+DEPENDENCY = "harness-dependency"
+HEARTBEAT_STAMP_SECONDS = 30.0
+SETTLE_SECONDS = 30.0
+CLK_TCK = os.sysconf("SC_CLK_TCK")
+
+
+def _contract() -> Any:
+    """Import the real contract pieces; ``SASE_HOME`` must already be the temp dir."""
+    from sase.axe import run_agent_lean_wait, wait_checks_heartbeat
+
+    return run_agent_lean_wait, wait_checks_heartbeat
+
+
+FAKE_RUNNER = """\
+import os, sys, time
+open(os.environ["HARNESS_RUNNER_STAMP"], "w").write(repr(time.time()))
+"""
+
+
+def _status_kb(pid: int) -> dict[str, int]:
+    fields: dict[str, int] = {}
+    try:
+        text = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
+    except OSError:
+        return fields
+    for line in text.splitlines():
+        key, _, value = line.partition(":")
+        if key in {"VmRSS", "RssAnon", "RssFile", "VmHWM", "Threads"}:
+            fields[key] = int(value.split()[0])
+    return fields
+
+
+def _pss_kb(pid: int) -> int | None:
+    try:
+        for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+            if line.startswith("Pss:"):
+                return int(line.split()[1])
+    except OSError:
+        pass
+    return None
+
+
+def _cpu_ticks(pid: int) -> tuple[int, int] | None:
+    """Return ``(own, reaped_children)`` ticks, or None when the pid is gone."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    fields = stat.rsplit(")", 1)[1].split()
+    return int(fields[11]) + int(fields[12]), int(fields[13]) + int(fields[14])
+
+
+def _children(pid: int) -> list[int]:
+    try:
+        text = Path(f"/proc/{pid}/task/{pid}/children").read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [int(part) for part in text.split()]
+
+
+def _write_project(home: Path) -> Path:
+    runs = home / "projects" / PROJECT / "artifacts" / "ace-run"
+    waiter_dir = runs / "20261121000000"
+    waiter_dir.mkdir(parents=True)
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [DEPENDENCY],
+                "cl_name": "harness-waiter",
+                "timestamp": waiter_dir.name,
+            }
+        ),
+        encoding="utf-8",
+    )
+    dep_dir = runs / "20261121000001"
+    dep_dir.mkdir()
+    (dep_dir / "agent_meta.json").write_text(
+        json.dumps({"name": DEPENDENCY, "model": "harness"}), encoding="utf-8"
+    )
+    return waiter_dir
+
+
+class _Waiter:
+    def __init__(
+        self, index: int, root: Path, args: argparse.Namespace, heartbeat_path: Path
+    ) -> None:
+        self.index = index
+        self.dir = _write_project_for(root, index)
+        self.stamp = root / f"runner-stamp-{index}"
+        self.samples: list[dict[str, Any]] = []
+        self.probe_pids: set[int] = set()
+        self.probe_peak_rss_kb = 0
+        now = time.time()
+        spec = {
+            "version": 1,
+            "artifacts_dir": str(self.dir),
+            "project_name": PROJECT,
+            "runner_argv": [sys.executable, str(root / "fake_runner.py")],
+            "mode": "dependency",
+            "deadline_epoch": None,
+            "heartbeat_path": str(heartbeat_path),
+            "bead_sync_hint": False,
+            "bead_sync_role": "beads",
+            "blocked_since": now - 30,
+            "handed_off_at": now,
+        }
+        if args.probe_interval is not None:
+            spec["probe_interval_s"] = args.probe_interval
+        if args.healthy_interval is not None:
+            spec["healthy_probe_interval_s"] = args.healthy_interval
+        # Fail loudly if the harness drifts from the waiter's handoff contract.
+        _contract()[0].validate_lean_wait_spec(spec)
+        env = {
+            **os.environ,
+            "SASE_HOME": str(root / "home"),
+            "HARNESS_RUNNER_STAMP": str(self.stamp),
+            SPEC_ENV: json.dumps(spec),
+        }
+        env.pop("SASE_RUNNER_LEAN_WAIT_RESULT", None)
+        self.proc = subprocess.Popen(
+            [sys.executable, str(WAITER), "harness"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self.started = time.monotonic()
+
+    def watch_children(self) -> None:
+        for child in _children(self.proc.pid):
+            self.probe_pids.add(child)
+            rss = _status_kb(child).get("VmHWM", 0)
+            self.probe_peak_rss_kb = max(self.probe_peak_rss_kb, rss)
+
+    def sample(self) -> None:
+        status = _status_kb(self.proc.pid)
+        ticks = _cpu_ticks(self.proc.pid)
+        if not status or ticks is None:
+            return
+        self.samples.append(
+            {
+                "t": time.monotonic() - self.started,
+                "vmrss_kb": status.get("VmRSS"),
+                "rss_anon_kb": status.get("RssAnon"),
+                "rss_file_kb": status.get("RssFile"),
+                "pss_kb": _pss_kb(self.proc.pid),
+                "threads": status.get("Threads"),
+                "own_ticks": ticks[0],
+                "child_ticks": ticks[1],
+            }
+        )
+
+
+def _write_project_for(root: Path, index: int) -> Path:
+    if index == 0:
+        return _write_project(root / "home")
+    # Extra waiters share the project but get their own artifacts dir.
+    runs = root / "home" / "projects" / PROJECT / "artifacts" / "ace-run"
+    waiter_dir = runs / f"20261121010{index:03d}"
+    waiter_dir.mkdir(parents=True)
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [DEPENDENCY],
+                "cl_name": f"harness-waiter-{index}",
+                "timestamp": waiter_dir.name,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return waiter_dir
+
+
+def _summarize(waiter: _Waiter, settle: float) -> dict[str, Any]:
+    samples = waiter.samples
+    steady = [s for s in samples if s["t"] >= settle] or samples
+    summary: dict[str, Any] = {
+        "samples": len(samples),
+        "probes_observed": len(waiter.probe_pids),
+    }
+    if not steady:
+        return summary
+    for key in ("vmrss_kb", "rss_anon_kb", "rss_file_kb", "pss_kb"):
+        values = [s[key] for s in steady if s[key] is not None]
+        if values:
+            summary[key] = {"median": statistics.median(values), "max": max(values)}
+    first, last = steady[0], steady[-1]
+    window = max(last["t"] - first["t"], 1e-9)
+    own = last["own_ticks"] - first["own_ticks"]
+    children = last["child_ticks"] - first["child_ticks"]
+    summary["window_s"] = round(window, 1)
+    summary["own_ticks"] = own
+    summary["child_ticks"] = children
+    summary["cpu_pct_own"] = round(own / CLK_TCK / window * 100, 4)
+    summary["cpu_pct_total"] = round((own + children) / CLK_TCK / window * 100, 4)
+    summary["total_ticks_since_start"] = last["own_ticks"] + last["child_ticks"]
+    summary["probe_child_peak_rss_kb"] = waiter.probe_peak_rss_kb
+    if waiter.probe_pids:
+        summary["cpu_s_per_probe"] = round(
+            last["child_ticks"] / CLK_TCK / max(len(waiter.probe_pids), 1), 3
+        )
+    return summary
+
+
+def _end_run(waiters: list[_Waiter], action: str) -> dict[str, Any]:
+    latencies: list[float] = []
+    if action == "release":
+        marks: list[float] = []
+        for waiter in waiters:
+            marks.append(time.time())
+            (waiter.dir / "ready.json").write_text(
+                json.dumps({"released_by": "harness"}), encoding="utf-8"
+            )
+        for waiter, mark in zip(waiters, marks, strict=True):
+            waiter.proc.wait(timeout=60)
+            latencies.append(float(waiter.stamp.read_text()) - mark)
+        return {"release_latency_s": [round(v, 3) for v in latencies]}
+    marks = []
+    for waiter in waiters:
+        marks.append(time.monotonic())
+        os.kill(waiter.proc.pid, signal.SIGTERM)
+    for waiter, mark in zip(waiters, marks, strict=True):
+        waiter.proc.wait(timeout=60)
+        latencies.append(time.monotonic() - mark)
+    return {"kill_latency_s": [round(v, 3) for v in latencies]}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--heartbeat", choices=("fresh", "stale"), required=True)
+    parser.add_argument("--minutes", type=float, default=10.0)
+    parser.add_argument("--waiters", type=int, default=1)
+    parser.add_argument("--end-action", choices=("release", "term"), default="release")
+    parser.add_argument("--sample-seconds", type=float, default=10.0)
+    parser.add_argument("--probe-interval", type=float, default=None)
+    parser.add_argument("--healthy-interval", type=float, default=None)
+    parser.add_argument("--json", type=Path, default=None)
+    args = parser.parse_args()
+    if sys.platform != "linux":
+        print("lean_wait_harness needs /proc (Linux)", file=sys.stderr)
+        return 2
+
+    root = Path(tempfile.mkdtemp(prefix="lean-wait-harness-"))
+    (root / "fake_runner.py").write_text(FAKE_RUNNER, encoding="utf-8")
+    # Everything below, including the in-process heartbeat stamp, stays inside
+    # this private SASE_HOME; the waiters inherit it.
+    os.environ["SASE_HOME"] = str(root / "home")
+    heartbeat_module = _contract()[1]
+    heartbeat_path = heartbeat_module.wait_checks_heartbeat_path()
+    waiters: list[_Waiter] = []
+    result: dict[str, Any] = {}
+    try:
+        if args.heartbeat == "fresh":
+            heartbeat_module.stamp_wait_checks_heartbeat()
+        # Append one at a time so a failure mid-spawn still cleans up the rest.
+        for index in range(args.waiters):
+            waiters.append(_Waiter(index, root, args, heartbeat_path))
+        end = time.monotonic() + args.minutes * 60
+        next_sample = 0.0
+        next_stamp = time.monotonic() + HEARTBEAT_STAMP_SECONDS
+        while time.monotonic() < end:
+            now = time.monotonic()
+            for waiter in waiters:
+                if waiter.proc.poll() is not None:
+                    raise RuntimeError(
+                        f"waiter {waiter.index} exited early ({waiter.proc.returncode})"
+                    )
+                waiter.watch_children()
+            if now >= next_sample:
+                for waiter in waiters:
+                    waiter.sample()
+                next_sample = now + args.sample_seconds
+            if args.heartbeat == "fresh" and now >= next_stamp:
+                heartbeat_module.stamp_wait_checks_heartbeat()
+                next_stamp = now + HEARTBEAT_STAMP_SECONDS
+            time.sleep(0.1)
+        for waiter in waiters:
+            waiter.sample()
+        result = {
+            "heartbeat": args.heartbeat,
+            "minutes": args.minutes,
+            "waiters": [_summarize(w, SETTLE_SECONDS) for w in waiters],
+        }
+        result.update(_end_run(waiters, args.end_action))
+    finally:
+        for waiter in waiters:
+            if waiter.proc.poll() is None:
+                waiter.proc.kill()
+                waiter.proc.wait(timeout=30)
+        shutil.rmtree(root, ignore_errors=True)
+    text = json.dumps(result, indent=2)
+    print(text)
+    if args.json is not None:
+        args.json.write_text(text + "\n", encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

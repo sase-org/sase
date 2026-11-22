@@ -6,7 +6,6 @@ set directly, both as an up-front fast path and as a periodic fallback so a chop
 outage cannot strand a waiting agent forever.
 """
 
-import json
 import os
 import time
 from collections.abc import Iterable, Mapping
@@ -15,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.run_agent_wait_markers import read_json_dict
+from sase.axe.run_agent_wait_ready import ReadyResult as ReadyResult
+from sase.axe.run_agent_wait_ready import read_ready_result as read_ready_result
 from sase.bead.wait_status import closed_bead_ids_for_waits
 from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
@@ -51,24 +52,6 @@ class _DependencyResolution:
 
     resolved: bool = False
     satisfied_at: float | None = None
-
-    def __bool__(self) -> bool:
-        return self.resolved
-
-
-@dataclass(frozen=True)
-class _ReadyResult:
-    """Runner-side ``ready.json`` read outcome plus telemetry.
-
-    Truthy exactly when the marker releases the wait. ``released_by`` and
-    ``dependencies_satisfied_at`` come straight from the marker payload;
-    ``unwait`` marks a manual (TUI run-now) release.
-    """
-
-    resolved: bool = False
-    released_by: str | None = None
-    unwait: bool = False
-    dependencies_satisfied_at: float | None = None
 
     def __bool__(self) -> bool:
         return self.resolved
@@ -379,49 +362,6 @@ def _release_satisfied_at(
         )
     except Exception:  # noqa: BLE001 - telemetry must never un-release.
         return None
-
-
-def _ready_float(value: object) -> float | None:
-    """Return a numeric epoch from a marker payload value, else None."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
-def read_ready_result(ready_path: str) -> _ReadyResult:
-    """Return whether a ready marker resolves the wait.
-
-    A torn or otherwise unreadable marker is treated as not ready; the
-    runner retries on its next poll (and the periodic fallback, which
-    never reads ``ready.json``, still bounds the wait). Cancellation
-    markers written by older SASE versions are stale state. Remove them
-    and keep waiting for an actual successful resolution marker.
-    """
-    waiting_data = read_json_dict(Path(ready_path).with_name("waiting.json"))
-    if waiting_data is not None and waiting_data.get("cancelled_by_hijack") is True:
-        return _ReadyResult(False)
-    try:
-        with open(ready_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return _ReadyResult(False)
-    if not isinstance(data, dict):
-        return _ReadyResult(False)
-    if not data.get("cancelled"):
-        released_by = data.get("released_by")
-        return _ReadyResult(
-            True,
-            released_by if isinstance(released_by, str) else None,
-            bool(data.get("unwait", False)),
-            _ready_float(data.get("dependencies_satisfied_at")),
-        )
-    try:
-        os.unlink(ready_path)
-    except OSError:
-        pass
-    return _ReadyResult(False)
 
 
 def waiting_marker_dependencies_resolved(

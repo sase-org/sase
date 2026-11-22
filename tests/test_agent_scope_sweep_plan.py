@@ -82,6 +82,34 @@ def test_is_agent_runner_first_three_argv() -> None:
     )
 
 
+def test_is_agent_runner_recognizes_parked_lean_waiter() -> None:
+    # A parked runner exec'd into the lean waiter: same pid, different script.
+    assert is_agent_runner(
+        _member(
+            1,
+            argv=("python", "/a/b/src/sase/axe/run_agent_lean_wait.py", "20261121"),
+        )
+    )
+    assert not is_agent_runner(
+        _member(1, argv=("python", "-u", "-X", "run_agent_lean_wait.py"))
+    )
+
+
+def test_lean_waiter_script_name_matches_the_waiter_module() -> None:
+    import os
+
+    from sase.agent._scope_sweep_types import (
+        LEAN_WAITER_SCRIPT_NAME,
+        RUNNER_SCRIPT_NAMES,
+        RUNNER_SCRIPT_NAME,
+    )
+    from sase.axe import run_agent_lean_wait, run_agent_runner
+
+    assert LEAN_WAITER_SCRIPT_NAME == os.path.basename(run_agent_lean_wait.__file__)
+    assert RUNNER_SCRIPT_NAME == os.path.basename(run_agent_runner.__file__)
+    assert RUNNER_SCRIPT_NAMES == (RUNNER_SCRIPT_NAME, LEAN_WAITER_SCRIPT_NAME)
+
+
 def test_read_scope_members_skips_zombie_and_unreadable(
     tmp_path: Path,
 ) -> None:

@@ -18,6 +18,11 @@ from pathlib import Path
 AGENT_SCOPE_UNIT_PREFIX = "sase-agent"
 #: Runner script basename identifying the live runner process.
 RUNNER_SCRIPT_NAME = "run_agent_runner.py"
+#: Lean waiter basename: a runner parked on a wait ``exec``s into this script
+#: (same pid, same scope), so it still counts as the scope's runner.
+LEAN_WAITER_SCRIPT_NAME = "run_agent_lean_wait.py"
+#: Every script basename that identifies a live agent runner process.
+RUNNER_SCRIPT_NAMES: tuple[str, ...] = (RUNNER_SCRIPT_NAME, LEAN_WAITER_SCRIPT_NAME)
 
 #: Default spare patterns (matched with ``re.search`` against comm or argv).
 DEFAULT_SPARE_PROCESS_PATTERNS: tuple[str, ...] = (
@@ -103,7 +108,9 @@ class ReapResult:
 __all__ = [
     "AGENT_SCOPE_UNIT_PREFIX",
     "DEFAULT_SPARE_PROCESS_PATTERNS",
+    "LEAN_WAITER_SCRIPT_NAME",
     "RUNNER_SCRIPT_NAME",
+    "RUNNER_SCRIPT_NAMES",
     "AgentScope",
     "ReapResult",
     "ReapedScope",

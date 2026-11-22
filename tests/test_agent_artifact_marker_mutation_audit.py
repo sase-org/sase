@@ -242,7 +242,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             ),
         ),
     ),
-    "src/sase/axe/run_agent_wait_deps.py:read_ready_result": Review(
+    "src/sase/axe/run_agent_wait_ready.py:read_ready_result": Review(
         mutation_calls=("unlink",),
         exemption=(
             "Reads waiting.json to honor hijack cancellation but only removes "

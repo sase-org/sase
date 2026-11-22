@@ -105,6 +105,23 @@ def test__own_agent_scope_gates(
     )
 
 
+def test__own_agent_scope_accepts_the_parked_lean_waiter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proc_root = tmp_path / "proc"
+    scope_dir, cgroup_root = _make_scope(tmp_path, [], proc_root=proc_root)
+    monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "linux")
+    (proc_root / str(os.getpid()) / "cmdline").write_bytes(
+        b"python\0/opt/sase/src/sase/axe/run_agent_lean_wait.py\0label\0"
+    )
+    assert (
+        _own_agent_scope(proc_root=proc_root, cgroup_root=cgroup_root, enabled=True)
+        == scope_dir
+    )
+
+
 def test_sweep_never_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.agent._scope_sweep_own._own_agent_scope",

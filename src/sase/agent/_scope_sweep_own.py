@@ -21,7 +21,7 @@ from sase.agent._scope_sweep_core import (
 )
 from sase.agent._scope_sweep_types import (
     AGENT_SCOPE_UNIT_PREFIX,
-    RUNNER_SCRIPT_NAME,
+    RUNNER_SCRIPT_NAMES,
     ScopeSweepResult,
 )
 
@@ -87,7 +87,7 @@ def _own_agent_scope(
     except OSError:
         return None
     argv = [part.decode("utf-8", errors="replace") for part in raw.split(b"\0") if part]
-    if not any(PurePosixPath(arg).name == RUNNER_SCRIPT_NAME for arg in argv):
+    if not any(PurePosixPath(arg).name in RUNNER_SCRIPT_NAMES for arg in argv):
         return None
     relative = cgroup_path.lstrip("/")
     scope_dir = cgroup_root / relative

@@ -59,6 +59,7 @@ from sase.agent.multi_prompt_macros import (
 from sase.axe.run_agent_directive_identity import (
     planned_name_is_reserved_for_artifacts,
 )
+from sase.env_contracts import SASE_RUNNER_CODE_REFRESHED_ENV
 from sase.version._git import probe_git_metadata_at_ref
 from sase.version._models import HOST_DISTRIBUTION_NAME
 from sase.version._sources import (
@@ -79,7 +80,7 @@ import sase.agent.launch_timing  # noqa: F401
 import sase.core.paths  # noqa: F401
 import sase.core.managed_tmp_roots  # noqa: F401
 
-RUNNER_CODE_REFRESHED_ENV = "SASE_RUNNER_CODE_REFRESHED"
+RUNNER_CODE_REFRESHED_ENV = SASE_RUNNER_CODE_REFRESHED_ENV
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 

@@ -17,7 +17,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
 
 from sase.agent._scope_sweep_types import (
-    RUNNER_SCRIPT_NAME,
+    RUNNER_SCRIPT_NAMES,
     ScopeMember,
     ScopeSweepPlan,
     ScopeSweepResult,
@@ -144,9 +144,14 @@ def read_scope_members(
 
 
 def is_agent_runner(member: ScopeMember) -> bool:
-    """Whether *member* looks like the agent runner process."""
+    """Whether *member* looks like the agent runner process.
+
+    A runner parked in its lean waiter has the same pid but a different script,
+    so both count; otherwise the orphan reaper would see a parked scope as having
+    no runner.
+    """
     for arg in member.argv[:3]:
-        if PurePosixPath(arg).name == RUNNER_SCRIPT_NAME:
+        if PurePosixPath(arg).name in RUNNER_SCRIPT_NAMES:
             return True
     return False
 

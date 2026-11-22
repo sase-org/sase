@@ -331,6 +331,40 @@ def test_reap_live_runner_with_leftovers_untouched(
     assert result.terminated == 0
 
 
+def test_reap_parked_lean_waiter_scope_is_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runner parked in its lean waiter still counts as the scope's runner."""
+    _linux(monkeypatch)
+    proc_root = tmp_path / "proc"
+    cgroup_root = tmp_path / "cgroup"
+    unit = f"sase-agent-22-{_OLD_NS}.scope"
+    _write_proc(
+        proc_root,
+        2201,
+        ["python", "/src/sase/axe/run_agent_lean_wait.py", "20261121"],
+        start_ticks=211,
+    )
+    _write_proc(proc_root, 2202, ["probe-child"], ppid=2201, start_ticks=212)
+    _make_scope(cgroup_root, unit, [2201, 2202], proc_root=proc_root)
+    calls: list[tuple[int, int]] = []
+    clock = _Clock()
+    result = reap_orphaned_agent_scopes(
+        apply=True,
+        min_age_seconds=0,
+        cgroup_root=cgroup_root,
+        proc_root=proc_root,
+        grace_seconds=0,
+        now_ns=_NOW_NS,
+        kill=lambda pid, sig: calls.append((pid, int(sig))),
+        clock=clock.clock,
+        sleep=clock.sleep,
+    )
+    assert result.live == 1
+    assert result.reaped == ()
+    assert calls == []
+
+
 def test_reap_agent_name_missing_when_no_environ(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

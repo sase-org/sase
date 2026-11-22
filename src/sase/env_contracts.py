@@ -17,6 +17,17 @@ SASE_INSTRUCTIONS_FILE_ENV = "SASE_INSTRUCTIONS_FILE"
 SASE_LAUNCH_SCRATCH_KEY_ENV = "SASE_LAUNCH_SCRATCH_KEY"
 SASE_LAUNCH_SUBMITTED_AT_ENV = "SASE_LAUNCH_SUBMITTED_AT"
 SASE_WORKSPACE_DIR_ENV_VARS: tuple[str, ...] = ("SASE_GIT_WORKSPACE_DIR",)
+#: Set to ``0`` to keep every dependency or time wait in the full runner process
+#: instead of exec'ing the lean waiter (``axe/run_agent_lean_wait.py``). A
+#: diagnostic override, like ``SASE_TUI_GC_POLICY_DISABLE``; unset means lean.
+SASE_RUNNER_LEAN_WAIT_ENV = "SASE_RUNNER_LEAN_WAIT"
+#: JSON handoff spec the runner passes to the lean waiter across ``exec``.
+SASE_RUNNER_LEAN_WAIT_SPEC_ENV = "SASE_RUNNER_LEAN_WAIT_SPEC"
+#: JSON outcome the lean waiter passes back to the runner across ``exec``.
+SASE_RUNNER_LEAN_WAIT_RESULT_ENV = "SASE_RUNNER_LEAN_WAIT_RESULT"
+#: One-shot guard marking a runner pass that already crossed its wait, whether
+#: through a code refresh re-exec or the lean waiter's return exec.
+SASE_RUNNER_CODE_REFRESHED_ENV = "SASE_RUNNER_CODE_REFRESHED"
 PROVIDER_PROJECT_DIR_ENV_VARS: tuple[str, ...] = (
     "CODEX_PROJECT_DIR",
     SASE_ACTIVE_PROJECT_DIR_ENV,

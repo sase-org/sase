@@ -3,7 +3,7 @@
 Covers the ``release-telemetry`` phase: ``latest_member_finished_at``,
 ``wait_checks`` ``ready.json`` payloads (``released_by`` /
 ``dependencies_satisfied_at``), the runner's ``_DependencyResolution`` /
-``_ReadyResult`` telemetry, ``wait_release_source`` stamping in
+``ReadyResult`` telemetry, ``wait_release_source`` stamping in
 ``agent_meta.json``, and ``admission_latency_s`` / ``runner_slot_wait_s``.
 """
 
@@ -22,7 +22,7 @@ from sase.axe.run_agent_markers import record_run_started_at
 from sase.axe.run_agent_wait import wait_for_dependencies
 from sase.axe.run_agent_wait_deps import (
     _DependencyResolution,
-    _ReadyResult,
+    ReadyResult,
     read_ready_result,
 )
 from sase.axe.run_agent_wait_markers import record_wait_completed_at
@@ -103,8 +103,8 @@ def test_latest_member_finished_at_takes_max_and_ignores_unknown(
 def test_dependency_resolution_and_ready_result_bool_contract() -> None:
     assert bool(_DependencyResolution(True, 1.0)) is True
     assert bool(_DependencyResolution(False)) is False
-    assert bool(_ReadyResult(True, "wait_checks", False, 1.0)) is True
-    assert bool(_ReadyResult(False)) is False
+    assert bool(ReadyResult(True, "wait_checks", False, 1.0)) is True
+    assert bool(ReadyResult(False)) is False
 
 
 def test_read_ready_result_carries_release_telemetry(tmp_path: Path) -> None:

@@ -16,6 +16,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from sase.axe.wait_checks_heartbeat import stamp_wait_checks_heartbeat
 from sase.axe.wait_marker_scan import (
     record_wait_scan_full_walk,
     scan_waiting_markers,
@@ -578,6 +579,9 @@ def _run(
 
 def main() -> None:
     run_builtin_chop("wait_checks")
+    # Only a completed run stamps: a raise above skips this, so lean waiters see
+    # the heartbeat go stale and resolve their own dependencies again.
+    stamp_wait_checks_heartbeat()
 
 
 __all__ = ["main"]

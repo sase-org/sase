@@ -13,6 +13,7 @@ from tests.test_agent_scope_sweep_execute import (
     test_execute_real_signal_only_targets_created_pids,
 )
 from tests.test_agent_scope_sweep_own import (
+    test__own_agent_scope_accepts_the_parked_lean_waiter,
     test__own_agent_scope_gates,
     test_sweep_never_raises,
     test_sweep_prints_summary_line,
@@ -21,6 +22,8 @@ from tests.test_agent_scope_sweep_own import (
 from tests.test_agent_scope_sweep_plan import (
     test_invalid_spare_regex_is_ignored,
     test_is_agent_runner_first_three_argv,
+    test_is_agent_runner_recognizes_parked_lean_waiter,
+    test_lean_waiter_script_name_matches_the_waiter_module,
     test_protect_root_descendants_survive,
     test_protect_root_pid_form,
     test_read_scope_members_skips_zombie_and_unreadable,
@@ -39,6 +42,7 @@ from tests.test_agent_scope_sweep_runner import (
 __test__ = False
 
 __all__ = [
+    "test__own_agent_scope_accepts_the_parked_lean_waiter",
     "test__own_agent_scope_gates",
     "test_exec_loop_no_sweep_for_single_turn",
     "test_exec_loop_sweeps_only_from_second_iteration",
@@ -48,6 +52,8 @@ __all__ = [
     "test_execute_real_signal_only_targets_created_pids",
     "test_invalid_spare_regex_is_ignored",
     "test_is_agent_runner_first_three_argv",
+    "test_is_agent_runner_recognizes_parked_lean_waiter",
+    "test_lean_waiter_script_name_matches_the_waiter_module",
     "test_main_sweep_failure_still_cleans_up",
     "test_main_sweeps_before_shutdown",
     "test_main_sweeps_on_agent_exception",
