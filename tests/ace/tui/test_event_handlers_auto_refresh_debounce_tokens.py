@@ -110,6 +110,104 @@ async def test_auto_refresh_tick_emits_surface_reload_trace(
     assert ticks[0]["fleet_attention_cache_polls"] == 0
     assert ticks[0]["fleet_attention_network_polls"] == 0
     assert ticks[0]["fleet_attention_changed"] == 0
+    assert ticks[0]["sanity_due"] is False
+    assert ticks[0]["surface_reasons"]["axe"] == "token_drift"
+    assert ticks[0]["surface_outcomes"]["axe"] == "applied_changed"
+    assert ticks[0]["token_change_kinds"]["axe"] == ["content"]
+    assert ticks[0]["consumer_token_drifted"]["axe"] is True
+    assert ticks[0]["consumer_token_change_kinds"]["axe"] == ["content"]
+
+    watcher_rows = [row for row in rows if row.get("event") == "refresh.watcher_stats"]
+    assert {row["watcher_source"] for row in watcher_rows} == {
+        "artifact",
+        "prompt_source",
+    }
+    assert all(row["watcher_active"] is False for row in watcher_rows)
+
+
+@pytest.mark.asyncio
+async def test_auto_refresh_trace_records_unknown_even_when_sanity_is_due(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    app = _FakeApp(watcher_active=False)
+    app._probed_surface_tokens = _surface_token_snapshot(
+        axe=2,
+        indeterminate="axe",
+    )
+    app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1
+    await app._run_auto_refresh()
+
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    ticks = [row for row in rows if row.get("span") == "refresh.auto_tick"]
+    assert len(ticks) == 1
+    assert ticks[0]["sanity_due"] is True
+    assert ticks[0]["surface_reasons"]["axe"] == "sanity"
+    assert ticks[0]["surface_outcomes"]["axe"] == "applied_changed"
+    assert ticks[0]["consumer_token_drifted"]["axe"] is True
+    assert ticks[0]["token_unknown_surfaces"] == ["axe"]
+
+
+def test_watcher_trace_samples_deltas_and_instance_resets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.event_refresh import _watcher as watcher_module
+    from sase.ace.tui.util import trace
+
+    class FakeWatcher:
+        def __init__(self, **stats: int) -> None:
+            self.values = stats
+
+        def stats(self) -> dict[str, int]:
+            return dict(self.values)
+
+    now = [100.0]
+    monkeypatch.setattr(watcher_module.time, "monotonic", lambda: now[0])
+    log = tmp_path / "watcher_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    app = _FakeApp(watcher_active=False)
+    first = FakeWatcher(inotify_readable_wakeups=1, queued_dispatches=1)
+    app._fs_watcher = first
+    app._sample_watcher_stats_for_trace()
+    first.values["inotify_readable_wakeups"] = 3
+    first.values["queued_dispatches"] = 2
+    first.values["ui_dispatches"] = 1
+    now[0] += 10.0
+    app._sample_watcher_stats_for_trace()
+
+    app._fs_watcher = FakeWatcher(inotify_readable_wakeups=4)
+    now[0] += 10.0
+    app._sample_watcher_stats_for_trace()
+    trace._flush_trace_writes()
+
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    artifact_rows = [
+        row
+        for row in rows
+        if row.get("event") == "refresh.watcher_stats"
+        and row.get("watcher_source") == "artifact"
+    ]
+    assert len(artifact_rows) == 3
+    assert artifact_rows[0]["baseline_only"] is True
+    assert artifact_rows[1]["interval_seconds"] == 10.0
+    assert artifact_rows[1]["counter_deltas"]["inotify_readable_wakeups"] == 2
+    assert artifact_rows[1]["counter_deltas"]["queued_dispatches"] == 1
+    assert artifact_rows[1]["counter_deltas"]["ui_dispatches"] == 1
+    assert artifact_rows[2]["instance_changed"] is True
+    assert artifact_rows[2]["baseline_only"] is True
+    assert artifact_rows[2]["counter_deltas"]["inotify_readable_wakeups"] == 0
 
 
 @pytest.mark.asyncio

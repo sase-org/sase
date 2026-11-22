@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
+from pathlib import Path
 
 import pytest
 from textual.app import App
@@ -33,6 +35,7 @@ __all__ = [
     "test_run_missing_candidate_stays_silent",
     "test_run_noop_without_candidates",
     "test_run_suppresses_pending_when_caches_are_fresh",
+    "test_warmup_trace_counts_candidates_and_resolution_outcomes",
     "test_warmup_does_not_block_textual_message_pump",
 ]
 
@@ -69,6 +72,46 @@ async def test_run_confirms_applies_and_clears_running(
     assert app._patched == [agent]
     assert app._bead_warmup_scan_scheduled is False
     assert app._bead_warmup_scan_running is False
+
+
+@pytest.mark.asyncio
+async def test_warmup_trace_counts_candidates_and_resolution_outcomes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    app = FakeApp()
+    agent = make_agent(agent_name="sase-x.3", cl_name="feat", raw_suffix="1")
+    app._agents = [agent]
+    app._agents_with_children = [agent]
+    app._bead_warmup_scan_scheduled = True
+    app._bead_warmup_scheduled_candidates = _AgentBeadWarmupCandidates(
+        bead_display_agents=(agent,),
+        candidates_examined=1,
+        cause_counts=(("cold", 1),),
+    )
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", confirmed_lookup)
+
+    await app._run_bead_confirmation_warmup()
+
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    spans = [
+        row for row in rows if row.get("span") == "agents.bead_confirmation_warmup"
+    ]
+    assert len(spans) == 1
+    assert spans[0]["candidates_examined"] == 1
+    assert spans[0]["candidate_causes"] == {"cold": 1}
+    assert spans[0]["bead_display_candidates"] == 1
+    assert spans[0]["bead_display_heavy_resolutions"] == 1
+    assert spans[0]["bead_display_changed_outcomes"] == 1
+    assert spans[0]["bead_display_unchanged_outcomes"] == 0
 
 
 @pytest.mark.asyncio

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -39,6 +41,7 @@ from tests.ace.tui._agent_archive_controller_helpers import (
 
 __all__ = [
     "test_adjacent_selection_fallback",
+    "test_archive_trace_counts_probe_reuse_and_apply_outcomes",
     "test_coalesced_idle_does_not_publish_false_missing_for_queued_open",
     "test_idle_with_pending_exact_name_does_not_short_circuit_unchanged",
     "test_lookup_miss_clears_pending_and_publishes_missing",
@@ -48,6 +51,48 @@ __all__ = [
     "test_overlapping_idle_rebuilds_coalesce_to_one_in_flight",
     "test_queued_explicit_open_drains_on_idle_tick",
 ]
+
+
+@pytest.mark.asyncio
+async def test_archive_trace_counts_probe_reuse_and_apply_outcomes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+    owner = make_owner()
+    spawn, _builds, _facets = instrument(owner, tokens=archive_tokens())
+
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
+
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    builds = [row for row in rows if row.get("span") == "agents.archive_build"]
+    assert len(builds) == 2
+    assert builds[0]["idle_probe_count"] == 0
+    assert builds[0]["facet_load_count"] == 1
+    assert builds[0]["corpus_lookup_count"] == 1
+    assert builds[0]["outcome"] == "built"
+    assert builds[1]["idle_probe_count"] == 1
+    assert builds[1]["changed_token_components"] == []
+    assert builds[1]["facet_load_count"] == 0
+    assert builds[1]["corpus_lookup_count"] == 0
+    assert builds[1]["outcome"] == "unchanged"
+
+    applies = [row for row in rows if row.get("event") == "agents.archive_apply"]
+    assert [row["outcome"] for row in applies] == [
+        "applied_changed",
+        "read_unchanged",
+    ]
+    assert [row["changed_apply_count"] for row in applies] == [1, 0]
+    assert [row["unchanged_apply_count"] for row in applies] == [0, 1]
 
 
 @pytest.mark.asyncio

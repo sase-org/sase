@@ -8,7 +8,7 @@ from typing import Any
 
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ..agents._notification_utils import request_notification_agents_refresh
-from ...util.trace import tui_trace
+from ...util.trace import is_enabled as tui_trace_enabled, tui_trace
 from ._artifact_paths import agent_has_live_file_panel
 from ._auto_refresh_attention import EventAutoRefreshAttentionMixin
 from ._auto_refresh_tokens import EventAutoRefreshTokenMixin
@@ -75,6 +75,7 @@ class EventAutoRefreshSurfacesMixin(
             "fleet_attention_modes": "",
             "fleet_attention_outcome": "",
         }
+        refresh_counters: dict[str, Any] | None = {} if tui_trace_enabled() else None
         completed_attention_counters = getattr(
             self,
             "_consume_fleet_attention_inventory_completed_counters",
@@ -96,12 +97,28 @@ class EventAutoRefreshSurfacesMixin(
                 axe_file_opens = await self._run_auto_refresh_surfaces(
                     reloaded,
                     attention_counters=attention_counters,
+                    refresh_counters=refresh_counters,
                 )
             finally:
+                sample_watcher_stats = getattr(
+                    self,
+                    "_sample_watcher_stats_for_trace",
+                    None,
+                )
+                if callable(sample_watcher_stats):
+                    sample_watcher_stats()
                 extra["surfaces_reloaded"] = len(reloaded)
                 extra["surfaces"] = ",".join(reloaded)
                 extra["axe_file_opens"] = axe_file_opens
                 extra.update(attention_counters)
+                if refresh_counters is not None:
+                    refresh_counters["token_unknown_surfaces"] = sorted(
+                        set(refresh_counters.get("token_unknown_surfaces", ()))
+                    )
+                    refresh_counters["raw_token_changed_surfaces"] = sorted(
+                        refresh_counters.get("token_change_kinds", {})
+                    )
+                    extra.update(refresh_counters)
                 refreshed_at = time.monotonic()
                 for surface in reloaded:
                     note_surface_refreshed(self, surface, now=refreshed_at)
@@ -111,6 +128,7 @@ class EventAutoRefreshSurfacesMixin(
         reloaded: list[str],
         *,
         attention_counters: dict[str, Any] | None = None,
+        refresh_counters: dict[str, Any] | None = None,
     ) -> int:
         """Run one auto-refresh pass, appending reloaded surface names."""
         axe_file_opens = 0
@@ -123,6 +141,83 @@ class EventAutoRefreshSurfacesMixin(
             now_mono - getattr(self, "_last_full_sanity_refresh", 0.0)
             >= sanity_interval
         )
+        if refresh_counters is not None:
+            refresh_counters.update(
+                {
+                    "sanity_due": sanity_due,
+                    "watcher_active": watcher_active,
+                    "surface_reasons": {},
+                    "surface_outcomes": dict.fromkeys(
+                        ("axe", "agents", "notifications", "patches"), "skipped"
+                    ),
+                    "token_change_kinds": {},
+                }
+            )
+
+        def _record_reason(surface: str, reason: str) -> None:
+            if refresh_counters is not None:
+                refresh_counters["surface_reasons"][surface] = reason
+
+        def _refresh_reason(
+            surface: str,
+            *,
+            flag_name: str | None = None,
+            use_watcher_dirty: bool = True,
+        ) -> str:
+            consumer_drifted = False
+            if refresh_counters is not None:
+                consumer_drifted = self._surface_token_consumer_drifted(
+                    current_tokens,
+                    surface,
+                )
+                refresh_counters.setdefault("consumer_token_drifted", {})[surface] = (
+                    consumer_drifted
+                )
+                if consumer_drifted:
+                    consumer_kinds = self._surface_token_change_kinds(
+                        current_tokens,
+                        surface,
+                    )
+                    refresh_counters.setdefault("consumer_token_change_kinds", {})[
+                        surface
+                    ] = list(consumer_kinds)
+                    if consumer_kinds == ("unknown",):
+                        refresh_counters.setdefault(
+                            "token_unknown_surfaces", []
+                        ).append(surface)
+            if refresh_counters is not None and self._surface_token_raw_drifted(
+                current_tokens,
+                surface,
+            ):
+                raw_kinds = self._surface_token_change_kinds(
+                    current_tokens,
+                    surface,
+                    consumed_only=False,
+                )
+                refresh_counters["token_change_kinds"][surface] = list(raw_kinds)
+            if sanity_due:
+                reason = "sanity"
+            elif (
+                use_watcher_dirty
+                and watcher_active
+                and flag_name is not None
+                and bool(getattr(self, flag_name, True))
+            ):
+                reason = "watcher_dirty"
+            else:
+                drifted = (
+                    consumer_drifted
+                    if refresh_counters is not None
+                    else self._surface_token_drifted(current_tokens, surface)
+                )
+                if drifted:
+                    kinds = self._surface_token_change_kinds(current_tokens, surface)
+                    reason = "token_unknown" if kinds == ("unknown",) else "token_drift"
+                else:
+                    reason = "unchanged"
+            _record_reason(surface, reason)
+            return reason
+
         current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
         # Hidden startup work holds axe collects, sanity/broad Agents
         # loads, and Patch reloads. Cheap stat-only token probes above
@@ -131,7 +226,12 @@ class EventAutoRefreshSurfacesMixin(
         # probe accepted when the startup Agents load succeeds.
         if not getattr(self, "_startup_deferred_loads_released", True):
             self._accept_startup_hold_surface_tokens(current_tokens)
+            if refresh_counters is not None:
+                refresh_counters["startup_hold"] = True
             return axe_file_opens
+
+        if refresh_counters is not None:
+            refresh_counters["startup_hold"] = False
 
         from sase.project_display_names import (
             project_display_snapshot_is_warm,
@@ -233,11 +333,7 @@ class EventAutoRefreshSurfacesMixin(
                     attention_counters["fleet_attention_skipped"] += 1
 
         def _should_refresh(flag_name: str, surface: str) -> bool:
-            if sanity_due:
-                return True
-            if watcher_active and bool(getattr(self, flag_name, True)):
-                return True
-            return self._surface_token_drifted(current_tokens, surface)
+            return _refresh_reason(surface, flag_name=flag_name) != "unchanged"
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING
         # transitions) -- but skip the disk poll on idle ticks when the
@@ -251,7 +347,15 @@ class EventAutoRefreshSurfacesMixin(
         startup_axe_busy = getattr(
             self, "_startup_axe_surface_started", False
         ) and not getattr(self, "_axe_first_load_done", False)
-        axe_due = sanity_due or self._surface_token_drifted(current_tokens, "axe")
+        axe_due = (
+            _refresh_reason(
+                "axe",
+                use_watcher_dirty=False,
+            )
+            != "unchanged"
+        )
+        if refresh_counters is not None:
+            refresh_counters["surface_outcomes"]["axe"] = "skipped"
         if (not startup_axe_busy) and not axe_due:
             self._dirty_axe = False
         if (not startup_axe_busy) and axe_due:
@@ -291,9 +395,20 @@ class EventAutoRefreshSurfacesMixin(
                     if refreshed:
                         self._dirty_axe = False
                         self._accept_surface_token("axe", current_tokens)
-                        if not getattr(self, "_axe_last_apply_skipped", False):
+                        if getattr(self, "_axe_last_apply_skipped", False):
+                            if refresh_counters is not None:
+                                refresh_counters["surface_outcomes"]["axe"] = (
+                                    "read_unchanged"
+                                )
+                        else:
+                            if refresh_counters is not None:
+                                refresh_counters["surface_outcomes"]["axe"] = (
+                                    "applied_changed"
+                                )
                             reloaded.append("axe")
                             axe_file_opens = self._axe_collector_file_opens()
+                elif refresh_counters is not None:
+                    refresh_counters["surface_reasons"]["axe"] = "refresh_in_flight"
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # AXE loader mixin; production always takes the guarded path.
@@ -310,6 +425,8 @@ class EventAutoRefreshSurfacesMixin(
                     await load_axe()
                 self._dirty_axe = False
                 self._accept_surface_token("axe", current_tokens)
+                if refresh_counters is not None:
+                    refresh_counters["surface_outcomes"]["axe"] = "applied_changed"
                 if not getattr(self, "_axe_last_apply_skipped", False):
                     reloaded.append("axe")
                     axe_file_opens = self._axe_collector_file_opens()
@@ -327,6 +444,8 @@ class EventAutoRefreshSurfacesMixin(
             or agent_delta_ready
             or project_labels_changed
         )
+        if project_labels_changed and refresh_counters is not None:
+            refresh_counters["surface_reasons"]["agents"] = "project_labels_changed"
         # Tab-gate: broad (expensive) agent loads are deferred until the
         # user is actually looking at the Agents tab, or the sanity-floor
         # escape hatch below fires. A queued, bounded exact artifact-delta
@@ -341,6 +460,7 @@ class EventAutoRefreshSurfacesMixin(
             and self.current_tab != "agents"
         ):
             agents_due = False
+            _record_reason("agents", "tab_gated")
         # Debounce: floor the auto-refresh tick to one load per window
         # regardless of how often inotify re-arms ``_dirty_agents``.
         # Leaves the dirty flag set so the next eligible tick retries.
@@ -348,6 +468,7 @@ class EventAutoRefreshSurfacesMixin(
             since_last = now_mono - getattr(self, "_last_agents_load_mono", 0.0)
             if since_last < AGENTS_LOAD_MIN_INTERVAL_SECONDS:
                 agents_due = False
+                _record_reason("agents", "debounced")
         # Notification polling is its own surface so an idle tick (no
         # new notifications) skips the on-disk snapshot read. The
         # gating mirrors the other surfaces: poll on every tick when
@@ -368,6 +489,12 @@ class EventAutoRefreshSurfacesMixin(
             self._dirty_notifications = False
             self._accept_surface_token("notifications", current_tokens)
             reloaded.append("notifications")
+            if refresh_counters is not None:
+                refresh_counters["surface_outcomes"]["notifications"] = (
+                    "applied_changed" if new_agent_notification else "read_unchanged"
+                )
+        elif refresh_counters is not None:
+            refresh_counters["surface_outcomes"]["notifications"] = "skipped"
 
         # An arrival observed by this tick's own poll must still queue its
         # exact delta even when the tick returns early below. The request
@@ -384,20 +511,31 @@ class EventAutoRefreshSurfacesMixin(
         # Skip patch/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
         if getattr(self, "_hint_mode_active", False):
+            if refresh_counters is not None:
+                refresh_counters["activity_gate"] = "hint"
             _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_entry_jump_mode_active", False):
+            if refresh_counters is not None:
+                refresh_counters["activity_gate"] = "entry_jump"
             _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_panel_fold_hint_mode_active", False):
+            if refresh_counters is not None:
+                refresh_counters["activity_gate"] = "panel_fold_hint"
             _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_accept_mode_active", False):
+            if refresh_counters is not None:
+                refresh_counters["activity_gate"] = "accept"
             _request_tick_arrival_delta()
             return axe_file_opens
 
         # Skip if a background agent load is already in progress
         if self._agents_loading:
+            if refresh_counters is not None:
+                refresh_counters["activity_gate"] = "agents_loading"
+                refresh_counters["surface_outcomes"].setdefault("agents", "skipped")
             _request_tick_arrival_delta()
             return axe_file_opens
 
@@ -420,6 +558,10 @@ class EventAutoRefreshSurfacesMixin(
             if can_consume_delta and self._consume_agent_artifact_delta_refresh(
                 source="watcher"
             ):
+                if refresh_counters is not None:
+                    refresh_counters["agent_load_kind"] = "exact_delta"
+                    refresh_counters["agent_load_reason"] = "watcher_delta"
+                    refresh_counters["surface_outcomes"]["agents"] = "applied_changed"
                 self._dirty_agents = False
                 self._last_agents_load_mono = time.monotonic()
                 self._accept_surface_token("agents", current_tokens)
@@ -429,9 +571,21 @@ class EventAutoRefreshSurfacesMixin(
                 # not be applied (e.g. the delta consumer failed) leaves
                 # the dirty state in place for the next Agents-tab entry
                 # or sanity pass instead of escalating to a broad load.
-                pass
+                if refresh_counters is not None:
+                    refresh_counters["surface_reasons"]["agents"] = (
+                        "delta_unavailable_off_tab"
+                    )
+                    refresh_counters["surface_outcomes"]["agents"] = "skipped"
             else:
                 ran_broad_agents_load = True
+                if refresh_counters is not None:
+                    refresh_counters["agent_load_kind"] = "broad"
+                    refresh_counters["agent_load_reason"] = (
+                        fallback_reason
+                        or refresh_counters.get("surface_reasons", {}).get(
+                            "agents", "auto_refresh"
+                        )
+                    )
                 if fallback_reason is not None:
                     self._record_agent_artifact_delta_fallback(
                         fallback_reason,
@@ -454,7 +608,13 @@ class EventAutoRefreshSurfacesMixin(
                     kwargs: dict[str, Any] = {}
                     if callable_accepts_kwarg(load_agents_async, "source"):
                         kwargs["source"] = "auto_refresh"
-                    await load_agents_async(**kwargs)
+                    load_applied = await load_agents_async(**kwargs)
+                    if refresh_counters is not None:
+                        refresh_counters["surface_outcomes"]["agents"] = (
+                            "applied_changed"
+                            if load_applied is not False
+                            else "skipped"
+                        )
                     if fallback_artifact_dirs:
                         load_delta_async = getattr(
                             self,
@@ -494,8 +654,11 @@ class EventAutoRefreshSurfacesMixin(
                         )
                     self._accept_surface_token("agents", current_tokens)
                 reloaded.append("agents")
-        elif not new_agent_notification:
-            self._refresh_selected_agent_file_panel()
+        else:
+            if refresh_counters is not None:
+                refresh_counters["surface_outcomes"]["agents"] = "skipped"
+            if not new_agent_notification:
+                self._refresh_selected_agent_file_panel()
 
         if new_agent_notification and not ran_broad_agents_load:
             request_notification_agents_refresh(
@@ -521,6 +684,10 @@ class EventAutoRefreshSurfacesMixin(
                     False,
                 ):
                     await run_patches_refresh()
+                    if refresh_counters is not None:
+                        refresh_counters["surface_outcomes"]["patches"] = (
+                            "applied_changed"
+                        )
                     self._dirty_patches = False
                     self._accept_surface_token("patches", current_tokens)
                     reloaded.append("patches")
@@ -531,11 +698,14 @@ class EventAutoRefreshSurfacesMixin(
                 self._dirty_patches = False
                 self._accept_surface_token("patches", current_tokens)
                 reloaded.append("patches")
-        elif getattr(self, "current_tab", None) == "artifacts" and not (
-            patches_pane_is_visible(self)
-        ):
-            self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
-            reloaded.append("artifacts")
+        else:
+            if refresh_counters is not None:
+                refresh_counters["surface_outcomes"]["patches"] = "skipped"
+            if getattr(self, "current_tab", None) == "artifacts" and not (
+                patches_pane_is_visible(self)
+            ):
+                self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
+                reloaded.append("artifacts")
 
         if sanity_due:
             self._last_full_sanity_refresh = now_mono

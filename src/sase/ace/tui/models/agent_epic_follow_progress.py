@@ -78,6 +78,16 @@ class _EpicFollowProgressCache:
             self._entries.move_to_end(key)
             return expires_at <= now
 
+    def resolution_reason(self, key: EpicProgressCacheKey) -> str | None:
+        """Return the bounded cache cause for a progress lookup."""
+        now = monotonic()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return "cold"
+            self._entries.move_to_end(key)
+            return "ttl" if entry[0] <= now else None
+
     def set(self, key: EpicProgressCacheKey, value: _EpicFollowProgress | None) -> None:
         """Store *value* (`None` marks a known-unresolvable epic)."""
         ttl_seconds = self._miss_ttl_seconds if value is None else self._ttl_seconds
@@ -172,6 +182,29 @@ def should_resolve_epic_follow_progress(agent: Any) -> bool:
     )
 
 
+def epic_follow_progress_resolution_reason(agent: Any) -> str | None:
+    """Return ``cold`` or ``ttl`` when a followed-epic entry is stale."""
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    wait_agent = wait_display_agent(agent)  # type: ignore[arg-type]
+    project_key = _follow_progress_project_key(agent, wait_agent)
+    if project_key is None:
+        return None
+    reasons = {
+        reason
+        for epic_id in _followed_epic_ids(agent)
+        if (
+            reason := _EPIC_FOLLOW_PROGRESS_CACHE.resolution_reason(
+                (project_key, epic_id)
+            )
+        )
+        is not None
+    }
+    if "cold" in reasons:
+        return "cold"
+    return "ttl" if "ttl" in reasons else None
+
+
 def _read_epic_follow_progress(
     project_key: str,
     epic_ids: Iterable[str],
@@ -225,6 +258,8 @@ def _read_epic_follow_progress(
 
 def warm_epic_follow_progress(
     agents: Iterable[Any],
+    *,
+    telemetry: dict[str, int] | None = None,
 ) -> set[Any]:
     """Resolve stale followed-epic progress in project batches.
 
@@ -235,6 +270,8 @@ def warm_epic_follow_progress(
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     agent_list = list(agents)
+    if telemetry is not None:
+        telemetry["follow_progress_candidates_examined"] = len(agent_list)
     before: dict[Any, tuple[tuple[str, str], ...]] = {}
     for agent in agent_list:
         identity = getattr(agent, "identity", None)
@@ -264,6 +301,13 @@ def warm_epic_follow_progress(
             )
     for project_key, epics_by_id in project_epics.items():
         epic_ids = list(epics_by_id)
+        if telemetry is not None:
+            telemetry["follow_progress_heavy_resolutions"] = (
+                telemetry.get("follow_progress_heavy_resolutions", 0) + 1
+            )
+            telemetry["follow_progress_heavy_items"] = telemetry.get(
+                "follow_progress_heavy_items", 0
+            ) + len(epic_ids)
         resolved = _read_epic_follow_progress(project_key, epic_ids)
         for epic_id in epic_ids:
             _EPIC_FOLLOW_PROGRESS_CACHE.set(
@@ -287,6 +331,12 @@ def warm_epic_follow_progress(
         )
         if current != previous:
             changed.add(identity)
+    if telemetry is not None:
+        telemetry["follow_progress_fingerprint_probes"] = 0
+        telemetry["follow_progress_changed_outcomes"] = len(changed)
+        telemetry["follow_progress_unchanged_outcomes"] = max(
+            0, len(agent_list) - len(changed)
+        )
     return changed
 
 

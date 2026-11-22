@@ -234,6 +234,7 @@ class ArtifactWatcher:
         self._stat_accepted_events = 0
         self._stat_ignored_events = 0
         self._stat_rejected_events = 0
+        self._stat_queued_dispatches = 0
         self._stat_ui_dispatches = 0
         self._stat_dispatched_paths = 0
 
@@ -246,6 +247,7 @@ class ArtifactWatcher:
             "accepted_events": self._stat_accepted_events,
             "ignored_events": self._stat_ignored_events,
             "rejected_events": self._stat_rejected_events,
+            "queued_dispatches": self._stat_queued_dispatches,
             "ui_dispatches": self._stat_ui_dispatches,
             "dispatched_paths": self._stat_dispatched_paths,
         }
@@ -663,6 +665,7 @@ class ArtifactWatcher:
                 self._dispatch_change(changed_paths)
 
             self._schedule_callback(dispatch)
+            self._stat_queued_dispatches += 1
         except RuntimeError:
             # Textual rejects ``call_from_thread`` after the app exits;
             # treat that as a clean shutdown signal.

@@ -146,7 +146,11 @@ class EventAutoRefreshCapacityProbeMixin:
         except Exception:
             return True
 
-    async def _probe_machine_capacity_refresh_due(self) -> bool:
+    async def _probe_machine_capacity_refresh_due(
+        self,
+        *,
+        telemetry: dict[str, object] | None = None,
+    ) -> bool:
         """Probe the capacity token off the UI thread; True when due.
 
         Keeps the ten-second revalidation opportunity but no longer equates
@@ -155,6 +159,15 @@ class EventAutoRefreshCapacityProbeMixin:
         cheaply; only a detected input change or a time-dependent waiter
         case triggers the authoritative rebuild.
         """
+        if telemetry is not None:
+            telemetry["token_probe_count"] = 1
+            telemetry["revalidation_probe_count"] = 0
+
+        def finish(due: bool, outcome: str) -> bool:
+            if telemetry is not None:
+                telemetry["probe_outcome"] = outcome
+            return due
+
         # Clear any stale snapshot so _run never reuses a previous tick's
         # inputs for caching after a token-change rebuild.
         try:
@@ -170,13 +183,13 @@ class EventAutoRefreshCapacityProbeMixin:
         previous = getattr(self, "_machine_capacity_observed_token", None)
         self._machine_capacity_observed_token = token
         if previous is None:
-            return True
+            return finish(True, "initial_token")
         try:
             token_changed = bool(token != previous)
         except Exception:
-            return True
+            return finish(True, "token_compare_failed")
         if token_changed:
-            return True
+            return finish(True, "token_changed")
         # Fail open on indeterminate tokens: a token that cannot be proven
         # unchanged must not skip the authoritative check.
         try:
@@ -184,13 +197,15 @@ class EventAutoRefreshCapacityProbeMixin:
         except Exception:
             indeterminate = True
         if token is None or indeterminate:
-            return True
+            return finish(True, "token_unknown")
         now_mono = time.monotonic()
         last_report = float(getattr(self, "_machine_capacity_report_mono", 0.0))
         if now_mono - last_report < CAPACITY_REPORT_POLL_SECONDS:
-            return False
+            return finish(False, "within_revalidation_interval")
         # Ten-second boundary with unchanged token: cheap revalidation.
         try:
+            if telemetry is not None:
+                telemetry["revalidation_probe_count"] = 1
             now_wall = time.time()
             (
                 holds,
@@ -199,11 +214,11 @@ class EventAutoRefreshCapacityProbeMixin:
             ) = await self._fetch_capacity_revalidation_snapshot(now_wall)
         except Exception:
             log.debug("Capacity revalidation snapshot failed", exc_info=True)
-            return True
+            return finish(True, "revalidation_failed")
         # Stash for post-build caching without a second fetch.
         self._machine_capacity_probe_snapshot = (holds, override_fp, liveness)
         if not self._capacity_time_inputs_unchanged(holds, override_fp, liveness):
-            return True
+            return finish(True, "time_inputs_changed")
         if self._capacity_needs_time_authoritative_check():
-            return True
-        return False
+            return finish(True, "time_authoritative_check")
+        return finish(False, "unchanged")

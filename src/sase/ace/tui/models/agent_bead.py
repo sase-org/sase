@@ -77,6 +77,16 @@ class _BeadDisplayCache:
             self._entries.move_to_end(key)
             return expires_at <= now
 
+    def resolution_reason(self, key: BeadDisplayCacheKey) -> str | None:
+        """Return the bounded cache cause for a needed resolution."""
+        now = monotonic()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return "cold"
+            self._entries.move_to_end(key)
+            return "ttl" if entry[0] <= now else None
+
     def set(self, key: BeadDisplayCacheKey, value: str | None) -> None:
         ttl_seconds = self._miss_ttl_seconds if value is None else self._ttl_seconds
         expires_at = monotonic() + ttl_seconds
@@ -201,6 +211,12 @@ def should_resolve_bead_display(agent: Agent) -> bool:
     return _BEAD_DISPLAY_CACHE.should_resolve(key)
 
 
+def bead_display_resolution_reason(agent: Agent) -> str | None:
+    """Return ``cold`` or ``ttl`` when this display candidate needs work."""
+    key = _bead_display_cache_key(agent)
+    return _BEAD_DISPLAY_CACHE.resolution_reason(key) if key is not None else None
+
+
 def resolve_bead_display(
     agent: Agent,
     *,
@@ -235,6 +251,8 @@ def resolve_bead_display(
 
 def warm_confirmed_bead_displays(
     candidates: Iterable[Agent],
+    *,
+    telemetry: dict[str, int] | None = None,
 ) -> dict[tuple[AgentType, str, str | None], bool]:
     """Resolve uncached/expired bead candidates off the event loop.
 
@@ -246,11 +264,18 @@ def warm_confirmed_bead_displays(
     was deleted are included with ``False`` so callers patch away their glyph.
     Must only be called off the Textual event loop.
     """
+    candidate_list: Iterable[Agent] = candidates
+    candidate_count = 0
+    if telemetry is not None:
+        materialized = list(candidates)
+        candidate_list = materialized
+        candidate_count = len(materialized)
+        telemetry["bead_display_candidates_examined"] = candidate_count
     previous_by_key: dict[BeadDisplayCacheKey, str | None | object] = {}
     resolved_by_key: dict[BeadDisplayCacheKey, str | None] = {}
     results: dict[tuple[AgentType, str, str | None], bool] = {}
     with BeadIssueLookupSession() as lookup_session:
-        for agent in candidates:
+        for agent in candidate_list:
             key = _bead_display_cache_key(agent)
             if key is None:
                 continue
@@ -258,6 +283,10 @@ def warm_confirmed_bead_displays(
                 previous = _BEAD_DISPLAY_CACHE.get(key)
                 previous_by_key[key] = previous
                 if isinstance(previous, str):
+                    if telemetry is not None:
+                        telemetry["bead_display_fingerprint_probes"] = (
+                            telemetry.get("bead_display_fingerprint_probes", 0) + 1
+                        )
                     current_fingerprint = _bead_display_fingerprint(agent)
                     last_fingerprint = _BEAD_DISPLAY_CACHE.fingerprint_for(key)
                     if (
@@ -271,6 +300,10 @@ def warm_confirmed_bead_displays(
                     agent,
                     lookup_session=lookup_session,
                 )
+                if telemetry is not None:
+                    telemetry["bead_display_heavy_resolutions"] = (
+                        telemetry.get("bead_display_heavy_resolutions", 0) + 1
+                    )
                 resolved_by_key[key] = resolved
                 if isinstance(resolved, str):
                     current_fingerprint = _bead_display_fingerprint(agent)
@@ -281,6 +314,11 @@ def warm_confirmed_bead_displays(
             current_confirmed = resolved_by_key[key] is not None
             if previous_confirmed != current_confirmed:
                 results[agent.identity] = current_confirmed
+    if telemetry is not None:
+        telemetry["bead_display_changed_outcomes"] = len(results)
+        telemetry["bead_display_unchanged_outcomes"] = max(
+            0, candidate_count - len(results)
+        )
     return results
 
 

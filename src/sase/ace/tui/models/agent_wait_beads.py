@@ -102,6 +102,16 @@ class _WaitBeadStatusCache:
             self._entries.move_to_end(key)
             return expires_at <= now
 
+    def resolution_reason(self, key: WaitBeadStatusCacheKey) -> str | None:
+        """Return the bounded cache cause for a needed status lookup."""
+        now = monotonic()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return "cold"
+            self._entries.move_to_end(key)
+            return "ttl" if entry[0] <= now else None
+
     def set(self, key: WaitBeadStatusCacheKey, value: str | None) -> None:
         ttl_seconds = self._miss_ttl_seconds if value is None else self._ttl_seconds
         expires_at = monotonic() + ttl_seconds
@@ -252,8 +262,30 @@ def should_resolve_wait_bead_statuses(agent: Agent) -> bool:
     )
 
 
+def wait_bead_status_resolution_reason(agent: Agent) -> str | None:
+    """Return ``cold`` or ``ttl`` when any waited-bead cache entry is stale."""
+    wait_agent = wait_display_agent(agent)
+    bead_ids = wait_agent.waiting_for_beads
+    if not bead_ids:
+        return None
+    project_key = _wait_bead_project_key(agent, wait_agent)
+    if project_key is None:
+        return None
+    reasons = {
+        reason
+        for bead_id in bead_ids
+        if (reason := _WAIT_BEAD_STATUS_CACHE.resolution_reason((project_key, bead_id)))
+        is not None
+    }
+    if "cold" in reasons:
+        return "cold"
+    return "ttl" if "ttl" in reasons else None
+
+
 def warm_wait_bead_statuses(
     agents: Iterable[Agent],
+    *,
+    telemetry: dict[str, int] | None = None,
 ) -> set[tuple[AgentType, str, str | None]]:
     """Resolve stale waited-bead statuses in project batches.
 
@@ -261,6 +293,8 @@ def warm_wait_bead_statuses(
     happen here, so callers must run this off the Textual event loop.
     """
     agent_list = list(agents)
+    if telemetry is not None:
+        telemetry["wait_bead_status_candidates_examined"] = len(agent_list)
     before = {
         agent.identity: snapshot.projection_key()
         for agent in agent_list
@@ -283,6 +317,10 @@ def warm_wait_bead_statuses(
 
     for project_key, bead_ids_by_id in project_bead_ids.items():
         bead_ids = list(bead_ids_by_id)
+        if telemetry is not None:
+            telemetry["wait_bead_status_fingerprint_probes"] = (
+                telemetry.get("wait_bead_status_fingerprint_probes", 0) + 1
+            )
         current_fingerprint = _wait_project_fingerprint(project_key)
         last_fingerprint = _WAIT_BEAD_STATUS_CACHE.fingerprint_for(project_key)
         if current_fingerprint is not None and current_fingerprint == last_fingerprint:
@@ -304,6 +342,13 @@ def warm_wait_bead_statuses(
             if not bead_ids:
                 continue
         try:
+            if telemetry is not None:
+                telemetry["wait_bead_status_heavy_resolutions"] = (
+                    telemetry.get("wait_bead_status_heavy_resolutions", 0) + 1
+                )
+                telemetry["wait_bead_status_heavy_items"] = telemetry.get(
+                    "wait_bead_status_heavy_items", 0
+                ) + len(bead_ids)
             resolved = bead_statuses_for_project(project_key, bead_ids)
         except Exception:
             resolved = None
@@ -322,6 +367,11 @@ def warm_wait_bead_statuses(
         current = snapshot.projection_key() if snapshot is not None else None
         if current != previous:
             changed.add(agent.identity)
+    if telemetry is not None:
+        telemetry["wait_bead_status_changed_outcomes"] = len(changed)
+        telemetry["wait_bead_status_unchanged_outcomes"] = max(
+            0, len(agent_list) - len(changed)
+        )
     return changed
 
 

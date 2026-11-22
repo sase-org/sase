@@ -49,6 +49,11 @@ def test_watcher_dispatches_on_file_create(tmp_path: Path) -> None:
         (tmp_path / "new_file.json").write_text("{}")
         assert wait(fired.is_set, timeout=3.0)
         assert any(tmp_path / "new_file.json" in paths for paths in changed)
+        assert wait(
+            lambda: watcher.stats()["queued_dispatches"] == 1,
+            timeout=1.0,
+        )
+        assert watcher.stats()["ui_dispatches"] == 1
     finally:
         watcher.stop()
 

@@ -46,6 +46,7 @@ from ...models.agent_archive_view import (
     is_archive_row_key,
 )
 from ...util.pump_tasks import spawn_pump_free_task
+from ...util.trace import trace_event
 
 log = logging.getLogger(__name__)
 
@@ -474,6 +475,13 @@ def _apply_archive_result(
 ) -> None:
     state = _controller(owner)
     if snapshot.generation != state.generation:
+        trace_event(
+            "agents.archive_apply",
+            request_kind=snapshot.kind,
+            outcome="stale_generation",
+            changed_apply_count=0,
+            unchanged_apply_count=0,
+        )
         return
     state.refreshing = False
     if snapshot.kind == ARCHIVE_REQUEST_IDLE:
@@ -485,6 +493,19 @@ def _apply_archive_result(
     if display_snapshot is not None:
         state.display_snapshot = display_snapshot
     kind = result.get("kind")
+    trace_event(
+        "agents.archive_apply",
+        request_kind=snapshot.kind,
+        outcome=(
+            "read_unchanged"
+            if kind == "unchanged"
+            else "applied_changed"
+            if kind == "built"
+            else "error"
+        ),
+        changed_apply_count=int(kind == "built"),
+        unchanged_apply_count=int(kind == "unchanged"),
+    )
     if kind == "unchanged":
         # Unchanged idle results never ran a lookup; publishing from them
         # would report a false missing arrival for a queued exact-name open.

@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from ...util.pump_tasks import spawn_pump_free_task
+from ...util.trace import is_enabled as tui_trace_enabled, tui_trace
 from ._auto_refresh_capacity_probe import EventAutoRefreshCapacityProbeMixin
 from ._auto_refresh_capacity_signatures import (
     CAPACITY_REPORT_POLL_SECONDS,
@@ -175,18 +176,56 @@ class EventAutoRefreshCapacityMixin(EventAutoRefreshCapacityProbeMixin):
 
     async def _run_machine_capacity_report_refresh(self, *, generation: int) -> None:
         """Compute and publish one report, then service a coalesced request."""
+        with tui_trace("capacity.report_refresh") as telemetry:
+            trace_enabled = tui_trace_enabled()
+            if trace_enabled:
+                telemetry.update(
+                    {
+                        "probe_count": 0,
+                        "build_count": 0,
+                        "install_count": 0,
+                        "outcome": "not_started",
+                    }
+                )
+            await self._run_machine_capacity_report_refresh_body(
+                generation=generation,
+                telemetry=telemetry if trace_enabled else None,
+            )
+
+    async def _run_machine_capacity_report_refresh_body(
+        self,
+        *,
+        generation: int,
+        telemetry: dict[str, Any] | None,
+    ) -> None:
+        """Run a measured report pass while preserving its coalescing guard."""
         self._machine_capacity_refresh_scheduled = False
         if getattr(self, "_machine_capacity_refresh_running", False):
             self._machine_capacity_refresh_pending = True
+            if telemetry is not None:
+                telemetry["outcome"] = "coalesced"
             return
         self._machine_capacity_refresh_running = True
         try:
-            if not await self._probe_machine_capacity_refresh_due():
+            if telemetry is None:
+                due = await self._probe_machine_capacity_refresh_due()
+            else:
+                telemetry["probe_count"] = 1
+                due = await self._probe_machine_capacity_refresh_due(
+                    telemetry=telemetry
+                )
+            if not due:
+                if telemetry is not None:
+                    telemetry["outcome"] = "skipped_unchanged"
                 return
+            if telemetry is not None:
+                telemetry["build_count"] = 1
             report = await asyncio.to_thread(self._build_machine_capacity_report)
             if generation != int(
                 getattr(self, "_machine_capacity_refresh_generation", 0)
             ):
+                if telemetry is not None:
+                    telemetry["outcome"] = "stale_generation"
                 return
             new_visible = _capacity_report_visible_signature(report)
             last_visible = getattr(
@@ -201,12 +240,22 @@ class EventAutoRefreshCapacityMixin(EventAutoRefreshCapacityProbeMixin):
                 # invalidating metrics, repainting rows, or scheduling work.
                 self._machine_capacity_report_mono = time.monotonic()
                 await self._cache_capacity_inputs_for_revalidation(new_visible)
+                if telemetry is not None:
+                    telemetry["outcome"] = "read_unchanged"
                 return
+            if telemetry is not None:
+                telemetry["install_count"] = 1
             self._install_machine_capacity_report(report)
             await self._cache_capacity_inputs_for_revalidation(new_visible)
+            if telemetry is not None:
+                telemetry["outcome"] = "applied_changed"
         except asyncio.CancelledError:
+            if telemetry is not None:
+                telemetry["outcome"] = "cancelled"
             raise
         except Exception:
+            if telemetry is not None:
+                telemetry["outcome"] = "error"
             log.exception("Machine capacity report refresh failed")
         finally:
             self._machine_capacity_refresh_running = False

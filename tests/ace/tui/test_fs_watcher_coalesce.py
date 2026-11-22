@@ -254,6 +254,7 @@ def test_ignored_only_burst_dispatches_nothing(tmp_path: Path) -> None:
         time.sleep(0.35)  # sase-test-wait: ignored-only coalesce window
         assert changed == []
         assert watcher.stats()["ui_dispatches"] == 0
+        assert watcher.stats()["queued_dispatches"] == 0
     finally:
         watcher.stop()
 

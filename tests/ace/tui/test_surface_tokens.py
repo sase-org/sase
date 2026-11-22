@@ -9,10 +9,12 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
     SurfaceToken,
     SurfaceTokenRoots,
     agents_token_reload_kind,
+    axe_token_changed_kinds,
     axe_token_consumer_drifted,
     probe_procs_token,
     probe_surface_tokens,
     _surface_token_changed_entries,
+    surface_token_changed_kinds,
     surface_token_drifted,
 )
 
@@ -224,6 +226,8 @@ def test_lumberjack_status_is_hidden_off_services_tab(tmp_path: Path) -> None:
     assert first != second
     assert axe_token_consumer_drifted(second, first, consume_details=False) is False
     assert axe_token_consumer_drifted(second, first, consume_details=True) is True
+    assert axe_token_changed_kinds(second, first, consume_details=False) == ()
+    assert axe_token_changed_kinds(second, first, consume_details=True) == ("service",)
 
 
 def test_surface_token_equality_ignores_part_kinds() -> None:
@@ -239,6 +243,22 @@ def test_surface_token_equality_ignores_part_kinds() -> None:
     )
     assert first == second
     assert hash(first) == hash(second)
+
+
+def test_surface_token_change_kinds_avoid_dynamic_path_labels() -> None:
+    first = SurfaceToken(
+        surface="agents",
+        parts=(("/projects/demo/artifacts/123", True, 1, 1),),
+        part_kinds=("artifacts",),
+    )
+    second = SurfaceToken(
+        surface="agents",
+        parts=(("/projects/demo/artifacts/123", True, 2, 1),),
+        part_kinds=("artifacts",),
+    )
+
+    assert surface_token_changed_kinds(second, first) == ("artifacts",)
+    assert surface_token_changed_kinds(second, None) == ("unknown",)
 
 
 def test_axe_pid_change_is_consumed_off_services_tab(tmp_path: Path) -> None:

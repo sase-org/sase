@@ -22,6 +22,8 @@ from tests.ace.tui._machine_capacity_report_feed_lifecycle_tests import (
 )
 from tests.ace.tui._machine_capacity_report_feed_revalidation_tests import (
     test_changed_inspector_fields_install_when_rebuilt,
+    test_capacity_trace_counts_a_failed_build_attempt,
+    test_capacity_trace_separates_probe_build_and_install_counts,
     test_hold_expiry_without_token_change_rebuilds,
     test_inspector_open_forces_install_on_unchanged_visible,
     test_override_expiry_without_token_change_rebuilds_and_installs,
@@ -34,6 +36,8 @@ from tests.ace.tui._machine_capacity_report_feed_revalidation_tests import (
 __all__ = [
     "test_authoritative_report_drives_header_and_waiter_context_without_roster",
     "test_changed_inspector_fields_install_when_rebuilt",
+    "test_capacity_trace_counts_a_failed_build_attempt",
+    "test_capacity_trace_separates_probe_build_and_install_counts",
     "test_drift_telemetry_waits_for_two_distinct_comparisons",
     "test_each_roster_apply_uses_the_latest_report_and_keeps_an_estimate_witness",
     "test_feed_moves_from_roster_estimate_to_authoritative_report",

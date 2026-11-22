@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -114,6 +116,67 @@ async def test_unchanged_across_many_ten_second_boundaries_skips_rebuilds(
     assert app._feed_counters["builds"] == 1  # type: ignore[attr-defined]
     assert _installed_count(app) == 0
     assert app._machine_capacity_report.occupied_capacity == 5.0
+
+
+@pytest.mark.asyncio
+async def test_capacity_trace_separates_probe_build_and_install_counts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+    clock = _FakeClock(monkeypatch)
+    app = _stable_feed(lambda: make_report())
+
+    await _run_tick(app)
+    clock.advance(10.0)
+    await _run_tick(app)
+
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    spans = [row for row in rows if row.get("span") == "capacity.report_refresh"]
+    assert len(spans) == 2
+    assert spans[0]["probe_count"] == 1
+    assert spans[0]["build_count"] == 1
+    assert spans[0]["install_count"] == 1
+    assert spans[0]["outcome"] == "applied_changed"
+    assert spans[1]["probe_count"] == 1
+    assert spans[1]["probe_outcome"] == "unchanged"
+    assert spans[1]["build_count"] == 0
+    assert spans[1]["install_count"] == 0
+    assert spans[1]["outcome"] == "skipped_unchanged"
+
+
+@pytest.mark.asyncio
+async def test_capacity_trace_counts_a_failed_build_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    def fail_build() -> MachineCapacityReport:
+        raise RuntimeError("test report build failure")
+
+    app = _stable_feed(fail_build)
+    await _run_tick(app)
+
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    spans = [row for row in rows if row.get("span") == "capacity.report_refresh"]
+    assert len(spans) == 1
+    assert spans[0]["probe_count"] == 1
+    assert spans[0]["build_count"] == 1
+    assert spans[0]["install_count"] == 0
+    assert spans[0]["outcome"] == "error"
 
 
 @pytest.mark.asyncio

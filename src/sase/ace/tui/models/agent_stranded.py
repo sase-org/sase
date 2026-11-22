@@ -261,6 +261,14 @@ def should_resolve_stranded_report(project_key: str) -> bool:
     return _STRANDED_REPORT_CACHE.should_resolve(project_key)
 
 
+def stranded_report_resolution_reason(project_key: str) -> str | None:
+    """Return ``cold`` or ``ttl`` when a project report needs refreshing."""
+    entry = _STRANDED_REPORT_CACHE.entry(project_key)
+    if entry is None:
+        return "cold"
+    return "ttl" if entry.expires_at <= monotonic() else None
+
+
 def force_stranded_refresh(project_key: str) -> None:
     """Expire the cached report so the next warmup reloads it immediately."""
     _STRANDED_REPORT_CACHE.expire(project_key)
@@ -319,6 +327,7 @@ def warm_stranded_work_reports(
     *,
     force: bool = False,
     force_immediate: bool = False,
+    telemetry: dict[str, int] | None = None,
 ) -> dict[str, frozenset[str]]:
     """Refresh stale reports off the event loop and return changed bead IDs.
 
@@ -330,8 +339,17 @@ def warm_stranded_work_reports(
     changed: dict[str, frozenset[str]] = {}
     from sase.bead.stranded import load_stranded_report
 
-    for project_key in dict.fromkeys(project_keys):
+    project_list = tuple(dict.fromkeys(project_keys))
+    if telemetry is not None:
+        telemetry["stranded_candidates_examined"] = telemetry.get(
+            "stranded_candidates_examined", 0
+        ) + len(project_list)
+    for project_key in project_list:
         previous = _STRANDED_REPORT_CACHE.entry(project_key)
+        if telemetry is not None:
+            telemetry["stranded_fingerprint_probes"] = (
+                telemetry.get("stranded_fingerprint_probes", 0) + 1
+            )
         fingerprint = _project_fingerprint(project_key)
         now = monotonic()
         fingerprint_changed = (
@@ -352,6 +370,10 @@ def warm_stranded_work_reports(
             and previous.expires_at > monotonic()
         ):
             continue
+        if telemetry is not None:
+            telemetry["stranded_heavy_resolutions"] = (
+                telemetry.get("stranded_heavy_resolutions", 0) + 1
+            )
         snapshot = load_stranded_report(project_key)
         old_projection = (
             _report_projection(previous.snapshot.report) if previous is not None else ()
@@ -374,6 +396,13 @@ def warm_stranded_work_reports(
             )
             changed[project_key] = changed_ids
         _STRANDED_REPORT_CACHE.set(project_key, snapshot, fingerprint)
+    if telemetry is not None:
+        telemetry["stranded_changed_outcomes"] = telemetry.get(
+            "stranded_changed_outcomes", 0
+        ) + len(changed)
+        telemetry["stranded_unchanged_outcomes"] = telemetry.get(
+            "stranded_unchanged_outcomes", 0
+        ) + max(0, len(project_list) - len(changed))
     return changed
 
 

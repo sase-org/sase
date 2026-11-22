@@ -28,22 +28,30 @@ from ...agent_completion import (
     wait_dependency_status_counts,
 )
 from ...models.agent_bead import (
+    bead_display_resolution_reason,
     should_resolve_bead_display,
     warm_confirmed_bead_displays,
 )
 from ...models.agent_wait_beads import (
     cached_wait_bead_status_snapshot,
     should_resolve_wait_bead_statuses,
+    wait_bead_status_resolution_reason,
     warm_wait_bead_statuses,
 )
 from ...models.agent_stranded import (
+    should_resolve_stranded_report,
     stranded_project_key_for_agent,
     stranded_project_keys,
-    should_resolve_stranded_report,
+    stranded_report_resolution_reason,
     warm_stranded_work_reports,
 )
+from ...models.agent_epic_follow_progress import (
+    epic_follow_progress_resolution_reason,
+    should_resolve_epic_follow_progress,
+    warm_epic_follow_progress,
+)
 from ...util.pump_tasks import spawn_pump_free_task
-from ...util.trace import tui_trace
+from ...util.trace import is_enabled as tui_trace_enabled, tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
@@ -71,6 +79,8 @@ class _AgentBeadWarmupCandidates:
     force_stranded_immediate: bool = False
     stranded_scan_more: bool = False
     roster_generation: int = 0
+    candidates_examined: int = 0
+    cause_counts: tuple[tuple[str, int], ...] = ()
 
     def __bool__(self) -> bool:
         return bool(
@@ -118,39 +128,60 @@ class _AgentBeadWarmupResults:
 
 def _warm_agent_bead_caches(
     candidates: _AgentBeadWarmupCandidates,
+    *,
+    telemetry: dict[str, int] | None = None,
 ) -> _AgentBeadWarmupResults:
     """Warm bead display, wait-status, and follow-progress caches off-loop."""
-    bead_display_results = (
-        warm_confirmed_bead_displays(candidates.bead_display_agents)
-        if candidates.bead_display_agents
-        else {}
-    )
-    wait_bead_status_identities = (
-        warm_wait_bead_statuses(candidates.wait_bead_status_agents)
-        if candidates.wait_bead_status_agents
-        else set()
-    )
-    from ...models.agent_epic_follow_progress import warm_epic_follow_progress
-
-    follow_progress_identities = (
-        warm_epic_follow_progress(candidates.follow_progress_agents)
-        if candidates.follow_progress_agents
-        else set()
-    )
+    if telemetry is None:
+        bead_display_results = warm_confirmed_bead_displays(
+            candidates.bead_display_agents
+        )
+        wait_bead_status_identities = warm_wait_bead_statuses(
+            candidates.wait_bead_status_agents
+        )
+        follow_progress_identities = warm_epic_follow_progress(
+            candidates.follow_progress_agents
+        )
+    else:
+        bead_display_results = warm_confirmed_bead_displays(
+            candidates.bead_display_agents,
+            telemetry=telemetry,
+        )
+        wait_bead_status_identities = warm_wait_bead_statuses(
+            candidates.wait_bead_status_agents,
+            telemetry=telemetry,
+        )
+        follow_progress_identities = warm_epic_follow_progress(
+            candidates.follow_progress_agents,
+            telemetry=telemetry,
+        )
     normal_projects = tuple(
         project
         for project in candidates.stranded_projects
         if project not in candidates.force_stranded_projects
     )
-    stranded_changed = warm_stranded_work_reports(normal_projects)
+    if telemetry is None:
+        stranded_changed = warm_stranded_work_reports(normal_projects)
+    else:
+        stranded_changed = warm_stranded_work_reports(
+            normal_projects,
+            telemetry=telemetry,
+        )
     if candidates.force_stranded_projects:
-        stranded_changed.update(
-            warm_stranded_work_reports(
+        if telemetry is None:
+            forced_stranded_changed = warm_stranded_work_reports(
                 candidates.force_stranded_projects,
                 force=True,
                 force_immediate=candidates.force_stranded_immediate,
             )
-        )
+        else:
+            forced_stranded_changed = warm_stranded_work_reports(
+                candidates.force_stranded_projects,
+                force=True,
+                force_immediate=candidates.force_stranded_immediate,
+                telemetry=telemetry,
+            )
+        stranded_changed.update(forced_stranded_changed)
     return _AgentBeadWarmupResults(
         bead_display_results=bead_display_results,
         wait_bead_status_identities=wait_bead_status_identities,
@@ -273,16 +304,65 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         retry_sweep = candidates.stranded_scan_more
         failed = False
         try:
+            warmup_telemetry = (
+                {
+                    "bead_display_candidates_examined": 0,
+                    "bead_display_fingerprint_probes": 0,
+                    "bead_display_heavy_resolutions": 0,
+                    "bead_display_changed_outcomes": 0,
+                    "bead_display_unchanged_outcomes": 0,
+                    "wait_bead_status_candidates_examined": 0,
+                    "wait_bead_status_fingerprint_probes": 0,
+                    "wait_bead_status_heavy_resolutions": 0,
+                    "wait_bead_status_heavy_items": 0,
+                    "wait_bead_status_changed_outcomes": 0,
+                    "wait_bead_status_unchanged_outcomes": 0,
+                    "follow_progress_candidates_examined": 0,
+                    "follow_progress_fingerprint_probes": 0,
+                    "follow_progress_heavy_resolutions": 0,
+                    "follow_progress_heavy_items": 0,
+                    "follow_progress_changed_outcomes": 0,
+                    "follow_progress_unchanged_outcomes": 0,
+                    "stranded_candidates_examined": 0,
+                    "stranded_fingerprint_probes": 0,
+                    "stranded_heavy_resolutions": 0,
+                    "stranded_changed_outcomes": 0,
+                    "stranded_unchanged_outcomes": 0,
+                }
+                if tui_trace_enabled()
+                else None
+            )
             with tui_trace(
                 "agents.bead_confirmation_warmup",
                 candidates=candidates.total_count,
+                candidates_examined=candidates.candidates_examined,
                 bead_display_candidates=len(candidates.bead_display_agents),
                 wait_bead_status_candidates=len(candidates.wait_bead_status_agents),
                 follow_progress_candidates=len(candidates.follow_progress_agents),
+                stranded_candidates=(
+                    len(candidates.stranded_projects)
+                    + len(candidates.force_stranded_projects)
+                ),
+                candidate_causes=dict(candidates.cause_counts),
                 stranded_scan_more=candidates.stranded_scan_more,
+                pending_retry=int(
+                    source == "bead_warmup_followup"
+                    or getattr(self, "_bead_warmup_scan_pending", False)
+                ),
                 source=self._bead_warmup_scan_source,
-            ):
-                results = await asyncio.to_thread(_warm_agent_bead_caches, candidates)
+            ) as extra:
+                if warmup_telemetry is None:
+                    results = await asyncio.to_thread(
+                        _warm_agent_bead_caches,
+                        candidates,
+                    )
+                else:
+                    results = await asyncio.to_thread(
+                        _warm_agent_bead_caches,
+                        candidates,
+                        telemetry=warmup_telemetry,
+                    )
+                    extra.update(warmup_telemetry)
             forced: set[str] = getattr(self, "_bead_warmup_forced_projects", set())
             if isinstance(forced, set):
                 forced.difference_update(candidates.force_stranded_projects)
@@ -352,13 +432,27 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         rows are considered only when they are in the separately refreshed
         WAITING index or the bounded stranded-project sweep.
         """
-        from ...models.agent_epic_follow_progress import (
-            should_resolve_epic_follow_progress,
-        )
         from ._roster_generation import get_roster_generation
 
         generation = get_roster_generation(self)
-        if getattr(self, "_bead_warmup_index_generation", None) != generation:
+        previous_generation = getattr(self, "_bead_warmup_index_generation", None)
+        roster_changed = previous_generation != generation
+        trace_candidates = tui_trace_enabled()
+        candidates_examined = 0
+        cause_counts = (
+            {
+                "cold": 0,
+                "ttl": 0,
+                "forced": 0,
+                "roster": 0,
+                "pending_retry": 0,
+            }
+            if trace_candidates
+            else None
+        )
+        if roster_changed:
+            if cause_counts is not None:
+                cause_counts["roster"] = 1
             self._refresh_bead_warmup_indexes(generation)
 
         surfaced_agents = self._surfaced_bead_warmup_agents()
@@ -386,13 +480,35 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         wait_bead_status_agents: list[Agent] = []
         follow_progress_agents: list[Agent] = []
         for agent in surfaced_agents:
-            if should_resolve_bead_display(agent):
+            if trace_candidates:
+                candidates_examined += 1
+                reason = bead_display_resolution_reason(agent)
+            else:
+                reason = "needed" if should_resolve_bead_display(agent) else None
+            if reason is not None:
                 bead_display_agents.append(agent)
+                if cause_counts is not None:
+                    cause_counts[reason] += 1
         for agent in waiter_by_identity.values():
-            if should_resolve_wait_bead_statuses(agent):
+            if trace_candidates:
+                candidates_examined += 1
+                reason = wait_bead_status_resolution_reason(agent)
+            else:
+                reason = "needed" if should_resolve_wait_bead_statuses(agent) else None
+            if reason is not None:
                 wait_bead_status_agents.append(agent)
-            if should_resolve_epic_follow_progress(agent):
+                if cause_counts is not None:
+                    cause_counts[reason] += 1
+            if trace_candidates:
+                reason = epic_follow_progress_resolution_reason(agent)
+            else:
+                reason = (
+                    "needed" if should_resolve_epic_follow_progress(agent) else None
+                )
+            if reason is not None:
                 follow_progress_agents.append(agent)
+                if cause_counts is not None:
+                    cause_counts[reason] += 1
 
         forced_projects: set[str] = getattr(self, "_bead_warmup_forced_projects", set())
         if not isinstance(forced_projects, set):
@@ -412,9 +528,19 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         for project_key in visible_project_keys:
             if project_key in seen_projects or project_key in forced_project_keys:
                 continue
+            if trace_candidates:
+                candidates_examined += 1
             seen_projects.add(project_key)
-            if should_resolve_stranded_report(project_key):
+            if trace_candidates:
+                reason = stranded_report_resolution_reason(project_key)
+            else:
+                reason = (
+                    "needed" if should_resolve_stranded_report(project_key) else None
+                )
+            if reason is not None:
                 stranded_projects.append(project_key)
+                if cause_counts is not None:
+                    cause_counts[reason] += 1
             if len(stranded_projects) >= _MAX_VISIBLE_STRANDED_PROJECTS:
                 break
 
@@ -436,16 +562,35 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             stranded_cursor = (stranded_cursor + 1) % len(all_projects)
             scan_remaining -= 1
             examined += 1
+            if trace_candidates:
+                candidates_examined += 1
             if project_key in seen_projects or project_key in forced_project_keys:
                 continue
             seen_projects.add(project_key)
-            if should_resolve_stranded_report(project_key):
+            if trace_candidates:
+                reason = stranded_report_resolution_reason(project_key)
+            else:
+                reason = (
+                    "needed" if should_resolve_stranded_report(project_key) else None
+                )
+            if reason is not None:
                 stranded_projects.append(project_key)
                 background_due += 1
+                if cause_counts is not None:
+                    cause_counts[reason] += 1
         forced_batch = forced_project_keys[:_MAX_BACKGROUND_STRANDED_PROJECTS]
+        if cause_counts is not None:
+            cause_counts["forced"] = len(forced_batch)
         stranded_scan_more = scan_remaining > 0 or len(forced_project_keys) > len(
             forced_batch
         )
+        pending_retry = (
+            stranded_scan_more
+            or getattr(self, "_bead_warmup_scan_pending", False)
+            or getattr(self, "_bead_warmup_scan_source", "") == "bead_warmup_followup"
+        )
+        if cause_counts is not None:
+            cause_counts["pending_retry"] = int(bool(pending_retry))
         if scan_remaining == 0 and examined:
             scan_next_at = monotonic() + _STRANDED_REPORT_TTL_SECONDS
         self._bead_warmup_stranded_cursor = stranded_cursor
@@ -464,6 +609,12 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             ),
             stranded_scan_more=stranded_scan_more,
             roster_generation=generation,
+            candidates_examined=candidates_examined,
+            cause_counts=(
+                tuple((cause, count) for cause, count in cause_counts.items() if count)
+                if cause_counts is not None
+                else ()
+            ),
         )
 
     def _refresh_bead_warmup_indexes(self, generation: int) -> None:

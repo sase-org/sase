@@ -20,6 +20,7 @@ from ...models.agent_archive_controller import (
     ArchiveRevalidationTokens,
 )
 from ...models.agent_archive_list import archive_row_key
+from ...util.trace import is_enabled as tui_trace_enabled, tui_trace
 
 log = logging.getLogger(__name__)
 
@@ -65,18 +66,40 @@ def build_archive_result(
     snapshot: ArchiveRequestSnapshot,
 ) -> dict[str, Any]:
     """Probe, compile or reuse the handle, and query still-requested windows."""
-    try:
-        return _build_archive_result(owner, snapshot)
-    except Exception:
-        log.debug("archive corpus probe failed", exc_info=True)
-        return {"kind": "error"}
+    with tui_trace(
+        "agents.archive_build",
+        request_kind=snapshot.kind,
+    ) as telemetry:
+        try:
+            result = _build_archive_result(
+                owner,
+                snapshot,
+                telemetry=telemetry if tui_trace_enabled() else None,
+            )
+        except Exception:
+            log.debug("archive corpus probe failed", exc_info=True)
+            result = {"kind": "error"}
+        if tui_trace_enabled():
+            telemetry["outcome"] = str(result.get("kind", "error"))
+        return result
 
 
 def _build_archive_result(
     owner: Any,
     snapshot: ArchiveRequestSnapshot,
+    *,
+    telemetry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if telemetry is not None:
+        telemetry["idle_probe_count"] = int(snapshot.kind == ARCHIVE_REQUEST_IDLE)
+        telemetry["corpus_handle_reuse_count"] = 0
+        telemetry["facet_load_count"] = 0
+        telemetry["corpus_lookup_count"] = 0
     tokens = _probe_tokens(owner)
+    if telemetry is not None:
+        telemetry["changed_token_components"] = list(
+            _changed_token_components(snapshot.tokens, tokens)
+        )
     if (
         snapshot.kind == ARCHIVE_REQUEST_IDLE
         and not snapshot.pending_exact_name
@@ -89,6 +112,8 @@ def _build_archive_result(
         and snapshot.kind != ARCHIVE_REQUEST_PREWARM
         and _idle_tokens_match(snapshot, tokens)
     )
+    if telemetry is not None:
+        telemetry["corpus_handle_reuse_count"] = int(reuse_handle)
     facets = snapshot.link_facets
     display_snapshot = _load_display_snapshot(owner)
     if reuse_handle:
@@ -96,7 +121,11 @@ def _build_archive_result(
         profile = snapshot.profile
     else:
         if facets is None or _link_signature_changed(snapshot.tokens, tokens):
+            if telemetry is not None:
+                telemetry["facet_load_count"] = 1
             facets = _load_facets(owner)
+        if telemetry is not None:
+            telemetry["corpus_lookup_count"] = 1
         cached = _get_corpus(owner, tokens, facets)
         if cached is None:
             return {
@@ -108,6 +137,10 @@ def _build_archive_result(
             }
         corpus = getattr(cached, "corpus", None)
         profile = getattr(cached, "profile", None)
+        if telemetry is not None:
+            telemetry["corpus_handle_reuse_count"] = int(
+                corpus is not None and corpus is snapshot.corpus
+            )
     status_name, indexed_rows, error_message = _status_from_corpus(corpus, tokens)
     summary, windows, identities, count = _query_handle(corpus, profile, snapshot)
     return {
@@ -126,6 +159,24 @@ def _build_archive_result(
         "display_snapshot": display_snapshot,
         "lookup_row": _lookup_pending(snapshot.pending_exact_name, corpus),
     }
+
+
+def _changed_token_components(
+    held: ArchiveRevalidationTokens | None,
+    current: ArchiveRevalidationTokens,
+) -> tuple[str, ...]:
+    """Name changed archive inputs without including paths or project keys."""
+    if held is None:
+        return ("initial",)
+    components = (
+        ("index_exists", held.index_exists != current.index_exists),
+        ("index_stat", held.index_stat != current.index_stat),
+        ("link_signature", held.link_signature != current.link_signature),
+        ("profile_digest", held.profile_digest != current.profile_digest),
+        ("rebuilding", held.rebuilding != current.rebuilding),
+        ("indexed_rows", held.indexed_rows != current.indexed_rows),
+    )
+    return tuple(name for name, changed in components if changed)
 
 
 def _link_signature_changed(

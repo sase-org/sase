@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.tui.actions.agents._loading_bead_warmup import _AgentBeadWarmupCandidates
 from sase.ace.tui.models.agent_bead import (
     _BEAD_DISPLAY_CACHE,
     _bead_display_cache_key,
@@ -86,7 +85,10 @@ def test_schedule_skips_empty_candidate_scan() -> None:
     assert app._bead_warmup_async_tasks == set()
 
 
-def test_warmup_candidates_only_uncached_bead_candidates() -> None:
+def test_warmup_candidates_only_uncached_bead_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
     app = FakeApp()
     confirmed = make_agent(agent_name="sase-a.1", cl_name="confirmed", raw_suffix="1")
     missing = make_agent(agent_name="sase-b.2", cl_name="missing", raw_suffix="2")
@@ -108,13 +110,20 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     # ``cold`` and ``ordinary`` are left uncached; only ``cold`` has a candidate.
     app._agents = [confirmed, missing, cold, ordinary, modern_phase]
 
-    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        bead_display_agents=(cold,),
-        stranded_projects=("proj",),
-    )
+    candidates = app._bead_warmup_candidates()
+
+    assert candidates.bead_display_agents == (cold,)
+    assert candidates.wait_bead_status_agents == ()
+    assert candidates.follow_progress_agents == ()
+    assert candidates.stranded_projects == ("proj",)
+    assert candidates.candidates_examined >= len(app._agents)
+    assert dict(candidates.cause_counts)["cold"] >= 1
 
 
-def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
+def test_warmup_candidates_include_expired_cached_bead_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
     app = FakeApp()
     expired_confirmed = make_agent(
         agent_name="sase-a.1", cl_name="expired-confirmed", raw_suffix="1"
@@ -137,13 +146,19 @@ def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
     _BEAD_DISPLAY_CACHE.set(fresh_key, "sase-c.3 - desc")
     app._agents = [expired_confirmed, expired_missing, fresh_confirmed]
 
-    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        bead_display_agents=(expired_confirmed, expired_missing),
-        stranded_projects=("proj",),
-    )
+    candidates = app._bead_warmup_candidates()
+
+    assert candidates.bead_display_agents == (expired_confirmed, expired_missing)
+    assert candidates.wait_bead_status_agents == ()
+    assert candidates.follow_progress_agents == ()
+    assert candidates.stranded_projects == ("proj",)
+    assert dict(candidates.cause_counts)["ttl"] >= 1
 
 
-def test_warmup_candidates_include_stale_wait_bead_statuses() -> None:
+def test_warmup_candidates_include_stale_wait_bead_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
     app = FakeApp()
     waiter = make_agent(
         agent_name="waiter",
@@ -154,10 +169,13 @@ def test_warmup_candidates_include_stale_wait_bead_statuses() -> None:
     )
     app._agents = [waiter]
 
-    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        wait_bead_status_agents=(waiter,),
-        stranded_projects=("proj",),
-    )
+    candidates = app._bead_warmup_candidates()
+
+    assert candidates.bead_display_agents == ()
+    assert candidates.wait_bead_status_agents == (waiter,)
+    assert candidates.follow_progress_agents == ()
+    assert candidates.stranded_projects == ("proj",)
+    assert dict(candidates.cause_counts)["cold"] >= 1
 
 
 def test_warmup_candidates_bound_historical_waiters_and_stranded_projects() -> None:

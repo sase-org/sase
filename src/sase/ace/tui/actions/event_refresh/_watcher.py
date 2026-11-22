@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import time
 
 from sase.core.paths import sase_projects_dir, sase_subdir
 
@@ -11,10 +12,86 @@ from ._artifact_delta import EventArtifactDeltaMixin
 from ._artifact_paths import artifact_path_affects_agents
 from ._constants import PROMPT_INPUT_DEFER_SECONDS, _LIVE_REPLY_ARTIFACT_NAMES
 from ._sdd_paths import cached_sdd_beads_dir
+from ...util.trace import is_enabled as tui_trace_enabled, trace_event
+
+_WATCHER_TRACE_SAMPLE_SECONDS = 10.0
 
 
 class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
     """Mixin for watcher callbacks and dirty-surface mapping."""
+
+    def _sample_watcher_stats_for_trace(self) -> None:
+        """Emit coarse per-instance watcher counter deltas on auto-refresh ticks."""
+        if not tui_trace_enabled():
+            return
+        now = time.monotonic()
+        previous_sample = float(getattr(self, "_watcher_trace_sample_mono", 0.0) or 0.0)
+        if now - previous_sample < _WATCHER_TRACE_SAMPLE_SECONDS:
+            return
+        self._watcher_trace_sample_mono = now
+        baselines = getattr(self, "_watcher_trace_baselines", None)
+        if not isinstance(baselines, dict):
+            baselines = {}
+            self._watcher_trace_baselines = baselines
+
+        for source, attr in (
+            ("artifact", "_fs_watcher"),
+            ("prompt_source", "_prompt_source_watcher"),
+        ):
+            watcher = getattr(self, attr, None)
+            previous = baselines.get(source)
+            observed = watcher
+            if observed is None and isinstance(previous, tuple) and previous:
+                observed = previous[0]
+            stats_method = getattr(observed, "stats", None)
+            totals = stats_method() if callable(stats_method) else {}
+            totals = {
+                key: int(value)
+                for key, value in totals.items()
+                if isinstance(value, int) and not isinstance(value, bool)
+            }
+            instance_changed = watcher is not None and (
+                not isinstance(previous, tuple) or previous[0] is not watcher
+            )
+            baseline_only = watcher is not None and (
+                not isinstance(previous, tuple) or previous[0] is not watcher
+            )
+            counter_reset = False
+            if isinstance(previous, tuple) and previous[0] is observed:
+                old_totals = previous[1]
+                interval_start = float(previous[2])
+                counter_reset = any(
+                    totals.get(key, 0) < old_totals.get(key, 0)
+                    for key in old_totals.keys() | totals.keys()
+                )
+                deltas = {
+                    key: (
+                        totals.get(key, 0)
+                        if counter_reset
+                        else totals.get(key, 0) - old_totals.get(key, 0)
+                    )
+                    for key in old_totals.keys() | totals.keys()
+                }
+            else:
+                interval_start = now
+                deltas = dict.fromkeys(totals, 0)
+            trace_event(
+                "refresh.watcher_stats",
+                watcher_source=source,
+                watcher_active=watcher is not None,
+                instance_changed=instance_changed,
+                baseline_only=baseline_only,
+                counter_reset=counter_reset,
+                interval_start_mono=interval_start,
+                interval_end_mono=now,
+                interval_seconds=max(0.0, now - interval_start),
+                counter_deltas=deltas,
+                counter_totals=totals,
+            )
+            if watcher is None:
+                baselines.pop(source, None)
+            else:
+                baselines[source] = (watcher, totals, now)
 
     def _on_artifact_change(
         self, changed_paths: tuple[Path, ...] | None = None

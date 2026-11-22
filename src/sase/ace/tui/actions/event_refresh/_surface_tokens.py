@@ -427,6 +427,39 @@ def surface_token_drifted(
     return current != last
 
 
+def surface_token_changed_kinds(
+    current: SurfaceToken | None,
+    last: SurfaceToken | None,
+    *,
+    consumed_kinds: frozenset[str] | None = None,
+) -> tuple[str, ...]:
+    """Return bounded part-kind labels for changed token inputs.
+
+    Missing or indeterminate inputs are reported as ``("unknown",)`` so
+    callers can explain fail-open refreshes without logging file paths.
+    """
+    if current is None or last is None or current.indeterminate or last.indeterminate:
+        return ("unknown",)
+    current_map = _part_map(current)
+    last_map = _part_map(last)
+    changed_kinds: set[str] = set()
+    for path in current_map.keys() | last_map.keys():
+        current_entry = current_map.get(path)
+        last_entry = last_map.get(path)
+        if current_entry == last_entry:
+            continue
+        kind = (
+            current_entry[3]
+            if current_entry is not None
+            else last_entry[3]
+            if last_entry is not None
+            else "content"
+        )
+        if consumed_kinds is None or kind in consumed_kinds:
+            changed_kinds.add(kind)
+    return tuple(sorted(changed_kinds))
+
+
 def _consumed_axe_part_kinds(*, consume_details: bool) -> frozenset[str]:
     """Return axe token kinds the current consumer actually reads."""
     if consume_details:
@@ -452,6 +485,20 @@ def axe_token_consumer_drifted(
         return True
     kinds = _consumed_axe_part_kinds(consume_details=consume_details)
     return _parts_for_kinds(current, kinds) != _parts_for_kinds(last, kinds)
+
+
+def axe_token_changed_kinds(
+    current: SurfaceToken | None,
+    last: SurfaceToken | None,
+    *,
+    consume_details: bool,
+) -> tuple[str, ...]:
+    """Return changed, currently consumed AXE token-part labels."""
+    return surface_token_changed_kinds(
+        current,
+        last,
+        consumed_kinds=_consumed_axe_part_kinds(consume_details=consume_details),
+    )
 
 
 def agents_token_reload_kind(
