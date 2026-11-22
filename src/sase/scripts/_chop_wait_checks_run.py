@@ -16,7 +16,12 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from sase.axe.wait_marker_scan import scan_waiting_markers, waiting_runner_liveness
+from sase.axe.wait_marker_scan import (
+    record_wait_scan_full_walk,
+    scan_waiting_markers,
+    wait_scan_full_walk_due,
+    waiting_runner_liveness,
+)
 from sase.bead.model import Status
 from sase.bead.store_locator import bead_statuses_for_project
 from sase.bead.wait_status import WaitBeadStatusCache
@@ -34,6 +39,7 @@ from sase.scripts._chop_wait_checks_run_fs import (
     clone_empty_index,
     filesystem_dependency_rows,
 )
+from sase.scripts._chop_incremental_index import chop_scan_full_walk
 from sase.scripts._chop_wait_checks_common import WaitingMarker
 from sase.scripts._chop_wait_checks_root_notice import (
     reconcile_root_blocker_notifications,
@@ -305,10 +311,18 @@ def _run(
     # failed open per tick without an up-front stat of every artifact's meta.
     meta_cache: dict[Path, dict[str, Any] | None] = {}
 
-    # The shared walk reads no agent_meta.json itself: a tick with no live
-    # pending waiter costs only the directory walk plus one meta read per
-    # pending waiter for the liveness classification below.
-    scan = scan_waiting_markers(projects_dir)
+    # The shared scan reads no agent_meta.json itself: a tick with no live
+    # pending waiter costs only the listing plus one meta read per pending
+    # waiter for the liveness classification below. The listing comes from
+    # the artifact index between filesystem walks; a walk runs at least once
+    # per max_quiet backstop period so an unindexed waiting.json still lands.
+    scan_started_at = time.time()
+    prefer_index = not chop_scan_full_walk() and not wait_scan_full_walk_due(
+        scan_started_at
+    )
+    scan = scan_waiting_markers(projects_dir, prefer_index=prefer_index)
+    if scan.source == "walk":
+        record_wait_scan_full_walk(scan_started_at)
     projects = scan.projects
     artifacts = scan.artifacts
     waiting_markers = scan.waiting
@@ -349,8 +363,10 @@ def _run(
         live_waiting_markers.append(waiting_marker)
 
     walk_ms = int((time.monotonic() - walk_started) * 1000)
+    fallback_note = f" fallback={scan.fallback_reason}" if scan.fallback_reason else ""
     runtime.log(
         "[wait_checks] waiter walk progress: "
+        f"source={scan.source}{fallback_note} "
         f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
         f"live={live_waiting} dead={dead_waiting} "
         f"unknown_liveness={unknown_liveness} elapsed_ms={walk_ms}",
@@ -545,6 +561,7 @@ def _run(
             "unknown_outcome": tick.unknown_outcome,
             "deferred_unconfirmed": tick.deferred_unconfirmed,
             "waiter_errors": waiter_errors,
+            "scan_source": scan.source,
             "walk_ms": walk_ms,
             "view_ms": tick.view_ms,
             "resolve_ms": resolve_ms,

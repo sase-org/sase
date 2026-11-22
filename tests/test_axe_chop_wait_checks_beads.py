@@ -176,6 +176,43 @@ def test_wait_checks_routes_full_bead_wait_to_owner_project(
     assert hints == ["owner"]
 
 
+def test_wait_checks_hints_each_owner_project_once_per_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every waiter routed to one owner shares a single beads sync hint."""
+    local_root = tmp_path / "local"
+    with BeadProject.init(local_root):
+        pass
+    owner_root, open_bead, closed_bead = _seed_wait_bead_store(tmp_path / "owner")
+    _point_waits_at_bead_stores(
+        monkeypatch,
+        {
+            "proj": local_root,
+            "owner": owner_root,
+        },
+    )
+    monkeypatch.setattr(
+        "sase.bead.wait_status.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner_root, closed_bead, open_bead),),
+    )
+    hints: list[str | None] = []
+    monkeypatch.setattr(
+        wait_checks_waiters,
+        "mark_bead_wait_sync_hint",
+        lambda project: hints.append(project),
+    )
+    parked = [
+        make_waiting_agent(tmp_path, wait_for_beads=[open_bead], suffix=f"waiter-{n}")
+        for n in range(3)
+    ]
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert all(not (waiter / "ready.json").exists() for waiter in parked)
+    assert hints == ["owner"]
+
+
 @pytest.mark.parametrize("bead_kind", ["open", "missing"])
 def test_wait_checks_keeps_unclosed_bead_only_wait_parked(
     tmp_path: Path,

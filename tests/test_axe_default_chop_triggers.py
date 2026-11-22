@@ -344,6 +344,31 @@ def test_pulse_chops_skip_slot_queue_marker(lane: str, chop_name: str) -> None:
 
 
 @pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_skip_finalizer_status_writes(lane: str, chop_name: str) -> None:
+    """Status-only finalizer writes nudge the agent's own pulse, never the project's."""
+    from sase.finalizers.status_summary import (  # noqa: PLC0415
+        FinalizerStatusTracker,
+    )
+
+    chop, t0, artifacts, run_dir = _pulse_baseline(lane, chop_name)
+    (run_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+
+    tracker = FinalizerStatusTracker(str(run_dir))
+    tracker.seal_planned(plan_digest="digest", instance_ids=["commit"])
+    tracker.mark_declaring(run_id="run-1", plan_digest="digest")
+    tracker.note_instance_started("commit", attempt=1, max_attempts=2, op="stage")
+    tracker.note_op("commit", "commit", step="writing")
+    tracker.note_step("commit", "pushing")
+    tracker.note_instance_finished("commit", status="success")
+    tracker.mark_settled(status="success")
+
+    assert (run_dir / ".ace_refresh_pulse").exists()
+    assert not (artifacts / ".ace_refresh_pulse").exists()
+    skipped = _tick(lane, chop, now=t0 + timedelta(seconds=10))
+    assert skipped.outcome == "skip", skipped.reason
+
+
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
 def test_pulse_chops_skip_lock_files_and_new_day_dir(lane: str, chop_name: str) -> None:
     """Leaked scheduler lock files and new (empty) day shards do not fire."""
     chop, t0, artifacts, _ = _pulse_baseline(lane, chop_name)

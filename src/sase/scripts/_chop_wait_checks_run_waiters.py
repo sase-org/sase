@@ -110,6 +110,19 @@ class WaitChecksTick:
     view_ms: int = 0
     view_rows: int = 0
     scope_cache_used: bool = False
+    # Projects whose beads sidecar this tick already hinted for sync.
+    bead_sync_hinted: set[str] = field(default_factory=set)
+
+    def hint_bead_sync(self, project_name: str | None) -> None:
+        """Hint a project's beads sidecar at most once per tick.
+
+        Every bead waiter routed to the same owner asks for the same hint,
+        and each hint reloads the merged config and rewrites the hint file.
+        """
+        if not project_name or project_name in self.bead_sync_hinted:
+            return
+        self.bead_sync_hinted.add(project_name)
+        mark_bead_wait_sync_hint(project_name)
 
 
 def _epic_follow_notification_keys(
@@ -262,7 +275,7 @@ def process_one_waiter(
             wait_for_beads,
             cache=tick.wait_bead_cache,
             closed_ids_for_project=closed_bead_ids_for_project,
-            sync_hint=mark_bead_wait_sync_hint,
+            sync_hint=tick.hint_bead_sync,
         ).closed_ids
 
     member_dirs = waiter_index.dependency_member_dirs(

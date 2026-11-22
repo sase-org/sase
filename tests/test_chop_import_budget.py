@@ -234,3 +234,26 @@ def test_stale_running_sweep_closure_excludes_monitor_and_llm_graphs() -> None:
         assert not present, present
         """
     )
+
+
+def test_wait_checks_job_imports_no_scheduler_tui_or_agents_sync() -> None:
+    """The agent_waits job reworked by wait-pulse stays off the heavy graph.
+
+    It already imports ``sase.llm_provider`` and ``sase.macro`` through wait
+    resolution, so those are not asserted here.
+    """
+    _run_probe(
+        """
+        import sys
+        import sase.scripts.sase_chop_wait_checks
+
+        heavy = [
+            "sase.ace.tui",
+            "sase.agents_sync",
+            "sase.axe.lumberjack",
+            "sase.axe.orchestrator",
+        ]
+        present = [name for name in heavy if name in sys.modules]
+        assert not present, present
+        """
+    )

@@ -93,12 +93,15 @@ per-project completion pulse
 project's `artifacts/.ace_refresh_pulse` file. Agent completions (via
 `write_done_marker_and_update_index` and the hook-runner done writer), gate/monitor turn
 settlement, handoff and repeat-stop finalization, a dependency-carrying `waiting.json`
-write, and TUI wait-target edits all touch the pulse; pure runner-slot queue republishes
-deliberately do not, and per-agent pulses written inside run directories never match the
-project-level glob. Anything the pulse cannot observe — such as the dead-owner claim
-release, where no live process writes anything — still resolves on the `max_quiet`
-backstop. `epic_launch_flush` is untouched by that guard; it already throttles via
-`run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine now.
+write, and TUI wait-target edits all touch the pulse. Two writers deliberately do not:
+pure runner-slot queue republishes, and finalizer status-summary writes
+(`agent_meta.json["finalizer_status"]`), which neither job reads. A status write nudges
+only the agent's own pulse inside its run directory, which ACE refreshes as one row and
+which never matches the project-level glob. Anything the pulse cannot observe — such as
+the dead-owner claim release, where no live process writes anything — still resolves on
+the `max_quiet` backstop. `epic_launch_flush` is untouched by that guard; it already
+throttles via `run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine
+now.
 
 `bead_claim_checks` finds claim owners in the agent artifact index, not by walking
 artifact directories. A normal tick reads two bounded slices: the normally visible
@@ -142,31 +145,38 @@ later successful run of the same dependency name appears. `"plan_rejected"` is
 deliberately identity-terminal for exact artifact waits but does not satisfy a named
 `%wait`.
 
-Each tick walks every project's `ace-run` directories for `waiting.json` markers and
-classifies each pending waiter (marker present, `ready.json` absent) by runner liveness:
-`alive` for a running recorded pid, `dead` for a `stopped_at` stamp or a provably gone
-pid (PID reuse guarded by `process_identity` and boot time), and `unknown` when no pid
-was recorded. Unknown waiters resolve as if live; dead waiters are skipped entirely — no
-resolution, no notifications — and counted in the `dead_waiting` backlog counter
-alongside `live_waiting` and `unknown_liveness`. With no live or unknown waiter pending,
-the tick emits its summary without building any dependency view, and `unresolved` counts
-only live/unknown waiters. The resolving view itself is built from filesystem
+Each tick lists every project's `ace-run` directories and the ones holding
+`waiting.json` from the agent artifact index's scalar columns, then reads only those
+markers. The index decides which directories are read, never what a marker says. A
+filesystem walk replaces the index read at least every 120 seconds (the trigger's
+`max_quiet`), tracked in `~/.sase/axe/wait_checks_last_full_walk`, so a marker the index
+never recorded waits at most that long. A missing or failing index also walks, as does
+`SASE_CHOP_SCAN_FULL_WALK=1`. The tick then classifies each pending waiter (marker
+present, `ready.json` absent) by runner liveness: `alive` for a running recorded pid,
+`dead` for a `stopped_at` stamp or a provably gone pid (PID reuse guarded by
+`process_identity` and boot time), and `unknown` when no pid was recorded. Unknown
+waiters resolve as if live; dead waiters are skipped entirely — no resolution, no
+notifications — and counted in the `dead_waiting` backlog counter alongside
+`live_waiting` and `unknown_liveness`. With no live or unknown waiter pending, the tick
+emits its summary without building any dependency view, and `unresolved` counts only
+live/unknown waiters. The resolving view itself is built from filesystem
 `agent_meta.json` rows rather than the artifact index. Named-agent and bead-only waiters
 resolve from a scoped view: only rows whose identity keys intersect the live waiters'
 dependency names, plus each scopable waiter's own directory. The resolving view reuses
-the tick's marker-walk listing. Only confirmation re-lists those projects fresh and
-keeps the same per-waiter key set, so a member that appears between the two views still
-defers release. Unscopable shapes — `@tribe` names, hoods, fork sources, identity
-(`wait_for_artifacts`) deps, and armed epic follows — keep today's full view, built at
-most once per tick and only when a live waiter needs it.
+the tick's listing, from the index or the walk. Only confirmation re-lists those
+projects from the filesystem and keeps the same per-waiter key set, so a member that
+appears between the two views still defers release. Unscopable shapes — `@tribe` names,
+hoods, fork sources, identity (`wait_for_artifacts`) deps, and armed epic follows — keep
+today's full view, built at most once per tick and only when a live waiter needs it.
 
-The `wait_checks` summary includes `walk_ms` for marker scanning and liveness
-classification, `view_ms` for dependency view construction, `resolve_ms` for the
-per-waiter loop, `view_rows` for the rows loaded into views during the tick,
-`scoped_waiters` for live waiters resolved from the scoped view, and `full_view_waiters`
-for live waiters that used the full view. Progress lines report the waiter counts after
-classification and the resolving view's row count; chop log lines flush immediately so
-they remain available if the job is killed.
+The `wait_checks` summary includes `scan_source` (`index` or `walk`), `walk_ms` for
+marker scanning and liveness classification, `view_ms` for dependency view construction,
+`resolve_ms` for the per-waiter loop, `view_rows` for the rows loaded into views during
+the tick, `scoped_waiters` for live waiters resolved from the scoped view, and
+`full_view_waiters` for live waiters that used the full view. Progress lines report the
+scan source (plus `fallback=index_unavailable` when an index read failed), the waiter
+counts after classification, and the resolving view's row count; chop log lines flush
+immediately so they remain available if the job is killed.
 
 If an unresolved dependency already has a terminal `done.json` outcome that wait
 resolution does not recognize, `wait_checks` increments `unknown_outcome` and logs the

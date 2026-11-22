@@ -1,9 +1,15 @@
 """Best-effort ``agent_meta.json["finalizer_status"]`` row-summary tracker.
 
 The tracker holds the C5 summary state in memory and persists it through
-``update_meta_field``, touching the turn refresh pulse on transitions so the
-Agents tab reloads. Every write is best-effort: failures are swallowed and
-never change control flow, verdicts, or result bytes.
+``update_meta_field``. Each write nudges only this agent's own refresh pulse
+(``<artifacts_dir>/.ace_refresh_pulse``), which ACE maps to an exact-row
+delta. It deliberately leaves the project pulse
+(``<project>/artifacts/.ace_refresh_pulse``) alone: status-only writes change
+nothing the pulse-triggered ``wait_checks`` and ``bead_claim_checks`` jobs
+decide on, and a project pulse makes ACE run a broad Agents load. The run's
+real state changes (its ``done.json`` write, turn settlement) still touch the
+project pulse. Every write is best-effort: failures are swallowed and never
+change control flow, verdicts, or result bytes.
 """
 
 from __future__ import annotations
@@ -475,15 +481,10 @@ class FinalizerStatusTracker:
             self._last_step_write = now
         try:
             from sase.axe.run_agent_helpers import update_meta_field
-            from sase.turns.settlement import (
-                project_name_from_artifacts_dir,
-                touch_turn_refresh_pulse,
-            )
+            from sase.turns.settlement import touch_agent_refresh_pulse
 
             update_meta_field(self._artifacts_dir, SUMMARY_KEY, self.payload())
-            touch_turn_refresh_pulse(
-                project_name_from_artifacts_dir(self._artifacts_dir)
-            )
+            touch_agent_refresh_pulse(self._artifacts_dir)
         except Exception:  # noqa: BLE001 - summary writes are best-effort
             logger.debug("finalizer status summary write failed", exc_info=True)
 

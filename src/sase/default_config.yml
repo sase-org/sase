@@ -1528,8 +1528,9 @@ axe:
           description: |-
             Resolve agent wait dependencies and write ready.json when satisfied
 
-            Walks waiting markers across projects, resolves only live waiters (provably dead runners are skipped and
-            counted in the dead-waiter backlog counter), and resolves named-agent and closed-bead waits from a scoped
+            Finds waiting markers through the artifact index (walking every project's ace-run dirs at least every
+            120 s), resolves only live waiters (provably dead runners are skipped and counted in the dead-waiter
+            backlog counter), and resolves named-agent and closed-bead waits from a scoped
             filesystem metadata view (identity keys of the live waiters plus each waiter's own row). Unscopable shapes
             (@tribe names, hoods, fork sources, identity deps, armed epic follows) still use the full artifact view.
             It writes ready.json only after every dependency is satisfied; invalid or already-ready markers are skipped
