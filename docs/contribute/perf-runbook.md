@@ -1286,15 +1286,27 @@ collections off the interactive path:
 - An unfreeze-and-collect pass reclaims cycles in the frozen heap after 15 minutes
   without input (no more often than every 30 minutes). An hourly deep pass may also run
   on an ordinary 3 s quiet window, but only when its full-heap estimate fits the 2 s
-  budget. That estimate is GC-tracked objects (`gc.get_freeze_count()` plus
-  `gc.get_count()`) times the latest deep sweep's per-object pause (0.763 us/object
-  before one exists, from the attribute-phase 1.479 s pass over 1.94M frozen
-  containers), times 2. Allocated-block pricing predicted ~5 s at production heap sizes
-  and gated every hourly pass; object pricing is ~2.75 s at 1.8M frozen containers,
-  still over the 2 s budget, so the hourly cadence stays gated there and the
-  15-minute-idle pass reclaims. An over-budget deep pass emits reason `deep_cost_gate`
-  with `deep_due: true`, `predicted_pause_s`, and `gc_tracked_objects`, and the tick
-  runs an ordinary sweep instead, so a pending deep pass never holds ordinary ones.
+  budget. That estimate is the frozen-container rate times `gc.get_freeze_count()` plus
+  the ordinary time-priced estimate for young-heap work since the last full collection,
+  each times the safety factor of 2. `gc.get_count()` collection counters reset on young
+  collections while promoted objects remain, so they never enter deep pricing; the
+  frozen part uses only `gc.get_freeze_count()`. The seed rate is 0.763
+  us/frozen-container (the attribute-phase 1.479 s pass over 1.94M frozen containers);
+  verified deep sweeps refresh it as total measured deep pause over the positive frozen
+  count captured before unfreezing, which conservatively includes unfrozen work and is
+  therefore an upper bound, not an exact traversal cost. A missing frozen probe or a
+  missing ordinary estimate gates only the bounded deep pass while ordinary sweeps still
+  run to seed the missing estimate. At production heap sizes the frozen part alone is
+  ~2.75 s at 1.8M frozen containers, still over the 2 s budget before adding unfrozen
+  work, so the hourly cadence stays gated there and the 15-minute-idle pass reclaims. An
+  over-budget deep pass emits reason `deep_cost_gate` with `deep_due: true`, total
+  `predicted_pause_s`, `frozen_count`, `frozen_cost_s`, and `unfrozen_cost_s`, and the
+  tick runs an ordinary sweep instead, so a pending deep pass never holds ordinary ones.
+  The old numeric `gc_tracked_objects` field (freeze count plus generation counters) is
+  retired because the counters understated promoted survivors; use `frozen_count` plus
+  the split costs, and do not relabel the frozen count as a total object count. The
+  runtime pricing path never enumerates `gc.get_objects()`; only the opt-in census walks
+  the heap.
 - On the classic three-generation collector the policy preserves the current `t0`/`t1`
   and raises `threshold2` to 10_000, so automatic full collections become a rare
   backstop (about once an hour at 2.9 gen-1/s). Any other collector shape leaves

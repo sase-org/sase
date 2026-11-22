@@ -85,6 +85,9 @@ class PolicySweepMixin(PolicyGateMixin):
         cost_deferral_cap_s: float | None = None,
         deep_due: bool = False,
         gc_tracked_objects: int | None = None,
+        frozen_count: int | None = None,
+        frozen_cost_s: float | None = None,
+        unfrozen_cost_s: float | None = None,
     ) -> None:
         """Emit a rate-limited row when pressure, cost, or the collector defers.
 
@@ -94,6 +97,13 @@ class PolicySweepMixin(PolicyGateMixin):
         instead), and ``collector_busy`` (``gc.collect()`` returned without a
         full collection because another thread's collection was in progress;
         nothing was frozen or recorded, and the next tick retries).
+
+        Deep rows carry the frozen count plus the separate frozen/unfrozen
+        cost components alongside the total ``predicted_pause_s``. The old
+        numeric ``gc_tracked_objects`` field is retired: it summed collection
+        counters that reset on young collections, understating promoted
+        survivors. ``frozen_count`` replaces it; do not relabel it as a total
+        object count.
         """
         key = f"{trigger}:{reason}"
         previous = self._last_deferred_emit_mono.get(key)
@@ -117,8 +127,18 @@ class PolicySweepMixin(PolicyGateMixin):
             row["cost_deferral_cap_s"] = round(max(0.0, cost_deferral_cap_s), 3)
         if deep_due:
             row["deep_due"] = True
+        # Retired: ``gc_tracked_objects`` summed ``get_count()`` counters and
+        # undercounted promoted survivors. Emit it only when an explicit
+        # caller still passes it; new deep rows use ``frozen_count`` plus the
+        # split cost components below.
         if gc_tracked_objects is not None:
             row["gc_tracked_objects"] = gc_tracked_objects
+        if frozen_count is not None:
+            row["frozen_count"] = frozen_count
+        if frozen_cost_s is not None:
+            row["frozen_cost_s"] = frozen_cost_s
+        if unfrozen_cost_s is not None:
+            row["unfrozen_cost_s"] = unfrozen_cost_s
         if pressure is not None:
             row.update(
                 {
@@ -221,22 +241,27 @@ class PolicySweepMixin(PolicyGateMixin):
         """Return True when the hourly deep sweep is due and fits the budget.
 
         An over-budget (or unpriceable) deep sweep is skipped with a
-        rate-limited ``deep_cost_gate`` row; the tick then prices an
-        ordinary sweep, so a pending deep sweep never holds ordinary ones.
+        rate-limited ``deep_cost_gate`` row carrying the frozen count and the
+        split frozen/unfrozen costs; the tick then prices an ordinary sweep,
+        so a pending deep sweep never holds ordinary ones.
         """
         if not self._deep_bounded_due(now_mono):
             return False
-        predicted = self._predicted_pause_s(now_mono, deep=True)
-        if predicted is not None and predicted <= MAX_PREDICTED_FULL_PAUSE_S:
+        total, frozen_n, frozen_cost, unfrozen_cost = self._deep_cost_breakdown(
+            now_mono
+        )
+        if total is not None and total <= MAX_PREDICTED_FULL_PAUSE_S:
             return True
         self._record_deferred(
             now_mono=now_mono,
             trigger=tag,
             reason="deep_cost_gate",
             input_idle_s=input_idle_s,
-            predicted_pause_s=predicted,
+            predicted_pause_s=total,
             deep_due=True,
-            gc_tracked_objects=self._read_gc_tracked_objects(),
+            frozen_count=frozen_n,
+            frozen_cost_s=frozen_cost,
+            unfrozen_cost_s=unfrozen_cost,
         )
         return False
 
@@ -246,7 +271,7 @@ class PolicySweepMixin(PolicyGateMixin):
         """Collect, prove a full collection ran, then freeze and record it."""
         unfreeze = getattr(self._collector, "unfreeze", None)
         deep_collection = deep and callable(unfreeze)
-        objects_before = self._read_gc_tracked_objects() if deep_collection else None
+        frozen_before = self._read_gc_frozen_count() if deep_collection else None
         census = tag == "idle" and self._census_due(now_mono)
         collections_before = self._full_collection_count()
         ran = False
@@ -283,7 +308,8 @@ class PolicySweepMixin(PolicyGateMixin):
             start_mono=start,
             deep=deep_collection,
             census=census,
-            objects_before=objects_before,
+            frozen_before=frozen_before,
+            objects_before=frozen_before,
         )
         if deep_collection:
             self._last_deep_full_mono = self._own_last_full_mono
@@ -305,6 +331,7 @@ class PolicySweepMixin(PolicyGateMixin):
         deep: bool = False,
         census: bool = False,
         objects_before: int | None = None,
+        frozen_before: int | None = None,
     ) -> None:
         """Record a verified own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
@@ -313,13 +340,16 @@ class PolicySweepMixin(PolicyGateMixin):
         self._cost_sample_mono = self._own_last_full_mono
         pause = max(0.0, float(pause_s))
         self._last_full_pause_s = pause
+        if frozen_before is None:
+            frozen_before = objects_before
         self._record_cost_sample(
             pause,
             start_mono=start_mono,
             end_mono=self._own_last_full_mono,
             deep=deep,
             census=census,
-            objects_before=objects_before,
+            frozen_before=frozen_before,
+            objects_before=frozen_before,
         )
         try:
             self._rss_at_last_full = latest_rss_bytes()

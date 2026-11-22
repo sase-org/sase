@@ -378,7 +378,7 @@ def test_bounded_deep_waits_for_hourly_cadence(
     assert collector.unfreezes == 0
 
     # Past the hourly cadence: the quiet sweep unfreezes and reclaims. A
-    # stub with freeze_count 0 prices as one GC-tracked object and fits.
+    # stub with freeze_count 0 prices only the unfrozen estimate and fits.
     clock.advance(11 * 60.0 + 1.0)
     assert clock.now - freeze_mono > gc_policy.DEEP_SWEEP_INTERVAL_S
     recorder.gen1 = 150
@@ -417,14 +417,20 @@ def test_over_budget_deep_never_runs_or_holds_ordinary_sweeps(
     deep_rows = deferred_by(emitted, "deep_cost_gate")
     assert deep_rows
     assert all(row.get("deep_due") for row in deep_rows)
-    # 20M GC-tracked objects x 0.763 us/object x 2 ≈ 30.5 s, far over budget.
-    assert deep_rows[-1]["predicted_pause_s"] == pytest.approx(
-        gc_policy.DEEP_COST_PER_OBJECT_S
+    # 20M frozen x 0.763 us/frozen x 2 ≈ 30.5 s frozen alone, far over budget
+    # before adding unfrozen work.
+    frozen_part = (
+        gc_policy.DEEP_COST_PER_FROZEN_S
         * collector.freeze_count
-        * gc_policy.COST_PREDICTION_SAFETY_FACTOR,
-        rel=0.05,
+        * gc_policy.COST_PREDICTION_SAFETY_FACTOR
     )
-    assert deep_rows[-1]["gc_tracked_objects"] == collector.freeze_count
+    assert deep_rows[-1]["frozen_count"] == collector.freeze_count
+    assert "gc_tracked_objects" not in deep_rows[-1]
+    assert deep_rows[-1]["frozen_cost_s"] == pytest.approx(frozen_part)
+    assert deep_rows[-1]["predicted_pause_s"] == pytest.approx(
+        deep_rows[-1]["frozen_cost_s"] + deep_rows[-1]["unfrozen_cost_s"]
+    )
+    assert deep_rows[-1]["predicted_pause_s"] > gc_policy.MAX_PREDICTED_FULL_PAUSE_S
     assert max(collector.pauses) < gc_policy.MAX_PREDICTED_FULL_PAUSE_S
     assert deferred_by(emitted, "cost_gate") == []
 
@@ -438,7 +444,7 @@ def test_over_budget_deep_never_runs_or_holds_ordinary_sweeps(
     assert collector.unfreezes == 1
     deep_pause = live * 0.15e-6 + 50_000 * 1.1e-6
     assert collector.pauses[-1] == pytest.approx(deep_pause)
-    assert policy._deep_cost_per_object_s == pytest.approx(
+    assert policy._deep_cost_per_frozen_s == pytest.approx(
         deep_pause / collector.freeze_count, rel=1e-3
     )
 

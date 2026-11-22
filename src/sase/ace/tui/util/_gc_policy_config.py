@@ -76,16 +76,28 @@ COST_OVERRIDE_QUIET_S = 3.0
 # above the 25 MB/h gate). Anchored at the startup freeze, so short spot
 # checks never trip it.
 DEEP_SWEEP_INTERVAL_S = 60 * 60.0
-# Deep sweeps scan GC-tracked objects (``gc.get_freeze_count()`` plus the
-# generation counts from ``gc.get_count()``), not allocated blocks. Until a
-# verified deep sample exists they are priced at the attribute-phase
-# measured rate: 1.479 s / 1_937_310 frozen containers = 0.763 us/object
-# (attribute-20261122T165600Z long-idle deep pass). Allocated-block pricing
-# (0.3 us × 8.34M × 2) predicted 5.0 s and gated every hourly pass; the
-# same sweep paused 1.479 s. With the safety factor a 1.8M-object heap
-# predicts 0.763 us × 1.8M × 2 ≈ 2.75 s, still over the 2 s budget, so the
-# hourly cadence stays gated there and the 15-minute-idle pass reclaims.
-DEEP_COST_PER_OBJECT_S = 0.763e-6
+# Deep sweeps scan the frozen set plus the young heap, priced as two
+# independent costs with the safety factor applied once to each: the
+# measured frozen-container cost times ``gc.get_freeze_count()``, plus the
+# existing time-based ordinary-sweep estimate for accumulation since the
+# last full collection (which already models unfrozen survivors and garbage
+# independently of ``gc.get_count()`` resets). ``gc.get_count()`` collection
+# counters are not object populations: young collections reset them while
+# promoted objects remain available to a full sweep, so they must not enter
+# deep pricing. Until a verified deep sample exists the frozen part is priced
+# at the attribute-phase measured rate: 1.479 s / 1_937_310 frozen containers
+# = 0.763 us/frozen-container (attribute-20261122T165600Z long-idle deep
+# pass). With the safety factor a 1.8M-frozen heap predicts 0.763 us x 1.8M
+# x 2 ~= 2.75 s for the frozen part alone, still over the 2 s budget before
+# adding unfrozen work, so the hourly cadence stays gated there and the
+# 15-minute-idle pass reclaims. A missing frozen probe or a missing ordinary
+# estimate gates only the bounded deep pass; ordinary sweeps still run to
+# seed the missing ordinary estimate.
+DEEP_COST_PER_FROZEN_S = 0.763e-6
+# Deprecated alias: the old per-object name miscounted generation counters as
+# populations. Kept for import compatibility; new code uses
+# ``DEEP_COST_PER_FROZEN_S``.
+DEEP_COST_PER_OBJECT_S = DEEP_COST_PER_FROZEN_S
 DEFERRED_TELEMETRY_INTERVAL_S = 60.0
 GEN1_DUE_COUNT = 100
 NONCLASSIC_DUE_S = 120.0
