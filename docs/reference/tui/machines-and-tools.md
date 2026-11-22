@@ -189,10 +189,11 @@ macro definitions, while the Statistics sub-tab measures how launch prompts used
 ## Tools Tab
 
 Open the SASE Admin Center with `#`, then press `7` or switch to **Tools**. Its three
-sub-views cover **Runs** (silent runs pinned first in red, then live, then settled
-newest first), **Failures** (failure-signature groups with run and agent witness
-counts), and **Catalog** (the current project's named tools with LAST and TYPICAL from
-the run ledger). The pane is filtered to the current project by default; press `A` to
+sub-views cover **Runs** (silent runs pinned first in red, then live — queued runs show
+`waiting for <tool> (N ahead)` and are never silent — then settled newest first),
+**Failures** (failure-signature groups with run and agent witness counts), and
+**Catalog** (the current project's named tools with LAST and TYPICAL from the run
+ledger). The pane is filtered to the current project by default; press `A` to
 widen it to all projects. Use `[` / `]` to move between views, `/` to filter Runs with
 `tool:`, `state:`, `agent:`, and `verdict:` tokens, `enter` to focus detail (`Failures`
 lists the group's affected runs newest first with their agents), `a` to jump to the

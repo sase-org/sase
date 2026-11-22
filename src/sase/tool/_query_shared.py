@@ -13,6 +13,7 @@ from typing import Any, TextIO, cast
 
 from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS
 from sase.core.tool_run import tool_run_triage_show
+from sase.tool.admission_display import live_admission_view, show_admission_line
 from sase.tool.demand import format_ceiling_seconds, format_cpu_cores
 from sase.tool.logs import log_policy, read_truncation_messages
 from sase.tool.render import (
@@ -121,6 +122,11 @@ def print_show(envelope: dict[str, Any]) -> None:
         f"TOOLCHAIN {_format_toolchain(run)}",
         f"SAMPLES   {len(envelope.get('samples') or ())}",
         *_demand_lines(run),
+        *(
+            [f"ADMISSION {_admission_text}"]
+            if (_admission_text := _admission_line(run, envelope))
+            else []
+        ),
     ]
     diagnostics = run.get("diagnostics") or ()
     if diagnostics:
@@ -222,6 +228,12 @@ def _format_toolchain(run: dict[str, Any]) -> str:
         output = str(probe.get("output") or "").strip().splitlines()
         parts.append(f"{name}={output[0] if output else EMPTY}")
     return "  ".join(parts) or EMPTY
+
+
+def _admission_line(run: dict[str, Any], envelope: dict[str, Any]) -> str | None:
+    """Return the ``ADMISSION`` value for ``print_show``, if the run queued."""
+
+    return show_admission_line(run, live_admission_view(envelope))
 
 
 def _demand_lines(run: dict[str, Any]) -> list[str]:

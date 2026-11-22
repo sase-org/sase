@@ -68,6 +68,7 @@ from sase.core.tool_run_triage import (
     tool_run_triage_verdict,
 )
 from sase.core.tool_run_views import (
+    ToolRunAdmissionView,
     ToolRunBrief,
     ToolRunBriefs,
     ToolRunDetail,
@@ -85,6 +86,7 @@ from sase.core.tool_run_views import (
 )
 
 __all__ = [
+    "ToolRunAdmissionView",
     "ToolRunBrief",
     "ToolRunBriefs",
     "ToolRunDetail",

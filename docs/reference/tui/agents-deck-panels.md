@@ -97,6 +97,7 @@ alone:
 | State        | Glyph | Words (examples)                                             | Color                                      |
 | ------------ | ----- | ------------------------------------------------------------ | ------------------------------------------ |
 | running      | `⚒`   | `check 7/11`, `check 2m`, `check starting`, `check stopping` | bold Tools accent `#87D7FF`                |
+| waiting      | `⚒◷`  | `check waiting 2`                                            | bold `#FFAF5F`                              |
 | silent       | `⚒⚠`  | `check silent 4m`                                            | bold `#FF5F5F`                             |
 | pass         | `✓`   | `pass`                                                       | `#5FD75F`                                  |
 | new failures | `✗`   | `3 NEW · 1 KNOWN`                                            | `#FF5F5F`                                  |
@@ -106,9 +107,12 @@ alone:
 | stopped      | `⊘`   | `stopped at 1m02s`                                           | dim                                        |
 | lost         | `⊘`   | `lost · wrapper_lost`                                        | dim `#FF5F5F`                              |
 
-A live run is one in state `created` or `running`. A live run is **silent** when nothing
-was heard from it for 60 seconds (six missed samples): the TUI says `silent` in red and
-never claims an outcome. Severity picks one chip among several tools —
+A live run is one in state `created` or `running`. A live run queued for an admission
+slot is **waiting**: the chip, header, Runs card, and run-link suffixes name the slot
+and the queue position (`check waiting 2`), and the run is never shown as silent. A
+live run is **silent** when nothing was heard from it for 60 seconds (six missed
+samples): the TUI says `silent` in red and never claims an outcome. Severity picks one
+chip among several tools —
 `new_failures > undetermined > killed > lost > stopped > known_only > pass` — with live
 always outranking settled and silent outranking live. Ages format as `<1m`, `Nm`, `Nh`,
 `Nd`.

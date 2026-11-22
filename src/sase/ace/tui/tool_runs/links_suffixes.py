@@ -43,7 +43,7 @@ def _last_activity_ts(run: Any) -> float:
 def _short_suffix_fragment(run: Any, *, now_ts: float) -> str:
     """Return the ``<label> <progress|bucket words>`` fragment for *run*."""
 
-    from sase.tool.view_vocabulary import is_silent
+    from sase.tool.view_vocabulary import is_silent, run_waiting_ahead
 
     label = str(getattr(run, "label", "") or "run")
     if is_live_run(run):
@@ -55,6 +55,11 @@ def _short_suffix_fragment(run: Any, *, now_ts: float) -> str:
             silent_after = int(getattr(snapshot, "silent_after_s", 60) or 60)
         except Exception:
             silent_after = 60
+        waiting = run_waiting_ahead(run)
+        if waiting is not None:
+            admission = getattr(run, "admission", None)
+            key = getattr(admission, "key", None) or "slot"
+            return f"{label} waiting for {key} ({waiting} ahead)"
         if is_silent(_last_activity_ts(run), now_ts, silent_after):
             return f"{label} silent {format_age(max(0.0, now_ts - _last_activity_ts(run)))}"
         if str(getattr(run, "state", "")) == "created" and not bool(
@@ -181,12 +186,28 @@ def suffix_text_with_jump(
     bucket = run_bucket(run)
     if is_live_run(run):
         try:
-            from sase.tool.view_vocabulary import is_silent
+            from sase.tool.view_vocabulary import (
+                is_silent,
+                run_waiting_ahead,
+                style_for_bucket,
+            )
 
-            silent = is_silent(_last_activity_ts(run), now, _snapshot_silent_after_s())
+            waiting = run_waiting_ahead(run)
+            silent = (
+                False
+                if waiting is not None
+                else is_silent(_last_activity_ts(run), now, _snapshot_silent_after_s())
+            )
+            waiting_style = (
+                style_for_bucket("waiting").color if waiting is not None else ""
+            )
         except Exception:
             silent = False
-        style = "bold #FF5F5F" if silent else f"bold {TOOL_RUN_ACCENT}"
+            waiting_style = ""
+        if waiting_style:
+            style = waiting_style
+        else:
+            style = "bold #FF5F5F" if silent else f"bold {TOOL_RUN_ACCENT}"
     else:
         try:
             style = str(style_for_bucket(bucket).color or "")

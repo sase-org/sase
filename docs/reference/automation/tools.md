@@ -482,6 +482,21 @@ entered the queue, so a changed cap applies to new runs.
   in the run's demand as `demand.admission` (`state`, `limit`, `seq`, `requested_ts_ms`,
   `admitted_ts_ms`, `admitted_by`, and `wait_ms`); `sase tool show RUN -j` carries it. A
   run that settles while waiting records `state: abandoned` with the time it waited.
+- **Finding a wait.** `sase tool runs` marks queued runs `(waiting, N ahead)` with a
+  live queue position. `sase tool show` adds an `ADMISSION` line: live runs read
+  `waiting for a check slot since 16:21 (limit 3, 1 ahead)`; settled runs read
+  `admitted after 2m 14s (limit 3)`, `admitted over limit after max wait`, or
+  `abandoned after 40s`. `sase tool wait` and the escalation block say
+  `still waiting for a check slot (N ahead)` instead of `still running`, and `wait -j`
+  carries an `admission` object (`schema_version` stays 1). Followers (`show -F`, the
+  compact inline follower, and `-J` joins writing into the monitor log) print the
+  waiting line once per position change and the grant line once. `sase monitor show`
+  appends the wait to its `Tool run <id> (joined)` line, and single-tool
+  `sase tool stats` adds an admission-waits cell beside the token-waits cell.
+- **In the TUI.** A queued run renders as `waiting` with its queue position: an amber
+  `⚒◷` row chip and header chip, the `⚒ Runs` card outcome line, run-link suffixes, and
+  Admin Center → Tools rows. A waiting run is never shown as silent: its wrapper has not
+  started the child yet, so quiet is expected, not a signal.
 - **Monitors keep their runner slot.** A monitor whose `sase tool run` waits for a slot
   keeps its session's runner-capacity claim (see
   [Runner slots](monitors.md#runner-slots)). That backpressure is intended: agents whose

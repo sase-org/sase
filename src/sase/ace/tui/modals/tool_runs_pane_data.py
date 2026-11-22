@@ -18,6 +18,14 @@ class ToolRunFocusTarget:
     run_id: str
 
 
+def _glance_waiting_ahead(glance: object) -> int | None:
+    """Return the queue position when the glance row waits for a slot."""
+
+    from sase.tool.view_vocabulary import run_waiting_ahead
+
+    return run_waiting_ahead(glance)
+
+
 @dataclass(frozen=True)
 class _ToolRunsFilter:
     """Parsed ``/`` filter: scoped tokens plus free text."""
@@ -150,6 +158,9 @@ def order_runs(
             else:
                 settled.append(brief)
             continue
+        if _glance_waiting_ahead(glance) is not None:
+            live.append(brief)
+            continue
         try:
             last_activity = int(getattr(glance, "last_activity_ts", 0) or 0)
         except (TypeError, ValueError):
@@ -178,7 +189,7 @@ def order_runs(
 def format_run_row(kind: str, brief: object) -> str:
     """Format one Runs list row: state mark, label, verdict, owner, id."""
 
-    from sase.tool.view_vocabulary import style_for_bucket
+    from sase.tool.view_vocabulary import run_waiting_ahead, style_for_bucket
     from sase.ace.tui.tool_runs.deck import (
         tool_run_bucket_words,
         tool_run_display_bucket,
@@ -192,14 +203,53 @@ def format_run_row(kind: str, brief: object) -> str:
     bucket = tool_run_display_bucket(brief)
     style = style_for_bucket(bucket)
     words = tool_run_bucket_words(brief, bucket)
+    waiting = run_waiting_ahead(brief) if kind == "live" else None
+    if waiting is None and kind == "live":
+        waiting = _brief_waiting_fallback(brief)
     if kind == "silent":
         mark = "⚒⚠"
+    elif waiting is not None:
+        mark = "⚒◷"
+        admission = getattr(brief, "admission", None)
+        key = getattr(admission, "key", None) or "slot"
+        words = f"waiting for {key} ({waiting} ahead)"
     elif kind == "live":
         mark = "⚒"
     else:
         mark = style.glyph
     verdict = f" {words}" if words else ""
     return f"{mark} {label}{verdict}  {who}  {run_id[:8]}".rstrip()
+
+
+def _brief_waiting_fallback(brief: object) -> int | None:
+    """Return the queue position from a brief without a parsed view.
+
+    Admin Center rows sometimes carry plain-dict briefs (for example from
+    a cached snapshot) instead of :class:`ToolRunBrief`. Fall back to the
+    raw wire so those rows still name the wait.
+    """
+
+    admission = getattr(brief, "admission", None)
+    if admission is None and isinstance(brief, dict):
+        admission = brief.get("admission")
+    if admission is None:
+        return None
+    try:
+        state = (
+            admission.get("state")
+            if isinstance(admission, dict)
+            else getattr(admission, "state", "")
+        )
+        if str(state or "") != "waiting":
+            return None
+        ahead = (
+            admission.get("ahead")
+            if isinstance(admission, dict)
+            else getattr(admission, "ahead", None)
+        )
+        return max(0, int(ahead if ahead is not None else 0))
+    except (TypeError, ValueError):
+        return None
 
 
 def format_failure_row(group: dict[str, object]) -> str:

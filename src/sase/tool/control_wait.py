@@ -17,6 +17,12 @@ from sase.tool._control_shared import (
     is_settled,
     load_run,
 )
+from sase.tool.admission_display import (
+    is_live_waiting,
+    stored_admission,
+    wait_json_admission,
+    waiting_timeout_line,
+)
 from sase.tool.control_outputs import output_paths_for_run
 from sase.tool.liveness import reconcile_unsettled_tool_runs
 
@@ -323,11 +329,15 @@ def _report_wait_timeout(
         payload["timed_out"] = True
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 124
-    print(f"tool run {run_id} is still running", file=sys.stderr)
     try:
         run = load_run(run_id)
     except UnknownRunError:
+        print(f"tool run {run_id} is still running", file=sys.stderr)
         return 124
+    if is_live_waiting(run, stored_admission(run)):
+        print(waiting_timeout_line(run_id, run), file=sys.stderr)
+    else:
+        print(f"tool run {run_id} is still running", file=sys.stderr)
     _print_wait_tail(run_id, run, tail_lines)
     return 124
 
@@ -364,7 +374,7 @@ def _report_wait_budget(
 
 
 def _wait_json(run_id: str, run: dict[str, Any]) -> dict[str, Any]:
-    return {
+    payload = {
         "schema_version": 1,
         "run_id": run_id,
         "state": run.get("state"),
@@ -373,6 +383,10 @@ def _wait_json(run_id: str, run: dict[str, Any]) -> dict[str, Any]:
         "settled_by": run.get("settled_by"),
         "timed_out": False,
     }
+    admission = wait_json_admission(run)
+    if admission is not None:
+        payload["admission"] = admission
+    return payload
 
 
 def _print_wait_tail(run_id: str, run: dict[str, Any], tail_lines: int | None) -> None:

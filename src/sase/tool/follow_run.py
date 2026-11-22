@@ -110,6 +110,16 @@ def follow_run(
 
     last: dict[str, Any] | None = None
     poll_state = WaitPollState()
+    admission_state: dict[str, Any] = {"waiting": None, "granted": False}
+    announce = stream_output or compact
+    orig_on_poll = _on_poll
+
+    def _on_poll_with_admission(envelope: dict[str, Any]) -> None:  # noqa: F811
+        orig_on_poll(envelope)
+        if announce:
+            _emit_admission_lines(envelope, emit, admission_state)
+
+    _on_poll = _on_poll_with_admission  # noqa: F811
     while True:
         if stop_event is not None and stop_event.is_set():
             return FollowOutcome(kind="stopped", envelope=last)
@@ -152,6 +162,45 @@ def follow_run(
             if last is None:
                 last = _last_envelope(run_id)
             return FollowOutcome(kind="deadline", envelope=last)
+
+
+def _emit_admission_lines(
+    envelope: dict[str, Any],
+    emit: Callable[[str], None],
+    state: dict[str, Any],
+) -> None:
+    """Emit the waiting line and the granted line once per change.
+
+    The waiting line repeats only when the queue position moves; the
+    granted line fires once when the run's stored record flips to
+    admitted. Both read the run's admission field, so a follower that
+    attaches mid-wait announces the current position at once.
+    """
+
+    from sase.tool.admission_display import (
+        follower_granted_line,
+        follower_waiting_line,
+    )
+
+    try:
+        run = envelope.get("run")
+        if not isinstance(run, dict):
+            return
+        if not state.get("granted"):
+            granted = follower_granted_line(run)
+            if granted is not None:
+                state["granted"] = True
+                state["waiting"] = None
+                emit(granted)
+                return
+        line = follower_waiting_line(run, envelope)
+        if line is None:
+            return
+        if line != state.get("waiting"):
+            state["waiting"] = line
+            emit(line)
+    except Exception:  # noqa: BLE001 - admission copy never breaks a follow.
+        return
 
 
 def _last_envelope(run_id: str) -> dict[str, Any] | None:

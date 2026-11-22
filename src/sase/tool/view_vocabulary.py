@@ -42,11 +42,21 @@ class _ToolRunStateStyle:
     color: str
 
 
+#: Single-cell waiting marker, always paired with the word "waiting".
+WAITING_GLYPH = "◷"
+
 #: §3.2 bucket styles keyed by the core verdict-bucket word, plus the
-#: TUI-derived ``silent`` state (a live run past the silence threshold).
+#: TUI-derived ``silent`` state (a live run past the silence threshold)
+#: and the ``waiting`` sub-state (a live run queued for an admission
+#: slot; ordered between ``starting`` and ``running``).
 BUCKET_STYLES: dict[str, _ToolRunStateStyle] = {
     "running": _ToolRunStateStyle(
         glyph=TOOL_RUN_GLYPH, word="running", color=f"bold {TOOL_RUN_ACCENT}"
+    ),
+    "waiting": _ToolRunStateStyle(
+        glyph=f"{TOOL_RUN_GLYPH}{WAITING_GLYPH}",
+        word="waiting",
+        color=f"bold {WARNING_COLOR}",
     ),
     "silent": _ToolRunStateStyle(
         glyph=f"{TOOL_RUN_GLYPH}{SILENT_GLYPH}",
@@ -103,6 +113,27 @@ def is_silent(last_activity_ts: float, now_ts: float, silent_after_s: int = 60) 
     return now_ts - last_activity_ts >= silent_after_s
 
 
+def run_waiting_ahead(run: object) -> int | None:
+    """Return the admission queue position when *run* still waits for a slot.
+
+    Reads the parsed ``admission`` view (``ToolRunAdmissionView``) that the
+    core glance/brief wires carry. Anything else — settled runs, runs that
+    never queued, legacy rows without the view — yields None. A waiting run
+    is never silent: its wrapper has not started the child yet, so quiet is
+    expected, not a signal.
+    """
+
+    admission = getattr(run, "admission", None)
+    if admission is None:
+        return None
+    try:
+        if not bool(admission.is_waiting()):
+            return None
+        return max(0, int(admission.ahead))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 def format_age(seconds: float) -> str:
     """Format a silent/elapsed age as ``<1m``, ``Nm``, ``Nh``, or ``Nd``."""
 
@@ -152,17 +183,22 @@ def row_chip_text(
     silent_age_s: float | None = None,
     elapsed_s: float = 0,
     extra_live: int = 0,
+    waiting_ahead: int | None = None,
 ) -> str:
     """Build the live-only Agents-tab row chip text (§3.6).
 
-    ``silent_age_s`` marks a silent run; otherwise progress shows ``k/n``
-    when a reference run supplies ``stages_expected`` (and ``k <= n``),
+    ``silent_age_s`` marks a silent run; ``waiting_ahead`` marks a run
+    queued for an admission slot. Otherwise progress shows ``k/n`` when a
+    reference run supplies ``stages_expected`` (and ``k <= n``),
     ``starting`` for ``created``, ``stopping`` on a stop request, and a
     minute age as the elapsed fallback. The position is ``stages_done + 1``
     while a stage is in flight, otherwise ``stages_done`` (§3.1).
     """
 
-    if silent_age_s is not None:
+    if waiting_ahead is not None:
+        head = f"{TOOL_RUN_GLYPH}{WAITING_GLYPH} "
+        tail = f" waiting {waiting_ahead}"
+    elif silent_age_s is not None:
         head = f"{TOOL_RUN_GLYPH}{SILENT_GLYPH} "
         tail = f" silent {format_age(silent_age_s)}"
     elif state == "created" and not stop_requested:
@@ -213,10 +249,18 @@ def header_chip_text(
     terminal_cause: str | None = None,
     silent_age_s: float | None = None,
     extra_labels: int = 0,
+    waiting_ahead: int | None = None,
+    waiting_key: str | None = None,
 ) -> str:
     """Build the selection header chip text (§3.7) for one label's run."""
 
     suffix = f"+{extra_labels}" if extra_labels > 0 else ""
+    if waiting_ahead is not None:
+        key = waiting_key or "slot"
+        return (
+            f"{TOOL_RUN_GLYPH}{WAITING_GLYPH} {label} · "
+            f"waiting for {key} ({waiting_ahead} ahead){suffix}"
+        )
     if silent_age_s is not None:
         detail = f"{stage} · " if stage else ""
         return (
@@ -314,6 +358,7 @@ __all__ = [
     "SILENT_GLYPH",
     "TOOL_RUN_ACCENT",
     "TOOL_RUN_GLYPH",
+    "WAITING_GLYPH",
     "_ToolRunStateStyle",
     "format_age",
     "format_min_sec",
@@ -321,6 +366,7 @@ __all__ = [
     "header_chip_text",
     "is_silent",
     "row_chip_text",
+    "run_waiting_ahead",
     "severity_rank",
     "style_for_bucket",
     "switcher_runs_text",

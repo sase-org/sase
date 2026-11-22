@@ -407,16 +407,21 @@ def escalation_block(
 
     rid = str(run_id or run.get("run_id") or "").strip()
     elapsed = _format_elapsed(_run_elapsed_seconds(run))
+    waiting_line = _waiting_line(run, rid)
     if not is_joinable(run, env):
+        first = waiting_line or f"tool run {rid} is still running"
         return (
-            f"tool run {rid} is still running\n"
+            f"{first}\n"
             "Or wait again inline, bounded by the same ceiling:\n"
             f"  {rewait_command(rid)}"
         )
     tool = _escalation_tool_name(run)
-    return (
+    first = waiting_line or (
         f"sase tool run: {tool} (run {rid}) is still running after "
-        f"{elapsed}; it was not stopped.\n"
+        f"{elapsed}; it was not stopped."
+    )
+    return (
+        f"{first}\n"
         f"{_escalation_source_line(budget)}\n"
         "Hand the same run to a monitor and end this turn (nothing reruns):\n"
         f"  {_join_command(rid, tool)}\n"
@@ -424,6 +429,33 @@ def escalation_block(
         f"  {rewait_command(rid)}\n"
         "Unless a monitor joins it, this run is stopped when this agent's turn ends."
     )
+
+
+def _waiting_line(run: dict[str, object], run_id: str) -> str | None:
+    """Return the still-waiting first line when the run queues for a slot."""
+
+    from sase.tool.admission_display import (
+        is_live_waiting,
+        stored_admission,
+        waiting_key,
+        waiting_timeout_line,
+    )
+
+    if not isinstance(run, dict):
+        return None
+    if not is_live_waiting(run, stored_admission(run)):
+        return None
+    record = stored_admission(run)
+    key = waiting_key(record)
+    try:
+        from sase.tool.admission_display import live_ahead
+
+        ahead = live_ahead(run_id)
+    except Exception:  # noqa: BLE001 - the stored line covers a miss.
+        ahead = None
+    if ahead is not None:
+        return f"tool run {run_id} is still waiting for a {key} slot ({ahead} ahead)"
+    return waiting_timeout_line(run_id, run)
 
 
 def escalation_json(

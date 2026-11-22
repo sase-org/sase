@@ -25,6 +25,7 @@ from sase.tool.view_vocabulary import (
     ("bucket", "glyph", "word", "color"),
     [
         ("running", "⚒", "running", "bold #87D7FF"),
+        ("waiting", "⚒◷", "waiting", "bold #FFAF5F"),
         ("silent", "⚒⚠", "silent", "bold #FF5F5F"),
         ("pass", "✓", "pass", "#5FD75F"),
         ("new_failures", "✗", "NEW", "#FF5F5F"),

@@ -17,10 +17,12 @@ from rich.text import Text
 from sase.tool.view_vocabulary import (
     TOOL_RUN_ACCENT,
     TOOL_RUN_GLYPH,
+    WAITING_GLYPH,
     format_age,
     format_min_sec,
     format_settled_ts,
     is_silent,
+    run_waiting_ahead,
     style_for_bucket,
     switcher_runs_text,
 )
@@ -214,6 +216,8 @@ def tool_run_is_silent(
 
     if tool_run_display_bucket(brief) != "running" or now_s is None:
         return False
+    if run_waiting_ahead(brief) is not None:
+        return False
     try:
         threshold = int(silent_after_s)
     except (TypeError, ValueError):
@@ -324,6 +328,17 @@ def _live_outcome_line(
         return Text(f"{TOOL_RUN_GLYPH} {label} starting", style="")
     if bool(getattr(brief, "stop_requested", False)):
         return Text(f"{TOOL_RUN_GLYPH} {label} stopping", style="")
+    waiting = run_waiting_ahead(brief)
+    if waiting is not None:
+        admission = getattr(brief, "admission", None)
+        key = getattr(admission, "key", None) or "slot"
+        line = Text()
+        line.append(f"{TOOL_RUN_GLYPH}{WAITING_GLYPH} {label} ", style="")
+        line.append(
+            f"waiting for {key} ({waiting} ahead)",
+            style=style_for_bucket("waiting").color,
+        )
+        return line
     if tool_run_is_silent(brief, moment, silent_after_s):
         style = style_for_bucket("silent")
         last_activity = _live_last_activity_ts(brief)

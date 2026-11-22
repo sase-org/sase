@@ -95,6 +95,54 @@ class ToolRunGlanceStage:
 
 
 @dataclass(frozen=True)
+class ToolRunAdmissionView:
+    """Live admission queue position for an unsettled run with a record.
+
+    Carries no verdict: a waiting run is still ``running`` for every
+    bucket, chip, and silence decision, and only surfaces read this view
+    to name the slot it waits for (or holds) and its queue position.
+    """
+
+    state: str
+    key: str | None = None
+    limit: int | None = None
+    ahead: int = 0
+    holders: int = 0
+    requested_ts_ms: int | None = None
+    admitted_ts_ms: int | None = None
+    admitted_by: str | None = None
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunAdmissionView:
+        """Build an admission view from a result wire, ignoring unknown keys."""
+
+        return cls(
+            state=str(data.get("state") or ""),
+            key=_optional_str(data.get("key")),
+            limit=_optional_int(data.get("limit")),
+            ahead=_count(data.get("ahead")),
+            holders=_count(data.get("holders")),
+            requested_ts_ms=_optional_int(data.get("requested_ts_ms")),
+            admitted_ts_ms=_optional_int(data.get("admitted_ts_ms")),
+            admitted_by=_optional_str(data.get("admitted_by")),
+        )
+
+    def is_waiting(self) -> bool:
+        """Return True when the run still queues for a slot."""
+
+        return self.state == "waiting"
+
+
+def _admission_view(value: Any) -> ToolRunAdmissionView | None:
+    """Parse an admission view wire, or None when the run never queued."""
+
+    if not isinstance(value, Mapping):
+        return None
+    view = ToolRunAdmissionView.from_wire(value)
+    return view if view.state else None
+
+
+@dataclass(frozen=True)
 class ToolRunGlance:
     """One unsettled run: identity, attribution, timing, and progress."""
 
@@ -122,6 +170,7 @@ class ToolRunGlance:
     stages_expected: int | None = None
     reference_run_id: str | None = None
     typical_ms: int | None = None
+    admission: ToolRunAdmissionView | None = None
 
     @classmethod
     def from_wire(cls, data: Mapping[str, Any]) -> ToolRunGlance:
@@ -157,6 +206,7 @@ class ToolRunGlance:
             stages_expected=_optional_int(data.get("stages_expected")),
             reference_run_id=_optional_str(data.get("reference_run_id")),
             typical_ms=_optional_int(data.get("typical_ms")),
+            admission=_admission_view(data.get("admission")),
         )
 
 
@@ -193,6 +243,7 @@ class ToolRunBrief:
     settled_ts: int | None = None
     duration_ms: int | None = None
     typical_ms: int | None = None
+    admission: ToolRunAdmissionView | None = None
 
     @classmethod
     def from_wire(cls, data: Mapping[str, Any]) -> ToolRunBrief:
@@ -227,6 +278,7 @@ class ToolRunBrief:
             settled_ts=_optional_int(data.get("settled_ts")),
             duration_ms=_optional_int(data.get("duration_ms")),
             typical_ms=_optional_int(data.get("typical_ms")),
+            admission=_admission_view(data.get("admission")),
         )
 
 
@@ -615,6 +667,7 @@ class ToolRunDetail:
 
 
 __all__ = [
+    "ToolRunAdmissionView",
     "ToolRunBrief",
     "ToolRunBriefs",
     "ToolRunDetail",

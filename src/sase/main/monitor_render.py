@@ -237,6 +237,43 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
     }
 
 
+def _joined_waiting_suffix(run_id: str) -> str:
+    """Return the waiting suffix for a joined run, or ``""`` when not queued.
+
+    Fail-open: the monitor detail must render even when the ToolRun store
+    is unreachable or the run never queued for a slot.
+    """
+
+    try:
+        from sase.core.tool_run import tool_run_show
+        from sase.tool.admission_display import (
+            is_live_waiting,
+            live_admission_view,
+            stored_admission,
+            waiting_ahead,
+            waiting_key,
+        )
+
+        envelope = tool_run_show(run_id)
+        if not isinstance(envelope, dict):
+            return ""
+        run = envelope.get("run")
+        if not isinstance(run, dict):
+            return ""
+        view = live_admission_view(envelope)
+        if not is_live_waiting(
+            run, view if view is not None else stored_admission(run)
+        ):
+            return ""
+        ahead = waiting_ahead(view, stored_admission(run))
+        key = waiting_key(view if view is not None else stored_admission(run))
+        if ahead is None:
+            return f" · waiting for a {key} slot"
+        return f" · waiting for a {key} slot ({ahead} ahead)"
+    except Exception:  # noqa: BLE001 - the detail line covers a miss.
+        return ""
+
+
 def monitor_list_json(
     records: Sequence[MonitorRecord],
     *,
@@ -443,7 +480,8 @@ def monitor_detail(record: MonitorRecord) -> Panel:
             (
                 "Tool run",
                 Text(
-                    f"{record.tool_run_id}{joined_mark}  "
+                    f"{record.tool_run_id}{joined_mark}"
+                    f"{_joined_waiting_suffix(record.tool_run_id)}  "
                     f"(sase tool show {record.tool_run_id})"
                 ),
             )

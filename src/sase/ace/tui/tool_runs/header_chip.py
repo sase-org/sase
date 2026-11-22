@@ -27,6 +27,7 @@ from sase.tool.view_vocabulary import (
     WARNING_COLOR,
     header_chip_text,
     is_silent,
+    run_waiting_ahead,
     severity_rank,
     style_for_bucket,
 )
@@ -95,7 +96,12 @@ def _order_live(
     """Order live runs with the chip primary first (silent, then oldest)."""
 
     def _key(run: Any) -> tuple[int, int]:
-        silent = 0 if is_silent(_last_activity_ts(run), now_ts, silent_after_s) else 1
+        if run_waiting_ahead(run) is not None:
+            silent = 1
+        else:
+            silent = (
+                0 if is_silent(_last_activity_ts(run), now_ts, silent_after_s) else 1
+            )
         return (silent, _run_created_ts(run))
 
     return tuple(sorted(primary, key=_key))
@@ -115,7 +121,10 @@ def _live_choice(
     label = str(getattr(primary, "label", "") or "")
     extra = len([name for name in labels if name != label])
     run_id = str(getattr(primary, "run_id", ""))
-    if is_silent(_last_activity_ts(primary), now_ts, silent_after_s):
+    waiting = run_waiting_ahead(primary)
+    if waiting is None and is_silent(
+        _last_activity_ts(primary), now_ts, silent_after_s
+    ):
         text = header_chip_text(
             label,
             "running",
@@ -127,6 +136,24 @@ def _live_choice(
             label=label,
             text=text,
             style=FAILURE_STYLE,
+            extra_labels=extra,
+        )
+    if waiting is not None:
+        admission = getattr(primary, "admission", None)
+        text = header_chip_text(
+            label,
+            "waiting",
+            waiting_ahead=waiting,
+            waiting_key=(
+                str(getattr(admission, "key", "") or "") if admission else None
+            ),
+            extra_labels=extra,
+        )
+        return _HeaderRunChoice(
+            run_id=run_id,
+            label=label,
+            text=text,
+            style=style_for_bucket("waiting").color,
             extra_labels=extra,
         )
     elapsed = _elapsed_s(primary, now_ts)

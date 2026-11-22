@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.tool.view_vocabulary import TOOL_RUN_ACCENT, is_silent, row_chip_text
+from sase.tool.view_vocabulary import (
+    TOOL_RUN_ACCENT,
+    is_silent,
+    row_chip_text,
+    run_waiting_ahead,
+    style_for_bucket,
+)
 
 if TYPE_CHECKING:
     from sase.core.tool_run import ToolRunGlance
@@ -32,6 +38,8 @@ def _minute_bucket(now_ts: float) -> int:
 def _run_is_silent(run: ToolRunGlance, now_ts: float, silent_after_s: int = 60) -> bool:
     """Return True when a live run is past the silence threshold (D4)."""
 
+    if run_waiting_ahead(run) is not None:
+        return False
     try:
         last_activity = float(getattr(run, "last_activity_ts", 0) or 0)
     except (TypeError, ValueError):
@@ -101,6 +109,14 @@ def row_chip_for_runs(
         return None
     primary = ordered[0]
     extra = len(ordered) - 1
+    waiting = run_waiting_ahead(primary)
+    if waiting is not None:
+        text = row_chip_text(
+            str(getattr(primary, "label", "") or ""),
+            waiting_ahead=waiting,
+            extra_live=extra,
+        )
+        return (text, style_for_bucket("waiting").color)
     if _run_is_silent(primary, now_ts, silent_after_s):
         text = row_chip_text(
             str(getattr(primary, "label", "") or ""),
@@ -171,6 +187,7 @@ def tool_run_chip_token(
         bool(getattr(primary, "stop_requested", False)),
         in_flight,
         str(getattr(primary, "label", "")),
+        run_waiting_ahead(primary),
     )
 
 
@@ -189,6 +206,8 @@ def chip_uses_elapsed_fallback(
     if not ordered:
         return False
     primary = ordered[0]
+    if run_waiting_ahead(primary) is not None:
+        return False
     if _run_is_silent(primary, now_ts, silent_after_s):
         return True
     if bool(getattr(primary, "stop_requested", False)):

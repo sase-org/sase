@@ -296,6 +296,32 @@ def _print_signal_lines(console: Console, tool: dict[str, Any]) -> None:
         f" / p90 {_fmt_int(demand.get('grant_width_p90'))}"
         f" · token waits {token_runs:,} runs"
         f" ({_fmt_ms(demand.get('token_wait_ms_total'))}, {timeouts:,} timeouts)"
+        f"{_format_admission_waits(tool.get('admission'))}"
+    )
+
+
+def _format_admission_waits(admission: object) -> str:
+    """Render the admission-wait cell beside the token-wait cell.
+
+    The per-tool admission summary counts waits apart from the pytest
+    token waits; runs that never queued render nothing.
+    """
+
+    if not isinstance(admission, dict):
+        return ""
+    runs = int(admission.get("runs") or 0)
+    if not runs:
+        return ""
+    waits = int(admission.get("waits") or 0)
+    forced = int(admission.get("forced") or 0)
+    abandoned = int(admission.get("abandoned") or 0)
+    return (
+        f" · admission waits {waits:,}/{runs:,} runs"
+        f" ({_fmt_ms(admission.get('wait_ms_total'))}"
+        f", p50 {_fmt_ms(admission.get('wait_ms_p50'))}"
+        f", p95 {_fmt_ms(admission.get('wait_ms_p95'))}"
+        f", max {_fmt_ms(admission.get('wait_ms_max'))}"
+        f", {forced:,} forced, {abandoned:,} abandoned)"
     )
 
 
