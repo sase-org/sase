@@ -117,7 +117,7 @@ def test_pressure_holds_backstop_for_a_bounded_window(
     )
     policy._last_input_mono = lambda: clock.now - input_ago["s"]
     # Isolate the pressure window from the separately tested cost gate.
-    policy._predicted_pause_s = lambda _now, _trigger="idle": 0.0
+    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     policy._own_last_full_mono = clock.now
     recorder.gen1 = 150
@@ -166,7 +166,7 @@ def test_pressure_window_closes_when_paging_stops(
     policy = idle_policy(
         clock, collector, recorder, memory_pressure_probe=lambda: pressure
     )
-    policy._predicted_pause_s = lambda _now, _trigger="idle": 0.0
+    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     policy._own_last_full_mono = clock.now
     recorder.gen1 = 150
@@ -176,7 +176,7 @@ def test_pressure_window_closes_when_paging_stops(
 
     # A quiet pass clears the window even if another gate then defers.
     pressure["major_faults_per_s"] = 0.0
-    policy._predicted_pause_s = lambda _now, _trigger="idle": 99.0
+    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 99.0
     clock.advance(30.0)
     assert policy.tick(clock.now) is None
     assert emitted[-1]["event"] == "tui_gc_collection_deferred"

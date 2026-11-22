@@ -1069,9 +1069,11 @@ collections off the interactive path:
   policy calls `gc.freeze()` without first running a full collection. The existing heap
   is then outside ordinary full sweeps.
 - After each policy full collection, survivors are frozen again. Ordinary sweeps then
-  traverse objects allocated since the last freeze. A rare unfreeze-and-collect pass
-  reclaims cycles in the frozen heap only after 15 minutes without input and no more
-  often than every 30 minutes.
+  traverse objects allocated since the last freeze. An unfreeze-and-collect pass
+  reclaims cycles in the frozen heap after 15 minutes without input (no more often than
+  every 30 minutes), and additionally at most hourly on an ordinary 3 s quiet window,
+  priced by the same estimator with a full-heap scan size. Deferred hourly deep sweeps
+  carry their own 10-minute bound, so ordinary sweeps cannot starve them.
 - On the classic three-generation collector the policy preserves the current `t0`/`t1`
   and raises `threshold2` to 10_000, so automatic full collections become a rare
   backstop (about once an hour at 2.9 gen-1/s). Any other collector shape leaves
@@ -1091,8 +1093,16 @@ collections off the interactive path:
   faults/s. It defers full collections (`tui_gc_memory_pressure` row) but holds the
   backstops at most 10 minutes, then one runs after 60 s of quiet.
 - The pause estimate is the latest observed full sweep (policy or automatic gen-2)
-  scaled by new versus swept allocated blocks, times 2. Above the 2 s budget, or with no
-  estimate, the policy emits `tui_gc_collection_deferred` and waits for 15 idle minutes.
+  scaled by new versus swept allocated blocks, times 2; a deep sweep scales to the whole
+  heap instead. Right after the freeze-only startup there is no estimate yet, so the
+  first sweep runs while post-freeze heap growth is still small (at most 1M blocks,
+  about 0.15 s typically) and measures a real sample. Above the 2 s budget, or with no
+  estimate, the policy emits `tui_gc_collection_deferred` and holds the sweep for at
+  most 10 more minutes — about 600 s x 3,800 blocks/s x 0.15 us/block x 2, well under
+  the budget — before it runs on the next ordinary quiet window. Deferred rows carry
+  `cost_deferred_s` (seconds the cost gate has held the sweep; deep-eligible ones also
+  set `deep_due: true`). No reason names were added: the gate still reports
+  `cost_unknown` / `cost_gate`, and paging reports `swapping`.
 - After an idle or backstop collection, freed arenas are released with `malloc_trim` on
   a daemon worker thread (`sase-tui-gc-trim`, via the `trim_allocator` half of
   `sase.axe.runner_idle_memory`), at most every 10 minutes.

@@ -30,8 +30,10 @@ from ._gc_policy_config import (
     CENSUS_WATCHLIST,
     COST_PREDICTION_SAFETY_FACTOR,
     COST_SAMPLE_MAX_AGE_S,
+    DEEP_SWEEP_INTERVAL_S,
     DEFERRED_TELEMETRY_INTERVAL_S,
     DUTY_FACTOR,
+    FIRST_SWEEP_BLOCK_BUDGET,
     FULL_BACKSTOP_S,
     FULL_GENERATION,
     GEN1_DUE_COUNT,
@@ -48,7 +50,12 @@ from ._gc_policy_config import (
     THRESHOLD_UNSUPPORTED,
     TRIM_INTERVAL_S,
 )
-from ._gc_policy_pressure import PressureDeferral, newer_full_pause, paging_pressure
+from ._gc_policy_pressure import (
+    CostDeferral,
+    PressureDeferral,
+    newer_full_pause,
+    paging_pressure,
+)
 from ._gc_policy_trim import spawn_trim_thread
 
 # Preserve the pre-split logger name so existing log capture keeps working.
@@ -148,6 +155,8 @@ class GCPolicy:
         self._allocated_blocks_probe = allocated_blocks_probe or _allocated_blocks
         self._memory_pressure_probe = memory_pressure_probe or latest_memory_pressure
         self._pressure_deferral = PressureDeferral()
+        self._cost_deferral = CostDeferral()
+        self._deep_cost_deferral = CostDeferral()
         self._last_census_mono: float | None = None
         self._timer: Any = None
         self.threshold_policy = THRESHOLD_UNSUPPORTED
@@ -343,12 +352,14 @@ class GCPolicy:
         )
 
     def _predicted_pause_s(
-        self, now_mono: float, trigger: str = "idle"
+        self, now_mono: float, trigger: str = "idle", *, deep: bool = False
     ) -> float | None:
         """Estimate the next full sweep from the last pause and heap growth.
 
         Only ``idle`` needs a sample younger than ``COST_SAMPLE_MAX_AGE_S``;
-        a backstop prices itself from the latest observed full collection.
+        a backstop prices itself from the latest observed full collection. A
+        bounded deep sweep scans the whole heap, so it scales the sample to
+        every allocated block instead of only the growth since the last sweep.
         """
         pause = self._last_full_pause_s
         baseline = self._heap_blocks_at_last_full
@@ -365,8 +376,48 @@ class GCPolicy:
             or (trigger == "idle" and now_mono - sampled > COST_SAMPLE_MAX_AGE_S)
         ):
             return None
-        new_blocks = max(1, current - baseline)
+        if deep:
+            new_blocks = max(1, current)
+        else:
+            new_blocks = max(1, current - baseline)
         return pause * new_blocks / scanned_blocks * COST_PREDICTION_SAFETY_FACTOR
+
+    def _first_sweep_seed_due(self) -> bool:
+        """Return True when one early sweep should seed the cost estimate.
+
+        Right after the freeze-only startup no full collection has been
+        observed, so the estimate is unknown and the gate would hold every
+        sweep until long idle. While the heap has grown by real garbage but
+        is still within ``FIRST_SWEEP_BLOCK_BUDGET``, one ordinary sweep is
+        cheap and yields the first real sample.
+        """
+        if not self._froze_startup:
+            return False
+        if self._own_last_full_mono is not None:
+            return False
+        if self._cost_sample_mono is not None or self._last_full_pause_s is not None:
+            return False
+        current = self._read_allocated_blocks()
+        baseline = self._heap_blocks_at_last_full
+        if current is None or baseline is None:
+            return False
+        return 0 < current - baseline <= FIRST_SWEEP_BLOCK_BUDGET
+
+    def _deep_bounded_due(self, now_mono: float) -> bool:
+        """Return True when frozen garbage is due a bounded reclaim sweep.
+
+        At most one unfreeze sweep per ``DEEP_SWEEP_INTERVAL_S``, on an
+        ordinary quiet window, anchored at the startup freeze so the first
+        bounded deep sweep waits a full interval after startup.
+        """
+        if not self._froze_startup or self._startup_freeze_mono is None:
+            return False
+        anchor = (
+            self._last_deep_full_mono
+            if self._last_deep_full_mono is not None
+            else self._startup_freeze_mono
+        )
+        return now_mono - anchor >= DEEP_SWEEP_INTERVAL_S
 
     def _memory_pressure(self, now_mono: float) -> dict[str, Any] | None:
         """Return a fresh pressure sample only when the process is paging."""
@@ -383,6 +434,8 @@ class GCPolicy:
             return
         self._last_full_pause_s, self._cost_sample_mono = observed
         self._pressure_deferral.clear()
+        self._cost_deferral.clear()
+        self._deep_cost_deferral.clear()
         scanned = self._read_allocated_blocks() or 1
         baseline = self._heap_blocks_at_last_full
         if self._froze_startup and baseline is not None:
@@ -398,6 +451,8 @@ class GCPolicy:
         input_idle_s: float,
         pressure: dict[str, Any] | None = None,
         predicted_pause_s: float | None = None,
+        cost_deferral_s: float | None = None,
+        deep_due: bool = False,
     ) -> None:
         """Emit a rate-limited row when pressure or the cost gate defers a sweep."""
         key = f"{trigger}:{reason}"
@@ -416,6 +471,10 @@ class GCPolicy:
             ),
             "pause_budget_s": MAX_PREDICTED_FULL_PAUSE_S,
         }
+        if cost_deferral_s is not None:
+            row["cost_deferred_s"] = round(max(0.0, cost_deferral_s), 3)
+        if deep_due:
+            row["deep_due"] = True
         if pressure is not None:
             row.update(
                 {
@@ -472,25 +531,39 @@ class GCPolicy:
             )
             return None
 
-        predicted_pause = self._predicted_pause_s(now, tag)
-        if not long_idle and (
-            predicted_pause is None or predicted_pause > MAX_PREDICTED_FULL_PAUSE_S
-        ):
-            self._record_deferred(
-                now_mono=now,
-                trigger=tag,
-                reason="cost_unknown" if predicted_pause is None else "cost_gate",
-                input_idle_s=input_idle_s,
-                predicted_pause_s=predicted_pause,
-            )
-            return None
-
-        deep_idle_due = long_idle and (
+        deep_long_idle_due = long_idle and (
             self._last_deep_full_mono is None
             or now - self._last_deep_full_mono >= LONG_IDLE_COLLECTION_INTERVAL_S
         )
+        deep_bounded_due = self._deep_bounded_due(now) if not long_idle else False
+        predicted_pause = self._predicted_pause_s(now, tag, deep=deep_bounded_due)
+        if not long_idle and (
+            predicted_pause is None or predicted_pause > MAX_PREDICTED_FULL_PAUSE_S
+        ):
+            window = (
+                self._deep_cost_deferral if deep_bounded_due else self._cost_deferral
+            )
+            seed = not deep_bounded_due and self._first_sweep_seed_due()
+            if not seed and window.defers(
+                trigger=tag, now_mono=now, input_idle_s=input_idle_s
+            ):
+                self._record_deferred(
+                    now_mono=now,
+                    trigger=tag,
+                    reason="cost_unknown" if predicted_pause is None else "cost_gate",
+                    input_idle_s=input_idle_s,
+                    predicted_pause_s=predicted_pause,
+                    cost_deferral_s=window.deferred_for_s(now),
+                    deep_due=deep_bounded_due,
+                )
+                return None
+            # The cap passed, or this is the cheap first post-freeze sweep that
+            # seeds the estimate: run on this quiet window despite the gate.
+
         unfreeze = getattr(self._collector, "unfreeze", None)
-        deep_collection = deep_idle_due and callable(unfreeze)
+        deep_collection = (deep_long_idle_due or deep_bounded_due) and callable(
+            unfreeze
+        )
         blocks_before = self._read_allocated_blocks()
         if deep_collection and blocks_before is not None:
             scan_blocks: int | None = max(1, blocks_before)
@@ -520,6 +593,7 @@ class GCPolicy:
         self._note_full_collection(pause, scan_blocks=scan_blocks)
         if deep_collection:
             self._last_deep_full_mono = self._own_last_full_mono
+            self._deep_cost_deferral.clear()
         self._maybe_trim(now)
         return tag
 
@@ -539,6 +613,7 @@ class GCPolicy:
         """Record an own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
         self._pressure_deferral.clear()
+        self._cost_deferral.clear()
         self._cost_sample_mono = self._own_last_full_mono
         if pause_s is not None:
             try:

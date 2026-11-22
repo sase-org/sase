@@ -1,4 +1,4 @@
-"""Paging-pressure gate and observed-cost refresh for the idle-GC policy.
+"""Paging-pressure gate, cost-gate bound, and observed-cost refresh.
 
 A stable residual ``VmSwap`` is not pressure. Pages swapped out long ago and
 never touched again leave the process at zero major faults, and deferring on
@@ -14,6 +14,13 @@ has been quiet for ``PRESSURE_OVERRIDE_QUIET_S``, so sustained paging cannot
 starve the backstops indefinitely. The opportunistic ``idle`` trigger stays
 deferred while pressure lasts; it turns into ``backstop`` after five minutes.
 
+The cost gate (``cost_unknown`` / ``cost_gate``) gets the same shape of bound
+through ``CostDeferral``: it may hold the ``idle`` / ``backstop`` /
+``rss_backstop`` triggers for at most ``COST_MAX_DEFERRAL_S``, then a sweep
+runs on the next ordinary quiet window, so an unknown or over-budget estimate
+can never starve sweeps indefinitely. The bounded deep sweep carries its own
+window so ordinary sweeps cannot reset it.
+
 Everything here reads cached samples only; nothing touches ``/proc`` or runs
 a collection.
 """
@@ -23,6 +30,8 @@ from __future__ import annotations
 from typing import Any, TypeGuard
 
 from ._gc_policy_config import (
+    COST_MAX_DEFERRAL_S,
+    COST_OVERRIDE_QUIET_S,
     MAJOR_FAULTS_PER_S_PRESSURE_THRESHOLD,
     PRESSURE_MAX_DEFERRAL_S,
     PRESSURE_OVERRIDE_QUIET_S,
@@ -31,6 +40,7 @@ from ._gc_policy_config import (
 )
 
 _BOUNDED_TRIGGERS = frozenset({"backstop", "rss_backstop"})
+_COST_BOUNDED_TRIGGERS = frozenset({"idle", "backstop", "rss_backstop"})
 
 
 def _is_number(value: object) -> TypeGuard[float]:
@@ -96,6 +106,39 @@ class PressureDeferral:
 
     def clear(self) -> None:
         """Close the window: pressure is gone or a full collection ran."""
+        self._since_mono = None
+
+
+class CostDeferral:
+    """Bound how long the cost gate may hold a sweep.
+
+    The window opens at the first cost deferral of a bounded trigger and
+    closes when fresh cost evidence arrives (an own sweep or a newly observed
+    full collection). While the window is younger than
+    ``COST_MAX_DEFERRAL_S`` the gate defers; afterwards only a missing quiet
+    window still defers, so the sweep runs on the next ordinary quiet tick.
+    """
+
+    def __init__(self) -> None:
+        self._since_mono: float | None = None
+
+    def deferred_for_s(self, now_mono: float) -> float:
+        """Seconds the cost gate has held a sweep in the current window."""
+        since = self._since_mono
+        return 0.0 if since is None else max(0.0, now_mono - since)
+
+    def defers(self, *, trigger: str, now_mono: float, input_idle_s: float) -> bool:
+        """Return True while the cost gate should still hold a sweep."""
+        if trigger not in _COST_BOUNDED_TRIGGERS:
+            return True
+        if self._since_mono is None:
+            self._since_mono = now_mono
+        if now_mono - self._since_mono < COST_MAX_DEFERRAL_S:
+            return True
+        return input_idle_s < COST_OVERRIDE_QUIET_S
+
+    def clear(self) -> None:
+        """Close the window: fresh cost evidence or a full collection ran."""
         self._since_mono = None
 
 

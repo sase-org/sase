@@ -31,6 +31,34 @@ PRESSURE_OVERRIDE_QUIET_S = 60.0
 COST_SAMPLE_MAX_AGE_S = 15 * 60.0
 MAX_PREDICTED_FULL_PAUSE_S = 2.0
 COST_PREDICTION_SAFETY_FACTOR = 2.0
+# The cost gate (``cost_unknown`` / ``cost_gate``) may hold the ``idle``,
+# ``backstop``, and ``rss_backstop`` triggers this long at most; afterwards a
+# sweep runs on the next ordinary quiet window (``COST_OVERRIDE_QUIET_S`` of
+# input quiet, no prompt/navigation/modal active). Baseline arithmetic
+# (sase 6933ac56, synthetic j/k input every 30-150 s): the policy-act heap
+# grew ~3,800 blocks/s, and a ~6.6M-block heap swept in ~1.0 s at p50
+# (~0.15 us/block). Over this cap the heap grows about 600 s x 3,800
+# blocks/s ~= 2.28M blocks x 0.15 us ~= 0.34 s, times the 2x prediction
+# safety factor ~= 0.69 s, comfortably under the 2 s pause budget. Matches
+# PRESSURE_MAX_DEFERRAL_S.
+COST_MAX_DEFERRAL_S = 10 * 60.0
+# Ordinary quiet window that lets a cost-capped sweep run: same 3 s the idle
+# gate already requires, stated separately so the cap's promise reads here.
+COST_OVERRIDE_QUIET_S = 3.0
+# First post-freeze sweep budget: with no cost sample yet (no full collection
+# observed since the freeze-only startup), allow one ordinary sweep while the
+# heap has grown this little, so the policy measures a real sample instead of
+# deferring unknown cost until long idle. 1M blocks x ~0.15 us/block ~= 0.15 s
+# typically (0.5 s worst case at a conservative 0.5 us/block with the 2x
+# safety factor), covering ~4 minutes of active-input growth at 3.8k blocks/s.
+FIRST_SWEEP_BLOCK_BUDGET = 1_000_000
+# Bounded deep cadence: frozen-set garbage is reclaimed by an unfreeze sweep
+# at most this often on an ordinary quiet window, priced by the same
+# estimator with a full-heap scan size. Baseline deep passes reclaimed
+# ~5-8.6M objects per 30 min under active input (~0.5-1 GB/h, far above the
+# 25 MB/h gate), so the 15-minute-idle deep pass alone never fires for active
+# users. Anchored at the startup freeze, so short spot checks never trip it.
+DEEP_SWEEP_INTERVAL_S = 60 * 60.0
 DEFERRED_TELEMETRY_INTERVAL_S = 60.0
 GEN1_DUE_COUNT = 100
 NONCLASSIC_DUE_S = 120.0
