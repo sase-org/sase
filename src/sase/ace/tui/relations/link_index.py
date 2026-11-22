@@ -24,6 +24,8 @@ from sase.sdd._artifact_link_store_support import (
     canonicalize_artifact_link_ref,
 )
 
+from ._native_link_index import StoredFailure
+
 if TYPE_CHECKING:
     from .artifact_links import ArtifactLinksSnapshot
 
@@ -78,10 +80,15 @@ class _ChipMapping(Mapping[str, tuple[LinkChip, ...]]):
                 self._inflight[ref] = request
         if not owner:
             request.event.wait()
-            if request.error is not None:
-                raise request.error
-            assert request.chips is not None
-            return request.chips
+            failure = request.failure
+            chips = request.chips
+            # Drop the shared request before raising so this waiter's
+            # traceback cannot pin the request through the stored failure.
+            del request
+            if failure is not None:
+                failure.raise_error()
+            assert chips is not None
+            return chips
         try:
             from sase.core.artifact_link_index_facade import index_chips
 
@@ -90,8 +97,9 @@ class _ChipMapping(Mapping[str, tuple[LinkChip, ...]]):
                 for wire in index_chips(self._handle, _canonicalize(ref))
             )
         except BaseException as exc:
+            failure = StoredFailure(exc)
             with self._lock:
-                request.error = exc
+                request.failure = failure
                 self._inflight.pop(ref, None)
                 request.event.set()
             raise
@@ -242,7 +250,7 @@ def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
 class _ChipRequest:
     event: Event = dataclass_field(default_factory=Event)
     chips: tuple[LinkChip, ...] | None = None
-    error: BaseException | None = None
+    failure: StoredFailure | None = None
 
 
 _VIEW_CACHE_LOCK = RLock()

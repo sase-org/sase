@@ -54,15 +54,75 @@ class _CachedHandle:
         )
 
 
+class StoredFailure:
+    """Detached failure description that cannot retain a traceback cycle.
+
+    Storing the original exception keeps ``exception -> traceback -> frame ->
+    inflight`` alive, and each waiter that re-raises it appends its own frame
+    to the same shared traceback. This stores only the exception type and a
+    detached copy of its args, so every waiter raises a fresh instance with
+    ``raise ... from None`` and the shared state stays acyclic.
+    """
+
+    __slots__ = ("exc_type", "exc_args", "message", "sub_failures")
+
+    def __init__(self, exc: BaseException) -> None:
+        self.exc_type: type[BaseException] = type(exc)
+        try:
+            self.message = str(exc)
+        except Exception:  # noqa: BLE001 - a broken __str__ still detaches
+            self.message = ""
+        if isinstance(exc, BaseExceptionGroup):
+            self.exc_args: tuple[object, ...] = ()
+            self.sub_failures: tuple[StoredFailure, ...] | None = tuple(
+                StoredFailure(sub) for sub in exc.exceptions
+            )
+        else:
+            self.sub_failures = None
+            try:
+                raw_args = tuple(exc.args)
+            except Exception:  # noqa: BLE001 - detach even when args misbehave
+                raw_args = ()
+            self.exc_args = tuple(_detach_arg(arg) for arg in raw_args)
+
+    def build(self) -> BaseException:
+        """Return a fresh detached exception instance for one raiser."""
+        if self.sub_failures is not None:
+            subs = tuple(failure.build() for failure in self.sub_failures)
+            try:
+                return self.exc_type(self.message, subs)
+            except Exception:  # noqa: BLE001 - keep the original type name
+                return RuntimeError(f"{self.exc_type.__name__}: {self.message}")
+        try:
+            return self.exc_type(*self.exc_args)
+        except Exception:  # noqa: BLE001 - constructor mismatch still detaches
+            try:
+                return self.exc_type(self.message)
+            except Exception:  # noqa: BLE001 - last resort preserves the message
+                return RuntimeError(f"{self.exc_type.__name__}: {self.message}")
+
+    def raise_error(self) -> None:
+        """Raise a fresh detached copy; never the stored original."""
+        raise self.build() from None
+
+
+def _detach_arg(arg: object) -> object:
+    """Detach tracebacks from exception args without copying payload rows."""
+    if isinstance(arg, BaseException):
+        return StoredFailure(arg).build()
+    return arg
+
+
 class _Inflight:
-    __slots__ = ("event", "handle", "error", "snapshot", "slot", "epoch")
+    __slots__ = ("event", "handle", "failure", "snapshot", "slot", "epoch")
 
     def __init__(self, snapshot: Any, slot: tuple[object, ...], epoch: int) -> None:
         self.event = Event()
         self.handle: Any = None
-        self.error: BaseException | None = None
+        self.failure: StoredFailure | None = None
         # Pin the snapshot while building so a synthetic id() key cannot be
-        # recycled by an unrelated object mid-build.
+        # recycled by an unrelated object mid-build. Cleared on completion so
+        # a failed build cannot pin rows through the shared state.
         self.snapshot = snapshot
         self.slot = slot
         self.epoch = epoch
@@ -241,16 +301,23 @@ def _handle_for_key(
             ):
                 cache.move_to_end(slot)
                 return cached.handle
-            if inflight.error is not None:
-                raise inflight.error
-            return inflight.handle
+            failure = inflight.failure
+            handle = inflight.handle
+        # Drop the shared state before raising so this waiter's traceback
+        # cannot pin the inflight or its snapshot through the stored failure.
+        del inflight
+        if failure is not None:
+            failure.raise_error()
+        return handle
     try:
         handle = _compile(snapshot, identity, relations)
     except BaseException as exc:
+        failure = StoredFailure(exc)
         with _REGISTRY_LOCK:
             if _INFLIGHT.get(key) is inflight:
                 del _INFLIGHT[key]
-            inflight.error = exc
+            inflight.failure = failure
+            inflight.snapshot = None
             _finish_pending_slot(slot)
             inflight.event.set()
         raise
@@ -281,6 +348,7 @@ def _handle_for_key(
         if _INFLIGHT.get(key) is inflight:
             del _INFLIGHT[key]
         inflight.handle = handle
+        inflight.snapshot = None
         _finish_pending_slot(slot)
         inflight.event.set()
     return handle
