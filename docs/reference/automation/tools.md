@@ -423,6 +423,74 @@ escapes, and closing the terminal then still reaches the run. `show` on a run wh
 owner row or logs were pruned reports the owner and the log as not retained, by name —
 the summary survives.
 
+## Admission
+
+A host can cap how many runs of a named tool execute their command at once, counted
+across every project on the host. The cap is a per-host setting, so set it in the
+machine layer (`sase_<host>.yml`); no tool is capped by default:
+
+```yaml
+tool_runs:
+  admission:
+    max_concurrent: { check: 3 } # a tool not listed is unlimited
+    max_wait_seconds: 3600 # 0 waits indefinitely
+```
+
+A capped run is recorded and `running` before it waits; its command starts only once it
+holds a slot. Waiters are served first-in, first-out, and the wrapper prints its run id
+first, then one line per change in the queue, then the grant:
+
+```text
+sase tool run 3b25389cdf694abb7b4ce758d5193a23
+sase: waiting for a check slot (limit 3: 3 running, 1 ahead)
+sase: check slot granted after 2m 14s
+```
+
+`running` counts the slot holders, and `ahead` counts the runs that get a slot before
+this one. These lines go to stderr, so they reach an inline terminal, an agent's compact
+output, and monitor logs alike. Each run waits under the limit configured when it
+entered the queue, so a changed cap applies to new runs.
+
+- **Release is settlement.** A run frees its slot when it settles by any path: it
+  finishes, is stopped or signaled, or is reconciled `lost`. Waiters probe the wrappers
+  of the holders and waiters ahead of them (every few seconds, and as soon as the queue
+  stops moving). A wrapper that is definitively dead is reconciled `lost` and its
+  leftover process group is reaped before the slot is reused, so a crashed or killed
+  holder never wedges the queue. A wrapper whose liveness is unknown is never treated as
+  dead.
+- **Stopping a waiter.** `sase tool stop`, `Ctrl-C`, a signal, a monitor timeout, and
+  the end of an unjoined detached run's starter turn all end the wait. The run settles
+  as stopped, signaled, interrupted, or timed out with `command was not run`, and the
+  queue moves on.
+- **Max wait.** A run still waiting after `max_wait_seconds` is admitted over the cap
+  with one warning line, so a hung holder whose wrapper is still alive cannot block the
+  host's runs indefinitely. Its record says `admitted_by: max_wait`, and it counts as a
+  holder until it settles.
+- **Exemptions.** Ad-hoc runs (`sase tool run -- ARGV...`) are never capped. A nested
+  run (one started inside another unsettled ToolRun, which it learns from an inherited
+  `SASE_TOOL_RUN_ID`) never waits, so a capped tool that runs itself cannot deadlock. A
+  `-J` join only follows a run and never takes a slot. A raw guarded-recipe run with
+  `SASE_TOOL_BYPASS` is outside `sase tool run` and escapes the cap.
+- **Fail-open.** Admission shapes load and is never a correctness gate. When the
+  installed `sase_core_rs` lacks the admission bindings, the store keeps failing for
+  about 30 seconds, the `tool_runs.admission` config is invalid (the line names the
+  field), or the run is not recorded, the wrapper prints
+  `sase: check admission unavailable (<why>); running without a slot` and runs the
+  command.
+- **Duration versus wait.** `duration_ms` still measures from the command's spawn, so
+  TYPICAL, triage, and receipts never include queueing. The wait is recorded separately
+  in the run's demand as `demand.admission` (`state`, `limit`, `seq`, `requested_ts_ms`,
+  `admitted_ts_ms`, `admitted_by`, and `wait_ms`); `sase tool show RUN -j` carries it. A
+  run that settles while waiting records `state: abandoned` with the time it waited.
+- **Monitors keep their runner slot.** A monitor whose `sase tool run` waits for a slot
+  keeps its session's runner-capacity claim (see
+  [Runner slots](monitors.md#runner-slots)). That backpressure is intended: agents whose
+  checks are waiting do not make room for more agents that will also want checks. The
+  waiting wrapper is a sleeping process that holds no test tokens, samplers, or store
+  locks between polls.
+- **No skip or reuse.** Every admitted run executes its command. A wait never turns into
+  a skip, and a run is never satisfied by another run's result.
+
 ## In the TUI
 
 The Agents tab surfaces each node's runs without ever touching the ledger: a live-only

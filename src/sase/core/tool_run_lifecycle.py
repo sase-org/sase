@@ -229,8 +229,67 @@ def tool_run_release_staged_join(
     )
 
 
+def tool_run_admission_enter(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Record a ``waiting`` admission for a running run, then evaluate it.
+
+    Idempotent per run: a repeat keeps the first record. The result is the
+    shared admission result wire (``outcome``, ``ahead``, ``holders``,
+    ``waiters_ahead``, ``admission``).
+    """
+
+    return dict(
+        _binding()("tool_run_admission_enter")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_admission_poll(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Report a waiting run's queue position; grant a free slot when eligible."""
+
+    return dict(
+        _binding()("tool_run_admission_poll")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_admission_force(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Admit a waiting run over its limit (``reason: max_wait``)."""
+
+    return dict(
+        _binding()("tool_run_admission_force")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
 __all__ = [
     "tool_run_activate_staged_join",
+    "tool_run_admission_enter",
+    "tool_run_admission_force",
+    "tool_run_admission_poll",
     "tool_run_append_event",
     "tool_run_begin",
     "tool_run_claim",

@@ -299,6 +299,9 @@ tool_runs:
   soft_ceiling:
     default: ""
     providers: {}
+  admission:
+    max_concurrent: {}
+    max_wait_seconds: 3600
 ```
 
 [Generated reference for `tool_runs`](runtime.md#tool_runs)
@@ -307,6 +310,14 @@ tool_runs:
 before escalating to a monitor; it kills nothing; the effective budget is the smaller of
 this and the hard ceiling's budget. The provider entry wins, then `default`, then none.
 A malformed or non-positive value is ignored with one warning and never fails a launch.
+
+`tool_runs.admission.max_concurrent` caps how many runs of a named tool execute at once
+on this host, across every project (for example `{check: 3}`); a tool not listed is
+unlimited. Set it in the machine layer (`sase_<host>.yml`). Extra runs wait first-in,
+first-out before their command starts, and `max_wait_seconds` (default 3600, `0`
+disables) admits a run over the cap once it has waited that long. An invalid section
+never fails a run: the run prints one "admission unavailable" line and starts without a
+slot. See [Admission](../automation/tools.md#admission).
 
 The hourly `state_retention` housekeeping job applies this owner at most once per
 `housekeeping_interval_seconds` (default 3600), whether or not the filesystem is under
@@ -317,7 +328,7 @@ Unknown fields and non-positive or inconsistent horizons are rejected. JSON Sche
 cannot express `detail_days <= summary_days`; runtime validation covers that.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
-`src/sase/config/tools.py`
+`src/sase/config/tools.py`, `src/sase/config/tool_admission.py`
 
 ## update
 

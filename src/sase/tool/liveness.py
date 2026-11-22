@@ -288,6 +288,71 @@ def reconcile_unsettled_tool_runs(*, reap_orphans: bool = False) -> dict[str, An
     return _maybe_reap(result, reap_orphans=reap_orphans, owned_run_ids=owned_run_ids)
 
 
+def reconcile_tool_runs_by_id(
+    run_ids: list[str], *, reap_orphans: bool = False
+) -> dict[str, Any]:
+    """Reconcile only *run_ids*, the way the executor's pre-run pass does.
+
+    The admission gate calls this for queue peers whose wrapper probed dead,
+    so a crashed holder frees its slot without listing the whole store.
+    Facts come from ``tool_run_show`` plus the owner fact; settled or unknown
+    ids are skipped. With ``reap_orphans=True`` the lost run's leftover
+    process group is reaped before its slot is reused. Never raises.
+    """
+
+    envelope: dict[str, Any] = {
+        "schema_version": 1,
+        "marked_lost": [],
+        "persisted": False,
+        "diagnostics": [],
+    }
+    facts: list[dict[str, Any]] = []
+    diagnostics: list[str] = []
+    owned_run_ids: set[str] = set()
+    for run_id in dict.fromkeys(str(item) for item in run_ids if item):
+        try:
+            run = tool_run_show(run_id).get("run")
+        except Exception as exc:  # noqa: BLE001 - one unreadable peer is skipped.
+            diagnostics.append(str(exc))
+            continue
+        if not isinstance(run, dict):
+            continue
+        if str(run.get("state") or "") not in _UNSETTLED_STATES:
+            continue
+        events_path = _events_path(run)
+        if events_path is not None:
+            diagnostics.extend(_ingest_events_if_changed(events_path, run_id))
+        facts.append(_liveness_fact(run, observe_owner_fact(run)))
+        if run.get("owner_kind"):
+            owned_run_ids.add(run_id)
+    if not facts:
+        envelope["diagnostics"] = diagnostics
+        return envelope
+    try:
+        result = tool_run_reconcile({"schema_version": 1, "facts": facts})
+    except Exception as exc:  # noqa: BLE001 - read-only/busy must not crash.
+        envelope["diagnostics"] = [*diagnostics, str(exc)]
+        return envelope
+    merged = [*(result.get("diagnostics") or ()), *diagnostics]
+    result["diagnostics"] = list(dict.fromkeys(str(item) for item in merged))
+    _publish_settlements(result)
+    return _maybe_reap(result, reap_orphans=reap_orphans, owned_run_ids=owned_run_ids)
+
+
+def probe_wrapper(
+    pid_raw: object, recorded_boot: str, recorded_identity: object
+) -> str:
+    """Return ``alive``, ``dead``, or ``unknown`` for one recorded wrapper.
+
+    ``unknown`` (EPERM, unreadable identity, no pid) is never proof of death.
+    """
+
+    observation, _reason = _probe_process(
+        pid_raw, recorded_boot, recorded_identity, label="wrapper"
+    )
+    return observation
+
+
 def _is_unsettled_handoff(run: dict[str, Any]) -> bool:
     return (
         str(run.get("state") or "") in _UNSETTLED_STATES
@@ -451,6 +516,8 @@ def _reap_authorized_candidate(candidate: dict[str, Any]) -> str:
 
 __all__ = [
     "current_boot_id",
+    "probe_wrapper",
     "reconcile_handoff_run",
+    "reconcile_tool_runs_by_id",
     "reconcile_unsettled_tool_runs",
 ]

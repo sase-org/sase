@@ -209,6 +209,13 @@ tool_runs:
   soft_ceiling:
     default: ""
     providers: {}
+  # Per-host caps on concurrently executing runs of a named tool, counted
+  # across every project on the host. A tool not listed is unlimited; set
+  # caps in the machine layer (sase_<host>.yml). Extra runs wait FIFO before
+  # their command starts; max_wait_seconds (0 disables) bounds that wait.
+  admission:
+    max_concurrent: {}
+    max_wait_seconds: 3600
 
 # Machine-level service procs the `sase service` host starts, restarts, and
 # stops. Project-local sase.yml entries are ignored. Nothing runs until the

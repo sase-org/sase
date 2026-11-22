@@ -16,6 +16,7 @@ from sase.telemetry.metrics import (
     TOOL_RUN_SETTLEMENTS,
 )
 from sase.tool._executor_shared import default_continuation_mode
+from sase.tool.admission import admit_before_spawn
 from sase.tool.demand import (
     build_resource_usage,
     demand_file_path,
@@ -66,19 +67,32 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     recorded = ctx.recorded
     resolved = ctx.resolved
     durable_id = run_id if recorded else None
+    header_shown = False
+
+    def show_header() -> None:
+        # The run id prints once: before an admission wait, or after spawn.
+        nonlocal header_shown
+        if durable_id and not header_shown:
+            header_shown = True
+            write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+
+    # Host admission runs before the fingerprint, so the fingerprint
+    # describes the tree the child actually sees after any wait.
+    admission = admit_before_spawn(ctx, signals, show_header=show_header)
 
     fingerprint_before: dict[str, Any] | None = None
     if recorded:
         fingerprint_before = observe_fingerprint(resolved)
 
     if (
-        signals.sigint
+        not admission.proceed
+        or signals.sigint
         or signals.sigterm
         or _stop_requested(ctx)
         or _timeout_requested(ctx)
     ):
-        stop = _stop_requested(ctx)
-        timeout = not stop and _timeout_requested(ctx)
+        stop = admission.stop_requested or _stop_requested(ctx)
+        timeout = not stop and (admission.timeout_requested or _timeout_requested(ctx))
         if recorded:
             if stop:
                 state = "signaled"
@@ -113,6 +127,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 signal_num=sig,
                 interruption_reason=reason,
                 duration_ms=0,
+                diagnostics=["command was not run"] if admission.waited else None,
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved) if recorded else None,
                 terminal_cause=cause,
@@ -151,8 +166,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     except OSError as exc:
         exit_code = spawn_exit_code(exc)
         diagnostic = spawn_diagnostic(exc, resolved.argv)
-        if durable_id:
-            write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+        show_header()
         print(diagnostic, file=sys.stderr)
         if recorded:
             # Core rejects an exit code alongside launch_failed, and the
@@ -253,8 +267,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         if not ctx.compact:
             write_display(sys.stdout, chunk)
 
-    if durable_id:
-        write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+    show_header()
 
     def on_tick() -> None:
         if sampler is not None:

@@ -91,11 +91,13 @@ Foreground `sase tool run` records low-cardinality counters only. Run ids, argv,
 agent ids are never metric labels; the detailed fingerprint, sample, and stage corpus
 lives in the ToolRun entity store.
 
-| Metric                                 | Labels                                                 | Meaning                                        |
-| -------------------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
-| `sase_tool_run_attempts_total`         | `result=recorded\|unrecorded`                          | Begin succeeded or fail-open skipped recording |
-| `sase_tool_run_recording_errors_total` | `op=begin\|finish\|sample\|fingerprint`                | A ledger write or observation persist failed   |
-| `sase_tool_run_settlements_total`      | `state=succeeded\|failed\|signaled\|interrupted\|lost` | Terminal recorded outcomes                     |
+| Metric                                 | Labels                                                 | Meaning                                                                 |
+| -------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `sase_tool_run_attempts_total`         | `result=recorded\|unrecorded`                          | Begin succeeded or fail-open skipped recording                          |
+| `sase_tool_run_recording_errors_total` | `op=begin\|finish\|sample\|fingerprint`                | A ledger write or observation persist failed                            |
+| `sase_tool_run_settlements_total`      | `state=succeeded\|failed\|signaled\|interrupted\|lost` | Terminal recorded outcomes                                              |
+| `sase_tool_run_admissions_total`       | `outcome=admitted\|forced\|abandoned\|unavailable`     | Host admission gate outcomes for capped named tools                     |
+| `sase_tool_run_admission_wait_seconds` | `outcome=admitted\|forced\|abandoned`                  | Histogram of the slot wait before the command started or the wait ended |
 
 Observation budgets (not command timeouts): each toolchain probe 1s / 4 KiB of retained
 output, all probes 2s, each repository or input pass 4s and 64 MiB of content hashing.

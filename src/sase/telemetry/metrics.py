@@ -84,6 +84,8 @@ GATE_TURN_LOOKUP_FALLBACKS: StubCounter = StubCounter()
 TOOL_RUN_ATTEMPTS: StubCounter = StubCounter()
 TOOL_RUN_RECORDING_ERRORS: StubCounter = StubCounter()
 TOOL_RUN_SETTLEMENTS: StubCounter = StubCounter()
+TOOL_RUN_ADMISSIONS: StubCounter = StubCounter()
+TOOL_RUN_ADMISSION_WAIT: StubHistogram = StubHistogram()
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +420,23 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "Terminal ToolRun outcomes recorded by the native inline executor",
         ["state"],
         {},
+    ),
+    (
+        "TOOL_RUN_ADMISSIONS",
+        "counter",
+        "sase_tool_run_admissions_total",
+        "Host admission gate outcomes for capped named ToolRuns",
+        ["outcome"],
+        {},
+    ),
+    (
+        "TOOL_RUN_ADMISSION_WAIT",
+        "histogram",
+        "sase_tool_run_admission_wait_seconds",
+        "Seconds a capped named ToolRun waited for a slot before its command "
+        "started or the wait ended",
+        ["outcome"],
+        {"buckets": [1, 5, 15, 30, 60, 120, 300, 600, 1800, 3600, 7200]},
     ),
 ]
 

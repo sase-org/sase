@@ -1647,7 +1647,7 @@
     "toolRuns": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Operational ToolRun ledger retention policy. Uses ordinary config-layer precedence, independent of the project-owned tools catalog.",
+      "description": "Operational ToolRun ledger policy: retention, soft ceilings, and host admission caps. Uses ordinary config-layer precedence, independent of the project-owned tools catalog.",
       "properties": {
         "summary_days": {
           "type": "integer",
@@ -1707,6 +1707,30 @@
               "description": "Per-provider soft-ceiling durations keyed by registered provider name; empty means none.",
               "default": {},
               "additionalProperties": {"type": "string"}
+            }
+          }
+        },
+        "admission": {
+          "type": "object",
+          "description": "Per-host caps on concurrently executing runs of a named tool, counted across every project on the host. Extra runs are recorded, then wait FIFO before their command starts. Set caps in the machine layer (sase_<host>.yml).",
+          "default": {"max_concurrent": {}, "max_wait_seconds": 3600},
+          "additionalProperties": false,
+          "properties": {
+            "max_concurrent": {
+              "type": "object",
+              "description": "Concurrent-run cap keyed by named tool (for example {check: 3}); a tool not listed is unlimited.",
+              "default": {},
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Most runs of this named tool that may execute at once on the host."
+              }
+            },
+            "max_wait_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3600,
+              "description": "Seconds a run waits for a slot before it is admitted over the cap with one warning; 0 waits indefinitely."
             }
           }
         }

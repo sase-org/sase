@@ -65,6 +65,8 @@ def test_catalog_subsystem_derivation() -> None:
     assert by_attr["TOOL_RUN_ATTEMPTS"].subsystem == "Tool Runs"
     assert by_attr["TOOL_RUN_RECORDING_ERRORS"].subsystem == "Tool Runs"
     assert by_attr["TOOL_RUN_SETTLEMENTS"].subsystem == "Tool Runs"
+    assert by_attr["TOOL_RUN_ADMISSIONS"].subsystem == "Tool Runs"
+    assert by_attr["TOOL_RUN_ADMISSION_WAIT"].subsystem == "Tool Runs"
 
 
 def test_get_subsystems_returns_all_metrics() -> None:

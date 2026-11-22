@@ -688,6 +688,9 @@ follow-up included — ride the claim the session already holds, except that a f
 of a zero-weight monitor queues again. See
 [Agent queued for a runner slot](../runner-slots.md).
 
+A monitor whose `sase tool run` is waiting for a capped tool's host slot keeps its claim
+for the whole wait; see [Admission](tools.md#admission).
+
 ## Related
 
 - [Monitor operations](monitor-operations.md)

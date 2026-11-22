@@ -24,6 +24,9 @@ from sase.core.tool_run_definitions import (
 )
 from sase.core.tool_run_lifecycle import (
     tool_run_activate_staged_join,
+    tool_run_admission_enter,
+    tool_run_admission_force,
+    tool_run_admission_poll,
     tool_run_append_event,
     tool_run_begin,
     tool_run_claim,
@@ -123,6 +126,9 @@ __all__ = [
     "tool_run_join",
     "tool_run_release_join",
     "tool_run_activate_staged_join",
+    "tool_run_admission_enter",
+    "tool_run_admission_force",
+    "tool_run_admission_poll",
     "tool_run_release_staged_join",
     "tool_run_reserve_staged_join",
     "tool_run_show",

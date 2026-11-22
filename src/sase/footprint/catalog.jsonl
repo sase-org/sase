@@ -1,4 +1,4 @@
-{"count": 3721, "rev": "a1820750e0c9", "schema": "sase.footprint.catalog/1"}
+{"count": 3722, "rev": "ecc640909450", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2958,6 +2958,7 @@
 {"area": "config.tmux_agent", "id": "config:tmux_agent.providers.claude.key", "kind": "config", "label": "Key", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tmux_agent", "id": "config:tmux_agent.providers.claude.model", "kind": "config", "label": "Model", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tmux_agent", "id": "config:tmux_agent.window_name", "kind": "config", "label": "Window name", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.tool_runs", "id": "config:tool_runs.admission.max_wait_seconds", "kind": "config", "label": "Max wait seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.detail_days", "kind": "config", "label": "Detail days", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.event_max_bytes", "kind": "config", "label": "Event max bytes", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.tool_runs", "id": "config:tool_runs.housekeeping_interval_seconds", "kind": "config", "label": "Housekeeping interval seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

@@ -46,6 +46,7 @@ _TOOL_RUNS_FIELDS = (
     "event_max_bytes",
     "housekeeping_interval_seconds",
     "soft_ceiling",
+    "admission",
 )
 
 
