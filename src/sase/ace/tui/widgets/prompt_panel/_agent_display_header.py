@@ -23,15 +23,6 @@ from ...models.fold_scale import (
 )
 from ...models.fold_state import FoldLevel
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _NAMED_PROC_ROW_STYLE
-from ._agent_bead_section import (
-    BEAD_SECTION_ID,
-    ResponsiveBeadSection,
-    bead_detail_level,
-)
-from ._agent_bead_touches import (
-    BEAD_TOUCHES_SECTION_ID,
-    ResponsiveBeadTouchesSection,
-)
 from ._agent_display_agent_session import (
     SESSION_IDENTITY_COLOR,
     append_agent_session_fold_heading,
@@ -45,20 +36,14 @@ from ._agent_display_header_metadata import (
     append_agent_metadata_fields,
     append_legacy_parallel_members_section,
 )
-from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
+from ._agent_display_header_context import append_header_context_sections
+from ._agent_display_header_finish import finish_header_text
+from ._agent_display_header_renderable import (
+    AgentHeader,
+    AgentHeaderRenderable as AgentHeaderRenderable,
+)
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_output_variables import append_agent_output_variables_section
-from ._agent_page_section import (
-    AGENT_PAGE_SECTION_ID,
-    ResponsiveAgentPageSection,
-)
-from ._agent_plan_section import ResponsivePlanSection
-from ._agent_turn_section import TURN_SECTION_ID, ResponsiveTurnSection
-from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
-from ._agent_wait_section import (
-    WAIT_SECTION_ID,
-    ResponsiveWaitSection,
-)
 from ._fold_language import append_fold_header_line
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -66,15 +51,8 @@ from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
-from ._identity_header import (
-    IdentityHeader,
-    identity_kind_for_agent,
-    strip_leading_document_chrome,
-)
-from ._identity_header_compact import (
-    build_agent_compact_lines,
-    build_hijack_header_callout,
-)
+from ._identity_header import identity_kind_for_agent
+from ._identity_header_compact import build_hijack_header_callout
 
 if TYPE_CHECKING:
     from sase.core.agent_models import AgentModelSummary, AgentModelTurnFact
@@ -401,301 +379,40 @@ def build_header_text(
         if member_jump_map_publisher is not None:
             member_jump_map_publisher(jump_map)
 
-    bead_section: ResponsiveBeadSection | None = None
-    plan_section: ResponsivePlanSection | None = None
-    slow_tool_section: ResponsiveSlowToolCallsSection | None = None
-    bead_touches_section: ResponsiveBeadTouchesSection | None = None
-    if summary is not None:
-        # SASE CONTEXT renders whenever there is a summary at all, cheap or
-        # not: `append_agent_context_section` already distinguishes ready
-        # lanes from pending ones via `ready_lanes`, so the immediate
-        # zero-I/O path (bead sase-l6.5) and the debounced full path share
-        # one renderer instead of the cheap flag hiding the section outright.
-        from ._agent_context import append_agent_context_section
-
-        if summary.bead_summary is not None:
-            bead_section = ResponsiveBeadSection(
-                summary.bead_summary,
-                detail=bead_detail_level(
-                    effective_fold_level(
-                        lane_overrides.get(
-                            BEAD_SECTION_ID,
-                            resolved_lane_fold_level,
-                        ),
-                        lane_scale,
-                    ),
-                    lane_scale,
-                ),
-            )
-        if summary.associated_plan is not None:
-            plan_section = ResponsivePlanSection(summary.associated_plan)
-        bead_touches_captured: list[ResponsiveBeadTouchesSection] = []
-        append_agent_context_section(
-            header_text,
-            memory_reads=summary.memory_reads,
-            memory_version_chips=summary.memory_version_chips,
-            memory_version_pins=summary.memory_version_pins,
-            memory_launch_row=summary.memory_launch_row,
-            memory_launch_pin=summary.memory_launch_pin,
-            glossary_reads=summary.glossary_reads,
-            skill_uses=summary.skill_uses,
-            opened_workspaces=summary.opened_workspaces,
-            bead_section=bead_section,
-            plan_section=plan_section,
-            agent=agent,
-            delta_entries=summary.delta_entries,
-            linked_delta_groups=summary.linked_delta_groups,
-            artifact_file_paths=summary.artifact_file_paths,
-            artifact_reads=summary.artifact_reads,
-            bead_touch_entries=summary.bead_touch_entries,
-            hint_state=hint_state,
-            responsive_ranges=responsive_ranges,
-            fold_level=(
-                resolved_lane_fold_level if agent_session_fold_enabled else None
-            ),
-            section_fold_overrides=lane_overrides,
-            ready_lanes=summary.ready_lanes,
-            bead_touches_section_out=bead_touches_captured,
-        )
-        bead_touches_section = (
-            bead_touches_captured[0] if bead_touches_captured else None
-        )
-
-    if not cheap and summary is not None:
-        # Slow tool calls is not a SASE CONTEXT lane and is not guaranteed
-        # zero-I/O (bead sase-l6 trace: up to ~114 ms cold), so it stays
-        # behind the debounced path rather than joining the immediate paint.
-        from ._agent_slow_tools import (
-            append_slow_tool_calls_section,
-            resolve_slow_tool_overflow_keys,
-        )
-
-        try:
-            _overflow_keys = resolve_slow_tool_overflow_keys()
-        except Exception:
-            _overflow_keys = {}
-        try:
-            from ...tool_runs.links import slow_suffixes_for_agent_sources
-
-            _tool_run_suffixes = (
-                slow_suffixes_for_agent_sources(
-                    agent,
-                    summary.slow_tool_sources,
-                    getattr(summary, "tool_run_summary", None),
-                )
-                or None
-            )
-        except Exception:
-            _tool_run_suffixes = None
-        slow_tool_section = append_slow_tool_calls_section(
-            header_text,
-            sources=summary.slow_tool_sources,
-            agent=agent,
-            now=DateTime.now(),
-            hint_state=hint_state,
-            threshold_ms=slow_tool_call_threshold_ms,
-            panel_level=resolved_lane_fold_level,
-            scale=lane_scale,
-            section_fold_overrides=lane_overrides,
-            responsive_ranges=responsive_ranges,
-            overflow_hint_keys=_overflow_keys,
-            tool_run_suffixes=_tool_run_suffixes,
-        )
-
-    is_failed = agent.display_status == "FAILED"
-    if agent.error_message or is_failed:
-        header_text.append("\n")
-        error_level = effective_agent_session_fold_level(
-            "error",
-            resolved_lane_fold_level,
-            lane_overrides,
-        )
-        if agent_session_fold_enabled:
-            append_agent_session_fold_heading(
-                header_text,
-                "ERROR",
-                style="bold #FF5F5F underline",
-                section_id="error",
-                level=error_level,
-                count=1,
-            )
-        else:
-            append_section_heading(
-                header_text,
-                "ERROR",
-                style="bold #FF5F5F underline",
-                section_id="error",
-            )
-        error_message = agent.error_message or "Runner failed without error details."
-        if not agent_session_fold_enabled or error_level != FoldLevel.COLLAPSED:
-            header_text.append(f"{error_message}\n", style="bold #FF5F5F")
-    if agent.output_path and is_failed:
-        header_text.append("Output: ", style="bold #87D7FF")
-        header_text.append(f"{agent.output_path}\n", style="dim")
-
-    error_tb_syntax: Syntax | None = None
-    if agent.error_traceback:
-        error_tb_syntax = Syntax(
-            agent.error_traceback,
-            "pytb",
-            theme="monokai",
-            word_wrap=True,
-        )
-
-    header_text.append("\n")
-    header_text.append("\u2500" * 50 + "\n", style="dim")
-    header_text.append("\n")
-
-    if detach_identity:
-        identity_sections = _assemble_responsive_sections(
-            identity_ranges,
-            page_section,
-            wait_section,
-            turn_section,
-            None,
-            None,
-            None,
-            None,
-        )
-        expanded: AgentHeader
-        if identity_sections:
-            expanded = AgentHeaderRenderable(identity_text, identity_sections)
-        else:
-            expanded = identity_text
-        identity = IdentityHeader(
-            kind_label=kind_label,
-            accent=kind_accent,
-            expanded=expanded,
-            compact=build_agent_compact_lines(
-                agent=agent,
-                summary=summary,
-                wait_section=wait_section,
-                turn_section=turn_section,
-                fold_level=resolved_lane_fold_level
-                if agent_session_fold_enabled
-                else None,
-                fold_scale=AGENT_SESSION_FOLD_SCALE
-                if agent_session_fold_enabled
-                else None,
-            ),
-            model_summary=session_model_summary,
-        )
-        body_text, removed_chars = strip_leading_document_chrome(header_text)
-        shifted_ranges = {
-            key: (max(0, start - removed_chars), max(0, end - removed_chars))
-            for key, (start, end) in responsive_ranges.items()
-        }
-        body_sections = _assemble_responsive_sections(
-            shifted_ranges,
-            None,
-            None,
-            None,
-            bead_section,
-            plan_section,
-            slow_tool_section,
-            bead_touches_section,
-        )
-        carrier = AgentHeaderRenderable(
-            body_text,
-            body_sections,
-            identity_header=identity,
-        )
-        if (
-            hint_state is None
-            and jump_map is not None
-            and (jump_map.targets or jump_map.sections)
-        ):
-            from ._member_roster import detached_roster_text
-
-            roster = (
-                detached_roster_text(roster_text) if roster_text is not None else None
-            )
-            carrier.with_member_jump_map(jump_map, roster=roster)
-        return (
-            carrier,
-            error_tb_syntax,
-        )
-    responsive_sections = _assemble_responsive_sections(
-        responsive_ranges,
-        page_section,
-        wait_section,
-        turn_section,
-        bead_section,
-        plan_section,
-        slow_tool_section,
-        bead_touches_section,
+    context_sections = append_header_context_sections(
+        header_text,
+        agent=agent,
+        summary=summary,
+        hint_state=hint_state,
+        cheap=cheap,
+        lane_overrides=lane_overrides,
+        lane_scale=lane_scale,
+        resolved_lane_fold_level=resolved_lane_fold_level,
+        agent_session_fold_enabled=agent_session_fold_enabled,
+        responsive_ranges=responsive_ranges,
+        slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
+        now_type=DateTime,
     )
-    if responsive_sections:
-        return (
-            AgentHeaderRenderable(
-                header_text,
-                responsive_sections,
-            ),
-            error_tb_syntax,
-        )
-    return header_text, error_tb_syntax
-
-
-def _assemble_responsive_sections(
-    responsive_ranges: dict[str, tuple[int, int]],
-    page_section: ResponsiveAgentPageSection | None,
-    wait_section: ResponsiveWaitSection | None,
-    turn_section: ResponsiveTurnSection | None,
-    bead_section: ResponsiveBeadSection | None,
-    plan_section: ResponsivePlanSection | None,
-    slow_tool_section: ResponsiveSlowToolCallsSection | None,
-    bead_touches_section: ResponsiveBeadTouchesSection | None,
-) -> tuple[
-    tuple[
-        int,
-        int,
-        ResponsiveAgentPageSection
-        | ResponsiveBeadSection
-        | ResponsiveBeadTouchesSection
-        | ResponsiveTurnSection
-        | ResponsivePlanSection
-        | ResponsiveSlowToolCallsSection
-        | ResponsiveWaitSection,
-    ],
-    ...,
-]:
-    """Order responsive ranges and sections into a renderable section map."""
-    responsive_sections: list[
-        tuple[
-            int,
-            int,
-            ResponsiveAgentPageSection
-            | ResponsiveBeadSection
-            | ResponsiveBeadTouchesSection
-            | ResponsiveTurnSection
-            | ResponsivePlanSection
-            | ResponsiveSlowToolCallsSection
-            | ResponsiveWaitSection,
-        ]
-    ] = []
-    if page_section is not None and AGENT_PAGE_SECTION_ID in responsive_ranges:
-        start, end = responsive_ranges[AGENT_PAGE_SECTION_ID]
-        responsive_sections.append((start, end, page_section))
-    if wait_section is not None and WAIT_SECTION_ID in responsive_ranges:
-        start, end = responsive_ranges[WAIT_SECTION_ID]
-        responsive_sections.append((start, end, wait_section))
-    if turn_section is not None and TURN_SECTION_ID in responsive_ranges:
-        start, end = responsive_ranges[TURN_SECTION_ID]
-        responsive_sections.append((start, end, turn_section))
-    if bead_section is not None and "BEAD" in responsive_ranges:
-        start, end = responsive_ranges["BEAD"]
-        responsive_sections.append((start, end, bead_section))
-    if plan_section is not None and "PLAN" in responsive_ranges:
-        start, end = responsive_ranges["PLAN"]
-        responsive_sections.append((start, end, plan_section))
-    if (
-        bead_touches_section is not None
-        and BEAD_TOUCHES_SECTION_ID in responsive_ranges
-    ):
-        start, end = responsive_ranges[BEAD_TOUCHES_SECTION_ID]
-        responsive_sections.append((start, end, bead_touches_section))
-    if slow_tool_section is not None and "slow-tool-calls" in responsive_ranges:
-        start, end = responsive_ranges["slow-tool-calls"]
-        responsive_sections.append((start, end, slow_tool_section))
-    responsive_sections.sort(key=lambda section: section[0])
-    return tuple(responsive_sections)
+    return finish_header_text(
+        agent=agent,
+        header_text=header_text,
+        identity_text=identity_text,
+        identity_ranges=identity_ranges,
+        responsive_ranges=responsive_ranges,
+        page_section=page_section,
+        wait_section=wait_section,
+        turn_section=turn_section,
+        context_sections=context_sections,
+        detach_identity=detach_identity,
+        kind_label=kind_label,
+        kind_accent=kind_accent,
+        summary=summary,
+        resolved_lane_fold_level=resolved_lane_fold_level,
+        lane_scale=lane_scale,
+        lane_overrides=lane_overrides,
+        agent_session_fold_enabled=agent_session_fold_enabled,
+        session_model_summary=session_model_summary,
+        jump_map=jump_map,
+        roster_text=roster_text,
+        hint_state=hint_state,
+    )
