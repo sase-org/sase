@@ -26,7 +26,7 @@ class SlowCollector(Collector):
         self.pause_s = pause_s
 
     def collect(self) -> int:
-        self.collections += 1
+        super().collect()
         self._clock.advance(self.pause_s)
         return 0
 
@@ -44,7 +44,7 @@ def recorder() -> Recorder:
 def _run_startup(clock: Clock, collector: Collector, recorder: Recorder):
     policy = idle_policy(clock, collector, recorder)
     # These tests isolate the duty floor; the pause cost gate has separate tests.
-    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 0.0
+    policy._predicted_pause_s = lambda _now, deep=False: 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     recorder.gen1 = 150
     clock.advance(61.0)

@@ -15,6 +15,7 @@ from tests.ace.tui.util._gc_policy_test_support import (
     Collector,
     Recorder,
     idle_policy,
+    seed_negligible_cost,
 )
 
 
@@ -137,9 +138,7 @@ def test_collector_counter_marks_due_without_recorder(
     )
     policy.apply_thresholds()
     assert policy.tick(clock.now) == "startup_freeze"
-    policy._last_full_pause_s = 0.25
-    policy._last_full_scan_blocks = 1_000
-    policy._cost_sample_mono = clock.now
+    seed_negligible_cost(policy, clock)
     clock.advance(61.0)
     collector.counts = [0, 0, 100]
     assert policy.tick(clock.now) == "idle"
@@ -334,26 +333,20 @@ def test_cost_gate_defers_until_long_idle_allows_a_deep_sweep(
     recorder: Recorder,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    blocks = {"value": 1_000}
     emitted: list[dict[str, object]] = []
     monkeypatch.setattr(
         sweep_module,
         "queue_row",
         lambda event, row: emitted.append({"event": event, **row}),
     )
-    policy = idle_policy(
-        clock,
-        collector,
-        recorder,
-        allocated_blocks_probe=lambda: blocks["value"],
-    )
+    policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
+    # 2 s per 61 s of accumulation: 61 s later the estimate is 2 s x 2.
     policy._last_full_pause_s = 2.0
-    policy._last_full_scan_blocks = 1_000
-    policy._cost_sample_mono = clock.now
+    policy._cost_pause_s = 2.0
+    policy._cost_accum_s = 61.0
     recorder.gen1 = 150
     clock.advance(61.0)
-    blocks["value"] = 2_000
     assert policy.tick(clock.now) is None
     assert collector.collections == 0
     assert emitted[-1]["event"] == "tui_gc_collection_deferred"

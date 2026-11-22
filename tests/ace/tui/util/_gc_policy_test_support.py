@@ -23,12 +23,20 @@ class Clock:
 
 
 class Collector:
-    """Stub for the ``gc`` module surface the policy uses."""
+    """Stub for the ``gc`` module surface the policy uses.
+
+    ``busy`` models CPython's ``gc.collect()`` while another thread's
+    collection is in progress: the call returns at once and the gen-2
+    ``collections`` counter that ``get_stats()`` reports does not advance.
+    """
 
     def __init__(self, threshold: tuple[int, ...] = (700, 10, 10)) -> None:
         self.threshold = tuple(threshold)
         self.counts = [0, 0, 0]
         self.collections = 0
+        self.full_collections = 0
+        self.skipped = 0
+        self.busy = False
         self.freezes = 0
         self.unfreezes = 0
         self.objects: list[object] = []
@@ -45,7 +53,18 @@ class Collector:
 
     def collect(self) -> int:
         self.collections += 1
+        if self.busy:
+            self.skipped += 1
+            return 0
+        self.full_collections += 1
         return 0
+
+    def get_stats(self) -> list[dict[str, int]]:
+        return [
+            {"collections": 0, "collected": 0, "uncollectable": 0},
+            {"collections": 0, "collected": 0, "uncollectable": 0},
+            {"collections": self.full_collections, "collected": 0, "uncollectable": 0},
+        ]
 
     def freeze(self) -> None:
         self.freezes += 1
@@ -56,6 +75,60 @@ class Collector:
     def get_objects(self) -> list[object]:
         self.get_objects_calls += 1
         return list(self.objects)
+
+
+class PricedCollector(Collector):
+    """Stub collector whose pause models a frozen heap on the fake clock.
+
+    An ordinary collection scans what accumulated since the last real full
+    collection (``state["young"]`` blocks) at ``young_cost_s`` per block; a
+    deep one (after ``unfreeze()``) also scans the ``live`` frozen heap at
+    ``live_cost_s`` per block. With ``busy_every=N`` every Nth ``collect()``
+    is a no-op, as when another thread's collection is in progress.
+    """
+
+    def __init__(
+        self,
+        clock: Clock,
+        *,
+        live: int,
+        state: dict[str, int],
+        young_cost_s: float = 1.1e-6,
+        live_cost_s: float = 0.15e-6,
+        busy_every: int = 0,
+    ) -> None:
+        super().__init__()
+        self._clock = clock
+        self._live = live
+        self._state = state
+        self._young_cost_s = young_cost_s
+        self._live_cost_s = live_cost_s
+        self._busy_every = busy_every
+        self._deep_next = False
+        self.pauses: list[float] = []
+        self.busy_unfrozen = 0
+
+    def unfreeze(self) -> None:
+        super().unfreeze()
+        self._deep_next = True
+
+    def collect(self) -> int:
+        if self._busy_every:
+            self.busy = (self.collections + 1) % self._busy_every == 0
+        before = self.full_collections
+        super().collect()
+        deep, self._deep_next = self._deep_next, False
+        if self.full_collections == before:
+            if deep:
+                self.busy_unfrozen += 1
+            return 0
+        pause = self._state["young"] * self._young_cost_s
+        if deep:
+            pause += self._live * self._live_cost_s
+        self._clock.advance(pause)
+        self.pauses.append(pause)
+        self._state["young"] = 0
+        return 0
 
 
 class Recorder:
@@ -107,7 +180,13 @@ def idle_policy(
         ),
     )
     policy.apply_thresholds()
-    policy._last_full_pause_s = 0.25
-    policy._last_full_scan_blocks = 1_000
-    policy._cost_sample_mono = clock.now
+    seed_negligible_cost(policy, clock)
     return policy
+
+
+def seed_negligible_cost(policy: GCPolicy, clock: Clock) -> None:
+    """Give the policy a known, negligible estimate so the cost gate stays out."""
+    policy._last_full_pause_s = 0.25
+    policy._cost_pause_s = 0.001
+    policy._cost_accum_s = 60.0
+    policy._cost_sample_mono = clock.now

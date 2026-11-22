@@ -26,39 +26,60 @@ PRESSURE_SAMPLE_MAX_AGE_S = 20.0
 # most; afterwards a backstop runs once input has been quiet this long.
 PRESSURE_MAX_DEFERRAL_S = 10 * 60.0
 PRESSURE_OVERRIDE_QUIET_S = 60.0
-# Only the opportunistic ``idle`` trigger needs a cost sample this fresh; the
-# backstops price themselves from the latest observed full collection.
-COST_SAMPLE_MAX_AGE_S = 15 * 60.0
 MAX_PREDICTED_FULL_PAUSE_S = 2.0
 COST_PREDICTION_SAFETY_FACTOR = 2.0
-# The cost gate (``cost_unknown`` / ``cost_gate``) may hold the ``idle``,
-# ``backstop``, and ``rss_backstop`` triggers this long at most; afterwards a
-# sweep runs on the next ordinary quiet window (``COST_OVERRIDE_QUIET_S`` of
-# input quiet, no prompt/navigation/modal active). Baseline arithmetic
-# (sase 6933ac56, synthetic j/k input every 30-150 s): the policy-act heap
-# grew ~3,800 blocks/s, and a ~6.6M-block heap swept in ~1.0 s at p50
-# (~0.15 us/block). Over this cap the heap grows about 600 s x 3,800
-# blocks/s ~= 2.28M blocks x 0.15 us ~= 0.34 s, times the 2x prediction
-# safety factor ~= 0.69 s, comfortably under the 2 s pause budget. Matches
-# PRESSURE_MAX_DEFERRAL_S.
+# Ordinary sweeps are priced by time, not by allocated-block deltas: a
+# frozen-heap sweep's pause tracks the garbage and survivors created since
+# the last full collection, and those accumulate at a steady rate under
+# steady use. Net allocated blocks are no scan count: old frozen objects
+# freed by refcount shrink the total while new cyclic garbage still needs
+# scanning (the R3 spot check on sase a52054ed45 recorded a 0.647 s sweep
+# priced as one block, then predicted 645,427 s). A cost sample is a pause
+# over the seconds of accumulation it swept; samples shorter than this
+# floor are stretched to it so a sweep right after another cannot divide
+# by ~0.
+MIN_COST_SAMPLE_ACCUM_S = 1.0
+# Cost-due cadence: once the estimate (safety factor included) reaches this
+# share of the pause budget, a sweep is due on the next quiet window even
+# before 100 gen-1 collections pile up, and the 60 s duty minimum relaxes
+# to ``COST_DUE_MIN_INTERVAL_S`` (``pause * DUTY_FACTOR`` still applies).
+# R3 arithmetic (sase a52054ed45, j/k input every 30-150 s): sweeps 60 s
+# apart paused 0.56-0.86 s, ~0.0117 s of pause per second of accumulation
+# at ~8.5k blocks/s. Due at 0.5 x 2 s = 1.0 s estimated (0.5 s expected)
+# means a sweep about every 43 s, leaving 4x headroom under the budget for
+# a missing quiet window or a faster heap.
+COST_DUE_FRACTION = 0.5
+COST_DUE_MIN_INTERVAL_S = 15.0
+# The cost gate (``cost_gate``) may hold the ``idle``, ``backstop``, and
+# ``rss_backstop`` triggers only while the expected pause grows by at most
+# ``COST_DEFERRAL_GROWTH_S``: the cap is that growth divided by the sampled
+# pause rate, clamped to ``COST_MAX_DEFERRAL_S``. Afterwards a sweep runs on
+# the next ordinary quiet window (``COST_OVERRIDE_QUIET_S`` of input quiet,
+# no prompt/navigation/modal active). A fixed cap cannot be calibrated:
+# R3's 600 s cap let the heap grow ~5.1M blocks at ~1.1 us/block (7x the
+# baseline's 0.15 us/block full-heap rate) into 5.6-5.7 s sweeps. At R3's
+# 0.0117 s/s the cap is 0.5 / 0.0117 ~= 43 s; at the baseline's
+# 0.34 s / 600 s it clamps to 600 s. An unknown estimate never defers:
+# deferral only grows the heap, so the first post-freeze sweep seeds the
+# sample on the first quiet window.
+COST_DEFERRAL_GROWTH_S = 0.5
 COST_MAX_DEFERRAL_S = 10 * 60.0
 # Ordinary quiet window that lets a cost-capped sweep run: same 3 s the idle
 # gate already requires, stated separately so the cap's promise reads here.
 COST_OVERRIDE_QUIET_S = 3.0
-# First post-freeze sweep budget: with no cost sample yet (no full collection
-# observed since the freeze-only startup), allow one ordinary sweep while the
-# heap has grown this little, so the policy measures a real sample instead of
-# deferring unknown cost until long idle. 1M blocks x ~0.15 us/block ~= 0.15 s
-# typically (0.5 s worst case at a conservative 0.5 us/block with the 2x
-# safety factor), covering ~4 minutes of active-input growth at 3.8k blocks/s.
-FIRST_SWEEP_BLOCK_BUDGET = 1_000_000
 # Bounded deep cadence: frozen-set garbage is reclaimed by an unfreeze sweep
-# at most this often on an ordinary quiet window, priced by the same
-# estimator with a full-heap scan size. Baseline deep passes reclaimed
-# ~5-8.6M objects per 30 min under active input (~0.5-1 GB/h, far above the
-# 25 MB/h gate), so the 15-minute-idle deep pass alone never fires for active
-# users. Anchored at the startup freeze, so short spot checks never trip it.
+# at most this often on an ordinary quiet window, and only when its
+# full-heap estimate fits the pause budget; an over-budget deep sweep never
+# runs while the user is active and never holds an ordinary sweep (the
+# 15-minute-idle deep pass still reclaims it). Baseline deep passes
+# reclaimed ~5-8.6M objects per 30 min under active input (~0.5-1 GB/h, far
+# above the 25 MB/h gate). Anchored at the startup freeze, so short spot
+# checks never trip it.
 DEEP_SWEEP_INTERVAL_S = 60 * 60.0
+# Deep sweeps scan the whole heap, mostly live objects, so they get their own
+# per-block sample. Until one exists they are priced at twice the baseline's
+# full-heap rate (~0.15 us/block for a ~6.6M-block heap in ~1.0 s).
+DEEP_COST_PER_BLOCK_S = 0.3e-6
 DEFERRED_TELEMETRY_INTERVAL_S = 60.0
 GEN1_DUE_COUNT = 100
 NONCLASSIC_DUE_S = 120.0

@@ -118,7 +118,7 @@ def test_pressure_holds_backstop_for_a_bounded_window(
     )
     policy._last_input_mono = lambda: clock.now - input_ago["s"]
     # Isolate the pressure window from the separately tested cost gate.
-    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 0.0
+    policy._predicted_pause_s = lambda _now, deep=False: 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     policy._own_last_full_mono = clock.now
     recorder.gen1 = 150
@@ -167,7 +167,7 @@ def test_pressure_window_closes_when_paging_stops(
     policy = idle_policy(
         clock, collector, recorder, memory_pressure_probe=lambda: pressure
     )
-    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 0.0
+    policy._predicted_pause_s = lambda _now, deep=False: 0.0
     assert policy.tick(clock.now) == "startup_freeze"
     policy._own_last_full_mono = clock.now
     recorder.gen1 = 150
@@ -177,7 +177,7 @@ def test_pressure_window_closes_when_paging_stops(
 
     # A quiet pass clears the window even if another gate then defers.
     pressure["major_faults_per_s"] = 0.0
-    policy._predicted_pause_s = lambda _now, _trigger="idle", deep=False: 99.0
+    policy._predicted_pause_s = lambda _now, deep=False: 99.0
     clock.advance(30.0)
     assert policy.tick(clock.now) is None
     assert emitted[-1]["event"] == "tui_gc_collection_deferred"
@@ -188,65 +188,61 @@ def test_automatic_gen2_refreshes_cost_estimate(
     clock: Clock,
     collector: Collector,
     recorder: Recorder,
-    emitted: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """An automatic gen-2 the policy did not run becomes a rate sample."""
     rss = {"now": 1_000}
-    blocks = {"value": 1_000_000}
     monkeypatch.setattr(gate_module, "latest_rss_bytes", lambda: rss["now"])
     monkeypatch.setattr(sweep_module, "latest_rss_bytes", lambda: rss["now"])
-    policy = idle_policy(
-        clock,
-        collector,
-        recorder,
-        allocated_blocks_probe=lambda: blocks["value"],
-    )
+    policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
+    freeze_mono = clock.now
     # No full collection observed since startup: the estimate is unknown.
-    policy._last_full_pause_s = None
-    policy._cost_sample_mono = None
-    rss["now"] = 1_000 + gc_policy.RSS_GROWTH_BACKSTOP_BYTES + 1
-    recorder.gen1 = 150
-    clock.advance(61.0)
-    assert policy.tick(clock.now) is None
-    assert emitted[-1]["event"] == "tui_gc_collection_deferred"
-    assert emitted[-1]["reason"] == "cost_unknown"
-    assert emitted[-1]["trigger"] == "rss_backstop"
+    policy._cost_pause_s = None
+    policy._cost_accum_s = None
+    assert policy._predicted_pause_s(clock.now) is None
 
-    # The telemetry recorder measures an automatic gen-2 the policy did not run.
-    blocks["value"] = 1_400_000
+    # The telemetry recorder measures an automatic gen-2 61 s after the freeze.
+    clock.advance(61.0)
     recorder.last_full = clock.now
     recorder.last_pause = 0.2
     clock.advance(1.0)
+    rss["now"] = 1_000 + gc_policy.RSS_GROWTH_BACKSTOP_BYTES + 1
+    recorder.gen1 = 150
     assert policy.tick(clock.now) is None  # inside the duty floor
     assert policy._last_full_pause_s == pytest.approx(0.2)
     assert policy._cost_sample_mono == recorder.last_full
-    assert policy._last_full_scan_blocks == 400_000
+    assert policy._cost_pause_s == pytest.approx(0.2)
+    assert policy._cost_accum_s == pytest.approx(recorder.last_full - 0.2 - freeze_mono)
+    assert policy._young_since_mono == recorder.last_full
+    accumulated = clock.now - recorder.last_full
+    assert policy._predicted_pause_s(clock.now) == pytest.approx(
+        0.2 * accumulated / (61.0 - 0.2) * gc_policy.COST_PREDICTION_SAFETY_FACTOR
+    )
 
     clock.advance(gc_policy.MIN_FULL_INTERVAL_S)
     assert policy.tick(clock.now) == "rss_backstop"
     assert collector.collections == 1
 
 
-def test_stale_cost_sample_still_prices_backstops(
+def test_old_cost_sample_still_prices_backstops(
     clock: Clock,
     collector: Collector,
     recorder: Recorder,
     emitted: list[dict[str, Any]],
 ) -> None:
+    """A rate sample does not expire: an old one still prices the next sweep."""
     policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
     policy._own_last_full_mono = clock.now
-    policy._cost_sample_mono = clock.now
-    clock.advance(gc_policy.COST_SAMPLE_MAX_AGE_S + 1.0)
-    assert policy._predicted_pause_s(clock.now, "idle") is None
-    assert policy._predicted_pause_s(clock.now, "backstop") is not None
+    clock.advance(20 * 60.0)
+    assert policy._predicted_pause_s(clock.now) is not None
 
-    # The stale sample still lets the due time backstop run on a short quiet.
+    # The old sample still lets the due time backstop run on a short quiet.
     recorder.gen1 = 150
     assert policy.tick(clock.now) == "backstop"
     assert collector.collections == 1
-    assert [row for row in emitted if row.get("reason") == "cost_unknown"] == []
+    assert [row for row in emitted if row.get("reason") == "cost_gate"] == []
 
 
 __all__ = [
@@ -255,5 +251,5 @@ __all__ = [
     "test_pressure_holds_backstop_for_a_bounded_window",
     "test_pressure_window_closes_when_paging_stops",
     "test_automatic_gen2_refreshes_cost_estimate",
-    "test_stale_cost_sample_still_prices_backstops",
+    "test_old_cost_sample_still_prices_backstops",
 ]

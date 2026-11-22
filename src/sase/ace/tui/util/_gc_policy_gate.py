@@ -10,6 +10,7 @@ from sase.ace.tui.util.gc_telemetry import latest_rss_bytes
 from ._gc_policy_common import safe_probe
 from ._gc_policy_config import (
     BACKSTOP_QUIET_S,
+    COST_DUE_MIN_INTERVAL_S,
     DUTY_FACTOR,
     FULL_BACKSTOP_S,
     FULL_GENERATION,
@@ -23,6 +24,7 @@ from ._gc_policy_config import (
     THRESHOLD_RAISED,
     THRESHOLD_UNSUPPORTED,
 )
+from ._gc_policy_cost import PolicyCostMixin
 
 
 def _classic_thresholds(collector: Any) -> tuple[int, int, int] | None:
@@ -43,7 +45,7 @@ def _classic_thresholds(collector: Any) -> tuple[int, int, int] | None:
     return (int(raw[0]), int(raw[1]), int(raw[2]))
 
 
-class PolicyGateMixin:
+class PolicyGateMixin(PolicyCostMixin):
     """Eligibility half of :class:`GCPolicy`: duty, thresholds, and idle gate."""
 
     _monotonic: Callable[[], float]
@@ -53,9 +55,6 @@ class PolicyGateMixin:
     _navigating: Callable[[], bool]
     _modal_input_active: Callable[[], bool]
     _loads_done: Callable[[], bool]
-    _collector: Any
-    _recorder: Any
-    _allocated_blocks_probe: Callable[[], int | None]
     _startup_freeze_mono: float | None
     _own_last_full_mono: float | None
     _rss_at_last_full: int | None
@@ -63,24 +62,28 @@ class PolicyGateMixin:
     threshold_policy: str
     _original_threshold: tuple[int, int, int] | None
 
-    def duty_floor_s(self) -> float:
+    def duty_floor_s(self, *, cost_due: bool = False) -> float:
         """Minimum gap after the last full collection (duty-cycle bound).
 
         The next full collection runs no sooner than ``last_pause *
         DUTY_FACTOR`` after the last one, clamped to ``MAX_DUTY_DELAY_S``
         and floored at ``MIN_FULL_INTERVAL_S``. Unknown pause (no own
-        collection yet) degrades to ``MIN_FULL_INTERVAL_S``.
+        collection yet) degrades to the floor. A cost-due sweep (the
+        estimate nears the pause budget) keeps the duty factor but relaxes
+        the floor to ``COST_DUE_MIN_INTERVAL_S``: waiting would only grow
+        the pause.
         """
+        floor = COST_DUE_MIN_INTERVAL_S if cost_due else MIN_FULL_INTERVAL_S
         pause = self._last_full_pause_s
         if pause is None:
-            return MIN_FULL_INTERVAL_S
+            return floor
         try:
             pause_f = float(pause)
         except Exception:
-            return MIN_FULL_INTERVAL_S
+            return floor
         if pause_f < 0.0:
             pause_f = 0.0
-        return max(MIN_FULL_INTERVAL_S, min(pause_f * DUTY_FACTOR, MAX_DUTY_DELAY_S))
+        return max(floor, min(pause_f * DUTY_FACTOR, MAX_DUTY_DELAY_S))
 
     def next_full_due_in_s(self, now_mono: float | None = None) -> float:
         """Seconds until the duty floor lets the next full collection run."""
@@ -173,7 +176,9 @@ class PolicyGateMixin:
 
         The tag names the trigger a passing collection would run under:
         ``"idle"``, or a relaxed ``"backstop"`` / ``"rss_backstop"`` once
-        the 5-minute or RSS-growth backstop is tripped.
+        the 5-minute or RSS-growth backstop is tripped. A sweep whose
+        estimate nears the pause budget is due without the gen-1 count and
+        under the relaxed cost-due duty floor.
         """
         if not safe_probe(self._loads_done, False):
             return (False, "idle")
@@ -202,18 +207,13 @@ class PolicyGateMixin:
             return (False, tag)
         if safe_probe(self._modal_input_active, False):
             return (False, tag)
-        floor = self.duty_floor_s()
+        cost_due = self._cost_due(now_mono)
+        floor = self.duty_floor_s(cost_due=cost_due)
         if last_full is not None and now_mono - last_full < floor:
             return (False, tag)
-        if not self.collection_due(now_mono, last_full):
+        if not cost_due and not self.collection_due(now_mono, last_full):
             return (False, tag)
         return (True, tag)
-
-    def _read_allocated_blocks(self) -> int | None:
-        value = safe_probe(self._allocated_blocks_probe, None)
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-            return value
-        return None
 
     def _input_idle_s(self, now_mono: float) -> float:
         """Measure quiet time from the later of last input and policy startup."""

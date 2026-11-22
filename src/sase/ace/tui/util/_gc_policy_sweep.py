@@ -25,23 +25,15 @@ from ._gc_policy_common import safe_probe
 from ._gc_policy_config import (
     CENSUS_INTERVAL_S,
     CENSUS_WATCHLIST,
-    COST_PREDICTION_SAFETY_FACTOR,
-    COST_SAMPLE_MAX_AGE_S,
     DEEP_SWEEP_INTERVAL_S,
     DEFERRED_TELEMETRY_INTERVAL_S,
-    FIRST_SWEEP_BLOCK_BUDGET,
     LONG_IDLE_COLLECTION_INTERVAL_S,
     LONG_IDLE_QUIET_S,
     MAX_PREDICTED_FULL_PAUSE_S,
     TRIM_INTERVAL_S,
 )
 from ._gc_policy_gate import PolicyGateMixin
-from ._gc_policy_pressure import (
-    CostDeferral,
-    PressureDeferral,
-    newer_full_pause,
-    paging_pressure,
-)
+from ._gc_policy_pressure import paging_pressure
 
 # Preserve the pre-split logger name so existing log capture keeps working.
 log = logging.getLogger("sase.ace.tui.util.gc_policy")
@@ -50,15 +42,8 @@ log = logging.getLogger("sase.ace.tui.util.gc_policy")
 class PolicySweepMixin(PolicyGateMixin):
     """Execution half of :class:`GCPolicy`: cost gate, tick, census, trim."""
 
-    _pressure_deferral: PressureDeferral
-    _cost_deferral: CostDeferral
-    _deep_cost_deferral: CostDeferral
     _last_census_mono: float | None
     _timer: Any
-    _froze_startup: bool
-    _last_full_scan_blocks: int | None
-    _cost_sample_mono: float | None
-    _heap_blocks_at_last_full: int | None
     _last_deep_full_mono: float | None
     _last_deferred_emit_mono: dict[str, float]
     _last_trim_mono: float | None
@@ -66,58 +51,6 @@ class PolicySweepMixin(PolicyGateMixin):
     _trim_runner: Callable[[], None]
     _census_emit: Callable[[dict[str, Any]], None] | None
     _memory_pressure_probe: Callable[[], dict[str, Any] | None]
-
-    def _predicted_pause_s(
-        self, now_mono: float, trigger: str = "idle", *, deep: bool = False
-    ) -> float | None:
-        """Estimate the next full sweep from the last pause and heap growth.
-
-        Only ``idle`` needs a sample younger than ``COST_SAMPLE_MAX_AGE_S``;
-        a backstop prices itself from the latest observed full collection. A
-        bounded deep sweep scans the whole heap, so it scales the sample to
-        every allocated block instead of only the growth since the last sweep.
-        """
-        pause = self._last_full_pause_s
-        baseline = self._heap_blocks_at_last_full
-        scanned_blocks = self._last_full_scan_blocks
-        sampled = self._cost_sample_mono
-        current = self._read_allocated_blocks()
-        if (
-            pause is None
-            or baseline is None
-            or scanned_blocks is None
-            or scanned_blocks <= 0
-            or current is None
-            or sampled is None
-            or (trigger == "idle" and now_mono - sampled > COST_SAMPLE_MAX_AGE_S)
-        ):
-            return None
-        if deep:
-            new_blocks = max(1, current)
-        else:
-            new_blocks = max(1, current - baseline)
-        return pause * new_blocks / scanned_blocks * COST_PREDICTION_SAFETY_FACTOR
-
-    def _first_sweep_seed_due(self) -> bool:
-        """Return True when one early sweep should seed the cost estimate.
-
-        Right after the freeze-only startup no full collection has been
-        observed, so the estimate is unknown and the gate would hold every
-        sweep until long idle. While the heap has grown by real garbage but
-        is still within ``FIRST_SWEEP_BLOCK_BUDGET``, one ordinary sweep is
-        cheap and yields the first real sample.
-        """
-        if not self._froze_startup:
-            return False
-        if self._own_last_full_mono is not None:
-            return False
-        if self._cost_sample_mono is not None or self._last_full_pause_s is not None:
-            return False
-        current = self._read_allocated_blocks()
-        baseline = self._heap_blocks_at_last_full
-        if current is None or baseline is None:
-            return False
-        return 0 < current - baseline <= FIRST_SWEEP_BLOCK_BUDGET
 
     def _deep_bounded_due(self, now_mono: float) -> bool:
         """Return True when frozen garbage is due a bounded reclaim sweep.
@@ -139,25 +72,6 @@ class PolicySweepMixin(PolicyGateMixin):
         """Return a fresh pressure sample only when the process is paging."""
         return paging_pressure(safe_probe(self._memory_pressure_probe, None), now_mono)
 
-    def _refresh_cost_sample(self) -> None:
-        """Seed the cost estimate from any newer full collection, even automatic.
-
-        Before the startup freeze a full collection scans the whole heap;
-        afterwards only blocks allocated since the last freeze.
-        """
-        observed = newer_full_pause(self._recorder, self._cost_sample_mono)
-        if observed is None:
-            return
-        self._last_full_pause_s, self._cost_sample_mono = observed
-        self._pressure_deferral.clear()
-        self._cost_deferral.clear()
-        self._deep_cost_deferral.clear()
-        scanned = self._read_allocated_blocks() or 1
-        baseline = self._heap_blocks_at_last_full
-        if self._froze_startup and baseline is not None:
-            scanned -= baseline
-        self._last_full_scan_blocks = max(1, scanned)
-
     def _record_deferred(
         self,
         *,
@@ -168,9 +82,18 @@ class PolicySweepMixin(PolicyGateMixin):
         pressure: dict[str, Any] | None = None,
         predicted_pause_s: float | None = None,
         cost_deferral_s: float | None = None,
+        cost_deferral_cap_s: float | None = None,
         deep_due: bool = False,
     ) -> None:
-        """Emit a rate-limited row when pressure or the cost gate defers a sweep."""
+        """Emit a rate-limited row when pressure, cost, or the collector defers.
+
+        Reasons: ``swapping`` (paging pressure, a ``tui_gc_memory_pressure``
+        row), ``cost_gate`` (estimate over budget), ``deep_cost_gate`` (the
+        hourly deep sweep priced over budget; an ordinary sweep runs
+        instead), and ``collector_busy`` (``gc.collect()`` returned without a
+        full collection because another thread's collection was in progress;
+        nothing was frozen or recorded, and the next tick retries).
+        """
         key = f"{trigger}:{reason}"
         previous = self._last_deferred_emit_mono.get(key)
         if previous is not None and now_mono - previous < DEFERRED_TELEMETRY_INTERVAL_S:
@@ -189,6 +112,8 @@ class PolicySweepMixin(PolicyGateMixin):
         }
         if cost_deferral_s is not None:
             row["cost_deferred_s"] = round(max(0.0, cost_deferral_s), 3)
+        if cost_deferral_cap_s is not None:
+            row["cost_deferral_cap_s"] = round(max(0.0, cost_deferral_cap_s), 3)
         if deep_due:
             row["deep_due"] = True
         if pressure is not None:
@@ -222,7 +147,7 @@ class PolicySweepMixin(PolicyGateMixin):
                 self._collector.freeze()
             self._froze_startup = True
             self._startup_freeze_mono = now
-            self._heap_blocks_at_last_full = self._read_allocated_blocks()
+            self._young_since_mono = now
             self._rss_at_last_full = latest_rss_bytes()
             return "startup_freeze"
 
@@ -251,66 +176,114 @@ class PolicySweepMixin(PolicyGateMixin):
             self._last_deep_full_mono is None
             or now - self._last_deep_full_mono >= LONG_IDLE_COLLECTION_INTERVAL_S
         )
-        deep_bounded_due = self._deep_bounded_due(now) if not long_idle else False
-        predicted_pause = self._predicted_pause_s(now, tag, deep=deep_bounded_due)
-        if not long_idle and (
-            predicted_pause is None or predicted_pause > MAX_PREDICTED_FULL_PAUSE_S
-        ):
-            window = (
-                self._deep_cost_deferral if deep_bounded_due else self._cost_deferral
-            )
-            seed = not deep_bounded_due and self._first_sweep_seed_due()
-            if not seed and window.defers(
-                trigger=tag, now_mono=now, input_idle_s=input_idle_s
-            ):
-                self._record_deferred(
-                    now_mono=now,
-                    trigger=tag,
-                    reason="cost_unknown" if predicted_pause is None else "cost_gate",
-                    input_idle_s=input_idle_s,
-                    predicted_pause_s=predicted_pause,
-                    cost_deferral_s=window.deferred_for_s(now),
-                    deep_due=deep_bounded_due,
-                )
-                return None
-            # The cap passed, or this is the cheap first post-freeze sweep that
-            # seeds the estimate: run on this quiet window despite the gate.
-
-        unfreeze = getattr(self._collector, "unfreeze", None)
-        deep_collection = (deep_long_idle_due or deep_bounded_due) and callable(
-            unfreeze
+        deep_bounded = not long_idle and self._deep_bounded_admitted(
+            now, tag, input_idle_s
         )
-        blocks_before = self._read_allocated_blocks()
-        if deep_collection and blocks_before is not None:
-            scan_blocks: int | None = max(1, blocks_before)
-        else:
-            baseline = self._heap_blocks_at_last_full
-            scan_blocks = (
-                None
-                if blocks_before is None or baseline is None
-                else max(1, blocks_before - baseline)
-            )
+        if not long_idle and not deep_bounded:
+            # No estimate yet (no post-freeze sample) never defers: waiting
+            # only grows the heap, so this sweep seeds the sample instead.
+            predicted_pause = self._predicted_pause_s(now)
+            if (
+                predicted_pause is not None
+                and predicted_pause > MAX_PREDICTED_FULL_PAUSE_S
+            ):
+                cap_s = self._cost_deferral_cap_s()
+                if self._cost_deferral.defers(
+                    trigger=tag,
+                    now_mono=now,
+                    input_idle_s=input_idle_s,
+                    cap_s=cap_s,
+                ):
+                    self._record_deferred(
+                        now_mono=now,
+                        trigger=tag,
+                        reason="cost_gate",
+                        input_idle_s=input_idle_s,
+                        predicted_pause_s=predicted_pause,
+                        cost_deferral_s=self._cost_deferral.deferred_for_s(now),
+                        cost_deferral_cap_s=cap_s,
+                    )
+                    return None
+                # The cap passed: run on this quiet window despite the gate.
+        return self._run_sweep(
+            now,
+            tag,
+            input_idle_s=input_idle_s,
+            deep=deep_long_idle_due or deep_bounded,
+        )
 
+    def _deep_bounded_admitted(
+        self, now_mono: float, tag: str, input_idle_s: float
+    ) -> bool:
+        """Return True when the hourly deep sweep is due and fits the budget.
+
+        An over-budget (or unpriceable) deep sweep is skipped with a
+        rate-limited ``deep_cost_gate`` row; the tick then prices an
+        ordinary sweep, so a pending deep sweep never holds ordinary ones.
+        """
+        if not self._deep_bounded_due(now_mono):
+            return False
+        predicted = self._predicted_pause_s(now_mono, deep=True)
+        if predicted is not None and predicted <= MAX_PREDICTED_FULL_PAUSE_S:
+            return True
+        self._record_deferred(
+            now_mono=now_mono,
+            trigger=tag,
+            reason="deep_cost_gate",
+            input_idle_s=input_idle_s,
+            predicted_pause_s=predicted,
+            deep_due=True,
+        )
+        return False
+
+    def _run_sweep(
+        self, now_mono: float, tag: str, *, input_idle_s: float, deep: bool
+    ) -> str | None:
+        """Collect, prove a full collection ran, then freeze and record it."""
+        unfreeze = getattr(self._collector, "unfreeze", None)
+        deep_collection = deep and callable(unfreeze)
+        blocks_before = self._read_allocated_blocks() if deep_collection else None
+        census = tag == "idle" and self._census_due(now_mono)
+        collections_before = self._full_collection_count()
+        ran = False
         start = self._monotonic()
         try:
             if deep_collection and callable(unfreeze):
                 unfreeze()
-            if tag == "idle" and self._census_due(now):
-                self._run_idle_census(now)
+            if census:
+                self._run_idle_census(now_mono)
             else:
                 with gc_trigger(tag):
                     self._collector.collect()
         finally:
-            # Re-freezing keeps later gen-2 sweeps proportional to the objects
-            # created since this collection. Even a failed collect must not
-            # leave the entire old heap exposed to every future full sweep.
-            self._collector.freeze()
-        pause = self._monotonic() - start
-        self._note_full_collection(pause, scan_blocks=scan_blocks)
+            ran = self._full_collection_ran(collections_before)
+            # Re-freezing keeps later sweeps proportional to the objects
+            # created since this collection, so only a proven collection
+            # freezes: freezing after a skipped one would move every young
+            # cycle into the permanent generation. A deep sweep always
+            # re-freezes, so a failed or skipped one cannot leave the entire
+            # old heap exposed to every future sweep.
+            if ran or deep_collection:
+                self._collector.freeze()
+        end = self._monotonic()
+        if not ran:
+            self._record_deferred(
+                now_mono=now_mono,
+                trigger=tag,
+                reason="collector_busy",
+                input_idle_s=input_idle_s,
+            )
+            return None
+        self._note_full_collection(
+            end - start,
+            start_mono=start,
+            deep=deep_collection,
+            census=census,
+            blocks_before=blocks_before,
+        )
         if deep_collection:
             self._last_deep_full_mono = self._own_last_full_mono
-            self._deep_cost_deferral.clear()
-        self._maybe_trim(now)
+        self._maybe_trim(now_mono)
         return tag
 
     def tick_safe(self) -> None:
@@ -322,26 +295,28 @@ class PolicySweepMixin(PolicyGateMixin):
 
     def _note_full_collection(
         self,
-        pause_s: float | None = None,
+        pause_s: float,
         *,
-        scan_blocks: int | None = None,
+        start_mono: float,
+        deep: bool = False,
+        census: bool = False,
+        blocks_before: int | None = None,
     ) -> None:
-        """Record an own full collection and refresh the RSS baseline."""
+        """Record a verified own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
         self._pressure_deferral.clear()
         self._cost_deferral.clear()
         self._cost_sample_mono = self._own_last_full_mono
-        if pause_s is not None:
-            try:
-                pause = float(pause_s)
-            except Exception:
-                pause = None  # type: ignore[assignment]
-            if pause is not None:
-                if pause < 0.0:
-                    pause = 0.0
-                self._last_full_pause_s = pause
-        self._last_full_scan_blocks = scan_blocks
-        self._heap_blocks_at_last_full = self._read_allocated_blocks()
+        pause = max(0.0, float(pause_s))
+        self._last_full_pause_s = pause
+        self._record_cost_sample(
+            pause,
+            start_mono=start_mono,
+            end_mono=self._own_last_full_mono,
+            deep=deep,
+            census=census,
+            blocks_before=blocks_before,
+        )
         try:
             self._rss_at_last_full = latest_rss_bytes()
         except Exception:

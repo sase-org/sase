@@ -84,7 +84,6 @@ class GCPolicy(PolicySweepMixin):
         self._memory_pressure_probe = memory_pressure_probe or latest_memory_pressure
         self._pressure_deferral = PressureDeferral()
         self._cost_deferral = CostDeferral()
-        self._deep_cost_deferral = CostDeferral()
         self._last_census_mono: float | None = None
         self._timer: Any = None
         self.threshold_policy = THRESHOLD_UNSUPPORTED
@@ -94,9 +93,11 @@ class GCPolicy(PolicySweepMixin):
         self._own_last_full_mono: float | None = None
         self._rss_at_last_full: int | None = None
         self._last_full_pause_s: float | None = None
-        self._last_full_scan_blocks: int | None = None
         self._cost_sample_mono: float | None = None
-        self._heap_blocks_at_last_full = self._read_allocated_blocks()
+        self._cost_pause_s: float | None = None
+        self._cost_accum_s: float | None = None
+        self._young_since_mono: float | None = None
+        self._deep_cost_per_block_s: float | None = None
         self._last_deep_full_mono: float | None = None
         self._last_deferred_emit_mono: dict[str, float] = {}
         self._last_trim_mono: float | None = None

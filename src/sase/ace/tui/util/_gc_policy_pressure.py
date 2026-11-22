@@ -14,12 +14,11 @@ has been quiet for ``PRESSURE_OVERRIDE_QUIET_S``, so sustained paging cannot
 starve the backstops indefinitely. The opportunistic ``idle`` trigger stays
 deferred while pressure lasts; it turns into ``backstop`` after five minutes.
 
-The cost gate (``cost_unknown`` / ``cost_gate``) gets the same shape of bound
-through ``CostDeferral``: it may hold the ``idle`` / ``backstop`` /
-``rss_backstop`` triggers for at most ``COST_MAX_DEFERRAL_S``, then a sweep
-runs on the next ordinary quiet window, so an unknown or over-budget estimate
-can never starve sweeps indefinitely. The bounded deep sweep carries its own
-window so ordinary sweeps cannot reset it.
+The cost gate (``cost_gate``) gets the same shape of bound through
+``CostDeferral``: it may hold the ``idle`` / ``backstop`` / ``rss_backstop``
+triggers for at most a cap derived from the sampled pause rate (never more
+than ``COST_MAX_DEFERRAL_S``), then a sweep runs on the next ordinary quiet
+window, so an over-budget estimate can never starve sweeps indefinitely.
 
 Everything here reads cached samples only; nothing touches ``/proc`` or runs
 a collection.
@@ -114,8 +113,8 @@ class CostDeferral:
 
     The window opens at the first cost deferral of a bounded trigger and
     closes when fresh cost evidence arrives (an own sweep or a newly observed
-    full collection). While the window is younger than
-    ``COST_MAX_DEFERRAL_S`` the gate defers; afterwards only a missing quiet
+    full collection). While the window is younger than its cap (at most
+    ``COST_MAX_DEFERRAL_S``) the gate defers; afterwards only a missing quiet
     window still defers, so the sweep runs on the next ordinary quiet tick.
     """
 
@@ -127,13 +126,20 @@ class CostDeferral:
         since = self._since_mono
         return 0.0 if since is None else max(0.0, now_mono - since)
 
-    def defers(self, *, trigger: str, now_mono: float, input_idle_s: float) -> bool:
+    def defers(
+        self,
+        *,
+        trigger: str,
+        now_mono: float,
+        input_idle_s: float,
+        cap_s: float = COST_MAX_DEFERRAL_S,
+    ) -> bool:
         """Return True while the cost gate should still hold a sweep."""
         if trigger not in _COST_BOUNDED_TRIGGERS:
             return True
         if self._since_mono is None:
             self._since_mono = now_mono
-        if now_mono - self._since_mono < COST_MAX_DEFERRAL_S:
+        if now_mono - self._since_mono < min(max(0.0, cap_s), COST_MAX_DEFERRAL_S):
             return True
         return input_idle_s < COST_OVERRIDE_QUIET_S
 
