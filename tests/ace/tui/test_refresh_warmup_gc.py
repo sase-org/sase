@@ -246,6 +246,51 @@ async def _await_pump_free(app: object, *, timeout: float = 8.0) -> None:
     assert not leftover, f"pump-free tasks still running: {leftover!r}"
 
 
+def _unfinished_startup_workers(app: object) -> tuple[Any, ...]:
+    """One-shot prompt-inventory workers started on owner mount."""
+    workers = getattr(app, "workers", ())
+    pending: list[Any] = []
+    for worker in workers:
+        if getattr(worker, "is_finished", True):
+            continue
+        group = str(getattr(worker, "group", "") or "")
+        name = str(getattr(worker, "name", "") or "")
+        if group.startswith("prompt-") or name.startswith("prompt-"):
+            pending.append(worker)
+    return tuple(pending)
+
+
+async def _await_startup_workers(page: AcePage, *, timeout: float = 8.0) -> None:
+    """Drain one-shot owner workers that exist before SAVEALL sampling.
+
+    Prompt mount starts a ``prompt-finalizers`` thread worker when AceApp
+    exposes no ``finalizer_inventory``. If that worker finishes inside the
+    measured window, its ``FinalizerInventoryWorkerResult`` is counted as
+    per-refresh garbage. Wait it out (and any other already-running one-shot
+    worker) so app teardown cycles are not mistaken for producer residue.
+    """
+    app = page.app
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        pending = _unfinished_startup_workers(app)
+        if not pending:
+            await page.pause()
+            if not _unfinished_startup_workers(app):
+                return
+            continue
+        waits = []
+        for worker in pending:
+            wait = getattr(worker, "wait", None)
+            if callable(wait):
+                waits.append(wait())
+        if waits:
+            await asyncio.gather(*waits, return_exceptions=True)
+        await page.pause()
+    leftover = _unfinished_startup_workers(app)
+    names = [getattr(worker, "name", worker) for worker in leftover]
+    assert not leftover, f"startup workers still running: {names!r}"
+
+
 class _DummyWatcher:
     """Satisfy ``_watcher_active`` without a real inotify handle."""
 
@@ -340,6 +385,7 @@ async def test_auto_refresh_merge_live_hints_and_warmup_release_obsolete_payload
     ) as page:
         app = page.app
         _stub_refresh_side_effects(app, monkeypatch)
+        await _await_startup_workers(page)
         with patch(
             "sase.ace.tui.actions.agents._loading_disk_full.disk_load_with_optional_current_project",
             side_effect=fake_disk,

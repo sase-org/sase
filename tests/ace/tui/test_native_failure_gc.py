@@ -195,8 +195,8 @@ def test_concurrent_failed_chip_requests_each_raise_fresh_error(
     def attempt() -> None:
         nonlocal entered
         mapping = _ChipMapping(object(), (("__external__", "#FF5F5F", "•"),))
-        traceback_ids: list[int] = []
-        traceback_lock = threading.Lock()
+        caught: list[ValueError] = []
+        caught_lock = threading.Lock()
 
         def worker() -> None:
             nonlocal entered
@@ -207,22 +207,31 @@ def test_concurrent_failed_chip_requests_each_raise_fresh_error(
             except ValueError as exc:
                 assert str(exc) == "chip-concurrent"
                 assert exc.__cause__ is None
-                with traceback_lock:
-                    traceback_ids.append(id(exc.__traceback__))
+                with caught_lock:
+                    caught.append(exc)
             else:
                 raise AssertionError("expected chip failure")
 
-        with entered_lock:
-            entered = 0
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = [pool.submit(worker) for _ in range(4)]
-            for future in futures:
-                future.result(timeout=60)
-        assert len(traceback_ids) == 4
-        # Fresh copies never share one traceback object.
-        assert len(set(traceback_ids)) == 4
-        del mapping
-        del traceback_ids
+        try:
+            with entered_lock:
+                entered = 0
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = [pool.submit(worker) for _ in range(4)]
+                for future in futures:
+                    future.result(timeout=60)
+            assert len(caught) == 4
+            # Keep the exceptions alive so identity is well defined: a bare
+            # id(exc.__traceback__) of a freed traceback can be reused.
+            for index, first in enumerate(caught):
+                assert first.__traceback__ is not None
+                for second in caught[index + 1 :]:
+                    assert first is not second
+                    assert second.__traceback__ is not None
+                    assert first.__traceback__ is not second.__traceback__
+        finally:
+            # list -> exc -> traceback -> worker frame -> closure cell -> list
+            caught.clear()
+            del mapping
 
     counts = collect_cyclic_garbage(attempt, repeat=2, warmup=0)
     observed = _failure_counts(counts)
