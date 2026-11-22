@@ -510,19 +510,24 @@ The displayed status is always the configured label. Because those labels are ar
 strings, the underlying **bucket** (Running / Done / Failed, used for grouping and
 counting) is tracked separately from the label, from `monitor_state`:
 
-| `monitor_state` | Bucket  | Displayed status                                   |
-| --------------- | ------- | -------------------------------------------------- |
-| `staged`        | Running | start status; command has not started              |
-| `running`       | Running | start status                                       |
-| `completed`     | Done    | stop status                                        |
-| `failed`        | Failed  | stop status (+ exit code or supervisor error)      |
-| `timeout`       | Failed  | stop status (+ total-timeout or idle-timeout note) |
-| `stopped`       | Done    | stop status                                        |
-| `lost`          | Failed  | stop status; command outcome is unknown            |
+| `monitor_state` | Bucket  | Displayed status                                             |
+| --------------- | ------- | ------------------------------------------------------------ |
+| `staged`        | Running | start status; command has not started                        |
+| `running`       | Running | start status                                                 |
+| `completed`     | Done    | stop status                                                  |
+| `failed`        | Failed  | stop status (+ exit code or supervisor error)                |
+| `timeout`       | Failed  | stop status (+ total-timeout or idle-timeout note)           |
+| `stopped`       | Done    | stop status                                                  |
+| `lost`          | Failed  | stop status; command outcome is unknown                      |
+| `held`          | Failed  | NOT ADOPTED; never ran; resumes through `sase agent readopt` |
 
 The stop-status label is descriptive text, not a success condition. It is reused for
 every terminal state, including an explicit stop; use the bucket, `monitor_state`, exit
 code, and output to decide what happened.
+
+`held` is the exception: it buckets as Failed but stays nonterminal. The host refused to
+adopt the staged handoff, so the member never ran and waits on a human. A later
+`running` state with the flag cleared means the handoff was readopted.
 
 ### Display contract
 

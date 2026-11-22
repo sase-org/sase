@@ -275,6 +275,25 @@ def build_header_text(
     wait_section = metadata.wait_section
     turn_section = metadata.turn_section
 
+    if agent.is_agent_session_container_row:
+        focus = getattr(agent, "failure_focus", None)
+        if focus is not None:
+            from ...models.failure_focus import failure_has_structured_causes
+            from ._agent_failure_callout import (
+                append_failure_callout,
+                format_failure_where_session,
+            )
+
+            if not failure_has_structured_causes(focus):
+                focus = None
+        if focus is not None:
+            append_failure_callout(
+                header_text,
+                focus,
+                where=format_failure_where_session(focus),
+                jump_number=None,
+            )
+
     append_runner_queue_section(header_text, agent, queue_selection)
 
     if agent_session_fold_enabled and not detach_identity:

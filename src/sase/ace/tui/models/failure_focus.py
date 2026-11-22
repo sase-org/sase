@@ -43,6 +43,49 @@ class FailureFocus:
     finalizer_chip_style: str | None = None
 
 
+def failure_has_structured_causes(focus: FailureFocus) -> bool:
+    """Return whether a focus carries causes beyond the ERROR section.
+
+    The NEEDS ATTENTION callout (session, clan) and the tribe cause-line reuse
+    only trigger on structured causes — a finalizer chip, a held handoff,
+    blocked members, or multiple failures. Simple failures keep their existing
+    rendering so established panel contracts do not move.
+    """
+    return bool(
+        focus.finalizer_chip
+        or focus.not_adopted is not None
+        or focus.blocked
+        or focus.extra_failed
+    )
+
+
+def failure_cause_summary(focus: FailureFocus) -> str:
+    """Return the one-line cause wording shared by session, clan, and tribe.
+
+    Pure projection over an already-built focus: no file reads, no time
+    formatting. Widget callouts and tribe NEEDS ATTENTION previews both
+    render this string so the three panels agree word for word.
+    """
+    from sase.monitor_state import NOT_ADOPTED_GLYPH
+
+    parts: list[str] = []
+    label = focus.member_label or focus.failed_row.name
+    cause = focus.finalizer_chip
+    if cause:
+        parts.append(f"{label} {cause}")
+    elif focus.not_adopted is not None:
+        parts.append(f"{label} {NOT_ADOPTED_GLYPH}")
+    else:
+        parts.append(f"{label} ✗")
+    if focus.not_adopted is not None:
+        parts.append(f"{NOT_ADOPTED_GLYPH} {focus.not_adopted.name} never ran")
+    if focus.extra_failed:
+        parts.append(f"+{focus.extra_failed}")
+    if focus.blocked:
+        parts.append(f"blocks {', '.join(focus.blocked)}")
+    return " · ".join(parts)
+
+
 def failure_focus_for_agent(
     agent: Agent,
     *,
@@ -74,6 +117,11 @@ def failure_focus_for_agent(
         return None
 
     failed_row = max(failed_rows, key=child_launch_time)
+    if member_label is None:
+        agent_name = _row_name(agent)
+        failed_name = _row_name(failed_row)
+        if failed_name.startswith(agent_name) and len(failed_name) > len(agent_name):
+            member_label = failed_name[len(agent_name) :]
     finalizer_state = glance_finalizer_state(failed_row)
     finalizer_chip = finalizer_state.chip_text
     start = failed_row.run_start_time or failed_row.start_time
@@ -141,5 +189,7 @@ def _row_name(agent: Agent) -> str:
 
 __all__ = [
     "FailureFocus",
+    "failure_cause_summary",
     "failure_focus_for_agent",
+    "failure_has_structured_causes",
 ]

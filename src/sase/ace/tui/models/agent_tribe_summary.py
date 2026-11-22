@@ -465,7 +465,23 @@ def _unit_snapshot(
     )
 
 
-def _attention_preview(rows: Sequence[Agent], status: str) -> str:
+def _attention_preview(
+    rows: Sequence[Agent],
+    status: str,
+    *,
+    focus: object | None = None,
+) -> str:
+    if focus is not None:
+        from .failure_focus import (
+            failure_cause_summary,
+            failure_has_structured_causes,
+        )
+
+        try:
+            if failure_has_structured_causes(focus):  # type: ignore[arg-type]
+                return failure_cause_summary(focus)  # type: ignore[arg-type]
+        except Exception:
+            pass
     for row in rows:
         preview = first_meaningful_line(row.error_message or row.activity or "")
         if preview:
@@ -534,7 +550,9 @@ def build_agent_tribe_summary_snapshot(
             status=unit.status,
             status_bucket=unit.status_bucket,
             preview=_attention_preview(
-                tribe_unit_real_rows(root) or (root,), unit.status
+                tribe_unit_real_rows(root) or (root,),
+                unit.status,
+                focus=getattr(root, "failure_focus", None),
             ),
         )
         for root, unit in zip(roots, units, strict=True)

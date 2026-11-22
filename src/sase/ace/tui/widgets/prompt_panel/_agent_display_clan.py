@@ -192,16 +192,6 @@ def build_clan_detail_text(
         )
         body = text
 
-    # Deferred so the clan-wave modules stay off the TUI startup import path;
-    # after first use this is only a ``sys.modules`` hit.
-    from ._agent_display_clan_waves import append_clan_waves_section
-
-    append_clan_waves_section(
-        body,
-        agent,
-        level=_effective_fold_level("waves", fold_level, overrides),
-    )
-
     roster_entries = clan_roster_entries(
         agent,
         members,
@@ -214,6 +204,43 @@ def build_clan_detail_text(
         if neighbor_agents
         else ()
     )
+    focus = getattr(agent, "failure_focus", None)
+    if focus is not None:
+        from ...models.failure_focus import failure_has_structured_causes
+        from ._agent_failure_callout import (
+            append_failure_callout,
+            format_failure_where_clan,
+        )
+
+        if not failure_has_structured_causes(focus):
+            focus = None
+    if focus is not None:
+        total = len(roster_entries) + len(neighbor_entries)
+        width = 1 if total <= 10 else 2
+        jump_number: str | None = None
+        member_label = getattr(focus, "member_label", None)
+        if member_label is not None:
+            for index, entry in enumerate(roster_entries):
+                if entry.label == member_label:
+                    jump_number = f"{index:0{width}d}"
+                    break
+        append_failure_callout(
+            body,
+            focus,
+            where=format_failure_where_clan(agent, focus),
+            jump_number=jump_number,
+        )
+
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._agent_display_clan_waves import append_clan_waves_section
+
+    append_clan_waves_section(
+        body,
+        agent,
+        level=_effective_fold_level("waves", fold_level, overrides),
+    )
+
     roster_text: Text | None = Text() if detach_identity else None
     roster_dest = roster_text if roster_text is not None else body
     document_numbering = MemberJumpNumbering(

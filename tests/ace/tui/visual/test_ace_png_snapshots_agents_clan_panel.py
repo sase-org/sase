@@ -407,3 +407,36 @@ async def test_swarm_clan_panel_png_snapshots(
             "agents_clan_panel_swarm_level_3_120x40",
             title="ACE swarm clan panel fold level 3",
         )
+
+
+async def test_failed_clan_needs_attention_callout_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Clan detail NEEDS ATTENTION callout for the incident fixture."""
+    from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
+        failed_clan_incident_agents,
+    )
+
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 22, 12, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=failed_clan_incident_agents())
+
+    async with AcePage(query='"visual-research"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "CLAN")
+        await wait_for_svg_contains(page, "NEEDS ATTENTION")
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[page.app.current_idx].is_clan_container is True
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "NEEDS ATTENTION")
+        assert_page_svg_contains(page, "readopt")
+        assert_page_svg_contains(page, "jump 0")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_needs_attention_120x40",
+            title="ACE clan panel NEEDS ATTENTION callout",
+        )

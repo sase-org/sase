@@ -377,3 +377,42 @@ async def test_agent_session_conversation_monitor_phase_png_snapshot(
             "agents_session_conversation_monitor_120x40",
             title="ACE session conversation with monitor phase",
         )
+
+
+async def test_failed_session_needs_attention_callout_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Session detail NEEDS ATTENTION callout for the incident fixture."""
+    from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_fixtures import (
+        failed_session_incident_agents,
+    )
+
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 22, 12, 30, 0))
+    pin_decks_paged(monkeypatch)
+    patch_startup_loaders(monkeypatch, agents=failed_session_incident_agents())
+
+    async with AcePage(
+        query='"visual-incident"',
+        size=(160, 50),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_agent_session_container_row is True
+        assert container.failure_focus is not None
+        await select_main_card(page, "context")
+        assert_page_svg_contains(page, "SESSION")
+        assert_page_svg_contains(page, "NEEDS ATTENTION")
+        assert_page_svg_contains(page, "readopt")
+        assert_page_svg_contains(page, "R retry")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_session_panel_needs_attention_160x50",
+            title="ACE session panel NEEDS ATTENTION callout",
+        )

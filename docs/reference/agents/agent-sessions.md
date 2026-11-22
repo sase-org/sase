@@ -222,6 +222,13 @@ still needs recovery. Successful re-adoption that transfers the original workspa
 settles that hold; a delayed failed-adoption callback does not recreate it. A successor
 that launches in a different workspace leaves the original hold unresolved.
 
+In the TUI, a not-adopted handoff reads `NOT ADOPTED ‖` in bold salmon: the held monitor
+member shows `staged <time> · never ran` with no ticking clock and sits in the settled
+lane, while its session reads FAILED with a `✗ NEEDS ATTENTION` callout naming the
+failed turn, the finalizer cause, the held handoff, the members it blocks, and the exact
+`sase agent readopt <starter>` command. The held member never counts as started work, so
+it never supersedes the failure.
+
 ### Hijack recovery
 
 Hijacking stops a local occupying turn while retaining its numbered workspace,

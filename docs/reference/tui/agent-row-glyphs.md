@@ -21,6 +21,7 @@ badges instead of verbose text:
 | `★E`  | EPIC CREATED                                                                                                                                                                                                                                                                                                      |
 | `✎`   | PLAN                                                                                                                                                                                                                                                                                                              |
 | `✗`   | FAILED                                                                                                                                                                                                                                                                                                            |
+| `‖`   | NOT ADOPTED: a staged monitor handoff the host refused to adopt; bold salmon `#FF875F`, Failed bucket but nonterminal, never ran |
 | `…`   | QUEUED                                                                                                                                                                                                                                                                                                            |
 | `⏳`  | WAITING                                                                                                                                                                                                                                                                                                           |
 | `?`   | QUESTION                                                                                                                                                                                                                                                                                                          |
@@ -70,6 +71,15 @@ stalled monitor handoff: a red `⚠` replaces the exit-code badge when a termina
 monitor's supervisor never reported a real exit code, and an amber `⚑` follows the row
 when its `--next` follow-up was dropped or launched degraded — a monitor can finish
 cleanly and still strand its follow-up. See [Monitors](../automation/monitors.md).
+
+A Failed clan row carries a cause chip right after the status parentheses:
+`· <member> <cause>`, where the cause is the finalizer chip (for example
+`· .8 ⊛✗ commit`), `‖` when a not-adopted handoff is the only cause
+(`· .8 ‖`), or `✗` when neither is recorded, plus `+N` when more members failed
+(`· .8 ⊛✗ commit +1`). The label renders dim red and the chip keeps its finalizer
+style; under narrow widths the chip drops before the name does. Healthy rows are
+unchanged. The same cause line appears in the clan and session NEEDS ATTENTION
+callouts and in tribe NEEDS ATTENTION entries for structured failures.
 
 Gate turns use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
 `QUESTION`/`ANSWERED`, or plan-tier statuses. A pending gate has no LLM process and does
@@ -222,7 +232,7 @@ clans keep the mark: the container aggregate covers hidden members.
 The `▰`/`▱` family renders as single-cell text in the Fira Code / DejaVu /
 Noto Emoji snapshot stack with no emoji presentation, and neither glyph is an
 Agents-tab row token today (rows use `● ○ ◐ ▪ ◆ ★ ▲ ▼ ▸ ❯ ⚙ ⚠ ⚑ ⚡ ⚒ ⊛ ◌ ↻ ↺
-⧖ ✗ ✓ ⏳ … ▶ ⋔ ▣`).
+⧖ ✗ ✓ ⏳ … ▶ ⋔ ▣ ‖`).
 
 Selecting a row shows a `Capacity:` line in its detail card — the one capacity
 field that also appears for monitors and clans: `Capacity: 1 (verify monitor,

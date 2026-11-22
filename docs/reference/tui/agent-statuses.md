@@ -44,26 +44,26 @@ Running bucket when it handed off to a successor.
 | **ANSWERED**      | Grey on the settled gate turn | The answer was accepted and a successor is being launched                                                        |
 | **SUDO**          | Gate accent                   | An agent's [sudo request](../automation/sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                        | Agent hit a retryable error and is in a countdown before retrying                                                |
+| **NOT ADOPTED ‖** | Bold salmon `#FF875F`         | Staged monitor handoff the host refused to adopt; never ran (Failed bucket, nonterminal); retry with `sase agent readopt` |
 
 Modern `/sase_questions` calls stage a processless `QUESTION` gate turn that the host
-publishes after the asking LLM turn completes through `/sase_final`. The turn owns the
-durable question until it is answered, cancelled, or times out, so dismissing its
-notification does not dismiss the session state. An answer settles it as `ANSWERED` and
-launches the next ordinary session member with the accumulated Q&A. That successor
-starts under the serial-session admission exemption and becomes the session's occupied
-slot; it does not enter the runner queue. The `Enter` shortcut can reopen the live
-question even when no unread notification remains.
+publishes after the asking LLM turn completes through `/sase_final`. It owns the
+durable question until answered, cancelled, or timed out, so dismissing its
+notification keeps the session state. An answer settles it as `ANSWERED` and launches
+the next session member with the accumulated Q&A under the serial-session admission
+exemption, bypassing the runner queue. `Enter` reopens the live question even with no
+unread notification.
 
-Approval labels are receipt-derived: they appear as soon as the accepted gate decision
-is durable, without waiting for the selected command or successor launch to finish. If
-that execution fails, the label changes to `PLAN FAILED` or `EPIC FAILED`, so an
-accepted decision cannot hide a failed action. Commit-only plans are different:
-`PLAN COMMITTED` appears only after the archive succeeds.
+Approval labels are receipt-derived: they appear once the accepted gate decision is
+durable, even before the command or successor launch finishes. A failed execution then
+flips the label to `PLAN FAILED` or `EPIC FAILED`, so acceptance cannot hide a failed
+action. Commit-only plans differ: `PLAN COMMITTED` appears only after the archive
+succeeds.
 
-Older in-flight runs may still use a `pending_question.json` marker. Those compatibility
-runs yield their slot while unanswered, then reacquire capacity in the same process and
-can become `QUEUED` after an answer. sase's TUI continues to project that marker as
-`QUESTION` until the legacy continuation resumes or terminates.
+Older in-flight runs may still use a `pending_question.json` marker. Those runs yield
+their slot while unanswered, reacquire capacity in the same process, and can become
+`QUEUED` after an answer; sase's TUI projects the marker as `QUESTION` until the
+legacy continuation resumes or terminates.
 
 The keybinding footer renders conditional actions as non-breaking key/label chips,
 switching to a deterministic grid when they do not fit on one line. `LEADER` stays
@@ -146,22 +146,17 @@ panel for focused-panel, global, tribe, clan, marked, group, and custom planner-
 selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved response path are
 resumable from the Agents tab.
 
-When a terminal agent becomes unread, sase's TUI marks it with the completed-agent
-indicator and includes it in the Agents header unread count. Selecting that row, jumping
-to it with `,j`, or toggling it back to read with `U` acknowledges the row and dismisses
-the matching user-agent completion notification. Manually marking a row unread with `U`
-arms it for normal acknowledgement after you move away and return, so the marker can be
-used as a short-lived reminder without leaving stale inbox entries.
+A newly unread terminal agent gains the completed-agent indicator and joins the
+Agents header unread count. Selecting it, jumping to it with `,j`, or toggling it back
+to read with `U` acknowledges the row and dismisses its completion notification.
+Marking a row unread with `U` arms it for acknowledgement after you move away and
+return, so the marker works as a short-lived reminder without leaving stale inbox
+entries. If the focused row finishes while you are on the Agents tab, it still turns
+unread until a real navigation or selection event acknowledges it; a refresh that only
+preserves focus never silently consumes the marker.
 
-If the currently focused row finishes while you are already on the Agents tab, sase's
-TUI still marks it unread and keeps the completion notification active until a real
-navigation or selection event acknowledges it. A refresh that merely preserves focus
-does not silently consume the unread marker.
-
-The `unread` count in the Agents header is drawn as black text on a gold pill so the
-"you still have unseen completed work" signal stands out from the rest of the colored
-metrics. It uses the same gold as the inbox's `✉` general-notification chip in the top
-bar, giving you a single color to scan for.
+The header `unread` count is black text on a gold pill, matching the inbox's `✉`
+general-notification chip, so one color marks unseen completed work.
 
 Switching to the Agents tab does not bulk-dismiss completion notifications. sase's TUI
 projects active completion notifications onto unread rows, then acknowledges rows one at
@@ -171,14 +166,13 @@ on every Agents tab, members of collapsed clans and tribes, and rows that belong
 query which is not the visible tab. Clan containers, session members, workflow children,
 monitors, gates, and named procs stay out of the set, and the gold unread pill counts
 the same rows, so the toast count matches the header. The toast reads
-`Marked N completed agents read · press ,u within 10s to undo`. With no new unread
-completions, press `,u` again within those 10 seconds to restore the marked agents that
-are still loaded and terminal (`Restored N completed agents unread`). A newly unread
-completion cancels the undo; the next `,u` marks the current unread set read instead.
-When nothing is unread and no valid undo remains, `,u` reports
-`No unread completed agents`. This undo belongs to the current TUI session. Plan
-approvals and user questions are never auto-dismissed by this flow; they always require
-explicit `y` / `n` confirmation from their respective modals.
+`Marked N completed agents read · press ,u within 10s to undo`; pressing `,u` again
+within 10 seconds restores the still-loaded terminal agents
+(`Restored N completed agents unread`), unless a new unread completion cancels the
+undo. With nothing unread and no valid undo, `,u` reports `No unread completed agents`.
+This undo belongs to the current TUI session. Plan approvals and user questions are
+never auto-dismissed by this flow; they always require explicit `y` / `n` confirmation
+from their respective modals.
 
 ### Agent Revival
 
@@ -232,6 +226,19 @@ Current dismiss and revive operations preserve stored agent names, per-agent tri
 top-level/workflow-child identity. Bare `%wait` (no target) skips dismissal-prefixed
 candidates so it anchors on a live, visible agent. See
 [TUI migration notes](../upgrading/tui.md#dismissed-name-prefix).
+
+### Failure frontier and NEEDS ATTENTION
+
+When nothing in a session is in flight or waiting, the newest started failed turn stays
+the session's state until a real later turn starts; a NOT ADOPTED member never counts as
+started work. Rows, waves, BY_STATUS, count chips, and the tribe summary all read this
+one rollup.
+
+A Failed session or clan with a finalizer cause, held handoff, or blocked members
+shows a left-barred `✗ NEEDS ATTENTION` callout: the failed turn and stop time, the
+cause lines, and the `sase agent readopt <starter>` next step (plus jump / `R` / `x`
+hints); the full error stays in ERROR. Tribe entries reuse the same cause line for
+structured failures.
 
 ### Agents Deck Picker
 
