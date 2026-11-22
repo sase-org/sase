@@ -217,6 +217,30 @@ boot) that floor is well under a tenth of a core, which is why the budget is a l
 _rate_, not zero; a periodic proc-liveness cache could shave the `stale_running_cleanup`
 term but has not been worth new machinery.
 
+`stale_running_cleanup` is the costliest floor job, because each run does real work
+beyond its import. On athena (2026-11-21, 11 retained dead-pid monitor holds), one idle
+run cost 4.3 s of CPU before the spawn-floor phase (`tailnet-1e.6.1.4`) and 0.8 s after
+it. The retained holds were not new work on each sweep. The cost came from:
+
+- resolving each hold's checkout through the workspace provider's `ensure_*` clone and
+  sidecar functions;
+- re-listing every ProjectSpec for each artifact-path lookup;
+- re-reading the proc store for each monitor marker;
+- importing the monitor-start, LLM-provider, and notification graphs.
+
+The sweep now resolves paths read-only, memoizes the alias map and the proc snapshot per
+sweep, and imports none of those graphs. What remains is mostly the
+`reconcile_dead_supervisors` index query (about 0.25 s, because it decodes every active
+row before filtering to monitors) plus one config load. The guards are
+`test_cleanup_sweep_never_reaches_workspace_provider_ensure` and
+`test_stale_running_sweep_closure_excludes_monitor_and_llm_graphs`.
+
+The six Patch-glob hooks jobs fire only on Patch content changes. An fs trigger tokens a
+watched ProjectSpec by its content without the `RUNNING` workspace-claim block, and
+ignores dot-prefixed temp files. Agent launches, exits, and `external_issue_mirror`
+leases rewrite only that block, and they used to re-fire all six jobs about every 20 s
+on a busy host.
+
 Deterministic regression floors live in tests, not wall-clock CI:
 
 - job-SDK import closure: `tests/test_chop_import_budget.py` (and

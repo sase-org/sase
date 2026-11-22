@@ -374,11 +374,16 @@ class HookJobRunner:
 
     def run_stale_running_cleanup(self) -> None:
         """Clean up stale RUNNING entries for dead processes."""
-        reconciled = self._reconcile_dead_monitor_supervisors()
-        proc_reconciled = self._reconcile_running_procs()
-        released = cleanup_stale_running_entries(
-            self._log, skip_monitor_claims=reconciled is None
-        )
+        from sase.project_display_names import project_alias_maps_memoized
+
+        # One sweep resolves several artifact paths per workspace claim; serve
+        # them from one alias map instead of re-listing every ProjectSpec.
+        with project_alias_maps_memoized():
+            reconciled = self._reconcile_dead_monitor_supervisors()
+            proc_reconciled = self._reconcile_running_procs()
+            released = cleanup_stale_running_entries(
+                self._log, skip_monitor_claims=reconciled is None
+            )
         monitors_reconciled = reconciled or 0
         proc_rows_reconciled = proc_reconciled or 0
         if reconciled is None:

@@ -253,7 +253,10 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
                     )
 
     # Process HOOKS entries from current disk state so earlier transforms in the
-    # same scheduler cycle cannot be undone by this terminal cleanup.
+    # same scheduler cycle cannot be undone by this terminal cleanup. The
+    # locked disk re-parse runs only when this tick's Patch snapshot shows a
+    # marker to strip: a Patch that gains one after the snapshot changes its
+    # ProjectSpec, which re-fires this job with a fresh snapshot.
     hook_updates: list[str] = []
 
     def transform_hooks(hooks: list[HookEntry]) -> list[HookEntry]:
@@ -261,7 +264,9 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
         hook_updates.extend(current_updates)
         return updated_hooks
 
-    if transform_patch_hooks_field(
+    if _transform_terminal_hook_suffixes(patch.hooks or [])[
+        1
+    ] and transform_patch_hooks_field(
         patch.file_path,
         patch.name,
         transform_hooks,
@@ -269,7 +274,7 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
         updates.extend(hook_updates)
 
     # Process COMMENTS from current disk state and preserve unrelated or
-    # concurrently changed entries.
+    # concurrently changed entries, again only when the snapshot shows work.
     comment_updates: list[str] = []
 
     def transform_comments(comments: list[CommentEntry]) -> list[CommentEntry]:
@@ -279,7 +284,9 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
         comment_updates.extend(current_updates)
         return updated_comments
 
-    if transform_patch_comments_field(
+    if _transform_terminal_comment_suffixes(patch.comments or [])[
+        1
+    ] and transform_patch_comments_field(
         patch.file_path,
         patch.name,
         transform_comments,

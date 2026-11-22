@@ -292,3 +292,58 @@ def test_strip_terminal_status_markers_skips_mentors_without_running_agent() -> 
     result = strip_terminal_status_markers(cs)
 
     assert result == []
+
+
+def test_strip_terminal_status_markers_skips_disk_reparse_without_snapshot_work() -> (
+    None
+):
+    """A terminal Patch whose snapshot has nothing to strip never re-reads its spec.
+
+    The hooks-lane job hands this function the tick's serialized Patches;
+    re-parsing the ProjectSpec under lock for every terminal Patch made each
+    suffix_transforms run cost seconds of pure-Python parsing.
+    """
+    cs = Patch(
+        name="test",
+        description="Test",
+        parent=None,
+        cl="123",
+        status="Submitted",
+        file_path="/tmp/test.sase",
+        line_number=1,
+        hooks=[
+            HookEntry(
+                command="test_cmd",
+                status_lines=[
+                    HookStatusLine(
+                        commit_entry_num="1",
+                        timestamp="241226_120000",
+                        status="PASSED",
+                        suffix=None,
+                        suffix_type=None,
+                    )
+                ],
+            )
+        ],
+        comments=[
+            CommentEntry(
+                reviewer="reviewer",
+                file_path="/tmp/comments.json",
+                suffix=None,
+                suffix_type=None,
+            )
+        ],
+    )
+
+    with (
+        patch(
+            "sase.ace.scheduler.suffix_transforms.transform_patch_hooks_field"
+        ) as hooks_field,
+        patch(
+            "sase.ace.scheduler.suffix_transforms.transform_patch_comments_field"
+        ) as comments_field,
+    ):
+        assert strip_terminal_status_markers(cs) == []
+
+    hooks_field.assert_not_called()
+    comments_field.assert_not_called()

@@ -107,6 +107,98 @@ def test_patch_glob_chops_skip_idle_and_fire_on_project_spec_change(
     assert "changed" in changed.reason
 
 
+_SPEC_WITHOUT_CLAIMS = """WORKSPACE_DIR: /tmp/demo
+PROJECT_NAME: demo
+
+
+NAME: demo_patch
+STATUS: WIP
+"""
+
+_SPEC_WITH_ONE_CLAIM = """RUNNING:
+  #10 | 4242 | ace(run)-260101_120000 | demo | 20260101120000
+
+
+WORKSPACE_DIR: /tmp/demo
+PROJECT_NAME: demo
+
+
+NAME: demo_patch
+STATUS: WIP
+"""
+
+_SPEC_WITH_TWO_CLAIMS = """RUNNING:
+  #10 | 4242 | ace(run)-260101_120000 | demo | 20260101120000
+  #11 | 4343 | lease(chop:external_issue_mirror) | external_issue_mirror:demo
+
+
+WORKSPACE_DIR: /tmp/demo
+PROJECT_NAME: demo
+
+
+NAME: demo_patch
+STATUS: WIP
+"""
+
+
+def _replace_spec(path: Path, content: str) -> None:
+    """Write *content* the way ``write_patch_atomic`` does: temp file + rename."""
+    temp = path.with_name(f".tmp_{path.stem}_next.sase")
+    temp.write_text(content, encoding="utf-8")
+    temp.replace(path)
+
+
+@pytest.mark.parametrize("chop_name", _PATCH_GLOB_CHOPS)
+def test_patch_glob_chops_skip_running_claim_churn(chop_name: str) -> None:
+    """Workspace claim and release writes touch only RUNNING: no Patch job fires.
+
+    Agent launches and exits, and external_issue_mirror's per-project
+    leases, rewrite every ProjectSpec's RUNNING block. None of the six
+    Patch-glob jobs reads it, so those writes must not re-fire them; a
+    real Patch change still fires on the next tick.
+    """
+    chop = _default_chop("hooks", chop_name)
+    project_dir = sase_home() / "projects" / "demo"
+    project_dir.mkdir(parents=True)
+    spec = project_dir / "demo.sase"
+    spec.write_text(_SPEC_WITHOUT_CLAIMS, encoding="utf-8")
+    tz = get_timezone()
+    t0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz)
+
+    _fire_and_record("hooks", chop, now=t0)
+
+    for step, content in enumerate(
+        (_SPEC_WITH_ONE_CLAIM, _SPEC_WITH_TWO_CLAIMS, _SPEC_WITHOUT_CLAIMS), start=1
+    ):
+        _replace_spec(spec, content)
+        churn = _tick("hooks", chop, now=t0 + timedelta(seconds=5 * step))
+        assert churn.outcome == "skip", (step, churn.reason)
+
+    _replace_spec(spec, _SPEC_WITH_ONE_CLAIM.replace("STATUS: WIP", "STATUS: Mailed"))
+    changed = _tick("hooks", chop, now=t0 + timedelta(seconds=30))
+    assert changed.outcome == "fire"
+    assert "changed" in changed.reason
+
+
+@pytest.mark.parametrize("chop_name", _PATCH_GLOB_CHOPS)
+def test_patch_glob_chops_ignore_atomic_write_temp_files(chop_name: str) -> None:
+    """A ``.tmp_*.sase`` atomic-write temp file (live or leaked) never fires."""
+    chop = _default_chop("hooks", chop_name)
+    project_dir = sase_home() / "projects" / "demo"
+    project_dir.mkdir(parents=True)
+    (project_dir / "demo.sase").write_text(_SPEC_WITHOUT_CLAIMS, encoding="utf-8")
+    tz = get_timezone()
+    t0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz)
+
+    _fire_and_record("hooks", chop, now=t0)
+
+    (project_dir / ".tmp_abc123.sase").write_text("", encoding="utf-8")
+    (project_dir / ".tmp_def456.gp").write_text("partial", encoding="utf-8")
+
+    skipped = _tick("hooks", chop, now=t0 + timedelta(seconds=5))
+    assert skipped.outcome == "skip", skipped.reason
+
+
 def test_patch_glob_chop_also_observes_legacy_gp_extension() -> None:
     """Legacy ``.gp`` ProjectSpec files (pre-``.sase`` migration) stay watched too."""
     chop = _default_chop("hooks", "hook_checks")

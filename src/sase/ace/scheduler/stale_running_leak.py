@@ -3,13 +3,11 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from sase.running_field import (
-    WorkspaceClaim,
-    get_claimed_workspaces,
-    get_workspace_directory_for_num,
-)
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces
+from sase.workspace_provider.lookup import peek_workspace_checkout_dir
 
 from ._stale_running_shared import (
+    SweepProcSnapshot,
     clear_stale_occupant_record,
     pending_retention_retains_claim,
     settle_stale_retention_record,
@@ -23,6 +21,7 @@ def repair_leaked_monitor_claim(
     *,
     log_fn: Callable[[str, str | None], None] | None,
     on_skip: Callable[[], None] | None = None,
+    proc_snapshot: SweepProcSnapshot | None = None,
 ) -> bool:
     """Publish stray sheets and re-settle one leaked epic-launch monitor claim.
 
@@ -39,7 +38,11 @@ def repair_leaked_monitor_claim(
     """
     try:
         return _repair_leaked_monitor_claim_inner(
-            project_file, claim, log_fn=log_fn, on_skip=on_skip
+            project_file,
+            claim,
+            log_fn=log_fn,
+            on_skip=on_skip,
+            proc_snapshot=proc_snapshot,
         )
     except Exception as exc:  # noqa: BLE001 - repair must never break the sweep
         if log_fn:
@@ -57,6 +60,7 @@ def _repair_leaked_monitor_claim_inner(
     *,
     log_fn: Callable[[str, str | None], None] | None,
     on_skip: Callable[[], None] | None = None,
+    proc_snapshot: SweepProcSnapshot | None = None,
 ) -> bool:
     import json as _json
 
@@ -85,7 +89,11 @@ def _repair_leaked_monitor_claim_inner(
     try:
         from sase.monitor.store import read_monitor_marker
 
-        member = read_monitor_marker(project_name, str(artifacts_dir))
+        member = read_monitor_marker(
+            project_name,
+            str(artifacts_dir),
+            proc_snapshot=proc_snapshot.get() if proc_snapshot else None,
+        )
     except Exception:
         return False
     if member is None or not member.is_terminal:
@@ -113,10 +121,10 @@ def _repair_leaked_monitor_claim_inner(
     if not (isinstance(starter, str) and starter.strip()):
         return False
     try:
-        checkout_dir, _ = get_workspace_directory_for_num(
-            claim.workspace_num, project_name, clean=False
-        )
+        checkout_dir = _claimed_checkout_dir(project_file, claim, meta)
     except Exception:
+        return False
+    if not checkout_dir:
         return False
     try:
         from sase.monitor.settlement_fresh_owner import starter_same_workspace
@@ -211,6 +219,33 @@ def _repair_leaked_monitor_claim_inner(
             "cyan",
         )
     return True
+
+
+def _claimed_checkout_dir(
+    project_file: str,
+    claim: WorkspaceClaim,
+    meta: dict[str, object],
+) -> str | None:
+    """Return the claimed checkout path, read-only and config-free when possible.
+
+    This runs for every retained monitor hold on every 5 s sweep, so it must
+    never reach a workspace provider's ``ensure_*`` checkout or sidecar-clone
+    functions. The monitor's own ``agent_meta.json`` records the checkout it
+    ran in; when its ``workspace_num`` is this claim's number that path is
+    authoritative and no config load is needed. Otherwise the path is
+    computed read-only from the project's workspace store.
+    """
+    recorded_num = meta.get("workspace_num")
+    recorded_dir = meta.get("workspace_dir")
+    if (
+        isinstance(recorded_num, int)
+        and not isinstance(recorded_num, bool)
+        and recorded_num == claim.workspace_num
+        and isinstance(recorded_dir, str)
+        and recorded_dir.strip()
+    ):
+        return recorded_dir
+    return peek_workspace_checkout_dir(project_file, claim.workspace_num)
 
 
 def _claim_still_held(project_file: str, claim: WorkspaceClaim) -> bool:

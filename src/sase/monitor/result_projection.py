@@ -31,6 +31,8 @@ from sase.turns.prompt import (
     untrusted_output_section,
 )
 
+from .next_output import DEFAULT_NEXT_OUTPUT, LEGACY_NEXT_OUTPUT
+
 # Values for ``--next-output`` / ``monitor_next_output``.
 NEXT_OUTPUT_CHOICES: tuple[ContinuationEvidencePolicy, ...] = (
     "auto",
@@ -38,8 +40,6 @@ NEXT_OUTPUT_CHOICES: tuple[ContinuationEvidencePolicy, ...] = (
     "file",
     "none",
 )
-DEFAULT_NEXT_OUTPUT: ContinuationEvidencePolicy = "auto"
-LEGACY_NEXT_OUTPUT: ContinuationEvidencePolicy = "tail"
 
 SELECTED_DIAGNOSTICS_MAX_BYTES = DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES
 FALLBACK_TAIL_MAX_BYTES = DEFAULT_MONITOR_FALLBACK_TAIL_BYTES

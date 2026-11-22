@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.monitor_state import monitor_state_bucket
 from sase.monitor_status import MonitorStatusPair, monitor_status_pair
 
-from .followup_prompt import DEFAULT_NEXT_OUTPUT
-from .result_projection import LEGACY_NEXT_OUTPUT
+from .next_output import DEFAULT_NEXT_OUTPUT, LEGACY_NEXT_OUTPUT
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import (

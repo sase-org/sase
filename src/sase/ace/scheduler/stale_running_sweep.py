@@ -23,6 +23,7 @@ from ._stale_running_hijack import (
     resolving_workspace_retains_claim,
 )
 from ._stale_running_shared import (
+    SweepProcSnapshot,
     clear_stale_occupant_record,
     held_claim_ttl_days as _held_claim_ttl_days,
     pending_retention_retains_claim,
@@ -109,7 +110,11 @@ def _held_claim_exceeds_ttl(
     return current - parsed > timedelta(days=ttl_days)
 
 
-def _monitor_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
+def _monitor_claim_is_releasable(
+    project_file: str,
+    claim: WorkspaceClaim,
+    proc_snapshot: SweepProcSnapshot | None = None,
+) -> bool:
     """Return whether a dead-pid monitor workspace claim is safe to release.
 
     A monitor owns its workspace for the length of its command, and a dead
@@ -131,7 +136,11 @@ def _monitor_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bo
         artifacts_dir = resolve_agent_artifact_timestamp_path(
             project_name, ACE_RUN_WORKFLOW_DIR, claim.artifacts_timestamp
         )
-        record = read_monitor_marker(project_name, str(artifacts_dir))
+        record = read_monitor_marker(
+            project_name,
+            str(artifacts_dir),
+            proc_snapshot=proc_snapshot.get() if proc_snapshot else None,
+        )
     except Exception:
         return False
     return record is None or record.is_terminal
@@ -212,7 +221,7 @@ def cleanup_stale_running_entries(
         # cannot fall through to the generic stale-PID release path.
         monitor_workflow = "ace-monitor"
     else:
-        from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+        from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 
         monitor_workflow = MONITOR_WORKSPACE_CLAIM_WORKFLOW
 
@@ -227,6 +236,7 @@ def cleanup_stale_running_entries(
     drain_pending_settlement_repairs()
 
     unchanged_skips = 0
+    proc_snapshot = SweepProcSnapshot()
 
     def _count_unchanged_skip() -> None:
         nonlocal unchanged_skips
@@ -275,6 +285,7 @@ def cleanup_stale_running_entries(
                     claim,
                     log_fn=log_fn,
                     on_skip=_count_unchanged_skip,
+                    proc_snapshot=proc_snapshot,
                 )
             ):
                 released_count += 1
@@ -304,7 +315,7 @@ def cleanup_stale_running_entries(
             elif is_process_running(claim.pid):
                 continue
             elif is_monitor_claim and not _monitor_claim_is_releasable(
-                project_file, claim
+                project_file, claim, proc_snapshot
             ):
                 continue
             elif is_gate_claim and not gate_claim_is_releasable(project_file, claim):

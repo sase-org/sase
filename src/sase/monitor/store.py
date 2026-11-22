@@ -37,7 +37,7 @@ from sase.procs.models import ProcStoreSnapshot
 from .identity import supervisor_is_alive
 from .models import MonitorRecord, MonitorRefError, is_monitor_member_record
 from .naming import short_monitor_id
-from .proc_adapter import overlay_proc_on_monitor, named_proc_owns
+from ._proc_adapter_projection import named_proc_owns, overlay_proc_on_monitor
 from .reconcile import reconcile_dead_supervisor, reconcile_dead_supervisors_for_records
 
 #: How long ``stop_monitor`` waits for the supervisor to leave ``running``.
@@ -185,7 +185,12 @@ def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     return None
 
 
-def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
+def read_monitor_marker(
+    project_name: str,
+    artifacts_dir: str,
+    *,
+    proc_snapshot: ProcStoreSnapshot | None = None,
+) -> MonitorRecord | None:
     """Read one monitor member's own markers directly, without an index query.
 
     ``get_monitor()`` runs a full-history, unlimited, hidden-inclusive index
@@ -195,6 +200,10 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
     ``stop_monitor()``'s wait loop, dead-supervisor reconciliation, and
     callers waiting for a monitor to go terminal -- should read that
     member's own ``agent_meta.json`` and ``done.json`` directly instead.
+
+    *proc_snapshot* overlays named-proc state from an already-read proc
+    store; callers that read many markers in one pass (the stale-running
+    sweep) pass one snapshot instead of re-reading the store per member.
     """
     raw_meta = _read_json_object(os.path.join(artifacts_dir, "agent_meta.json"))
     if raw_meta is None:
@@ -231,7 +240,7 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         projected = MonitorRecord.from_record(record)
     except ValueError:
         return None
-    return _with_proc_projection(projected)
+    return _with_proc_projection(projected, snapshot=proc_snapshot)
 
 
 def _read_json_object(path: str) -> dict[str, Any] | None:

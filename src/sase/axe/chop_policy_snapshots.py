@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -19,6 +20,15 @@ from sase.core.project_lifecycle_wire import (
 from .config import ChopConfig
 
 _GIT_TIMEOUT_SECONDS = 15
+
+#: ProjectSpec suffixes whose fs-trigger token ignores the RUNNING block.
+_PROJECT_SPEC_SUFFIXES = (".sase", ".gp")
+
+#: ``(path, mtime_ns, ctime_ns, size, inode) -> digest`` for watched
+#: ProjectSpecs. Preflight runs in the long-lived routine process, so an
+#: unchanged ProjectSpec is read and hashed once, not on every tick.
+_RUNNING_FREE_DIGESTS: dict[tuple[str, int, int, int, int], str] = {}
+_RUNNING_FREE_DIGEST_CAP = 512
 
 
 def check_chop_trigger_runtime(chop: ChopConfig) -> str | None:
@@ -131,6 +141,56 @@ def _resolve_fs_watch_path(raw: str) -> Path:
     return candidate if candidate.is_absolute() else sase_home() / candidate
 
 
+def _strip_running_block(text: str) -> str:
+    """Return ProjectSpec text without its RUNNING block or blank lines.
+
+    The top-level ``RUNNING:`` field holds workspace claims; it ends at the
+    first non-blank line that is not indented. Blank lines are dropped too,
+    because the claim writers re-normalize the blank lines around the block
+    when it appears or disappears.
+    """
+    kept: list[str] = []
+    in_running = False
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        if in_running:
+            if line[:1].isspace():
+                continue
+            in_running = False
+        if line.startswith("RUNNING:"):
+            in_running = True
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _running_free_digest(entry: Path, info: Any) -> str:
+    """Return a digest of *entry*'s content without its RUNNING claim block.
+
+    Cached by file identity (path, mtime, ctime, size, inode); atomic
+    ProjectSpec writes replace the inode, so every real write re-hashes.
+    """
+    key = (
+        str(entry),
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+        info.st_size,
+        info.st_ino,
+    )
+    cached = _RUNNING_FREE_DIGESTS.get(key)
+    if cached is not None:
+        return cached
+    text = entry.read_text(encoding="utf-8", errors="replace")
+    digest = hashlib.blake2b(
+        _strip_running_block(text).encode("utf-8"), digest_size=16
+    ).hexdigest()
+    if len(_RUNNING_FREE_DIGESTS) >= _RUNNING_FREE_DIGEST_CAP:
+        _RUNNING_FREE_DIGESTS.clear()
+    _RUNNING_FREE_DIGESTS[key] = digest
+    return digest
+
+
 def _fs_watch_token(spec: Mapping[str, Any]) -> tuple[str | None, str | None]:
     """Compute one shallow, cheap state token for a single watch spec.
 
@@ -138,6 +198,14 @@ def _fs_watch_token(spec: Mapping[str, Any]) -> tuple[str | None, str | None]:
     is a valid, stable token state, not an error; only an unreadable path
     (permission denied, a broken symlink loop, ...) returns ``(None, error)``
     so the caller can fail open instead of trusting a partial token.
+
+    Glob matches whose name starts with ``.`` (atomic-write temp files such
+    as ``.tmp_*.sase``, editor swap files) are ignored unless the glob's own
+    final component starts with ``.``. A matched ProjectSpec file (``*.sase``
+    or legacy ``*.gp``) contributes a digest of its content without the
+    RUNNING workspace-claim block instead of its mtime and size: agent
+    launches, exits, and leases rewrite only that block, and no fs-guarded
+    job reads it, so claim churn must not fire them.
     """
     raw_path = str(spec.get("path") or "")
     glob = spec.get("glob")
@@ -146,13 +214,21 @@ def _fs_watch_token(spec: Mapping[str, Any]) -> tuple[str | None, str | None]:
         if glob:
             if not base.is_dir():
                 return f"{raw_path}|{glob}:missing", None
+            include_hidden = Path(str(glob)).name.startswith(".")
             parts = []
             for entry in sorted(base.glob(str(glob))):
+                if not include_hidden and entry.name.startswith("."):
+                    continue
                 info = entry.stat()
-                child_count = sum(1 for _ in entry.iterdir()) if entry.is_dir() else ""
-                parts.append(
-                    f"{entry.name}:{info.st_mtime_ns}:{info.st_size}:{child_count}"
-                )
+                if entry.is_dir():
+                    child_count = sum(1 for _ in entry.iterdir())
+                    parts.append(
+                        f"{entry.name}:{info.st_mtime_ns}:{info.st_size}:{child_count}"
+                    )
+                elif entry.suffix in _PROJECT_SPEC_SUFFIXES:
+                    parts.append(f"{entry.name}:{_running_free_digest(entry, info)}")
+                else:
+                    parts.append(f"{entry.name}:{info.st_mtime_ns}:{info.st_size}:")
             return f"{raw_path}|{glob}:" + ",".join(parts), None
         if not base.exists():
             return f"{raw_path}:missing", None

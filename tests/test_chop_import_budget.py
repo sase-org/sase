@@ -13,6 +13,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 _HEAVY_MODULES = (
     "sase.ace.tui",
     "sase.agents_sync",
@@ -137,6 +139,96 @@ def test_claim_and_auto_restart_jobs_import_no_scheduler_or_tui() -> None:
             "sase.bead.sync",
             "sase.llm_provider",
             "sase.macro",
+        ]
+        present = [name for name in heavy if name in sys.modules]
+        assert not present, present
+        """
+    )
+
+
+_HOOKS_LANE_JOB_SCRIPTS = (
+    "sase.scripts.sase_chop_hook_checks",
+    "sase.scripts.sase_chop_mentor_checks",
+    "sase.scripts.sase_chop_workflow_checks",
+    "sase.scripts.sase_chop_pending_checks_poll",
+    "sase.scripts.sase_chop_comment_zombie_checks",
+    "sase.scripts.sase_chop_suffix_transforms",
+    "sase.scripts.sase_chop_orphan_cleanup",
+    "sase.scripts.sase_chop_stale_running_cleanup",
+)
+
+
+@pytest.mark.parametrize("script_module", _HOOKS_LANE_JOB_SCRIPTS)
+def test_hooks_lane_job_script_import_excludes_heavy_packages(
+    script_module: str,
+) -> None:
+    """Every hooks-lane job (spawned every few seconds) boots on the builtin SDK only."""
+    _run_probe(
+        f"""
+        import sys
+        import {script_module}
+
+        heavy = [
+            "sase.ace.tui",
+            "sase.agents_sync",
+            "sase.axe.lumberjack",
+            "sase.axe.orchestrator",
+            "sase.axe.hook_jobs",
+            "sase.llm_provider",
+            "sase.macro",
+            "sase.monitor",
+        ]
+        present = [name for name in heavy if name in sys.modules]
+        assert not present, present
+        """
+    )
+
+
+def test_stale_running_sweep_closure_excludes_monitor_and_llm_graphs() -> None:
+    """The 5 s stale sweep's modules stay off the monitor-start/LLM/notification graphs.
+
+    ``stale_running_cleanup`` runs on the hooks lane's ``always`` trigger, so
+    its import closure is the spawn floor. Each heavy package below used to
+    load through a package ``__init__`` or a facade import on that path.
+    """
+    _run_probe(
+        """
+        import importlib
+        import sys
+
+        for name in (
+            "sase.scripts.sase_chop_stale_running_cleanup",
+            "sase.axe.hook_jobs",
+            "sase.ace.scheduler.stale_running_sweep",
+            "sase.ace.scheduler.stale_running_leak",
+            "sase.ace.scheduler._stale_running_hijack",
+            "sase.monitor.claims",
+            "sase.monitor.store",
+            "sase.monitor.reconcile",
+            "sase.monitor.settlement_fresh_owner",
+            "sase.procs.store",
+            "sase.agent.hijack.ledger",
+            "sase.turns._workspace_retention.pending",
+            "sase.turns._workspace_retention.evidence",
+            "sase.turns.workspace_retention_surface",
+            "sase.workspace_provider.lookup",
+        ):
+            importlib.import_module(name)
+
+        heavy = [
+            "sase.llm_provider",
+            "sase.monitor.start",
+            "sase.monitor.member",
+            "sase.monitor.settlement",
+            "sase.monitor.followup",
+            "sase.monitor.proc_adapter",
+            "sase.agent.hijack.preview",
+            "sase.agent.hijack.recover",
+            "sase.notifications.store",
+            "sase.ace.tui",
+            "sase.axe.lumberjack",
+            "sase.axe.orchestrator",
+            "sase.agents_sync",
         ]
         present = [name for name in heavy if name in sys.modules]
         assert not present, present

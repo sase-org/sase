@@ -42,11 +42,6 @@ from .identity import supervisor_is_alive
 from .logs import append_monitor_log_bytes, monitor_log_path
 from .models import MonitorRecord, MonitorState
 from .output import OutputCapture
-from .settlement import (
-    finalize_monitor_workflow_state,
-    settle_claim_and_followup,
-    touch_monitor_refresh_pulse,
-)
 from .transaction import monitor_lane_lock_path
 
 _DEAD_SUPERVISOR_ERROR = "monitor supervisor died without reporting"
@@ -67,7 +62,7 @@ def should_reconcile_dead_supervisor(
     snapshot: ProcStoreSnapshot | None = None,
 ) -> bool:
     """Return whether a running monitor's supervisor needs reconciliation."""
-    from .proc_adapter import named_proc_owns
+    from ._proc_adapter_projection import named_proc_owns
 
     if record.monitor_state != "running":
         return False
@@ -128,6 +123,16 @@ def _reconcile_dead_supervisor_locked(
     *,
     get_monitor: GetMonitor,
 ) -> MonitorRecord:
+    # Monitor settlement loads here rather than at module import: it pulls in
+    # the follow-up/LLM-provider graph (~600 modules), and the always-on
+    # stale-running sweep imports this module every few seconds but almost
+    # never finds a dead supervisor to settle.
+    from .settlement import (
+        finalize_monitor_workflow_state,
+        settle_claim_and_followup,
+        touch_monitor_refresh_pulse,
+    )
+
     meta_path = os.path.join(record.artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:

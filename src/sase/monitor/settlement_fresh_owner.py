@@ -628,10 +628,11 @@ def _project_file_for_meta(artifacts_dir: str, meta: dict[str, Any]) -> str | No
 
 
 def _safe_norm(path: str) -> str:
+    # Same normalization as commit_finalizer_git.normalize_path, inlined so
+    # the stale-running sweep's starter check does not import the
+    # sase.llm_provider package graph.
     try:
-        from sase.llm_provider.commit_finalizer_git import normalize_path as _norm
-
-        return _norm(path)
+        return str(Path(path).expanduser().resolve(strict=False))
     except Exception:  # noqa: BLE001 - keep the raw path
         return path
 

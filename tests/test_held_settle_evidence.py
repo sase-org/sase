@@ -80,12 +80,12 @@ def _run_sweep_logged(fixture: dict) -> tuple[int, list[str]]:
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_leak.get_workspace_directory_for_num",
-            return_value=(str(fixture["checkout"]), None),
+            "sase.ace.scheduler.stale_running_leak.peek_workspace_checkout_dir",
+            return_value=str(fixture["checkout"]),
         ),
         patch(
-            "sase.ace.scheduler._stale_running_shared.get_workspace_directory_for_num",
-            return_value=(str(fixture["checkout"]), None),
+            "sase.ace.scheduler._stale_running_shared.peek_workspace_checkout_dir",
+            return_value=str(fixture["checkout"]),
         ),
         patch("sase.sdd.store.resolve_sdd_store", return_value=fixture["store"]),
     ):

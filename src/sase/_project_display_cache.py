@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 import os
@@ -333,6 +334,29 @@ def set_project_alias_map_tick_managed(enabled: bool) -> None:
     with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
         _PROJECT_ALIAS_MAP_TICK_MANAGED = enabled
         _PROJECT_ALIAS_MAPS.clear()
+
+
+@contextmanager
+def project_alias_maps_memoized() -> Iterator[None]:
+    """Serve one memory-only project alias map for the duration of the block.
+
+    A short-lived job that resolves many artifact paths in one pass (the
+    stale-running sweep resolves several per workspace claim) would
+    otherwise list and parse every ProjectSpec on each lookup. Inside the
+    block the process behaves as tick-managed: the first lookup loads the
+    map and later lookups reuse it. A process that was already tick-managed
+    (the TUI) is left untouched; otherwise the opt-out and its empty cache
+    are restored on exit.
+    """
+    global _PROJECT_ALIAS_MAP_TICK_MANAGED  # noqa: PLW0603
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        previous = _PROJECT_ALIAS_MAP_TICK_MANAGED
+        _PROJECT_ALIAS_MAP_TICK_MANAGED = True
+    try:
+        yield
+    finally:
+        if not previous:
+            set_project_alias_map_tick_managed(False)
 
 
 def tick_managed_project_alias_map(

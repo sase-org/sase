@@ -1,15 +1,42 @@
 """Shared stale-running custody helpers used by more than one sweep module."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.time import local_now
-from sase.running_field import (
-    WorkspaceClaim,
-    get_workspace_directory_for_num,
-)
+from sase.running_field import WorkspaceClaim
+from sase.workspace_provider.lookup import peek_workspace_checkout_dir
 from sase.workspace_provider.occupant import clear_owned_occupant_record
 
+if TYPE_CHECKING:
+    from sase.procs.models import ProcStoreSnapshot
+
 _DEFAULT_HELD_CLAIM_TTL_DAYS = 14
+
+
+class SweepProcSnapshot:
+    """Read the proc store at most once per stale-running sweep.
+
+    Each monitor-marker read overlays named-proc state, and re-reading the
+    whole proc store per monitor claim dominated the sweep's CPU. A failed
+    read yields ``None`` so each marker read falls back to its own store
+    read and keeps its existing fail-closed handling.
+    """
+
+    def __init__(self) -> None:
+        self._loaded = False
+        self._snapshot: ProcStoreSnapshot | None = None
+
+    def get(self) -> "ProcStoreSnapshot | None":
+        if not self._loaded:
+            self._loaded = True
+            try:
+                from sase.procs.store import read_proc_snapshot
+
+                self._snapshot = read_proc_snapshot()
+            except Exception:  # noqa: BLE001 - marker reads fall back
+                self._snapshot = None
+        return self._snapshot
 
 
 def staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:
@@ -44,7 +71,10 @@ def pending_retention_retains_claim(project_file: str, claim: WorkspaceClaim) ->
         return False
     try:
         from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
-        from sase.turns.workspace_retention import (
+
+        # Leaf modules, not the sase.turns.workspace_retention facade: the
+        # facade's discovery helpers import the sase.llm_provider graph.
+        from sase.turns._workspace_retention.pending import (
             pending_retention_matches_owner,
             read_pending_retention,
         )
@@ -61,7 +91,7 @@ def pending_retention_retains_claim(project_file: str, claim: WorkspaceClaim) ->
         record = read_workspace_retention_record(artifacts)
         if record is not None and not record.unresolved:
             return False
-        from sase.turns.workspace_retention import WorkspaceRetentionOwner
+        from sase.turns._workspace_retention.types import WorkspaceRetentionOwner
 
         owner = WorkspaceRetentionOwner(
             project_file=project_file,
@@ -101,12 +131,12 @@ def clear_stale_occupant_record(project_file: str, claim: WorkspaceClaim) -> Non
     """Best-effort clear of a stale claim's checkout occupant marker."""
     if claim.workspace_num <= 1:
         return
+    # Read-only path resolution: a sweep never materializes a checkout.
     try:
-        project_name = Path(project_file).parent.name
-        workspace_dir, _ = get_workspace_directory_for_num(
-            claim.workspace_num, project_name, clean=False
-        )
+        workspace_dir = peek_workspace_checkout_dir(project_file, claim.workspace_num)
     except Exception:
+        return
+    if not workspace_dir:
         return
     clear_owned_occupant_record(
         workspace_dir,

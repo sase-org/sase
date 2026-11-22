@@ -3,11 +3,8 @@
 Split out of :mod:`sase.monitor.start` so callers that only need the claim
 label do not need a reason to reach for the monitor supervisor/CLI stack
 (subprocess management, axe run-agent machinery, etc.) that
-:mod:`sase.monitor.start` pulls in. Importing any submodule of the
-``sase.monitor`` package still runs ``sase/monitor/__init__.py``, which
-imports ``.start`` eagerly, so callers on a hot path (the TUI agent loader)
-should still import this module lazily, inside the function that needs it —
-the same convention already used elsewhere in the code for this constant.
+:mod:`sase.monitor.start` pulls in. The ``sase.monitor`` package resolves its
+re-exports lazily, so importing this leaf does not load ``.start``.
 """
 
 from __future__ import annotations

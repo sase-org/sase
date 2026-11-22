@@ -78,13 +78,13 @@ def _cleanup(monkeypatch, checkout, *, now, ttl=14):
     monkeypatch.setattr(cleanup, "_now", lambda: now)
     monkeypatch.setattr(
         shared,
-        "get_workspace_directory_for_num",
-        lambda *_a, **_k: (str(checkout), ""),
+        "peek_workspace_checkout_dir",
+        lambda *_a, **_k: str(checkout),
     )
     monkeypatch.setattr(
         leak,
-        "get_workspace_directory_for_num",
-        lambda *_a, **_k: (str(checkout), ""),
+        "peek_workspace_checkout_dir",
+        lambda *_a, **_k: str(checkout),
     )
     return cleanup.cleanup_stale_running_entries()
 

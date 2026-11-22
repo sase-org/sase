@@ -332,7 +332,8 @@ Policy is runner-owned and evaluated before the script:
   its last fire. Each entry in `paths` is a bare path string or a `{path, glob}` object;
   a bare path is stat'd directly (existence, mtime, size, plus a non-recursive child
   count for directories), and `glob` shallow-matches entries inside a directory path
-  (name, mtime, size per match — no recursion, no content reads). Relative paths resolve
+  (name, mtime, size per match — no recursion). Unglobbed dot-files are skipped;
+  ProjectSpecs (`*.sase`, `*.gp`) token content minus `RUNNING`. Relative paths resolve
   against the SASE state root (`~/.sase`, or `$SASE_HOME`); absolute paths and `~` pass
   through unchanged. `max_quiet` is a required positive compound duration: the trigger
   fires unconditionally once that long has passed since its last fire, even with no

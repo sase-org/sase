@@ -16,6 +16,7 @@ from typing import Any
 
 from sase.workspace_provider.registry import load_or_init_registry
 from sase.workspace_provider.store import (
+    LEGACY_PRIMARY_WORKSPACE_NUM,
     PRIMARY_WORKSPACE_NUM,
     WorkspaceStore,
 )
@@ -193,7 +194,41 @@ def resolve_consistent_workspace_pair(
     return None
 
 
+def peek_workspace_checkout_dir(
+    project_file: str,
+    workspace_num: int,
+    *,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    """Return the checkout path *workspace_num* resolves to, read-only.
+
+    Computes the same path the workspace-provider ``ws_get_workspace_directory``
+    hooks return through ``ensure_workspace_checkout`` (``WorkspaceStore``
+    over the merged config) without cloning, fetching, cleaning,
+    registering, or materializing anything, so background sweeps that only
+    compare paths never reach a provider ``ensure_*`` function. Legacy
+    ``#1`` maps to the primary checkout like every other resolver. Returns
+    ``None`` when the project file declares no ``WORKSPACE_DIR``; the path
+    is returned whether or not the checkout exists on disk.
+    """
+    from sase.workspace_provider._utils_project_file import parse_workspace_dir
+
+    primary = parse_workspace_dir(project_file)
+    if not primary:
+        return None
+    if workspace_num <= LEGACY_PRIMARY_WORKSPACE_NUM:
+        return primary
+    if config is None:
+        from sase.config.core import load_merged_config
+
+        config = load_merged_config()
+    store = WorkspaceStore(primary, config=config, env=env)
+    return store.resolve(workspace_num).checkout_dir
+
+
 __all__ = [
+    "peek_workspace_checkout_dir",
     "resolve_consistent_workspace_pair",
     "resolve_workspace_num_for_dir",
     "resolve_workspace_owner_for_path",

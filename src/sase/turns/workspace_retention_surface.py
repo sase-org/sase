@@ -154,19 +154,12 @@ def _notify_for_record(
     """Apply one retain notification decision for a record. Returns sent."""
     import hashlib
 
-    from sase.core.time import get_timezone
-    from sase.notifications.models import Notification, normalize_notification_tags
-    from sase.notifications.store import upsert_notification
     from sase.turns._workspace_retention.evidence import (
         HEARTBEAT_INTERVAL_SECONDS,
         describe_evidence_change,
         evidence_now,
         read_notify_state,
         write_notify_state,
-    )
-    from sase.workspace_provider.retention_record import (
-        configured_held_claim_ttl_days,
-        workspace_retention_lines,
     )
 
     reason = record.policy_reason or record.terminal_reason
@@ -205,6 +198,16 @@ def _notify_for_record(
         plus_one_note = f"Workspace still held ({reason}): {summary}"
     else:
         plus_one_note = f"Workspace still held ({reason})"
+    # The notification store loads only once a +1 is due: unchanged holds
+    # re-check this every stale-running sweep and almost always return above.
+    from sase.core.time import get_timezone
+    from sase.notifications.models import Notification, normalize_notification_tags
+    from sase.notifications.store import upsert_notification
+    from sase.workspace_provider.retention_record import (
+        configured_held_claim_ttl_days,
+        workspace_retention_lines,
+    )
+
     timestamp = datetime.now(get_timezone()).isoformat()
     project_file = record.payload.get("project_file") or ""
     project_key = hashlib.sha256(str(project_file).encode()).hexdigest()[:16]

@@ -1,93 +1,216 @@
-"""Durable proc models, ids, logs, paths, and store facade."""
+"""Durable proc models, ids, logs, paths, and store facade.
 
-from .attribution import infer_proc_attribution
-from .command_line import (
-    COMMAND_LINE_PROC_ENV,
-    COMMAND_LINE_PROC_HISTORY_LIMIT,
-    COMMAND_LINE_PROC_TAG,
-    submit_command_line_proc,
-)
-from .ids import ProcRefError, new_proc_id, resolve_proc_ref, short_proc_id
-from .names import (
-    NamedProcNameError,
-    calling_sase_agent,
-    complete_proc_refs,
-    matching_procs_by_proc_name,
-    named_proc_concurrency_key,
-    normalize_concurrency_keys_for_compare,
-    proc_name_keys,
-    qualify_named_proc_name,
-)
-from .logs import (
-    ProcLogCursor,
-    ProcLogRead,
-    append_proc_log_text,
-    delete_proc_logs,
-    open_proc_log,
-    proc_log_path,
-    read_proc_log_tail,
-)
-from .models import (
-    ACTIVE_PROC_STATUSES,
-    COMMAND_PROC_KIND,
-    DETACHED_PROC_KIND,
-    LEGACY_PROC_LIFECYCLE_PROC_SHELL,
-    PROC_KINDS,
-    PROC_LIFECYCLE_LEGACY,
-    PROC_LIFECYCLE_NAMED_PROC,
-    PROC_WIRE_SCHEMA_VERSION,
-    ARTIFACTS_LOG_OWNER,
-    STORE_LOG_OWNER,
-    TERMINAL_PROC_STATUSES,
-    TUI_PROC_KIND,
-    UNSET,
-    Proc,
-    ProcAppendOutcome,
-    ProcFinish,
-    ProcLogRetentionEntry,
-    ProcLogRetentionResult,
-    ProcObservedSettlementOutcome,
-    ProcPruneOutcome,
-    ProcPrunedStateRetention,
-    ProcReserve,
-    ProcReserveOutcome,
-    ProcServiceBlock,
-    ProcSettlement,
-    ProcStopRequest,
-    ProcStoreSnapshot,
-    ProcStoreStats,
-    ProcSupervisorClaim,
-    ProcUpdate,
-    ProcUpdateOutcome,
-)
-from .paths import proc_logs_dir, proc_store_path, procs_dir
-from .request import ProcSubmitRequest
-from .runner import (
-    ProcControlError,
-    ProcSubmitError,
-    kill_proc,
-    reconcile_running_procs,
-    submit_detached_proc,
-    submit_proc,
-    submit_proc_request,
-    wait_for_proc,
-)
-from .settlement import is_named_proc_row
-from .store import (
-    ProcStoreLockTimeoutError,
-    append_proc,
-    begin_proc_settlement,
-    claim_proc_supervisor,
-    filter_procs,
-    finish_proc,
-    get_proc,
-    prune_procs,
-    read_proc_snapshot,
-    read_procs,
-    request_proc_stop,
-    reserve_proc,
-    update_proc,
-)
+Package-level names resolve lazily (PEP 562): importing ``sase.procs.store``
+or ``sase.procs.models`` must not load the runner and command-line graph,
+which the always-on stale-running sweep never uses.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from sase._lazy_exports import lazy_dir, lazy_getattr
+
+_LAZY_EXPORTS = {
+    "ACTIVE_PROC_STATUSES": ("sase.procs.models", "ACTIVE_PROC_STATUSES"),
+    "ARTIFACTS_LOG_OWNER": ("sase.procs.models", "ARTIFACTS_LOG_OWNER"),
+    "COMMAND_LINE_PROC_ENV": ("sase.procs.command_line", "COMMAND_LINE_PROC_ENV"),
+    "COMMAND_LINE_PROC_HISTORY_LIMIT": (
+        "sase.procs.command_line",
+        "COMMAND_LINE_PROC_HISTORY_LIMIT",
+    ),
+    "COMMAND_LINE_PROC_TAG": ("sase.procs.command_line", "COMMAND_LINE_PROC_TAG"),
+    "COMMAND_PROC_KIND": ("sase.procs.models", "COMMAND_PROC_KIND"),
+    "DETACHED_PROC_KIND": ("sase.procs.models", "DETACHED_PROC_KIND"),
+    "LEGACY_PROC_LIFECYCLE_PROC_SHELL": (
+        "sase.procs.models",
+        "LEGACY_PROC_LIFECYCLE_PROC_SHELL",
+    ),
+    "NamedProcNameError": ("sase.procs.names", "NamedProcNameError"),
+    "PROC_KINDS": ("sase.procs.models", "PROC_KINDS"),
+    "PROC_LIFECYCLE_LEGACY": ("sase.procs.models", "PROC_LIFECYCLE_LEGACY"),
+    "PROC_LIFECYCLE_NAMED_PROC": ("sase.procs.models", "PROC_LIFECYCLE_NAMED_PROC"),
+    "PROC_WIRE_SCHEMA_VERSION": ("sase.procs.models", "PROC_WIRE_SCHEMA_VERSION"),
+    "Proc": ("sase.procs.models", "Proc"),
+    "ProcAppendOutcome": ("sase.procs.models", "ProcAppendOutcome"),
+    "ProcControlError": ("sase.procs.runner", "ProcControlError"),
+    "ProcFinish": ("sase.procs.models", "ProcFinish"),
+    "ProcLogCursor": ("sase.procs.logs", "ProcLogCursor"),
+    "ProcLogRead": ("sase.procs.logs", "ProcLogRead"),
+    "ProcLogRetentionEntry": ("sase.procs.models", "ProcLogRetentionEntry"),
+    "ProcLogRetentionResult": ("sase.procs.models", "ProcLogRetentionResult"),
+    "ProcObservedSettlementOutcome": (
+        "sase.procs.models",
+        "ProcObservedSettlementOutcome",
+    ),
+    "ProcPruneOutcome": ("sase.procs.models", "ProcPruneOutcome"),
+    "ProcPrunedStateRetention": ("sase.procs.models", "ProcPrunedStateRetention"),
+    "ProcRefError": ("sase.procs.ids", "ProcRefError"),
+    "ProcReserve": ("sase.procs.models", "ProcReserve"),
+    "ProcReserveOutcome": ("sase.procs.models", "ProcReserveOutcome"),
+    "ProcServiceBlock": ("sase.procs.models", "ProcServiceBlock"),
+    "ProcSettlement": ("sase.procs.models", "ProcSettlement"),
+    "ProcStopRequest": ("sase.procs.models", "ProcStopRequest"),
+    "ProcStoreLockTimeoutError": ("sase.procs.store", "ProcStoreLockTimeoutError"),
+    "ProcStoreSnapshot": ("sase.procs.models", "ProcStoreSnapshot"),
+    "ProcStoreStats": ("sase.procs.models", "ProcStoreStats"),
+    "ProcSubmitError": ("sase.procs.runner", "ProcSubmitError"),
+    "ProcSubmitRequest": ("sase.procs.request", "ProcSubmitRequest"),
+    "ProcSupervisorClaim": ("sase.procs.models", "ProcSupervisorClaim"),
+    "ProcUpdate": ("sase.procs.models", "ProcUpdate"),
+    "ProcUpdateOutcome": ("sase.procs.models", "ProcUpdateOutcome"),
+    "STORE_LOG_OWNER": ("sase.procs.models", "STORE_LOG_OWNER"),
+    "TERMINAL_PROC_STATUSES": ("sase.procs.models", "TERMINAL_PROC_STATUSES"),
+    "TUI_PROC_KIND": ("sase.procs.models", "TUI_PROC_KIND"),
+    "UNSET": ("sase.procs.models", "UNSET"),
+    "append_proc": ("sase.procs.store", "append_proc"),
+    "append_proc_log_text": ("sase.procs.logs", "append_proc_log_text"),
+    "begin_proc_settlement": ("sase.procs.store", "begin_proc_settlement"),
+    "calling_sase_agent": ("sase.procs.names", "calling_sase_agent"),
+    "claim_proc_supervisor": ("sase.procs.store", "claim_proc_supervisor"),
+    "complete_proc_refs": ("sase.procs.names", "complete_proc_refs"),
+    "delete_proc_logs": ("sase.procs.logs", "delete_proc_logs"),
+    "filter_procs": ("sase.procs.store", "filter_procs"),
+    "finish_proc": ("sase.procs.store", "finish_proc"),
+    "get_proc": ("sase.procs.store", "get_proc"),
+    "infer_proc_attribution": ("sase.procs.attribution", "infer_proc_attribution"),
+    "is_named_proc_row": ("sase.procs.settlement", "is_named_proc_row"),
+    "kill_proc": ("sase.procs.runner", "kill_proc"),
+    "matching_procs_by_proc_name": ("sase.procs.names", "matching_procs_by_proc_name"),
+    "named_proc_concurrency_key": ("sase.procs.names", "named_proc_concurrency_key"),
+    "new_proc_id": ("sase.procs.ids", "new_proc_id"),
+    "normalize_concurrency_keys_for_compare": (
+        "sase.procs.names",
+        "normalize_concurrency_keys_for_compare",
+    ),
+    "open_proc_log": ("sase.procs.logs", "open_proc_log"),
+    "proc_log_path": ("sase.procs.logs", "proc_log_path"),
+    "proc_logs_dir": ("sase.procs.paths", "proc_logs_dir"),
+    "proc_name_keys": ("sase.procs.names", "proc_name_keys"),
+    "proc_store_path": ("sase.procs.paths", "proc_store_path"),
+    "procs_dir": ("sase.procs.paths", "procs_dir"),
+    "prune_procs": ("sase.procs.store", "prune_procs"),
+    "qualify_named_proc_name": ("sase.procs.names", "qualify_named_proc_name"),
+    "read_proc_log_tail": ("sase.procs.logs", "read_proc_log_tail"),
+    "read_proc_snapshot": ("sase.procs.store", "read_proc_snapshot"),
+    "read_procs": ("sase.procs.store", "read_procs"),
+    "reconcile_running_procs": ("sase.procs.runner", "reconcile_running_procs"),
+    "request_proc_stop": ("sase.procs.store", "request_proc_stop"),
+    "reserve_proc": ("sase.procs.store", "reserve_proc"),
+    "resolve_proc_ref": ("sase.procs.ids", "resolve_proc_ref"),
+    "short_proc_id": ("sase.procs.ids", "short_proc_id"),
+    "submit_command_line_proc": ("sase.procs.command_line", "submit_command_line_proc"),
+    "submit_detached_proc": ("sase.procs.runner", "submit_detached_proc"),
+    "submit_proc": ("sase.procs.runner", "submit_proc"),
+    "submit_proc_request": ("sase.procs.runner", "submit_proc_request"),
+    "update_proc": ("sase.procs.store", "update_proc"),
+    "wait_for_proc": ("sase.procs.runner", "wait_for_proc"),
+}
+
+if TYPE_CHECKING:
+    from .attribution import (
+        infer_proc_attribution,
+    )
+    from .command_line import (
+        COMMAND_LINE_PROC_ENV,
+        COMMAND_LINE_PROC_HISTORY_LIMIT,
+        COMMAND_LINE_PROC_TAG,
+        submit_command_line_proc,
+    )
+    from .ids import (
+        ProcRefError,
+        new_proc_id,
+        resolve_proc_ref,
+        short_proc_id,
+    )
+    from .names import (
+        NamedProcNameError,
+        calling_sase_agent,
+        complete_proc_refs,
+        matching_procs_by_proc_name,
+        named_proc_concurrency_key,
+        normalize_concurrency_keys_for_compare,
+        proc_name_keys,
+        qualify_named_proc_name,
+    )
+    from .logs import (
+        ProcLogCursor,
+        ProcLogRead,
+        append_proc_log_text,
+        delete_proc_logs,
+        open_proc_log,
+        proc_log_path,
+        read_proc_log_tail,
+    )
+    from .models import (
+        ACTIVE_PROC_STATUSES,
+        COMMAND_PROC_KIND,
+        DETACHED_PROC_KIND,
+        LEGACY_PROC_LIFECYCLE_PROC_SHELL,
+        PROC_KINDS,
+        PROC_LIFECYCLE_LEGACY,
+        PROC_LIFECYCLE_NAMED_PROC,
+        PROC_WIRE_SCHEMA_VERSION,
+        ARTIFACTS_LOG_OWNER,
+        STORE_LOG_OWNER,
+        TERMINAL_PROC_STATUSES,
+        TUI_PROC_KIND,
+        UNSET,
+        Proc,
+        ProcAppendOutcome,
+        ProcFinish,
+        ProcLogRetentionEntry,
+        ProcLogRetentionResult,
+        ProcObservedSettlementOutcome,
+        ProcPruneOutcome,
+        ProcPrunedStateRetention,
+        ProcReserve,
+        ProcReserveOutcome,
+        ProcServiceBlock,
+        ProcSettlement,
+        ProcStopRequest,
+        ProcStoreSnapshot,
+        ProcStoreStats,
+        ProcSupervisorClaim,
+        ProcUpdate,
+        ProcUpdateOutcome,
+    )
+    from .paths import (
+        proc_logs_dir,
+        proc_store_path,
+        procs_dir,
+    )
+    from .request import (
+        ProcSubmitRequest,
+    )
+    from .runner import (
+        ProcControlError,
+        ProcSubmitError,
+        kill_proc,
+        reconcile_running_procs,
+        submit_detached_proc,
+        submit_proc,
+        submit_proc_request,
+        wait_for_proc,
+    )
+    from .settlement import (
+        is_named_proc_row,
+    )
+    from .store import (
+        ProcStoreLockTimeoutError,
+        append_proc,
+        begin_proc_settlement,
+        claim_proc_supervisor,
+        filter_procs,
+        finish_proc,
+        get_proc,
+        prune_procs,
+        read_proc_snapshot,
+        read_procs,
+        request_proc_stop,
+        reserve_proc,
+        update_proc,
+    )
 
 __all__ = [
     "ACTIVE_PROC_STATUSES",
@@ -173,3 +296,16 @@ __all__ = [
     "update_proc",
     "wait_for_proc",
 ]
+
+
+def __getattr__(name: str) -> object:
+    return lazy_getattr(__name__, globals(), _LAZY_EXPORTS, name)
+
+
+def __dir__() -> list[str]:
+    return lazy_dir(globals(), _LAZY_EXPORTS)
+
+
+# Symvision cannot see Python's package-level lazy hook lookup.
+_PACKAGE_GETATTR = __getattr__
+_PACKAGE_DIR = __dir__

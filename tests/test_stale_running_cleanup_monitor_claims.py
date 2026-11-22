@@ -237,12 +237,22 @@ def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> No
     read_marker.assert_not_called()
 
 
-def _block_monitor_start_import(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``sase.monitor.start`` raise SyntaxError on import."""
+def _block_monitor_start_import(
+    monkeypatch: pytest.MonkeyPatch,
+    *submodules: str,
+) -> None:
+    """Make each ``sase.monitor.<submodule>`` raise SyntaxError on import.
+
+    Defaults to ``start`` and ``claims``: the claim label lives in the
+    ``claims`` leaf, and ``start`` is the heavy supervisor stack.
+    """
 
     import sase.monitor as monitor_pkg
 
-    class _BrokenMonitorStart(importlib.abc.MetaPathFinder):
+    names = submodules or ("start", "claims")
+    blocked = {f"sase.monitor.{name}" for name in names}
+
+    class _BrokenMonitorModules(importlib.abc.MetaPathFinder):
         def find_spec(
             self,
             fullname: str,
@@ -250,14 +260,15 @@ def _block_monitor_start_import(monkeypatch: pytest.MonkeyPatch) -> None:
             target: object = None,
         ) -> None:
             del path, target
-            if fullname == "sase.monitor.start":
-                raise SyntaxError("simulated sase.monitor.start syntax error")
+            if fullname in blocked:
+                raise SyntaxError(f"simulated {fullname} syntax error")
             return None
 
-    monkeypatch.setattr(sys, "meta_path", [_BrokenMonitorStart(), *sys.meta_path])
-    monkeypatch.delitem(sys.modules, "sase.monitor.start", raising=False)
-    if hasattr(monitor_pkg, "start"):
-        monkeypatch.delattr(monitor_pkg, "start")
+    monkeypatch.setattr(sys, "meta_path", [_BrokenMonitorModules(), *sys.meta_path])
+    for name in names:
+        monkeypatch.delitem(sys.modules, f"sase.monitor.{name}", raising=False)
+        if name in vars(monitor_pkg):
+            monkeypatch.delattr(monitor_pkg, name)
 
 
 def test_cleanup_skip_monitor_claims_survives_unimportable_monitor_start(
@@ -309,13 +320,25 @@ def test_cleanup_skip_monitor_claims_survives_unimportable_monitor_start(
     )
 
 
-def test_cleanup_imports_monitor_start_when_not_skipping_monitor_claims(
+def test_cleanup_imports_monitor_claim_label_when_not_skipping_monitor_claims(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """skip_monitor_claims=False still imports sase.monitor.start."""
-    _block_monitor_start_import(monkeypatch)
-    with pytest.raises(SyntaxError, match="simulated sase.monitor.start syntax error"):
+    """skip_monitor_claims=False reads the label from sase.monitor.claims."""
+    _block_monitor_start_import(monkeypatch, "claims")
+    with pytest.raises(SyntaxError, match="simulated sase.monitor.claims syntax error"):
         cleanup_stale_running_entries(skip_monitor_claims=False)
+
+
+def test_cleanup_never_imports_monitor_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 5 s sweep reads the claim label without the monitor supervisor stack."""
+    _block_monitor_start_import(monkeypatch, "start")
+    with patch(
+        "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
+        return_value=[],
+    ):
+        assert cleanup_stale_running_entries(skip_monitor_claims=False) == 0
 
 
 def test_cleanup_releases_dead_gate_claim_after_held_ttl() -> None:
@@ -597,12 +620,12 @@ def _run_cleanup_sweep(fixture: dict) -> int:
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_leak.get_workspace_directory_for_num",
-            return_value=(str(fixture["checkout"]), None),
+            "sase.ace.scheduler.stale_running_leak.peek_workspace_checkout_dir",
+            return_value=str(fixture["checkout"]),
         ),
         patch(
-            "sase.ace.scheduler._stale_running_shared.get_workspace_directory_for_num",
-            return_value=(str(fixture["checkout"]), None),
+            "sase.ace.scheduler._stale_running_shared.peek_workspace_checkout_dir",
+            return_value=str(fixture["checkout"]),
         ),
         patch("sase.sdd.store.resolve_sdd_store", return_value=fixture["store"]),
     ):
@@ -684,3 +707,51 @@ def test_cleanup_keeps_leaked_monitor_claim_with_real_dirt(
     rows = load_notifications()
     assert len(rows) == 1
     assert rows[0].plus_one_count == 0
+
+
+def test_cleanup_sweep_never_reaches_workspace_provider_ensure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retained monitor holds resolve their checkout path read-only.
+
+    Every 5 s the hooks-lane sweep re-examines each pinned dead-pid monitor
+    hold. It used to resolve the claimed checkout through the workspace
+    provider, whose ensure_* functions clone, fetch, and materialize SDD
+    sidecars, before reaching the cheap unchanged-hold skip.
+    """
+    fixture = _make_leaked_monitor(tmp_path, monkeypatch, dirty_primary=True)
+    calls: list[str] = []
+
+    def _forbidden(name: str) -> MagicMock:
+        return MagicMock(side_effect=lambda *_a, **_k: calls.append(name))
+
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
+            return_value=[fixture["project_file"]],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.running_field._workspace.get_workspace_directory",
+            _forbidden("get_workspace_directory"),
+        ),
+        patch(
+            "sase.workspace_provider._utils_checkout_workspace.ensure_workspace_checkout",
+            _forbidden("ensure_workspace_checkout"),
+        ),
+        patch(
+            "sase.workspace_provider.utils.ensure_workspace_checkout",
+            _forbidden("ensure_workspace_checkout"),
+        ),
+        patch(
+            "sase.sdd.store.ensure_workspace_sdd_clone",
+            _forbidden("ensure_workspace_sdd_clone"),
+        ),
+    ):
+        for _ in range(3):
+            assert cleanup_stale_running_entries() == 0
+
+    assert calls == []
