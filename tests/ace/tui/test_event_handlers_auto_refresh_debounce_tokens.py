@@ -11,7 +11,12 @@ import pytest
 from sase.ace.tui.actions._event_refresh import AGENTS_LOAD_MIN_INTERVAL_SECONDS
 from sase.ace.tui.actions.event_handlers import FULL_SANITY_REFRESH_SECONDS
 
-from ._event_handlers_dirty_flags_helpers import _FakeApp, _surface_token_snapshot
+from ._event_handlers_dirty_flags_helpers import (
+    _FakeApp,
+    _axe_kinded_snapshot,
+    _completed_tokens,
+    _surface_token_snapshot,
+)
 
 
 @pytest.mark.asyncio
@@ -244,3 +249,232 @@ async def test_baselines_after_first_load_then_skips() -> None:
     assert completed["agents"] == probed.agents
     assert completed["axe"] == probed.axe
     assert completed["notifications"] == probed.notifications
+
+
+def _seed_kinded(app: _FakeApp, snapshot) -> None:
+    app._probed_surface_tokens = snapshot
+    app._last_completed_surface_tokens = _completed_tokens(snapshot)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("watcher_active", [True, False])
+async def test_axe_log_only_drift_skips_on_agents_tab(watcher_active: bool) -> None:
+    """Heartbeat log growth is unconsumed while Services is hidden."""
+    app = _FakeApp(watcher_active=watcher_active)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    previous = app._last_completed_surface_tokens["axe"]
+    app._dirty_axe = True
+    app._probed_surface_tokens = _axe_kinded_snapshot(log=9)
+
+    await app._run_auto_refresh()
+
+    assert "axe" not in app.refresh_calls
+    assert app.axe_load_kwargs == []
+    assert app._dirty_axe is False
+    assert app._last_completed_surface_tokens["axe"] == previous
+
+
+@pytest.mark.asyncio
+async def test_axe_log_only_drift_reloads_on_services_tab() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "services"
+    app._axe_services_visited = True
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(log=9)
+
+    await app._run_auto_refresh()
+
+    assert "axe" in app.refresh_calls
+    assert app._last_completed_surface_tokens["axe"] == app._probed_surface_tokens.axe
+
+
+@pytest.mark.asyncio
+async def test_axe_status_only_drift_skips_on_agents_tab() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    previous = app._last_completed_surface_tokens["axe"]
+    app._probed_surface_tokens = _axe_kinded_snapshot(status=4)
+
+    await app._run_auto_refresh()
+
+    assert "axe" not in app.refresh_calls
+    assert app._last_completed_surface_tokens["axe"] == previous
+
+
+@pytest.mark.asyncio
+async def test_axe_pid_drift_reloads_on_agents_tab() -> None:
+    app = _FakeApp(watcher_active=False)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(pid=7)
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["axe"]
+    assert app._last_completed_surface_tokens["axe"] == app._probed_surface_tokens.axe
+
+
+@pytest.mark.asyncio
+async def test_axe_service_drift_reloads_on_agents_tab() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(service=3)
+
+    await app._run_auto_refresh()
+
+    assert "axe" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_tab_switch_to_services_sees_pending_log_drift() -> None:
+    """Skipped off-tab log drift remains observable after a Services visit."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(log=5)
+    await app._run_auto_refresh()
+    assert "axe" not in app.refresh_calls
+
+    app.current_tab = "services"
+    app._axe_services_visited = True
+    await app._run_auto_refresh()
+    assert "axe" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_agents_index_only_skips_with_watcher() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    previous = app._last_completed_surface_tokens["agents"]
+    bumped: list[str] = []
+    app._bump_agents_capacity_generation = lambda: bumped.append("capacity")
+    app._probed_surface_tokens = _axe_kinded_snapshot(index=4)
+
+    await app._run_auto_refresh()
+
+    assert "agents" not in app.refresh_calls
+    assert bumped == []
+    assert app._last_completed_surface_tokens["agents"] == previous
+
+
+@pytest.mark.asyncio
+async def test_agents_index_only_loads_without_watcher() -> None:
+    app = _FakeApp(watcher_active=False)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    bumped: list[str] = []
+    app._bump_agents_capacity_generation = lambda: bumped.append("capacity")
+    app._probed_surface_tokens = _axe_kinded_snapshot(index=4)
+
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+    assert bumped == ["capacity"]
+    assert app._last_completed_surface_tokens["agents"] == (
+        app._probed_surface_tokens.agents
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["pulse", "artifacts", "membership"])
+async def test_agents_non_index_drift_loads_with_watcher(field: str) -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(**{field: 8})
+
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_watcher_dirty_agents_still_loads_when_index_also_drifted() -> None:
+    """Exact watcher deltas stay live; index skip only applies when flags are clean."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._dirty_agents = True
+    app._probed_surface_tokens = _axe_kinded_snapshot(index=4)
+
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_axe_apply_skip_accepts_token_without_counting_reload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bounded collect whose consumer projection is unchanged is not a reload."""
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "services"
+    app._axe_services_visited = True
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(log=6)
+
+    async def _load_axe_status_async(
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> None:
+        app.axe_load_kwargs.append(
+            {
+                "include_full_snapshots": include_full_snapshots,
+                "tail_all_chop_logs": tail_all_chop_logs,
+            }
+        )
+        app._axe_last_apply_skipped = True
+
+    app._load_axe_status_async = _load_axe_status_async  # type: ignore[method-assign]
+
+    await app._run_auto_refresh()
+
+    assert app.axe_load_kwargs
+    assert "axe" not in app.refresh_calls
+    assert app._last_completed_surface_tokens["axe"] == app._probed_surface_tokens.axe
+    trace._flush_trace_writes()
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    ticks = [row for row in rows if row.get("span") == "refresh.auto_tick"]
+    assert len(ticks) == 1
+    assert ticks[0]["surfaces_reloaded"] == 0
+    assert ticks[0]["surfaces"] == ""
+
+
+@pytest.mark.asyncio
+async def test_sanity_floor_reloads_axe_despite_detail_only_drift() -> None:
+    """Configured ``-s`` deadlines still force axe collect on the Agents tab."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app.sanity_refresh_interval = 120
+    _seed_kinded(app, _axe_kinded_snapshot())
+    app._probed_surface_tokens = _axe_kinded_snapshot(log=9)
+    app._last_full_sanity_refresh = time.monotonic() - 121.0
+
+    await app._run_auto_refresh()
+
+    assert "axe" in app.refresh_calls
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_disabled_auto_refresh_interval_still_honors_skip_gates() -> None:
+    """``-r 0`` does not start the timer; a stray tick still skips unchanged work."""
+    app = _FakeApp(watcher_active=True)
+    app.refresh_interval = 0
+    _seed_kinded(app, _axe_kinded_snapshot())
+    await app._run_auto_refresh()
+    assert app.refresh_calls == []
+    assert app.axe_load_kwargs == []

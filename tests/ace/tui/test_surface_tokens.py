@@ -8,8 +8,11 @@ from pathlib import Path
 from sase.ace.tui.actions.event_refresh._surface_tokens import (
     SurfaceToken,
     SurfaceTokenRoots,
+    agents_token_reload_kind,
+    axe_token_consumer_drifted,
     probe_procs_token,
     probe_surface_tokens,
+    _surface_token_changed_entries,
     surface_token_drifted,
 )
 
@@ -176,6 +179,100 @@ def test_chop_history_is_not_walked(tmp_path: Path) -> None:
     _write(history, '{"runs":[{"id":1}]}')
     second = _axe_token(axe)
     assert first == second
+
+
+def test_root_scheduler_status_json_is_not_an_axe_token_part(tmp_path: Path) -> None:
+    """The collector reads service/lumberjack state, not leftover root status."""
+    axe = tmp_path / "axe"
+    _write(axe / "pid", "1")
+    _write(axe / "status.json", '{"uptime_seconds":1}')
+    _write(axe / "metrics.json", '{"cycles_run":1}')
+    first = _axe_token(axe)
+    _write(axe / "status.json", '{"uptime_seconds":2}')
+    os.utime(axe / "status.json", ns=(1, 2))
+    _write(axe / "metrics.json", '{"cycles_run":2}')
+    os.utime(axe / "metrics.json", ns=(3, 4))
+    second = _axe_token(axe)
+    assert first == second
+    assert not surface_token_drifted(second, first)
+    paths = {part[0] for part in first.parts}
+    assert str(axe / "status.json") not in paths
+    assert str(axe / "metrics.json") not in paths
+
+
+def test_axe_output_log_change_is_visible(tmp_path: Path) -> None:
+    axe = tmp_path / "axe"
+    log = axe / "logs" / "output.log"
+    _write(log, "a\n")
+    first = _axe_token(axe)
+    _write(log, "a\nb\n")
+    os.utime(log, ns=(1, 2))
+    second = _axe_token(axe)
+    assert first != second
+    assert axe_token_consumer_drifted(second, first, consume_details=False) is False
+    assert axe_token_consumer_drifted(second, first, consume_details=True) is True
+
+
+def test_lumberjack_status_is_hidden_off_services_tab(tmp_path: Path) -> None:
+    axe = tmp_path / "axe"
+    status = axe / "lumberjacks" / "hooks" / "status.json"
+    _write(status, '{"status":"running","uptime_seconds":1}')
+    first = _axe_token(axe)
+    _write(status, '{"status":"running","uptime_seconds":2}')
+    os.utime(status, ns=(1, 2))
+    second = _axe_token(axe)
+    assert first != second
+    assert axe_token_consumer_drifted(second, first, consume_details=False) is False
+    assert axe_token_consumer_drifted(second, first, consume_details=True) is True
+
+
+def test_surface_token_equality_ignores_part_kinds() -> None:
+    first = SurfaceToken(
+        surface="axe",
+        parts=(("/axe/pid", True, 1, 1),),
+        part_kinds=("pid",),
+    )
+    second = SurfaceToken(
+        surface="axe",
+        parts=(("/axe/pid", True, 1, 1),),
+        part_kinds=("log",),
+    )
+    assert first == second
+    assert hash(first) == hash(second)
+
+
+def test_axe_pid_change_is_consumed_off_services_tab(tmp_path: Path) -> None:
+    axe = tmp_path / "axe"
+    pid = axe / "pid"
+    _write(pid, "1")
+    first = _axe_token(axe)
+    _write(pid, "2")
+    os.utime(pid, ns=(1, 2))
+    second = _axe_token(axe)
+    assert axe_token_consumer_drifted(second, first, consume_details=False) is True
+
+
+def test_agents_index_only_reload_kind_depends_on_watcher(tmp_path: Path) -> None:
+    projects = tmp_path / "projects"
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    _touch(projects / "demo" / "artifacts" / _PULSE)
+    _write(index_path, "before")
+    roots = SurfaceTokenRoots(
+        projects_root=projects,
+        axe_root=projects / ".unused-axe",
+        notifications_path=projects / ".unused-notifications.jsonl",
+        procs_path=projects / ".unused-procs.jsonl",
+        agent_index_path=index_path,
+    )
+    first = probe_surface_tokens(roots).agents
+    _write(index_path, "after")
+    os.utime(index_path, ns=(1, 2))
+    second = probe_surface_tokens(roots).agents
+    assert first != second
+    assert agents_token_reload_kind(second, first, watcher_active=True) == "skip"
+    assert agents_token_reload_kind(second, first, watcher_active=False) == "load"
+    kinds = {kind for _path, kind in _surface_token_changed_entries(second, first)}
+    assert kinds <= {"index"}
 
 
 def test_lumberjack_status_change_is_visible(tmp_path: Path) -> None:

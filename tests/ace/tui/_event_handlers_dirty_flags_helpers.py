@@ -36,10 +36,62 @@ def set_fake_prompt_bar_mounted(app: Any, mounted: bool) -> None:
     )
 
 
-def _surface_token(surface: str, stamp: int = 1) -> SurfaceToken:
+def _surface_token(
+    surface: str,
+    stamp: int = 1,
+    *,
+    parts: tuple[tuple[str, bool, int | None, int | None], ...] | None = None,
+    part_kinds: tuple[str, ...] = (),
+) -> SurfaceToken:
+    if parts is None:
+        parts = ((f"/{surface}", True, stamp, 1),)
     return SurfaceToken(
         surface=surface,
-        parts=((f"/{surface}", True, stamp, 1),),
+        parts=parts,
+        part_kinds=part_kinds,
+    )
+
+
+def _axe_kinded_snapshot(
+    *,
+    pid: int = 1,
+    status: int = 1,
+    log: int = 1,
+    service: int = 1,
+    index: int = 1,
+    pulse: int = 1,
+    artifacts: int = 1,
+    membership: int = 1,
+) -> SurfaceTokenSnapshot:
+    """Snapshot whose axe/agents parts carry consumer kinds for skip tests."""
+    axe = _surface_token(
+        "axe",
+        parts=(
+            ("/axe", True, membership, 1),
+            ("/axe/pid", True, pid, 1),
+            ("/axe/lumberjacks/hooks/status.json", True, status, 1),
+            ("/axe/logs/output.log", True, log, 10),
+            ("/service/status.json", True, service, 1),
+        ),
+        part_kinds=("membership", "pid", "status", "log", "service"),
+    )
+    agents = _surface_token(
+        "agents",
+        parts=(
+            ("/projects", True, membership, 1),
+            ("/agent_artifact_index.sqlite", True, index, 8),
+            ("/projects/demo/artifacts", True, artifacts, 1),
+            ("/projects/demo/artifacts/.ace_refresh_pulse", True, pulse, 1),
+        ),
+        part_kinds=("membership", "index", "artifacts", "pulse"),
+    )
+    return SurfaceTokenSnapshot(
+        agents=agents,
+        axe=axe,
+        notifications=_surface_token("notifications"),
+        patches=_surface_token("patches"),
+        procs=_surface_token("procs"),
+        tool_runs=_surface_token("tool_runs"),
     )
 
 
@@ -175,6 +227,7 @@ class _FakeApp(EventHandlersMixin):
         self._startup_axe_surface_started = False
         self._axe_first_load_done = False
         self._axe_services_visited = False
+        self._axe_last_apply_skipped = False
         self.axe_load_kwargs: list[dict[str, object]] = []
         self._probed_surface_tokens = _surface_token_snapshot()
         self._last_completed_surface_tokens = _completed_tokens(
@@ -226,6 +279,7 @@ class _FakeApp(EventHandlersMixin):
                 "tail_all_chop_logs": tail_all_chop_logs,
             }
         )
+        self._axe_last_apply_skipped = False
         self.refresh_calls.append("axe")
 
     async def _poll_agent_completions(self) -> bool:

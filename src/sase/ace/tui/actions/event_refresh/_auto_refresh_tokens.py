@@ -7,6 +7,8 @@ from ._surface_tokens import (
     SurfaceToken,
     SurfaceTokenRoots,
     SurfaceTokenSnapshot,
+    agents_token_reload_kind,
+    axe_token_consumer_drifted,
     live_surface_token_roots,
     probe_surface_tokens,
     surface_token_drifted,
@@ -80,9 +82,42 @@ class EventAutoRefreshTokenMixin:
             return True
         last = getattr(self, "_last_completed_surface_tokens", {}).get(surface)
         last_token = last if isinstance(last, SurfaceToken) else None
+        if surface == "axe":
+            return axe_token_consumer_drifted(
+                snapshot.token_for(surface),
+                last_token,
+                consume_details=self._axe_consumes_detail_parts(),
+            )
         drifted = surface_token_drifted(snapshot.token_for(surface), last_token)
-        if drifted and surface == "agents":
-            bump_capacity = getattr(self, "_bump_agents_capacity_generation", None)
-            if callable(bump_capacity):
-                bump_capacity()
+        if surface == "agents":
+            kind = self._agents_token_reload_kind(snapshot)
+            if kind == "skip":
+                return False
+            if drifted:
+                bump_capacity = getattr(self, "_bump_agents_capacity_generation", None)
+                if callable(bump_capacity):
+                    bump_capacity()
         return drifted
+
+    def _axe_consumes_detail_parts(self) -> bool:
+        """Services tab (and sanity) consume lumberjack status/metrics/logs."""
+        return getattr(self, "current_tab", None) == "services"
+
+    def _last_surface_token(self, surface: str) -> SurfaceToken | None:
+        last = getattr(self, "_last_completed_surface_tokens", {}).get(surface)
+        return last if isinstance(last, SurfaceToken) else None
+
+    def _agents_token_reload_kind(
+        self,
+        snapshot: SurfaceTokenSnapshot | None,
+    ) -> str:
+        if snapshot is None:
+            return "load"
+        watcher_active = getattr(self, "_watcher_active", None)
+        return agents_token_reload_kind(
+            snapshot.token_for("agents"),
+            self._last_surface_token("agents"),
+            watcher_active=bool(watcher_active())
+            if callable(watcher_active)
+            else False,
+        )

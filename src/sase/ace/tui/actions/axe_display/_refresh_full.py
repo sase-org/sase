@@ -36,6 +36,12 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
             )
             extra["file_opens"] = data.stats.file_opens
             extra["include_full_snapshots"] = data.include_full_snapshots
+            self._axe_last_apply_skipped = False
+            if self._axe_collected_data_is_noop(data):
+                extra["apply_skipped"] = True
+                self._axe_last_apply_skipped = True
+                return
+            extra["apply_skipped"] = False
             self._apply_axe_status_data(data)
 
     def _axe_should_collect_full(self, *, sanity_due: bool = False) -> bool:

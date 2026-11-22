@@ -8,8 +8,15 @@ import threading
 import pytest
 
 from sase.ace.tui.actions.event_refresh._freshness import surface_refreshed_age
+from sase.ace.tui.actions.event_refresh._surface_tokens import SurfaceTokenSnapshot
 
-from ._event_handlers_dirty_flags_helpers import _FakeApp, _make_agent
+from ._event_handlers_dirty_flags_helpers import (
+    _FakeApp,
+    _axe_kinded_snapshot,
+    _completed_tokens,
+    _make_agent,
+    _surface_token_snapshot,
+)
 
 
 @pytest.mark.asyncio
@@ -184,3 +191,47 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
     assert "agents" not in app.refresh_calls
     assert "axe" not in app.refresh_calls
     assert app._dirty_notifications is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("watcher_active", [True, False])
+async def test_unchanged_kinded_tokens_skip_all_surface_reloads(
+    watcher_active: bool,
+) -> None:
+    """Zero reloads on a non-sanity tick when consumed token parts match."""
+    app = _FakeApp(watcher_active=watcher_active)
+    snapshot = _axe_kinded_snapshot()
+    app._probed_surface_tokens = snapshot
+    app._last_completed_surface_tokens = _completed_tokens(snapshot)
+    app._dirty_axe = True
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.axe_load_kwargs == []
+    assert app._dirty_axe is False
+
+
+@pytest.mark.asyncio
+async def test_real_notification_and_patch_token_drift_still_reload() -> None:
+    app = _FakeApp(watcher_active=False)
+    app.current_tab = "artifacts"
+    snapshot = _axe_kinded_snapshot()
+    app._probed_surface_tokens = snapshot
+    app._last_completed_surface_tokens = _completed_tokens(snapshot)
+    notes = _surface_token_snapshot(notifications=4, patches=4)
+    app._probed_surface_tokens = SurfaceTokenSnapshot(
+        agents=snapshot.agents,
+        axe=snapshot.axe,
+        notifications=notes.notifications,
+        patches=notes.patches,
+        procs=snapshot.procs,
+        tool_runs=snapshot.tool_runs,
+    )
+
+    await app._run_auto_refresh()
+
+    assert "notifications" in app.refresh_calls
+    assert "patches" in app.refresh_calls
+    assert "axe" not in app.refresh_calls
+    assert "agents" not in app.refresh_calls

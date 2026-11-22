@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from ...bgcmd import BackgroundCommandInfo, bgcmd_identity
 from ._data import AxeCollectedData, ChopSnapshot, collect_axe_status_data
@@ -77,7 +77,22 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
             tail_chop_keys=kwargs["tail_chop_keys"],
             tail_service_name=kwargs["tail_service_name"],
         )
+        if self._axe_collected_data_is_noop(data):
+            return
         self._apply_axe_status_data(data)
+
+    def _axe_collected_data_is_noop(self, data: AxeCollectedData) -> bool:
+        """Return True when *data* matches the already-applied consumer view.
+
+        Heartbeat fields (uptime, last-tick counters, spawn samples,
+        service ``generated_at``) are excluded so a successful bounded
+        read can skip rebuild/repaint.
+        """
+        if not getattr(self, "_axe_first_load_done", False):
+            return False
+        return _axe_consumer_projection_from_data(
+            data
+        ) == _axe_consumer_projection_from_app(self)
 
     def _apply_axe_status_data(self, data: AxeCollectedData) -> None:
         """Apply collected axe status data to app state and refresh widgets."""
@@ -288,4 +303,192 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
                 offsets[chop_key] = new_idx
 
 
-__all__ = ["AxeRefreshCollectMixin"]
+def _axe_consumer_projection_from_data(data: AxeCollectedData) -> tuple[object, ...]:
+    """Consumer-visible axe fields from a collector payload."""
+    return (
+        data.axe_running,
+        tuple(data.lumberjack_names),
+        _origin_projection(data.routine_origins),
+        _status_projection(data.lumberjack_statuses),
+        _metrics_projection(data.lumberjack_metrics),
+        _bgcmd_projection(data.bgcmd_slots),
+        _service_projection(data.service_status, data.service_status_error),
+        None if data.degraded_status is None else data.degraded_status.message,
+        data.include_full_snapshots,
+        data.axe_output if data.include_full_snapshots else "",
+        tuple(sorted(data.lumberjack_log_tails.items()))
+        if data.include_full_snapshots
+        else (),
+        tuple(
+            sorted(
+                (slot, snap.running, snap.output_tail)
+                for slot, snap in data.bgcmd_details.items()
+            )
+        )
+        if data.include_full_snapshots
+        else (),
+        tuple(
+            sorted(
+                (key, _chop_projection(snap))
+                for key, snap in data.chop_snapshots.items()
+            )
+        )
+        if data.include_full_snapshots
+        else (),
+    )
+
+
+def _axe_consumer_projection_from_app(app: Any) -> tuple[object, ...]:
+    """Consumer-visible axe fields currently applied to *app*."""
+    include_full = bool(getattr(app, "_axe_full_snapshot_ready", False)) and bool(
+        getattr(app, "current_tab", None) == "services"
+    )
+    degraded = getattr(app, "_axe_degraded_status", None)
+    bgcmd_details = getattr(app, "_axe_bgcmd_details", {}) or {}
+    return (
+        bool(getattr(app, "axe_running", False)),
+        tuple(getattr(app, "_axe_lumberjack_names", ()) or ()),
+        _origin_projection(getattr(app, "_axe_routine_origins", {}) or {}),
+        _status_projection(getattr(app, "_axe_lumberjack_statuses", {}) or {}),
+        _metrics_projection(getattr(app, "_axe_lumberjack_metrics", {}) or {}),
+        _bgcmd_projection(getattr(app, "_bgcmd_slots", ()) or ()),
+        _service_projection(
+            getattr(app, "_service_status", None),
+            getattr(app, "_service_status_error", None),
+        ),
+        None if degraded is None else getattr(degraded, "message", str(degraded)),
+        include_full,
+        str(getattr(app, "_axe_output", "") or "") if include_full else "",
+        tuple(sorted((getattr(app, "_axe_lumberjack_log_tails", {}) or {}).items()))
+        if include_full
+        else (),
+        tuple(
+            sorted(
+                (
+                    slot,
+                    bool(getattr(snap, "running", False)),
+                    str(getattr(snap, "output_tail", "") or ""),
+                )
+                for slot, snap in bgcmd_details.items()
+            )
+        )
+        if include_full
+        else (),
+        tuple(
+            sorted(
+                (key, _chop_projection(snap))
+                for key, snap in (getattr(app, "_axe_chop_snapshots", {}) or {}).items()
+            )
+        )
+        if include_full
+        else (),
+    )
+
+
+def _origin_projection(origins: object) -> tuple[tuple[str, str, str], ...]:
+    if not isinstance(origins, dict):
+        return ()
+    items: list[tuple[str, str, str]] = []
+    for name, origin in origins.items():
+        items.append(
+            (
+                str(name),
+                str(getattr(origin, "source", "") or ""),
+                str(getattr(origin, "declared_by", "") or ""),
+            )
+        )
+    return tuple(sorted(items))
+
+
+def _status_projection(statuses: object) -> tuple[object, ...]:
+    if not isinstance(statuses, dict):
+        return ()
+    items: list[object] = []
+    for name, status in sorted(statuses.items()):
+        if status is None:
+            items.append((name, None))
+            continue
+        items.append(
+            (
+                name,
+                getattr(status, "pid", None),
+                getattr(status, "status", None),
+                getattr(status, "cycles_run", None),
+                getattr(status, "last_cycle", None),
+                getattr(status, "errors_encountered", None),
+            )
+        )
+    return tuple(items)
+
+
+def _metrics_projection(metrics: object) -> tuple[object, ...]:
+    if not isinstance(metrics, dict):
+        return ()
+    items: list[object] = []
+    for name, metric in sorted(metrics.items()):
+        if metric is None:
+            items.append((name, None))
+            continue
+        items.append(
+            (
+                name,
+                getattr(metric, "cycles_run", None),
+                getattr(metric, "chops_executed", None),
+                getattr(metric, "errors_encountered", None),
+                getattr(metric, "spawn_rate_per_minute", None),
+            )
+        )
+    return tuple(items)
+
+
+def _bgcmd_projection(slots: object) -> tuple[object, ...]:
+    if not isinstance(slots, (list, tuple)):
+        return ()
+    items: list[object] = []
+    for slot, info in slots:
+        items.append(
+            (
+                slot,
+                bgcmd_identity(slot, info) if info is not None else None,
+                bool(getattr(info, "running", False)),
+                str(getattr(info, "status", "") or ""),
+            )
+        )
+    return tuple(items)
+
+
+def _service_projection(snapshot: object, error: object) -> tuple[object, ...]:
+    if snapshot is None:
+        return (None, error)
+    host = getattr(snapshot, "host", None)
+    procs = tuple(
+        (
+            getattr(proc, "name", None),
+            getattr(proc, "state", None),
+            getattr(proc, "pid", None),
+            getattr(proc, "desired", None),
+        )
+        for proc in getattr(snapshot, "procs", ()) or ()
+    )
+    return (
+        getattr(host, "state", None),
+        getattr(host, "pid", None),
+        getattr(host, "error", None),
+        procs,
+        error,
+    )
+
+
+def _chop_projection(snap: ChopSnapshot) -> tuple[object, ...]:
+    return (
+        snap.chop_name,
+        snap.config_status,
+        tuple(run.entry.run_id for run in snap.runs),
+        tuple(run.entry.status for run in snap.runs),
+        tuple(run.output_tail for run in snap.runs),
+    )
+
+
+__all__ = [
+    "AxeRefreshCollectMixin",
+]

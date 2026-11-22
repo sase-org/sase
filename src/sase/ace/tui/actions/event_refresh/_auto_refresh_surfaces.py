@@ -241,13 +241,20 @@ class EventAutoRefreshSurfacesMixin(
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING
         # transitions) -- but skip the disk poll on idle ticks when the
-        # watcher is active and nothing about axe has changed. Also skip
-        # while the startup axe init has started but not finished, so a
-        # tick cannot set ``_axe_first_load_done`` and skip auto-start.
+        # consumed token parts (service/pid/membership, plus dashboard
+        # files only on the Services tab) are unchanged. Heartbeat
+        # rewrites of lumberjack status/metrics/logs do not count while
+        # those surfaces are hidden. Watcher dirty flags for those files
+        # are ignored for the same reason. Also skip while the startup
+        # axe init has started but not finished, so a tick cannot set
+        # ``_axe_first_load_done`` and skip auto-start.
         startup_axe_busy = getattr(
             self, "_startup_axe_surface_started", False
         ) and not getattr(self, "_axe_first_load_done", False)
-        if (not startup_axe_busy) and _should_refresh("_dirty_axe", "axe"):
+        axe_due = sanity_due or self._surface_token_drifted(current_tokens, "axe")
+        if (not startup_axe_busy) and not axe_due:
+            self._dirty_axe = False
+        if (not startup_axe_busy) and axe_due:
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
             should_full = getattr(self, "_axe_should_collect_full", None)
             if callable(should_full):
@@ -284,8 +291,9 @@ class EventAutoRefreshSurfacesMixin(
                     if refreshed:
                         self._dirty_axe = False
                         self._accept_surface_token("axe", current_tokens)
-                        reloaded.append("axe")
-                        axe_file_opens = self._axe_collector_file_opens()
+                        if not getattr(self, "_axe_last_apply_skipped", False):
+                            reloaded.append("axe")
+                            axe_file_opens = self._axe_collector_file_opens()
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # AXE loader mixin; production always takes the guarded path.
@@ -302,8 +310,9 @@ class EventAutoRefreshSurfacesMixin(
                     await load_axe()
                 self._dirty_axe = False
                 self._accept_surface_token("axe", current_tokens)
-                reloaded.append("axe")
-                axe_file_opens = self._axe_collector_file_opens()
+                if not getattr(self, "_axe_last_apply_skipped", False):
+                    reloaded.append("axe")
+                    axe_file_opens = self._axe_collector_file_opens()
 
         queued_agent_artifact_dirs = tuple(
             getattr(self, "_dirty_agent_artifact_dirs", ())

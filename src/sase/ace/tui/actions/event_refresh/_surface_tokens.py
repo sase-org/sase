@@ -22,12 +22,11 @@ from sase.ace.patch.project_spec_path import (
 )
 
 _ACE_REFRESH_PULSE_NAME = ".ace_refresh_pulse"
-_AXE_ROOT_FILES = (
-    "status.json",
-    "metrics.json",
+_AXE_ROOT_PID_FILES = (
     "pid",
     "orchestrator.pid",
 )
+_AXE_ROOT_IGNORED_FILES = frozenset({"status.json", "metrics.json"})
 _AXE_LUMBERJACK_FILES = (
     "status.json",
     "metrics.json",
@@ -35,6 +34,8 @@ _AXE_LUMBERJACK_FILES = (
     "pid",
 )
 _BEAD_FINGERPRINT_PART_PREFIX = "bead-store-fingerprint:"
+_AXE_DETAIL_KINDS = frozenset({"status", "metrics", "log"})
+_AXE_ALWAYS_KINDS = frozenset({"membership", "pid", "service", "content"})
 
 
 @dataclass(frozen=True)
@@ -45,15 +46,34 @@ class _PathMeta:
     exists: bool
     mtime_ns: int | None = None
     size: int | None = None
+    kind: str = "content"
 
 
 @dataclass(frozen=True)
 class SurfaceToken:
-    """Immutable metadata token for one ACE refresh surface."""
+    """Immutable metadata token for one ACE refresh surface.
+
+    ``part_kinds`` is parallel to ``parts`` and does not participate in
+    equality: a heartbeat rewrite of an unconsumed file still changes
+    ``parts``, while consumers filter by kind before deciding to reload.
+    """
 
     surface: str
     parts: tuple[tuple[str, bool, int | None, int | None], ...]
     indeterminate: bool = False
+    part_kinds: tuple[str, ...] = ()
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SurfaceToken):
+            return NotImplemented
+        return (
+            self.surface == other.surface
+            and self.parts == other.parts
+            and self.indeterminate == other.indeterminate
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.surface, self.parts, self.indeterminate))
 
 
 @dataclass(frozen=True)
@@ -231,7 +251,7 @@ def _probe_agents_token(
     """Token project membership, artifacts roots, and refresh pulses."""
     collected, children, ok = _open_membership(projects_root)
     if agent_index_path is not None:
-        ok = _extend_stat(collected, agent_index_path, ok=ok)
+        ok = _extend_stat(collected, agent_index_path, ok=ok, kind="index")
     if children is None:
         return _token("agents", collected, ok=False)
     for entry in children:
@@ -242,11 +262,12 @@ def _probe_agents_token(
         if not is_dir:
             continue
         artifacts = Path(entry.path) / "artifacts"
-        ok = _extend_stat(collected, artifacts, ok=ok)
+        ok = _extend_stat(collected, artifacts, ok=ok, kind="artifacts")
         ok = _extend_stat(
             collected,
             artifacts / _ACE_REFRESH_PULSE_NAME,
             ok=ok,
+            kind="pulse",
         )
     return _token("agents", collected, ok=ok)
 
@@ -260,17 +281,30 @@ def _probe_axe_token(
 
     Service host files (``status.json`` / ``state.json``) and the proc store
     (which holds the oneshot rows behind ``!`` commands) are stat-only; an
-    absent service directory is a stable, determinate token.
+    absent service directory is a stable, determinate token. Root
+    ``status.json`` / ``metrics.json`` are omitted: the collector reads
+    service host state and per-lumberjack files, not those unused
+    scheduler leftovers.
     """
     collected, _axe_children, ok = _open_membership(axe_root)
+    collected = [
+        part
+        for part in collected
+        if Path(part.path).name not in _AXE_ROOT_IGNORED_FILES
+    ]
     if _axe_children is None:
         return _token("axe", collected, ok=False)
-    for name in _AXE_ROOT_FILES:
-        ok = _extend_stat(collected, axe_root / name, ok=ok)
-    ok = _extend_stat(collected, axe_root / "logs" / "output.log", ok=ok)
+    for name in _AXE_ROOT_PID_FILES:
+        ok = _extend_stat(collected, axe_root / name, ok=ok, kind="pid")
+    ok = _extend_stat(
+        collected,
+        axe_root / "logs" / "output.log",
+        ok=ok,
+        kind="log",
+    )
     for service_path in service_paths:
         if service_path is not None:
-            ok = _extend_stat(collected, service_path, ok=ok)
+            ok = _extend_stat(collected, service_path, ok=ok, kind="service")
     lumberjacks_root = axe_root / "lumberjacks"
     lumberjack_parts, lumberjacks, lumberjacks_ok = _open_membership(lumberjacks_root)
     collected.extend(lumberjack_parts)
@@ -286,13 +320,27 @@ def _probe_axe_token(
             continue
         lumberjack_dir = Path(entry.path)
         for name in _AXE_LUMBERJACK_FILES:
-            ok = _extend_stat(collected, lumberjack_dir / name, ok=ok)
+            ok = _extend_stat(
+                collected,
+                lumberjack_dir / name,
+                ok=ok,
+                kind=_axe_lumberjack_file_kind(name),
+            )
         ok = _extend_stat(
             collected,
             lumberjack_dir / "logs" / "output.log",
             ok=ok,
+            kind="log",
         )
     return _token("axe", collected, ok=ok)
+
+
+def _axe_lumberjack_file_kind(name: str) -> str:
+    if name == "pid":
+        return "pid"
+    if name == "status.json":
+        return "status"
+    return "metrics"
 
 
 def _probe_notifications_token(notifications_path: Path) -> SurfaceToken:
@@ -379,13 +427,129 @@ def surface_token_drifted(
     return current != last
 
 
+def _consumed_axe_part_kinds(*, consume_details: bool) -> frozenset[str]:
+    """Return axe token kinds the current consumer actually reads."""
+    if consume_details:
+        return _AXE_ALWAYS_KINDS | _AXE_DETAIL_KINDS
+    return _AXE_ALWAYS_KINDS
+
+
+def axe_token_consumer_drifted(
+    current: SurfaceToken | None,
+    last: SurfaceToken | None,
+    *,
+    consume_details: bool,
+) -> bool:
+    """Return True when consumed axe parts cannot be treated as unchanged.
+
+    Lumberjack ``status.json`` / ``metrics.json`` / ``output.log`` rewrite
+    every tick with heartbeat fields the Agents tab does not display.
+    Those parts only invalidate the Services dashboard and visible logs.
+    """
+    if current is None or last is None:
+        return True
+    if current.indeterminate or last.indeterminate:
+        return True
+    kinds = _consumed_axe_part_kinds(consume_details=consume_details)
+    return _parts_for_kinds(current, kinds) != _parts_for_kinds(last, kinds)
+
+
+def agents_token_reload_kind(
+    current: SurfaceToken | None,
+    last: SurfaceToken | None,
+    *,
+    watcher_active: bool,
+) -> str:
+    """Return ``skip`` or ``load`` for an Agents token pair.
+
+    Index-only metadata churn is not a roster change. With a watcher the
+    exact artifact-dir path is already queued; without one the poll
+    fallback still loads. Pulse, artifacts-dir, and membership parts stay
+    load signals.
+    """
+    if current is None or last is None:
+        return "load"
+    if current.indeterminate or last.indeterminate:
+        return "load"
+    changed = _surface_token_changed_entries(current, last)
+    if not changed:
+        return "skip"
+    kinds = {kind for _path, kind in changed}
+    if kinds <= {"index"}:
+        return "skip" if watcher_active else "load"
+    return "load"
+
+
+def _surface_token_changed_entries(
+    current: SurfaceToken,
+    last: SurfaceToken,
+) -> tuple[tuple[str, str], ...]:
+    """Return ``(path, kind)`` for parts whose metadata differs."""
+    current_map = _part_map(current)
+    last_map = _part_map(last)
+    changed: list[tuple[str, str]] = []
+    for path in sorted(set(current_map) | set(last_map)):
+        current_entry = current_map.get(path)
+        last_entry = last_map.get(path)
+        if current_entry == last_entry:
+            continue
+        kind = (
+            current_entry[3]
+            if current_entry is not None
+            else last_entry[3]
+            if last_entry is not None
+            else "content"
+        )
+        changed.append((path, kind))
+    return tuple(changed)
+
+
 def _token(surface: str, parts: Iterable[_PathMeta], *, ok: bool) -> SurfaceToken:
+    metas = tuple(parts)
     return SurfaceToken(
         surface=surface,
         parts=tuple(
-            (part.path, part.exists, part.mtime_ns, part.size) for part in parts
+            (part.path, part.exists, part.mtime_ns, part.size) for part in metas
         ),
         indeterminate=not ok,
+        part_kinds=tuple(part.kind for part in metas),
+    )
+
+
+def _kind_at(token: SurfaceToken, index: int) -> str:
+    if index < len(token.part_kinds) and token.part_kinds[index]:
+        return token.part_kinds[index]
+    return "content"
+
+
+def _part_map(
+    token: SurfaceToken,
+) -> dict[str, tuple[bool, int | None, int | None, str]]:
+    mapped: dict[str, tuple[bool, int | None, int | None, str]] = {}
+    for index, (path, exists, mtime_ns, size) in enumerate(token.parts):
+        mapped[path] = (exists, mtime_ns, size, _kind_at(token, index))
+    return mapped
+
+
+def _parts_for_kinds(
+    token: SurfaceToken, kinds: frozenset[str]
+) -> tuple[tuple[str, bool, int | None, int | None], ...]:
+    return tuple(
+        part
+        for index, part in enumerate(token.parts)
+        if _kind_at(token, index) in kinds
+    )
+
+
+def _with_kind(meta: _PathMeta, kind: str) -> _PathMeta:
+    if meta.kind == kind:
+        return meta
+    return _PathMeta(
+        path=meta.path,
+        exists=meta.exists,
+        mtime_ns=meta.mtime_ns,
+        size=meta.size,
+        kind=kind,
     )
 
 
@@ -425,9 +589,15 @@ def _stat_dir_entry(entry: os.DirEntry[str]) -> tuple[_PathMeta, bool]:
     )
 
 
-def _extend_stat(parts: list[_PathMeta], path: Path, *, ok: bool) -> bool:
+def _extend_stat(
+    parts: list[_PathMeta],
+    path: Path,
+    *,
+    ok: bool,
+    kind: str = "content",
+) -> bool:
     meta, meta_ok = _stat_path(path)
-    parts.append(meta)
+    parts.append(_with_kind(meta, kind))
     return ok and meta_ok
 
 
@@ -441,6 +611,7 @@ def _open_membership(
     through the parent metadata.
     """
     parent, parent_ok = _stat_path(path)
+    parent = _with_kind(parent, "membership")
     if not parent_ok:
         return [parent], None, False
     if not parent.exists:
@@ -452,7 +623,7 @@ def _open_membership(
     ok = True
     for entry in children:
         meta, meta_ok = _stat_dir_entry(entry)
-        parts.append(meta)
+        parts.append(_with_kind(meta, "membership"))
         if not meta_ok:
             ok = False
     return parts, children, ok
@@ -489,6 +660,8 @@ __all__ = [
     "SurfaceToken",
     "SurfaceTokenRoots",
     "SurfaceTokenSnapshot",
+    "agents_token_reload_kind",
+    "axe_token_consumer_drifted",
     "live_surface_token_roots",
     "probe_procs_token",
     "probe_runner_capacity_token",
