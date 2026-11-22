@@ -249,3 +249,163 @@ def test_wait_display_source_owns_beads_and_project(
 
     assert resolve_wait_bead_statuses(root) == (("child-bead", "claimed"),)
     assert calls == [("child", ["child-bead"])]
+
+
+def test_warm_reuses_unchanged_store_across_ttl_without_store_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def lookup(_project: str, bead_ids: list[str]) -> dict[str, str]:
+        nonlocal calls
+        calls += 1
+        return dict.fromkeys(bead_ids, "open")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        lookup,
+    )
+    agent = make_agent(waiting_for_beads=["a"])
+
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    assert calls == 1
+    assert should_resolve_wait_bead_statuses(agent) is False
+
+    _WAIT_BEAD_STATUS_CACHE._entries[("tmp", "a")] = (-1.0, "open")
+    assert should_resolve_wait_bead_statuses(agent) is True
+
+    assert warm_wait_bead_statuses([agent]) == set()
+    assert calls == 1
+    assert cached_wait_bead_status_snapshot(agent).status_pairs() == (("a", "open"),)
+    assert should_resolve_wait_bead_statuses(agent) is False
+
+
+def test_warm_rereads_when_store_fingerprint_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokens = ["tok-1"]
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads._wait_project_fingerprint",
+        lambda _project: tokens[0],
+    )
+    calls: list[list[str]] = []
+
+    def lookup(_project: str, bead_ids: list[str]) -> dict[str, str]:
+        calls.append(list(bead_ids))
+        return dict.fromkeys(bead_ids, "open")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        lookup,
+    )
+    agent = make_agent(waiting_for_beads=["a"])
+
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    assert calls == [["a"]]
+
+    _WAIT_BEAD_STATUS_CACHE._entries[("tmp", "a")] = (-1.0, "open")
+    tokens[0] = "tok-2"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        lambda _project, bead_ids: dict.fromkeys(bead_ids, "closed"),
+    )
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    assert cached_wait_bead_status_snapshot(agent).status_pairs() == (("a", "closed"),)
+
+
+def test_warm_reads_cold_ids_despite_unchanged_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def lookup(_project: str, bead_ids: list[str]) -> dict[str, str]:
+        calls.append(list(bead_ids))
+        return dict.fromkeys(bead_ids, "open")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        lookup,
+    )
+    first = make_agent(waiting_for_beads=["a"])
+    assert warm_wait_bead_statuses([first]) == {first.identity}
+    assert calls == [["a"]]
+
+    _WAIT_BEAD_STATUS_CACHE._entries[("tmp", "a")] = (-1.0, "open")
+    second = make_agent(waiting_for_beads=["a", "b"])
+    assert warm_wait_bead_statuses([second]) == {second.identity}
+    assert calls == [["a"], ["b"]]
+    assert cached_wait_bead_status_snapshot(second).status_pairs() == (
+        ("a", "open"),
+        ("b", "open"),
+    )
+
+
+def test_warm_fingerprint_unknown_fails_open_to_store_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads._wait_project_fingerprint",
+        lambda _project: None,
+    )
+    calls = 0
+
+    def lookup(_project: str, bead_ids: list[str]) -> dict[str, str]:
+        nonlocal calls
+        calls += 1
+        return dict.fromkeys(bead_ids, "open")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        lookup,
+    )
+    agent = make_agent(waiting_for_beads=["a"])
+
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    _WAIT_BEAD_STATUS_CACHE._entries[("tmp", "a")] = (-1.0, "open")
+    assert warm_wait_bead_statuses([agent]) == set()
+    assert calls == 2
+
+
+def test_warm_missing_store_converges_when_store_appears(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokens = ["MISSING"]
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads._wait_project_fingerprint",
+        lambda _project: tokens[0],
+    )
+
+    def missing_lookup(_project: str, _bead_ids: list[str]) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        missing_lookup,
+    )
+    agent = make_agent(waiting_for_beads=["a"])
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    assert cached_wait_bead_status_snapshot(agent).status_pairs() == (("a", None),)
+
+    _WAIT_BEAD_STATUS_CACHE._entries[("tmp", "a")] = (-1.0, None)
+    tokens[0] = "tok-new"
+
+    def present_lookup(_project: str, bead_ids: list[str]) -> dict[str, str]:
+        return dict.fromkeys(bead_ids, "closed")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_wait_beads.bead_statuses_for_project",
+        present_lookup,
+    )
+    assert warm_wait_bead_statuses([agent]) == {agent.identity}
+    assert cached_wait_bead_status_snapshot(agent).status_pairs() == (("a", "closed"),)
+
+
+def test_wait_fingerprint_cache_cleared_with_entries() -> None:
+    _WAIT_BEAD_STATUS_CACHE.set(("tmp", "a"), "open")
+    _WAIT_BEAD_STATUS_CACHE.set_fingerprint("tmp", "tok-1")
+    assert _WAIT_BEAD_STATUS_CACHE.fingerprint_for("tmp") == "tok-1"
+    _WAIT_BEAD_STATUS_CACHE.clear()
+    assert _WAIT_BEAD_STATUS_CACHE.fingerprint_for("tmp") is None

@@ -37,11 +37,17 @@ __all__ = [
     "test_apply_wait_bead_status_results_keeps_singleton_id_and_adds_warm_glyph",
     "test_apply_wait_bead_status_results_passes_fresh_count_override",
     "test_apply_wait_bead_status_results_rebuilds_once_on_patch_failure",
+    "test_warm_confirmed_bead_displays_clears_fingerprint_with_entries",
     "test_warm_confirmed_bead_displays_dedupes_lookups_by_cache_key",
     "test_warm_confirmed_bead_displays_omits_missing_and_non_candidates",
     "test_warm_confirmed_bead_displays_omits_unchanged_expired_confirmation",
     "test_warm_confirmed_bead_displays_reports_deleted_confirmed_candidate",
+    "test_warm_confirmed_bead_displays_reports_deleted_when_store_changes",
+    "test_warm_confirmed_bead_displays_rereads_when_store_changes",
     "test_warm_confirmed_bead_displays_reuses_store_for_batch",
+    "test_warm_confirmed_bead_displays_reuses_unchanged_store_across_ttl",
+    "test_warm_confirmed_bead_displays_rereads_missing_every_time",
+    "test_warm_confirmed_bead_displays_unknown_fingerprint_fails_open",
 ]
 
 
@@ -331,3 +337,147 @@ def _issue_payload(issue_id: str, title: str) -> dict[str, object]:
         "patch_bug_id": "",
         "dependencies": [],
     }
+
+
+def test_warm_confirmed_bead_displays_reuses_unchanged_store_across_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def counting_lookup(candidate_id: str, **_: object) -> Issue:
+        nonlocal calls
+        calls += 1
+        return Issue(id=candidate_id, title="", description="")
+
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", counting_lookup)
+    agent = make_agent(agent_name="sase-x.3", cl_name="reuse", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: True}
+    assert calls == 1
+    assert _BEAD_DISPLAY_CACHE.should_resolve(key) is False
+
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
+    assert _BEAD_DISPLAY_CACHE.should_resolve(key) is True
+
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert calls == 1
+    assert agent_has_confirmed_bead(agent) is True
+    assert _BEAD_DISPLAY_CACHE.should_resolve(key) is False
+
+
+def test_warm_confirmed_bead_displays_rereads_when_store_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokens = ["tok-1"]
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_bead._bead_display_fingerprint",
+        lambda _agent: tokens[0],
+    )
+    calls = 0
+
+    def counting_lookup(candidate_id: str, **_: object) -> Issue:
+        nonlocal calls
+        calls += 1
+        return Issue(id=candidate_id, title="", description="")
+
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", counting_lookup)
+    agent = make_agent(agent_name="sase-x.3", cl_name="changed", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: True}
+    assert calls == 1
+
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
+    tokens[0] = "tok-2"
+
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert calls == 2
+    assert agent_has_confirmed_bead(agent) is True
+
+
+def test_warm_confirmed_bead_displays_rereads_missing_every_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def missing_lookup(candidate_id: str, **_: object) -> None:
+        nonlocal calls
+        calls += 1
+        return None
+
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", missing_lookup)
+    agent = make_agent(agent_name="sase-x.3", cl_name="missing", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert calls == 1
+
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, None)
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert calls == 2
+
+
+def test_warm_confirmed_bead_displays_reports_deleted_when_store_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokens = ["tok-1"]
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_bead._bead_display_fingerprint",
+        lambda _agent: tokens[0],
+    )
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", confirmed_lookup)
+    agent = make_agent(agent_name="sase-x.3", cl_name="deleted", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: True}
+
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3 - stale")
+    tokens[0] = "tok-2"
+    monkeypatch.setattr(
+        "sase.agent.bead_display.lookup_bead_issue",
+        lambda candidate_id, **_: None,
+    )
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: False}
+    assert agent_has_confirmed_bead(agent) is False
+
+
+def test_warm_confirmed_bead_displays_unknown_fingerprint_fails_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_bead._bead_display_fingerprint",
+        lambda _agent: None,
+    )
+    calls = 0
+
+    def counting_lookup(candidate_id: str, **_: object) -> Issue:
+        nonlocal calls
+        calls += 1
+        return Issue(id=candidate_id, title="", description="")
+
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", counting_lookup)
+    agent = make_agent(agent_name="sase-x.3", cl_name="unknown", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: True}
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert calls == 2
+
+
+def test_warm_confirmed_bead_displays_clears_fingerprint_with_entries() -> None:
+    agent = make_agent(agent_name="sase-x.3", cl_name="cleanup", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    _BEAD_DISPLAY_CACHE.set(key, "sase-x.3")
+    _BEAD_DISPLAY_CACHE.set_fingerprint(key, "tok-1")
+    assert _BEAD_DISPLAY_CACHE.fingerprint_for(key) == "tok-1"
+    _BEAD_DISPLAY_CACHE.clear()
+    assert _BEAD_DISPLAY_CACHE.fingerprint_for(key) is None

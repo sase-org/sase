@@ -77,6 +77,7 @@ class _WaitBeadStatusCache:
             WaitBeadStatusCacheKey,
             tuple[float, str | None],
         ] = OrderedDict()
+        self._fingerprints: dict[str, str] = {}
         self._lock = RLock()
 
     def get(self, key: WaitBeadStatusCacheKey) -> str | None | object:
@@ -113,9 +114,58 @@ class _WaitBeadStatusCache:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._fingerprints.clear()
+
+    def fingerprint_for(self, project: str) -> str | None:
+        """Return the store token seen at the last successful project resolve."""
+        with self._lock:
+            return self._fingerprints.get(project)
+
+    def set_fingerprint(self, project: str, fingerprint: str | None) -> None:
+        """Record the store token for *project*; ``None`` clears it to fail open."""
+        with self._lock:
+            if fingerprint is None:
+                self._fingerprints.pop(project, None)
+            else:
+                self._fingerprints[project] = fingerprint
+                while len(self._fingerprints) > self._max_entries:
+                    self._fingerprints.pop(next(iter(self._fingerprints)))
 
 
 _WAIT_BEAD_STATUS_CACHE = _WaitBeadStatusCache(max_entries=_CACHE_MAX_ENTRIES)
+
+
+def _wait_project_fingerprint(project_key: str) -> str | None:
+    """Return a stat-only store token for *project_key* without reading rows.
+
+    Returns ``"MISSING"`` when the canonical store is absent (a stable known
+    state until the store appears), ``None`` when the token cannot be proven
+    (fail open to the legacy store read), or the store token otherwise. Must
+    only be called off the Textual event loop.
+    """
+    try:
+        from sase.bead.store_locator import canonical_beads_dir_for_project
+    except Exception:
+        return None
+    try:
+        beads_dir = canonical_beads_dir_for_project(project_key)
+    except Exception:
+        return None
+    if beads_dir is None:
+        return "MISSING"
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        return None
+    if fingerprint is not None:
+        return fingerprint.token
+    try:
+        stat = (beads_dir / "issues.jsonl").stat()
+    except OSError:
+        return None
+    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def cached_wait_bead_status_snapshot(
@@ -233,6 +283,26 @@ def warm_wait_bead_statuses(
 
     for project_key, bead_ids_by_id in project_bead_ids.items():
         bead_ids = list(bead_ids_by_id)
+        current_fingerprint = _wait_project_fingerprint(project_key)
+        last_fingerprint = _WAIT_BEAD_STATUS_CACHE.fingerprint_for(project_key)
+        if current_fingerprint is not None and current_fingerprint == last_fingerprint:
+            cold_ids = [
+                bead_id
+                for bead_id in bead_ids
+                if _WAIT_BEAD_STATUS_CACHE.get((project_key, bead_id))
+                is WAIT_BEAD_STATUS_CACHE_MISS
+            ]
+            for bead_id in bead_ids:
+                if bead_id in cold_ids:
+                    continue
+                value = _WAIT_BEAD_STATUS_CACHE.get((project_key, bead_id))
+                _WAIT_BEAD_STATUS_CACHE.set(
+                    (project_key, bead_id),
+                    value if isinstance(value, str) else None,
+                )
+            bead_ids = cold_ids
+            if not bead_ids:
+                continue
         try:
             resolved = bead_statuses_for_project(project_key, bead_ids)
         except Exception:
@@ -240,6 +310,8 @@ def warm_wait_bead_statuses(
         for bead_id in bead_ids:
             status = resolved.get(bead_id) if resolved is not None else None
             _WAIT_BEAD_STATUS_CACHE.set((project_key, bead_id), status)
+        if current_fingerprint is not None:
+            _WAIT_BEAD_STATUS_CACHE.set_fingerprint(project_key, current_fingerprint)
 
     changed: set[tuple[AgentType, str, str | None]] = set()
     for agent in agent_list:

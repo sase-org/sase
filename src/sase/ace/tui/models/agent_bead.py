@@ -52,6 +52,7 @@ class _BeadDisplayCache:
         self._entries: OrderedDict[BeadDisplayCacheKey, tuple[float, str | None]] = (
             OrderedDict()
         )
+        self._fingerprints: dict[BeadDisplayCacheKey, str] = {}
         self._lock = RLock()
 
     def get(self, key: BeadDisplayCacheKey) -> str | None | object:
@@ -88,9 +89,76 @@ class _BeadDisplayCache:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._fingerprints.clear()
+
+    def fingerprint_for(self, key: BeadDisplayCacheKey) -> str | None:
+        """Return the store token seen at the last confirmed resolve."""
+        with self._lock:
+            return self._fingerprints.get(key)
+
+    def set_fingerprint(
+        self, key: BeadDisplayCacheKey, fingerprint: str | None
+    ) -> None:
+        """Record the store token for *key*; ``None`` clears it to fail open."""
+        with self._lock:
+            if fingerprint is None:
+                self._fingerprints.pop(key, None)
+            else:
+                self._fingerprints[key] = fingerprint
+                while len(self._fingerprints) > self._max_entries:
+                    self._fingerprints.pop(next(iter(self._fingerprints)))
 
 
 _BEAD_DISPLAY_CACHE = _BeadDisplayCache(max_entries=_CACHE_MAX_ENTRIES)
+
+
+def _store_token_for_beads_dir(beads_dir: Path) -> str | None:
+    """Return a stat-only token for *beads_dir* or ``None`` when unprovable."""
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        return None
+    if fingerprint is not None:
+        return fingerprint.token
+    try:
+        stat = (beads_dir / "issues.jsonl").stat()
+    except OSError:
+        return None
+    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
+
+
+def _bead_display_fingerprint(agent: Agent) -> str | None:
+    """Return a stat-only token for the authoritative project bead store.
+
+    Uses the existing canonical project-store locator and Rust-owned store
+    fingerprints; workspace fallbacks stay on the legacy lookup path so no
+    private backend helper is imported here. Returns ``None`` when no
+    authoritative store can be proven (fail open to a full lookup) and a
+    ``"MISSING:..."`` sentinel for a stable absent store. Must only be called
+    off the Textual event loop.
+    """
+    tokens: list[str] = []
+    project_name = _agent_project_name(agent)
+    if project_name is None:
+        return None
+    try:
+        from sase.bead.store_locator import canonical_beads_dir_for_project
+
+        beads_dir = canonical_beads_dir_for_project(project_name)
+    except Exception:
+        return None
+    if beads_dir is None:
+        tokens.append(f"MISSING:project:{project_name}")
+    else:
+        token = _store_token_for_beads_dir(beads_dir)
+        if token is None:
+            return None
+        tokens.append(f"proj:{token}")
+    if not tokens:
+        return None
+    return "|".join(sorted(tokens))
 
 
 def _derive_agent_bead_id(agent: Agent) -> str | None:
@@ -158,6 +226,10 @@ def resolve_bead_display(
         lookup_session=lookup_session,
     )
     _BEAD_DISPLAY_CACHE.set(key, display)
+    if isinstance(display, str):
+        _BEAD_DISPLAY_CACHE.set_fingerprint(key, _bead_display_fingerprint(agent))
+    else:
+        _BEAD_DISPLAY_CACHE.set_fingerprint(key, None)
     return display
 
 
@@ -183,11 +255,28 @@ def warm_confirmed_bead_displays(
             if key is None:
                 continue
             if key not in resolved_by_key:
-                previous_by_key[key] = _BEAD_DISPLAY_CACHE.get(key)
-                resolved_by_key[key] = resolve_bead_display(
+                previous = _BEAD_DISPLAY_CACHE.get(key)
+                previous_by_key[key] = previous
+                if isinstance(previous, str):
+                    current_fingerprint = _bead_display_fingerprint(agent)
+                    last_fingerprint = _BEAD_DISPLAY_CACHE.fingerprint_for(key)
+                    if (
+                        current_fingerprint is not None
+                        and current_fingerprint == last_fingerprint
+                    ):
+                        _BEAD_DISPLAY_CACHE.set(key, previous)
+                        resolved_by_key[key] = previous
+                        continue
+                resolved = resolve_bead_display(
                     agent,
                     lookup_session=lookup_session,
                 )
+                resolved_by_key[key] = resolved
+                if isinstance(resolved, str):
+                    current_fingerprint = _bead_display_fingerprint(agent)
+                    _BEAD_DISPLAY_CACHE.set_fingerprint(key, current_fingerprint)
+                else:
+                    _BEAD_DISPLAY_CACHE.set_fingerprint(key, None)
             previous_confirmed = isinstance(previous_by_key[key], str)
             current_confirmed = resolved_by_key[key] is not None
             if previous_confirmed != current_confirmed:
