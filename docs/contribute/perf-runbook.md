@@ -320,6 +320,205 @@ floor is `stale_running_cleanup` and is expected — and `refresh.auto_tick` rec
 and `axe_file_opens` near zero. If spawn rate is well above the floor, check whether
 shipped jobs lost their `fs` trigger in `src/sase/default_config.yml`.
 
+## Service-host CPU diet (tailnet-1e.6)
+
+Epic `tailnet-1e.6.1` cut athena's `sase.service` from 1.85 cores and about 46 job
+spawns a minute to 0.75 cores and 26 job spawns a minute under agent load. It also keeps
+the account to one service host. The targets under typical load are at most 0.8 cores
+and 30 job spawns a minute, averaged over 30 minutes. On a quiet host, the
+[Idle-host CPU diet](#idle-host-cpu-diet) budgets still apply.
+
+| Phase                                 | Commit                           | Change                                                                                                                                                               |
+| ------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| host-guard (`tailnet-1e.6.1.1`)       | `436e18d9c4`                     | One service host per account. Agents no longer start hosts. `sase service status` lists stray hosts.                                                                 |
+| claim-scans (`tailnet-1e.6.1.2`)      | `d1c93c6bea`                     | `bead_claim_checks` and `agent_auto_restart` read bounded index slices instead of full history.                                                                      |
+| wait-pulse (`tailnet-1e.6.1.3`)       | `eaf1738783`                     | `wait_checks` lists waiting runs from the artifact index. The finalizer pulse is quieter.                                                                            |
+| spawn-floor (`tailnet-1e.6.1.4`)      | `ff0baf13e9`, chezmoi `5ac3c1ef` | Cheaper `stale_running_cleanup` and `suffix_transforms`. Patch-glob jobs ignore RUNNING-claim churn. Athena's `tg_outbound` gets an fs trigger with a 60 s backstop. |
+| routine-tick (`tailnet-1e.6.1.5`)     | `811576c390`                     | Cheaper routine ticks and an honest rolling `spawns/min`.                                                                                                            |
+| restart-burst (`tailnet-1e.6.1.6`)    | `338543bd4b`                     | Long-interval routines keep their cadence across restarts. `max_concurrent_jobs` caps each tick (default 4).                                                         |
+| hourly-artifacts (`tailnet-1e.6.1.7`) | `48e97d5bd8`                     | `artifact_link_backfill` skips unchanged passes. `artifact_retention` runs its full pass at most every 6 hours.                                                      |
+
+### Before and after
+
+The baseline is the planner's 180 s sample on 2026-11-21 at 14:33 EST. The after column
+is a 30-minute sample on 2026-11-22, 08:16–08:46 EST, on sase `5054d44c67` with all
+seven phases and the `tg_outbound` trigger live. Load average was 9.5 at the start and
+15.7 at the end. The service host PID stayed the same, and nothing restarted during the
+window.
+
+| Job                                    | Cores before | Cores after | Runs/min before | Runs/min after | CPU/run before | CPU/run after |
+| -------------------------------------- | ------------ | ----------- | --------------- | -------------- | -------------- | ------------- |
+| `bead_claim_checks`                    | 0.36         | 0.029       | 1.3             | 0.87           | 16.3 s         | 2.0 s         |
+| `stale_running_cleanup`                | 0.24         | 0.127       | 6.7             | 10.3           | 2.1 s          | 0.74 s        |
+| `suffix_transforms`                    | 0.13         | 0.002       | 3               | 0.47           | 2.7 s          | 0.28 s        |
+| `tg_outbound`                          | 0.11         | 0.015       | 9.3             | 1.17           | 0.74 s         | 0.77 s        |
+| `agent_auto_restart`                   | 0.10         | 0.027       | ~0.7            | 0.93           | 8.9 s          | 1.75 s        |
+| `wait_checks`                          | 0.10         | 0.055       | 1.7             | 1.13           | 3.5 s          | 2.9 s         |
+| `comment_checks`                       | ~0.05        | 0.045       | —               | 0.90           | —              | 3.0 s         |
+| `sidecar_auto_sync`                    | ~0.05        | 0.048       | —               | 1.73           | —              | 1.7 s         |
+| Host, scheduler, and routine processes | 0.11         | ~0.05       | —               | —              | —              | —             |
+| **Total cores**                        | **1.85**     | **0.75**    |                 |                |                |               |
+| **SASE job spawns/min**                | **~46**      | **25.8**    |                 |                |                |               |
+
+The after total comes from the cgroup's `cpu.stat` (`usage_usec`). Per-process sampling
+accounted for 0.63 of the 0.75 cores. It misses processes that start and exit between
+two 0.1 s polls, and CPU that a job's exited children hand back to it. All process
+starts, including git (37.7/min) and ssh (16.7/min) children of jobs, ran at 92.8 a
+minute. The job-spawn target counts only `sase_job_*` processes.
+
+`stale_running_cleanup` now runs more often (10.3 a minute against 6.7) because cheap
+hooks ticks let it reach its `always` floor of about 12 a minute. It is still the
+largest single cost; the [Idle-host CPU diet](#idle-host-cpu-diet) section explains its
+remaining 0.25 s index decode.
+
+Hourly housekeeping wall time is the median of the 10 runs from 2026-11-21 22:08 to
+2026-11-22 07:15 EST, against the baseline median of 10:
+
+| Job                      | Before | After                      |
+| ------------------------ | ------ | -------------------------- |
+| `artifact_link_backfill` | 235 s  | 101 s (max 195 s)          |
+| `artifact_run_prune`     | 46 s   | 42 s                       |
+| `artifact_retention`     | 20 s   | 0.2 s (`stamp_fresh` skip) |
+| `gate_turn_reclaim`      | 16 s   | 14 s                       |
+| `state_retention`        | 9.5 s  | 8 s                        |
+
+After a scheduler restart at 08:13:58 EST, `housekeeping` and `external_mirror` waited
+for their recorded cadence instead of re-running every job. `housekeeping` next ran at
+08:15:48, one hour after its previous tick.
+
+An earlier 30-minute sample, on 2026-11-21 at 23:22 EST, ran on sase `a52054ed45`. That
+commit lacked wait-pulse and restart-burst, and the chezmoi `tg_outbound` trigger was
+not yet applied. It measured 0.74 sampled cores and 35 job spawns a minute, led by
+`wait_checks` (0.17 cores) and `tg_outbound` (10.2 runs a minute). Check which commits
+the primary checkout actually contains before you attribute a result to a phase.
+
+### Attribution recipe
+
+Run this on the service host. It polls `sase.service`'s `cgroup.procs` every 0.1 s,
+reads utime and stime from `/proc/<pid>/stat`, and groups CPU and process starts by job
+name. It prints the cgroup total, the sampled total, process starts and job spawns a
+minute, and one row per group. `SAMPLE_SECONDS` defaults to 1800.
+
+```bash
+SAMPLE_SECONDS=1800 python3 - <<'PY'
+import collections, os, pathlib, re, subprocess, time
+
+DURATION = float(os.environ.get("SAMPLE_SECONDS", "1800"))
+INTERVAL = 0.1
+HZ = os.sysconf("SC_CLK_TCK")
+NON_JOB = re.compile(r"^(routine:|other:|service_host$|scheduler$|gateway$|git$|ssh$)")
+
+
+def unit(prop):
+    return subprocess.check_output(
+        ["systemctl", "--user", "show", "sase.service", "-p", prop, "--value"], text=True
+    ).strip()
+
+
+CG = pathlib.Path("/sys/fs/cgroup") / unit("ControlGroup").lstrip("/")
+
+
+def cgroup_usec():
+    for line in (CG / "cpu.stat").read_text().splitlines():
+        if line.startswith("usage_usec "):
+            return int(line.split()[1])
+    raise RuntimeError("no usage_usec")
+
+
+def name_of(comm, cmd):
+    for pattern, prefix in ((r"\bsase_job_(\w+)", ""), (r"\bsase axe routine run (\w+)", "routine:")):
+        m = re.search(pattern, cmd)
+        if m:
+            return prefix + m.group(1)
+    for needle, label in (("sase service run", "service_host"), ("sase scheduler run", "scheduler"), ("sase_gateway", "gateway")):
+        if needle in cmd:
+            return label
+    return comm if comm in ("git", "ssh") else "other:" + comm
+
+
+def sample():
+    seen = {}
+    for pid in (CG / "cgroup.procs").read_text().split():
+        try:
+            stat = pathlib.Path(f"/proc/{pid}/stat").read_text()
+            rp = stat.rfind(")")
+            comm, fields = stat[stat.find("(") + 1 : rp], stat[rp + 2 :].split()
+            cmd = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+            # fields[11]/[12] = utime/stime, fields[19] = starttime (stat fields 14, 15, 22)
+            seen[(pid, fields[19])] = (name_of(comm, cmd), (int(fields[11]) + int(fields[12])) / HZ)
+        except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+            pass
+    return seen
+
+
+main0, usec0, load0 = unit("MainPID"), cgroup_usec(), os.getloadavg()
+active = {k: [n, c, 0.0] for k, (n, c) in sample().items()}  # baseline: only count deltas
+spawns, cpu = collections.Counter(), collections.Counter()
+t0 = time.monotonic()
+while (now := time.monotonic()) < t0 + DURATION:
+    time.sleep(min(INTERVAL, t0 + DURATION - now))
+    current = sample()
+    for key, (name, c) in current.items():
+        if key not in active:  # started inside the window: all its CPU so far counts
+            spawns[name] += 1
+            active[key] = [name, c, c]
+        else:
+            row = active[key]
+            row[2] += max(0.0, c - row[1])
+            row[1] = c
+    for key in set(active) - set(current):
+        name, _, used = active.pop(key)
+        cpu[name] += used
+for name, _, used in active.values():
+    cpu[name] += used
+elapsed = time.monotonic() - t0
+usec1, main1 = cgroup_usec(), unit("MainPID")
+job_spawns = sum(v for k, v in spawns.items() if not NON_JOB.match(k))
+print(f"SECONDS={elapsed:.0f} INTERVAL={INTERVAL} LOADAVG_START={load0[0]:.2f} LOADAVG_END={os.getloadavg()[0]:.2f}")
+print(f"MAINPID {main0} -> {main1} STABLE={main0 == main1}")
+print(f"CGROUP_CORES={(usec1 - usec0) / 1e6 / elapsed:.4f} SAMPLED_CORES={sum(cpu.values()) / elapsed:.4f}")
+print(f"PROCESS_STARTS_PER_MIN={sum(spawns.values()) * 60 / elapsed:.2f} JOB_SPAWNS_PER_MIN={job_spawns * 60 / elapsed:.2f}")
+print(f"{'GROUP':<28}{'CORES':>8}{'STARTS/MIN':>12}{'CPU_S/RUN':>11}")
+for name in sorted(set(cpu) | set(spawns), key=lambda n: -cpu[n]):
+    if cpu[name] / elapsed >= 0.001 or spawns[name] * 60 / elapsed >= 0.5:
+        per = cpu[name] / spawns[name] if spawns[name] else 0.0
+        print(f"{name:<28}{cpu[name] / elapsed:>8.4f}{spawns[name] * 60 / elapsed:>12.2f}{per:>11.3f}")
+PY
+```
+
+Then confirm the rate metric and that exactly one host runs:
+
+```bash
+sase axe routine status                                    # spawns/min is a rolling window
+systemctl --user list-units 'sase-service-*' --no-legend   # expect no rows
+sase service status                                        # one host, no stray-host rows
+pgrep -af 'sase service run'                               # expect one process
+```
+
+Jobs pick up landed code on their next spawn. Routine processes pick up code and
+`sase_<host>.yml` changes only when the scheduler restarts (`sase axe restart`, which
+`sase update` also does). The service host itself needs a `sase.service` restart.
+
+Lazy package imports can expose a latent import cycle that eager imports used to hide.
+spawn-floor's lazy `sase.monitor` and `sase.procs` packages broke the hourly
+`disk_pressure` job this way: `sase.core.agent_launch_claims` and `sase.running_field`
+import each other, and the job imported the claims module first.
+`tests/test_agent_launch_claims_import_order.py` now imports each entry point first in a
+fresh interpreter. Do the same for any job script whose import closure you trim.
+
+### Left for rollout-verify (tailnet-1e.9)
+
+- `sase.service` restarted on its own at 07:50:44 EST on 2026-11-22, onto `5054d44c67`,
+  so the host already runs host-guard. rollout-verify still owns its planned restart,
+  the post-restart one-host check, the TUI restart, and its own 30-minute re-measure.
+- No sase-core reinstall: none of the seven commits moves the sase-core pin.
+- Only `~/.config/sase/sase_athena.yml` was applied from chezmoi `5ac3c1ef`, and the
+  scheduler was restarted at 08:13:58 EST to load it. The next
+  `chezmoi update -a --force` also runs the daily Neovim build.
+- An inbound Telegram acknowledgement has not been exercised since the `tg_outbound`
+  trigger went live. It rewrites `notifications.jsonl`, so the trigger should fire on
+  it; confirm on the next real acknowledgement.
+
 ## Suite test-cost gate
 
 The repository-wide pytest cost harness is separate from sase's TUI trace spans. Use it

@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_launch_wire import (
     WorkspaceClaimRequestWire,
     agent_launch_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
-from sase.running_field._model import WorkspaceClaim
+
+if TYPE_CHECKING:
+    from sase.running_field._model import WorkspaceClaim
 
 
 def list_workspace_claims_from_content(content: str) -> list[WorkspaceClaim]:
     """Parse RUNNING workspace claims from project-file content via Rust."""
+
+    # Deferred: importing sase.running_field runs its package __init__, which
+    # imports running_field._claim, which imports this module. A module-level
+    # import here fails whenever this module is the first to load the pair.
+    from sase.running_field._model import WorkspaceClaim
 
     binding = require_rust_binding("list_workspace_claims_from_content")
     rows: list[dict[str, Any]] = binding(content)
