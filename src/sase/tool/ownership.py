@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 
@@ -13,6 +14,13 @@ _MONITOR_ENV = "SASE_MONITOR_ID"
 _MONITOR_ARTIFACTS_ENV = "SASE_MONITOR_ARTIFACTS_DIR"
 _PROC_ENV = "SASE_PROC_ID"
 _PARENT_ENV = "SASE_TOOL_RUN_ID"
+_AGENT_CHILD_ENV = "SASE_TOOL_RUN_AGENT_CHILD"
+
+
+def agent_child_provenance(run_id: str, agent_name: str) -> str:
+    """Encode the current executor and agent identity in the child marker."""
+
+    return json.dumps([run_id, agent_name], separators=(",", ":"))
 
 
 class ToolRunOwnerConflict(ValueError):
@@ -47,15 +55,24 @@ def resolve_ownership(*, quiet: bool) -> ToolRunOwnership:
     parent_id = (os.environ.get(_PARENT_ENV) or "").strip() or None
     if parent_id and not _parent_exists(parent_id):
         parent_id = None
-    # An agent is a new ownership root. Monitor and proc supervisors scrub
-    # SASE_AGENT*, so SASE_AGENT alongside an owner id can only arrive
-    # through an agent launch that inherited its ancestor's ownership.
-    # _parent_exists checks existence rather than liveness, so an inherited
-    # SASE_TOOL_RUN_ID gets the same treatment.
+    # Agents are ownership roots at launch, but their ordinary ToolRun command
+    # children retain SASE_AGENT* for attribution and guarded recipes. Only a
+    # recorded child marker matching both the current ToolRun and agent name
+    # preserves its ToolRun parent; launch boundaries scrub all SASE_TOOL_*
+    # fields. A live monitor or proc remains an owner independently.
     if os.environ.get("SASE_AGENT"):
-        monitor_id = None
-        proc_id = None
-        parent_id = None
+        agent_name = (os.environ.get("SASE_AGENT_NAME") or "").strip()
+        expected_child = (
+            agent_child_provenance(parent_id, agent_name)
+            if parent_id and agent_name
+            else None
+        )
+        is_agent_command_child = (
+            expected_child is not None
+            and os.environ.get(_AGENT_CHILD_ENV) == expected_child
+        )
+        if not is_agent_command_child:
+            parent_id = None
 
     owner_kind: str | None = None
     owner_id: str | None = None
@@ -142,6 +159,7 @@ def _parent_exists(run_id: str) -> bool:
 __all__ = [
     "ToolRunOwnerConflict",
     "ToolRunOwnership",
+    "agent_child_provenance",
     "compact_requested",
     "resolve_ownership",
 ]

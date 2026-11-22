@@ -27,6 +27,7 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
         "SASE_MONITOR_ARTIFACTS_DIR",
         "SASE_PROC_ID",
         "SASE_TOOL_RUN_ID",
+        "SASE_TOOL_RUN_AGENT_CHILD",
         "SASE_TOOL_NAME",
         "SASE_TOOL_PROJECT_ROOT",
         "SASE_TOOL_RUN_AGENT",
@@ -67,7 +68,7 @@ def _adhoc_resolved() -> ResolvedToolArgv:
     )
 
 
-def test_agent_ignores_live_monitor_id(
+def test_agent_preserves_live_monitor_owner(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _home(monkeypatch, tmp_path)
@@ -77,11 +78,14 @@ def test_agent_ignores_live_monitor_id(
 
     monkeypatch.setenv("SASE_AGENT", "1")
     ownership = resolve_ownership(quiet=False)
-    assert (ownership.owner_kind, ownership.owner_id) == (None, None)
-    assert ownership.owns_output is True
+    assert (ownership.owner_kind, ownership.owner_id) == (
+        "monitor",
+        "epic-launch-monitor",
+    )
+    assert ownership.owns_output is False
 
 
-def test_agent_ignores_running_proc_and_parent(
+def test_agent_clears_inherited_parent_but_preserves_running_proc(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from sase.tool import ownership
@@ -99,15 +103,18 @@ def test_agent_ignores_running_proc_and_parent(
 
     monkeypatch.setenv("SASE_AGENT", "1")
     resolved = resolve_ownership(quiet=False)
-    assert resolved.owner_kind is None
+    assert resolved.owner_kind == "proc"
+    assert resolved.owner_id == "proc-live"
     assert resolved.parent_run_id is None
-    assert resolved.owns_output is True
+    assert resolved.owns_output is False
 
 
 def test_child_env_exports_marker_when_recorded(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _home(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "fixture-agent")
     env = child_env(
         recorded=True,
         run_id="run-1",
@@ -117,6 +124,7 @@ def test_child_env_exports_marker_when_recorded(
     assert env["SASE_TOOL_NAME"] == "check"
     assert env["SASE_TOOL_PROJECT_ROOT"] == "/repo/root"
     assert env["SASE_TOOL_RUN_ID"] == "run-1"
+    assert env["SASE_TOOL_RUN_AGENT_CHILD"]
 
 
 def test_child_env_exports_continuation_handshake_only_when_requested(
@@ -148,6 +156,7 @@ def test_child_env_exports_marker_when_unrecorded(
 ) -> None:
     _home(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_TOOL_RUN_ID", "stale-parent")
+    monkeypatch.setenv("SASE_TOOL_RUN_AGENT_CHILD", "stale-provenance")
     env = child_env(
         recorded=False, run_id=None, events_path=None, resolved=_named_resolved()
     )
@@ -155,6 +164,26 @@ def test_child_env_exports_marker_when_unrecorded(
     assert env["SASE_TOOL_PROJECT_ROOT"] == "/repo/root"
     assert "SASE_TOOL_RUN_ID" not in env
     assert "SASE_TOOL_RUN_EVENTS" not in env
+    assert "SASE_TOOL_RUN_AGENT_CHILD" not in env
+
+
+def test_child_env_replaces_prior_agent_child_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _home(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "fixture-agent")
+    monkeypatch.setenv("SASE_TOOL_RUN_AGENT_CHILD", "old-run:fixture-agent")
+
+    env = child_env(
+        recorded=True,
+        run_id="current-run",
+        events_path=None,
+        resolved=_named_resolved(),
+    )
+
+    assert env["SASE_TOOL_RUN_ID"] == "current-run"
+    assert env["SASE_TOOL_RUN_AGENT_CHILD"] != "old-run:fixture-agent"
 
 
 def test_child_env_exports_adhoc_with_empty_root(
@@ -268,7 +297,11 @@ def test_phase_agent_run_is_compact_with_replayable_logs(
     compact output again, and the retained logs replay.
     """
     _home(monkeypatch, tmp_path)
+    settled_monitor = tmp_path / "settled-monitor"
+    settled_monitor.mkdir()
+    (settled_monitor / "done.json").write_text("{}", encoding="utf-8")
     monkeypatch.setenv("SASE_MONITOR_ID", "epic-launch-monitor")
+    monkeypatch.setenv("SASE_MONITOR_ARTIFACTS_DIR", str(settled_monitor))
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "phase-agent")
     code = execute_tool_run(

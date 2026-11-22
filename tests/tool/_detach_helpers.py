@@ -9,7 +9,9 @@ from pathlib import Path
 import pytest
 
 from sase.config.core import clear_config_cache
+from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
+from sase.tool.executor_process import child_env
 
 
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
@@ -25,6 +27,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
         "SASE_PROC_ID",
         "SASE_PROC_LOG_PATH",
         "SASE_TOOL_RUN_ID",
+        "SASE_TOOL_RUN_AGENT_CHILD",
         "SASE_TOOL_RUN_EVENTS",
         "SASE_TOOL_RUN_AGENT",
         "SASE_BEAD_ID",
@@ -89,3 +92,20 @@ def agent_env(
     monkeypatch.setenv("SASE_AGENT_NAME", name)
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
     return artifacts
+
+
+def use_recorded_agent_child_env(monkeypatch: pytest.MonkeyPatch, run_id: str) -> None:
+    """Apply the executor fields a genuine recorded agent command inherits."""
+
+    env = child_env(
+        recorded=True,
+        run_id=run_id,
+        events_path=None,
+        resolved=resolve_run_argv(["--", "true"]),
+    )
+    for key in list(os.environ):
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.setenv(key, value)

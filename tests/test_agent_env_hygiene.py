@@ -106,6 +106,7 @@ def test_followup_spawn_keeps_bead_association_env() -> None:
 def test_scrub_executor_ownership_env_removes_tool_monitor_proc() -> None:
     env = {
         "SASE_TOOL_RUN_ID": "run-1",
+        "SASE_TOOL_RUN_AGENT_CHILD": '["run-1","parent-agent"]',
         "SASE_TOOL_NAME": "check",
         "SASE_TOOL_PROJECT_ROOT": "/repo",
         "SASE_TOOL_RUN_AGENT": "starter",
@@ -177,6 +178,7 @@ def test_launch_spawn_drops_inherited_executor_ownership_env() -> None:
     """A spawned agent is a new ownership root (fake agent launch)."""
     env = {
         "SASE_TOOL_RUN_ID": "run-1",
+        "SASE_TOOL_RUN_AGENT_CHILD": '["run-1","parent-agent"]',
         "SASE_TOOL_NAME": "check",
         "SASE_MONITOR_ID": "mon-1",
         "SASE_MONITOR_ARTIFACTS_DIR": "/artifacts",

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from sase.tool.argv import ToolRunUsageError, resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
+from sase.tool.ownership import resolve_ownership
 from sase.tool.routing import monitor_start_form
 from sase.tool.starter import (
     IDENTITY_UNREADABLE,
@@ -34,63 +35,18 @@ _STARTER_FAILURE_DETAILS = {
 
 
 def enclosing_owner() -> tuple[str, str] | None:
-    """Return ``(kind, id)`` for a live enclosing owner, else ``None``.
+    """Return the effective enclosing monitor or proc owner, if any."""
 
-    Agents are a new ownership root, so this reads the raw environment
-    instead of ``resolve_ownership`` (which clears inherited ids in agents).
-    Only a proven-settled owner is ignored; unknown liveness still refuses.
-    """
-
-    monitor_id = (os.environ.get("SASE_MONITOR_ID") or "").strip()
-    if monitor_id and not _monitor_has_settled():
-        return "monitor", monitor_id
-    proc_id = (os.environ.get("SASE_PROC_ID") or "").strip()
-    if proc_id and not _proc_has_settled(proc_id):
-        return "proc", proc_id
-    return None
-
-
-def _monitor_has_settled() -> bool:
-    """Mirror the ownership settled proof: terminal marker in artifacts dir."""
-
-    root = (os.environ.get("SASE_MONITOR_ARTIFACTS_DIR") or "").strip()
-    if not root:
-        return False
-    try:
-        return (Path(root) / "done.json").is_file()
-    except OSError:
-        return False
-
-
-def _proc_has_settled(proc_id: str) -> bool:
-    """Mirror the ownership settled proof from the proc store."""
-
-    try:
-        from sase.procs.models import TERMINAL_PROC_STATUSES
-        from sase.procs.store import get_proc
-
-        proc = get_proc(proc_id)
-    except Exception:  # noqa: BLE001 - unknown liveness never clears ownership.
-        return False
-    return proc is not None and proc.status in TERMINAL_PROC_STATUSES
+    ownership = resolve_ownership(quiet=False)
+    if ownership.owner_kind is None or ownership.owner_id is None:
+        return None
+    return ownership.owner_kind, ownership.owner_id
 
 
 def parent_run() -> str | None:
     """Return the enclosing parent run id, or ``None`` when there is none."""
 
-    from sase.core.tool_run import tool_run_show
-
-    parent_id = (os.environ.get("SASE_TOOL_RUN_ID") or "").strip()
-    if not parent_id:
-        return None
-    try:
-        shown = tool_run_show(parent_id)
-    except Exception:  # noqa: BLE001 - a missing parent must not block execution.
-        return None
-    run = shown.get("run")
-    if isinstance(run, dict) and str(run.get("run_id") or "") == parent_id:
-        return parent_id
-    return None
+    return resolve_ownership(quiet=False).parent_run_id
 
 
 def execute_detached(

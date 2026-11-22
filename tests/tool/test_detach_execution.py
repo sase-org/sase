@@ -9,7 +9,12 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from ._detach_helpers import agent_env, clean_env, detach_request
+from ._detach_helpers import (
+    agent_env,
+    clean_env,
+    detach_request,
+    use_recorded_agent_child_env,
+)
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import (
     tool_run_claim,
@@ -72,13 +77,40 @@ def test_detach_refuses_inside_live_owner_and_parent_run(
     assert "proc-live" in capsys.readouterr().err
     monkeypatch.delenv("SASE_PROC_ID")
 
-    resolved = resolve_run_argv(["--", "printf", "hi"])
-    reservation = reserve_handoff_run(resolved, owner_kind="proc", owner_id="proc-1")
-    assert reservation.reserved
-    monkeypatch.setenv("SASE_TOOL_RUN_ID", reservation.run_id)
+    parent = reserve_handoff_run(
+        resolve_run_argv(["--", "true"]), owner_kind="proc", owner_id="proc-parent"
+    )
+    assert parent.reserved
+    use_recorded_agent_child_env(monkeypatch, parent.run_id)
     code = execute_tool_run(detach_request("--", "printf", "hi"))
     assert code == 2
     assert "parent tool run" in capsys.readouterr().err
+
+
+def test_detach_new_agent_root_ignores_inherited_parent_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.procs import read_procs, wait_for_proc
+
+    clean_env(monkeypatch, tmp_path)
+    agent_env(monkeypatch, tmp_path)
+    inherited = reserve_handoff_run(
+        resolve_run_argv(["--", "true"]), owner_kind="proc", owner_id="proc-old"
+    )
+    assert inherited.reserved
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", inherited.run_id)
+
+    assert execute_tool_run(detach_request("--", "printf", "hi")) == 0
+    captured = capsys.readouterr()
+    run_id = next(
+        line.split("sase tool run ")[1].strip().split()[0]
+        for line in captured.out.splitlines()
+        if line.startswith("sase tool run ")
+    )
+    assert tool_run_show(run_id)["run"].get("parent_run_id") is None
+    tagged = read_procs(tag=f"tool-run:{run_id}")
+    assert len(tagged) == 1
+    wait_for_proc(tagged[0].proc_id, timeout=30)
 
 
 def test_detach_unresolvable_starter_is_fail_closed(

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from sase.tool.argv import ResolvedToolArgv
 
 TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
+TOOL_RUN_AGENT_CHILD_ENV = "SASE_TOOL_RUN_AGENT_CHILD"
 TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
 #: Grant channel a recorded child appends per-grant JSONL demand records to.
 TOOL_RUN_DEMAND_ENV = "SASE_TOOL_RUN_DEMAND"
@@ -119,6 +120,8 @@ def child_env(
     continuation_mode: str | None = None,
 ) -> dict[str, str]:
     env = os.environ.copy()
+    # Never let provenance from an earlier wrapper describe this child.
+    env.pop(TOOL_RUN_AGENT_CHILD_ENV, None)
     if resolved.adhoc or not resolved.tool_name:
         env[TOOL_NAME_ENV] = "ad-hoc"
         env[TOOL_PROJECT_ROOT_ENV] = ""
@@ -127,6 +130,11 @@ def child_env(
         env[TOOL_PROJECT_ROOT_ENV] = resolved.cwd or ""
     if recorded and run_id:
         env[TOOL_RUN_ID_ENV] = run_id
+        agent_name = (env.get("SASE_AGENT_NAME") or "").strip()
+        if env.get("SASE_AGENT") and agent_name:
+            from sase.tool.ownership import agent_child_provenance
+
+            env[TOOL_RUN_AGENT_CHILD_ENV] = agent_child_provenance(run_id, agent_name)
         if events_path is not None:
             env[TOOL_RUN_EVENTS_ENV] = str(events_path)
             env[TOOL_RUN_DEMAND_ENV] = str(events_path.parent / DEMAND_FILE_NAME)

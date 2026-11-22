@@ -33,6 +33,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
         "SASE_PROC_ID",
         "SASE_PROC_LOG_PATH",
         "SASE_TOOL_RUN_ID",
+        "SASE_TOOL_RUN_AGENT_CHILD",
         "SASE_TOOL_RUN_EVENTS",
         "SASE_TOOL_RUN_AGENT",
         "SASE_BEAD_ID",
@@ -453,7 +454,20 @@ def test_parent_run_stays_inline(
         resolved, owner_kind="proc", owner_id="proc-parent"
     )
     assert reservation.reserved
-    monkeypatch.setenv("SASE_TOOL_RUN_ID", reservation.run_id)
+    from sase.tool.executor_process import child_env
+
+    child_environment = child_env(
+        recorded=True,
+        run_id=reservation.run_id,
+        events_path=None,
+        resolved=resolved,
+    )
+    for key in list(os.environ):
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.delenv(key, raising=False)
+    for key, value in child_environment.items():
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.setenv(key, value)
     code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
     assert code == 4
     captured = capsys.readouterr()
@@ -463,6 +477,34 @@ def test_parent_run_stays_inline(
     inline_row = next(row for row in rows if row["run_id"] != reservation.run_id)
     assert inline_row.get("launch_mode") != "handoff"
     assert inline_row.get("starter") is None
+
+
+def test_new_agent_root_with_inherited_parent_is_escalation_eligible(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.tool import inline_escalation
+
+    _clean_env(monkeypatch, tmp_path)
+    _agent_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
+    parent = reserve_handoff_run(
+        resolve_run_argv(["--", "true"]),
+        owner_kind="proc",
+        owner_id="proc-inherited",
+    )
+    assert parent.reserved
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", parent.run_id)
+    monkeypatch.setattr(inline_escalation, "_start_and_follow", lambda *a, **k: 73)
+
+    request = _request("--", "true")
+    result = inline_escalation.try_inline_escalation(
+        request,
+        resolved=resolve_run_argv(list(request.words)),
+        continuation_mode=None,
+        compact=False,
+    )
+
+    assert result == 73
 
 
 def test_long_tool_refusal_stays_in_front(

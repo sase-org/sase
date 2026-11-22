@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import os
+import shlex
 import signal
 import subprocess
 import time
@@ -40,6 +41,13 @@ _CHECK_SCRIPT = (
     'while [ ! -e "$2" ] && [ "$i" -lt 1200 ]; do sleep 0.05; i=$((i + 1)); done; '
     'echo "end $$" >> "$1"'
 )
+_NESTED_CHECK_SCRIPT = (
+    'if [ "${SASE_ADMISSION_INNER:-}" = "1" ]; then '
+    + _CHECK_SCRIPT
+    + "; else export SASE_ADMISSION_INNER=1; exec "
+    + shlex.quote(str(SASE))
+    + " tool run check; fi"
+)
 _SCRUBBED_ENV = (
     "SASE_AGENT",
     "SASE_AGENT_NAME",
@@ -49,6 +57,7 @@ _SCRUBBED_ENV = (
     "SASE_PROC_ID",
     "SASE_PROC_LOG_PATH",
     "SASE_TOOL_RUN_ID",
+    "SASE_TOOL_RUN_AGENT_CHILD",
     "SASE_TOOL_RUN_EVENTS",
     "SASE_TOOL_RUN_AGENT",
     "SASE_BEAD_ID",
@@ -67,12 +76,12 @@ class _World:
     logs: Path
     procs: list[subprocess.Popen[bytes]]
 
-    def start(self, label: str, **extra_env: str) -> subprocess.Popen[bytes]:
-        env = dict(self.env)
-        env.update(extra_env)
+    def _spawn(
+        self, label: str, env: dict[str, str], *, tool_name: str = "check"
+    ) -> subprocess.Popen[bytes]:
         out = (self.logs / f"{label}.log").open("wb")
         proc = subprocess.Popen(
-            [str(SASE), "tool", "run", "check"],
+            [str(SASE), "tool", "run", tool_name],
             cwd=self.root,
             env=env,
             stdout=out,
@@ -81,6 +90,42 @@ class _World:
         out.close()
         self.procs.append(proc)
         return proc
+
+    def start(
+        self, label: str, *, tool_name: str = "check", **extra_env: str
+    ) -> subprocess.Popen[bytes]:
+        env = dict(self.env)
+        env.update(extra_env)
+        return self._spawn(label, env, tool_name=tool_name)
+
+    def start_from_agent_launch(
+        self, label: str, *, inherited_run_id: str, agent_name: str
+    ) -> subprocess.Popen[bytes]:
+        """Launch a check with the same ownership scrubs as a new agent."""
+        from sase.agent.launch_spawn import (
+            _remove_inherited_agent_identity_env,
+            _remove_inherited_executor_ownership_env,
+        )
+        from sase.tool.ownership import agent_child_provenance
+
+        env = dict(self.env)
+        # Model the worst inherited case: a live parent id and a matching
+        # marker carried by the parent agent before launch_spawn scrubs them.
+        env.update(
+            SASE_AGENT="1",
+            SASE_AGENT_NAME=agent_name,
+            SASE_TOOL_RUN_ID=inherited_run_id,
+            SASE_TOOL_RUN_AGENT_CHILD=agent_child_provenance(
+                inherited_run_id, agent_name
+            ),
+        )
+        _remove_inherited_agent_identity_env(env)
+        _remove_inherited_executor_ownership_env(env)
+        env["SASE_AGENT"] = "1"
+        env["SASE_AGENT_NAME"] = agent_name
+        assert "SASE_TOOL_RUN_ID" not in env
+        assert "SASE_TOOL_RUN_AGENT_CHILD" not in env
+        return self._spawn(label, env)
 
     def output(self, label: str) -> str:
         return (self.logs / f"{label}.log").read_text(errors="replace")
@@ -97,7 +142,9 @@ def world(
 ) -> Any:  # Iterator[_World]; the factory takes the limit.
     created: list[_World] = []
 
-    def make(limit: int) -> _World:
+    def make(
+        limit: int, *, nested_check: bool = False, max_wait_seconds: int | None = None
+    ) -> _World:
         home = tmp_path / "home"
         home.mkdir(exist_ok=True)
         monkeypatch.setenv("SASE_HOME", str(home))
@@ -109,13 +156,17 @@ def world(
         root = tmp_path / "project"
         (root / ".git").mkdir(parents=True, exist_ok=True)
         (root / "sase").mkdir(exist_ok=True)
+        check_script = _NESTED_CHECK_SCRIPT if nested_check else _CHECK_SCRIPT
+        admission_config: dict[str, Any] = {"max_concurrent": {"check": limit}}
+        if max_wait_seconds is not None:
+            admission_config["max_wait_seconds"] = max_wait_seconds
         config = {
             "tools": {
                 "check": {
                     "argv": [
                         "sh",
                         "-c",
-                        _CHECK_SCRIPT,
+                        check_script,
                         "sh",
                         str(stamps),
                         str(release),
@@ -127,7 +178,7 @@ def world(
                     "fingerprint": {"repos": [], "toolchain": {}},
                 }
             },
-            "tool_runs": {"admission": {"max_concurrent": {"check": limit}}},
+            "tool_runs": {"admission": admission_config},
         }
         (root / "sase" / "sase.yml").write_text(yaml.safe_dump(config), "utf-8")
         monkeypatch.chdir(root)
@@ -396,3 +447,94 @@ def test_handoff_and_monitor_owned_runs_both_queue(
     assert _record(settled)["state"] == "admitted"  # type: ignore[index]
     assert len(_started_children(w)) == 3
     assert _max_overlap(w.stamp_lines()) <= 1
+
+
+def test_nested_agent_check_keeps_parent_and_never_queues(world: Any) -> None:
+    w: _World = world(1, nested_check=True, max_wait_seconds=0)
+    outer = w.start(
+        "nested",
+        SASE_AGENT="1",
+        SASE_AGENT_NAME="fixture-agent",
+        # There is no artifacts directory or agent_meta.json, so an attempted
+        # inline escalation has no usable starter and falls back to foreground.
+        SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS="8",
+    )
+    outer_run = _wait_for(lambda: _wrapper_run(outer.pid), "outer check wrapper")
+    assert outer_run.get("parent_run_id") is None
+    inner_run = _wait_for(
+        lambda: next(
+            (run for run in _runs() if run.get("parent_run_id") == outer_run["run_id"]),
+            None,
+        ),
+        "inner check with a durable parent relationship",
+    )
+    assert _record(inner_run) is None
+    assert len(_started_children(w)) == 1
+
+    w.release.touch()
+    assert outer.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
+    settled_inner = tool_run_show(inner_run["run_id"])["run"]
+    assert settled_inner["state"] == "succeeded"
+    assert _record(settled_inner) is None
+    output = w.output("nested")
+    assert "max_wait_seconds" not in output
+    assert "admission unavailable" not in output
+
+
+@pytest.mark.parametrize("settled_inherited", [False, True], ids=["live", "settled"])
+def test_new_agent_launch_scrubs_inherited_run_before_admission(
+    world: Any, settled_inherited: bool
+) -> None:
+    w: _World = world(1)
+    inherited_run_id: str | None = None
+    completed_children = 0
+    if settled_inherited:
+        historical = w.start("historical")
+        _wait_for(lambda: _started_children(w), "historical check child")
+        historical_run = _wrapper_run(historical.pid)
+        assert historical_run is not None
+        inherited_run_id = str(historical_run["run_id"])
+        w.release.touch()
+        assert historical.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
+        completed_children = 1
+        w.release.unlink()
+
+    blocker = w.start("blocker")
+    _wait_for(
+        lambda: len(_started_children(w)) == completed_children + 1,
+        "the live blocker check child",
+    )
+    blocker_run = _wrapper_run(blocker.pid)
+    assert blocker_run is not None
+    if inherited_run_id is None:
+        inherited_run_id = str(blocker_run["run_id"])
+
+    spawned_agent = w.start_from_agent_launch(
+        "spawned-agent",
+        inherited_run_id=inherited_run_id,
+        agent_name="fixture-agent",
+    )
+    spawned_run = _wait_for(
+        lambda: _wrapper_run(spawned_agent.pid), "spawned agent check wrapper"
+    )
+    waiting = _wait_for(
+        lambda: next(
+            (
+                run
+                for run in _states("waiting")
+                if run.get("wrapper_pid") == spawned_agent.pid
+            ),
+            None,
+        ),
+        "spawned agent waiting behind the live holder",
+    )
+    assert spawned_run.get("parent_run_id") is None
+    assert waiting.get("parent_run_id") is None
+    assert len(_started_children(w)) == completed_children + 1
+
+    w.release.touch()
+    assert blocker.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
+    assert spawned_agent.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
+    settled_agent = tool_run_show(spawned_run["run_id"])["run"]
+    assert settled_agent["state"] == "succeeded"
+    assert _record(settled_agent)["state"] == "admitted"  # type: ignore[index]

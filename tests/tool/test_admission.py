@@ -42,6 +42,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
         "SASE_PROC_ID",
         "SASE_PROC_LOG_PATH",
         "SASE_TOOL_RUN_ID",
+        "SASE_TOOL_RUN_AGENT_CHILD",
         "SASE_TOOL_RUN_EVENTS",
         "SASE_TOOL_RUN_AGENT",
     ):
@@ -256,6 +257,42 @@ def test_agent_with_cleared_inherited_parent_queues_as_a_new_root(
 
     assert result.proceed and result.waited
     assert _record(run_id)["state"] == "admitted"
+
+
+def test_agent_command_child_keeps_its_parent_and_skips_admission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.tool.executor_process import child_env
+    from sase.tool.ownership import resolve_ownership
+
+    _clean_env(monkeypatch, tmp_path)
+    _project(tmp_path, monkeypatch, admission={"max_concurrent": {"check": 1}})
+    parent = _hold_slot()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "fixture-agent")
+
+    child_environment = child_env(
+        recorded=True,
+        run_id=parent,
+        events_path=tmp_path / "parent-events.jsonl",
+        resolved=resolve_run_argv(["check"]),
+    )
+    for key in list(os.environ):
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.delenv(key, raising=False)
+    for key, value in child_environment.items():
+        if key.startswith("SASE_TOOL_"):
+            monkeypatch.setenv(key, value)
+
+    ownership = resolve_ownership(quiet=False)
+    assert ownership.parent_run_id == parent
+    run_id, resolved = _begin(parent_run_id=ownership.parent_run_id)
+    result = _admit(_ctx(run_id, resolved, parent_run_id=ownership.parent_run_id))
+
+    assert result.proceed and not result.waited
+    assert _admission(run_id) is None
+    assert tool_run_show(run_id)["run"]["parent_run_id"] == parent
+    assert capsys.readouterr().err == ""
 
 
 def test_join_worker_takes_no_slot(
