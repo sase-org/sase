@@ -96,6 +96,9 @@ class RunnerRunState:
     running_marker_path: str | None = None
     # Set while a waiting agent holds a bead claim it has not yet promoted.
     held_bead_claim: BeadClaimMarker | None = None
+    # One-shot outcome returned by the lean waiter. The runner consumes it
+    # before dependency admission so a refreshed pass never parks twice.
+    lean_wait_result: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.current_artifacts_dir:

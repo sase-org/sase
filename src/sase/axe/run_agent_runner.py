@@ -21,6 +21,7 @@ import time
 import traceback
 from collections.abc import MutableMapping
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sase.ace.hooks import format_duration
 from sase.artifacts import convert_timestamp_to_artifacts_format, launch_artifacts_dir
@@ -48,6 +49,7 @@ from sase.axe.run_agent_runner_lifecycle import (
 )
 from sase.axe.run_agent_runner_repeat import finalize_repeat_stop
 from sase.axe.run_agent_runner_refresh import (
+    RUNNER_CODE_REFRESHED_ENV,
     refresh_runner_code_after_wait,
     runner_code_identity,
 )
@@ -55,7 +57,15 @@ from sase.axe.run_agent_runner_setup import (
     bump_spawn_telemetry,
     expand_deferred_launch_macros,
 )
-from sase.axe.run_agent_runner_signals import is_user_kill_exit, system_exit_code
+from sase.axe.run_agent_runner_lean_wait import (
+    consume_lean_wait_result,
+    try_handoff_to_lean_waiter,
+)
+from sase.axe.run_agent_runner_signals import (
+    is_user_kill_exit,
+    release_workspace_claim,
+    system_exit_code,
+)
 from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.runner_artifacts import all_steps_hidden
@@ -69,7 +79,12 @@ from sase.axe import runner_auto_restart_doorbell as _runner_doorbell_module  # 
 from sase.axe.runner_auto_restart_doorbell import recovery_requests_silence
 from sase.axe.runner_lifecycle_phase import boot_code_identity
 from sase.axe.runner_reporting import write_error_report
-from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
+from sase.axe.runner_signals import (
+    install_sigterm_handler,
+    killed_at,
+    mark_killed,
+    was_killed,
+)
 from sase.agent._user_kill_intent import has_user_kill_intent
 from sase.agent.launch_swap_retry import (
     arm_code_swap_retry,
@@ -87,6 +102,7 @@ from sase.env_contracts import (
     SASE_LAUNCH_SUBMITTED_AT_ENV,
 )
 from sase.telemetry.metrics import AGENT_KILLS
+from sase.bead.claims import read_bead_claim_marker
 
 snapshot_oom_baseline()
 
@@ -158,10 +174,29 @@ def _wait_for_dependencies_phase(
     bootstrap: RunnerBootstrap,
 ) -> bool:
     """Block on this run's declared dependencies; return whether it blocked."""
-    if not bootstrap.has_dependency_wait:
+    if not bootstrap.has_dependency_wait and state.lean_wait_result is None:
         return False
     info = bootstrap.info
-    return wait_for_dependencies(
+    result = state.lean_wait_result
+    if result is not None and result.get("outcome") != "released":
+        raise ValueError("a killed lean-wait result cannot enter the wait barrier")
+
+    def handoff(mode: str, deadline_epoch: float | None, blocked_since: float) -> bool:
+        return try_handoff_to_lean_waiter(
+            mode,
+            deadline_epoch,
+            blocked_since,
+            artifacts_dir=state.artifacts_dir,
+            artifacts_timestamp=state.artifacts_timestamp,
+            project_name=state.project_name,
+            prompt_file=state.prompt_file,
+            submitted_prompt=state.submitted_prompt,
+            agent_name=state.agent_name,
+            local_macros=info.local_macros,
+            wait_beads=info.wait_beads,
+        )
+
+    blocked = wait_for_dependencies(
         info.wait_names,
         state.artifacts_dir,
         state.cl_name,
@@ -175,7 +210,87 @@ def _wait_for_dependencies_phase(
         duration=info.wait_duration,
         wait_until=info.wait_until,
         wait_for_epics_of=getattr(info, "wait_for_epics_of", None),
+        lean_wait_handoff=handoff,
+        lean_wait_result=result,
     )
+    state.lean_wait_result = None
+    return blocked
+
+
+def _restore_killed_lean_wait_state(
+    state: RunnerRunState,
+    result: dict[str, object],
+) -> None:
+    """Restore durable runner identity and perform ordinary kill cleanup."""
+    from sase.axe.agent_meta import read_live_agent_meta
+    from sase.legacy_xprompt_names import SUBMITTED_PROMPT_FILENAME
+
+    meta = read_live_agent_meta(state.artifacts_dir)
+    state.agent_name = _optional_meta_string(meta, "name")
+    state.agent_model = _optional_meta_string(meta, "model")
+    state.agent_llm_provider = _optional_meta_string(meta, "llm_provider")
+    state.agent_vcs_provider = _optional_meta_string(meta, "vcs_provider")
+    state.agent_hidden = meta.get("hidden") is True
+    state.held_bead_claim = read_bead_claim_marker(state.artifacts_dir)
+    try:
+        prompt = (Path(state.artifacts_dir) / SUBMITTED_PROMPT_FILENAME).read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        prompt = ""
+    state.prompt = prompt
+    state.submitted_prompt = prompt
+
+    killed_at_value = result.get("killed_at")
+    mark_killed(
+        at=(
+            float(killed_at_value)
+            if isinstance(killed_at_value, (int, float))
+            and not isinstance(killed_at_value, bool)
+            else None
+        )
+    )
+    os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None)
+    print("Lean waiter returned to runner (outcome=killed)", flush=True)
+
+    markers_changed = False
+    for filename in ("waiting.json", "ready.json"):
+        try:
+            os.unlink(Path(state.artifacts_dir) / filename)
+            markers_changed = True
+        except OSError:
+            pass
+    if markers_changed:
+        try:
+            update_agent_artifact_index_for_marker_mutation(state.artifacts_dir)
+        except Exception as exc:
+            print(
+                "Warning: Failed to refresh the artifact index after lean-wait "
+                f"kill cleanup: {exc}",
+                file=sys.stderr,
+            )
+
+    try:
+        release_workspace_claim(
+            state.project_file,
+            state.workspace_num,
+            workflow_name=state.workflow_name,
+            cl_name=state.cl_name,
+            is_home_mode=state.is_home_mode,
+            workspace_dir=state.workspace_dir,
+            artifacts_dir=state.artifacts_dir,
+        )
+    except Exception as exc:
+        print(
+            f"Warning: Failed to release the workspace claim after lean-wait kill: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _optional_meta_string(meta: dict[str, object], key: str) -> str | None:
+    """Read a non-empty string from durable agent metadata."""
+    value = meta.get(key)
+    return value if isinstance(value, str) and value else None
 
 
 def _finalize_repeat_stop_slot(
@@ -357,6 +472,9 @@ def main() -> None:
     _defer_start_across_code_swap()
     # Entry-owned: an import-time install replaces SIGTERM in every importer.
     install_sigterm_handler("agent", soft=True)
+    pthread_sigmask = getattr(signal, "pthread_sigmask", None)
+    if callable(pthread_sigmask):
+        pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
     _stamp_host_path_snapshot()
     # The runner's stdout shares one output file with stderr. Line-buffer
     # stdout from the start so the file interleaves both streams in order
@@ -380,6 +498,12 @@ def main() -> None:
 
     try:
         try:
+            lean_wait_result = consume_lean_wait_result(state.artifacts_dir)
+            if lean_wait_result is not None:
+                if lean_wait_result.get("outcome") == "killed" or was_killed():
+                    _restore_killed_lean_wait_state(state, lean_wait_result)
+                    raise SystemExit(128 + signal.SIGTERM)
+                state.lean_wait_result = lean_wait_result
             _run_agent(state)
         except Exception as e:
             artifacts_dir = state.current_artifacts_dir or state.artifacts_dir

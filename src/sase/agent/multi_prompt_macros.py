@@ -111,12 +111,25 @@ def local_macros_for_segment(
     return {name: xp for name, xp in local_macros.items() if name in needed}
 
 
-def serialize_local_macros(macros: dict[str, Macro]) -> str:
+def serialize_local_macros(
+    macros: dict[str, Macro],
+    *,
+    directory: str | os.PathLike[str] | None = None,
+) -> str:
     """Serialize local macros to a temp JSON file.
 
-    Returns the path to the temp file.
+    Returns the path to the temp file. By default the managed handoff tmp
+    directory is used; callers that need the file to outlive that directory's
+    retention horizon can provide a durable directory.
     """
-    from sase.core.paths import get_sase_managed_tmpdir
+    target_directory: str | os.PathLike[str]
+    if directory is None:
+        from sase.core.paths import get_sase_managed_tmpdir
+
+        target_directory = get_sase_managed_tmpdir("handoff")
+    else:
+        target_directory = directory
+        os.makedirs(target_directory, exist_ok=True)
 
     def serialize_macro(xp: Macro) -> dict[str, object]:
         return {
@@ -164,7 +177,7 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
     fd, path = tempfile.mkstemp(
         suffix=".json",
         prefix="sase_local_macros_",
-        dir=get_sase_managed_tmpdir("handoff"),
+        dir=target_directory,
     )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(data, f)

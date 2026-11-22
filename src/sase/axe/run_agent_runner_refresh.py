@@ -45,7 +45,9 @@ identity check and ``os.execv``) but in the refreshed pass's bootstrap, via
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 import os
+import signal
 import sys
 from pathlib import Path
 from typing import Any
@@ -82,6 +84,164 @@ import sase.core.managed_tmp_roots  # noqa: F401
 
 RUNNER_CODE_REFRESHED_ENV = SASE_RUNNER_CODE_REFRESHED_ENV
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
+
+
+@dataclass
+class _PreparedRunnerExecHandoff:
+    """One-shot resources staged for a runner re-exec, with rollback data."""
+
+    prompt_file: Path
+    old_prompt: bytes | None
+    old_local_macros_path: str | None
+    new_local_macros_path: str | None
+    old_planned_name: str | None
+    planned_name_changed: bool
+    old_refreshed: str | None
+
+    def rollback(self) -> None:
+        """Restore every environment and file mutation made during prep."""
+        if self.planned_name_changed:
+            if self.old_planned_name is None:
+                os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
+            else:
+                os.environ[_PLANNED_AGENT_NAME_ENV] = self.old_planned_name
+        if self.new_local_macros_path is not None:
+            restore_local_macros_path(os.environ, self.old_local_macros_path)
+            try:
+                os.unlink(self.new_local_macros_path)
+            except OSError:
+                pass
+        if self.old_refreshed is None:
+            os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None)
+        else:
+            os.environ[RUNNER_CODE_REFRESHED_ENV] = self.old_refreshed
+        try:
+            if self.old_prompt is None:
+                self.prompt_file.unlink()
+            else:
+                self.prompt_file.write_bytes(self.old_prompt)
+        except OSError:
+            pass
+
+
+def prepare_runner_exec_handoff(
+    *,
+    prompt_file: str,
+    submitted_prompt: str,
+    agent_name: str | None = None,
+    artifacts_dir: str | None = None,
+    local_macros: Mapping[str, Any] | None = None,
+    local_macros_directory: str | None = None,
+) -> _PreparedRunnerExecHandoff | None:
+    """Stage prompt, macros, planned name, and refreshed guard for an exec.
+
+    All mutations are reversible until ``execv`` succeeds. ``local_macros_directory``
+    lets a long-lived lean wait keep its macro payload alongside durable run
+    artifacts instead of in the expiring managed-temp handoff area.
+    """
+    prompt_path = Path(prompt_file)
+    try:
+        old_prompt = prompt_path.read_bytes()
+    except FileNotFoundError:
+        old_prompt = None
+    except OSError as exc:
+        print(
+            "Warning: Skipping runner re-exec because the prior prompt file "
+            f"could not be read at {prompt_file}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+    try:
+        prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        prompt_path.write_text(submitted_prompt, encoding="utf-8")
+    except OSError as exc:
+        try:
+            if old_prompt is None:
+                prompt_path.unlink()
+            else:
+                prompt_path.write_bytes(old_prompt)
+        except OSError:
+            pass
+        print(
+            "Warning: Skipping runner re-exec because the temporary prompt "
+            f"could not be restored at {prompt_file}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+    old_local_macros_path = read_local_macros_path(os.environ)
+    new_local_macros_path: str | None = None
+    if local_macros:
+        try:
+            new_local_macros_path = serialize_local_macros(
+                dict(local_macros), directory=local_macros_directory
+            )
+            set_local_macros_path(os.environ, new_local_macros_path)
+        except Exception as exc:
+            if new_local_macros_path is not None:
+                try:
+                    os.unlink(new_local_macros_path)
+                except OSError:
+                    pass
+            restore_local_macros_path(os.environ, old_local_macros_path)
+            try:
+                if old_prompt is None:
+                    prompt_path.unlink()
+                else:
+                    prompt_path.write_bytes(old_prompt)
+            except OSError:
+                pass
+            print(
+                "Warning: Skipping runner re-exec because local macros could "
+                f"not be re-materialized: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return None
+
+    old_planned_name = os.environ.get(_PLANNED_AGENT_NAME_ENV)
+    planned_name_changed = agent_name is not None
+    if agent_name is not None:
+        continuation_planned_name = _validated_continuation_planned_name(
+            agent_name,
+            artifacts_dir,
+        )
+        if continuation_planned_name is not None:
+            os.environ[_PLANNED_AGENT_NAME_ENV] = continuation_planned_name
+        else:
+            os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
+
+    old_refreshed = os.environ.get(RUNNER_CODE_REFRESHED_ENV)
+    os.environ[RUNNER_CODE_REFRESHED_ENV] = "1"
+    return _PreparedRunnerExecHandoff(
+        prompt_file=prompt_path,
+        old_prompt=old_prompt,
+        old_local_macros_path=old_local_macros_path,
+        new_local_macros_path=new_local_macros_path,
+        old_planned_name=old_planned_name,
+        planned_name_changed=planned_name_changed,
+        old_refreshed=old_refreshed,
+    )
+
+
+def execv_with_sigterm_mask(path: str, argv: list[str]) -> None:
+    """Keep SIGTERM pending until the exec'd program installs its handler."""
+    blocker = getattr(signal, "pthread_sigmask", None)
+    if callable(blocker):
+        blocker(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        os.execv(path, argv)
+    except BaseException:
+        if callable(blocker):
+            blocker(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        raise
+    # Real execv does not return. This branch keeps unit-test substitutions
+    # from leaking the temporary signal mask into the test process.
+    if callable(blocker):
+        blocker(signal.SIG_UNBLOCK, {signal.SIGTERM})
 
 
 def _editable_sase_source_root() -> Path | None:
@@ -202,71 +362,24 @@ def refresh_runner_code_after_wait(
     # The refreshed pass re-extracts directives from this file, applying the
     # live ``%auto`` reconcile during its own bootstrap (see
     # ``_load_submitted_prompt``), so the prompt is persisted verbatim here.
-    try:
-        Path(prompt_file).write_text(submitted_prompt, encoding="utf-8")
-    except OSError as exc:
-        print(
-            "Warning: Skipping sase runner code refresh because the temporary "
-            f"prompt file could not be restored at {prompt_file}: {exc}",
-            file=sys.stderr,
-            flush=True,
-        )
-        return
-
-    previous_local_macros = read_local_macros_path(os.environ)
-    new_local_macros_path: str | None = None
-    if local_macros:
-        try:
-            new_local_macros_path = serialize_local_macros(dict(local_macros))
-            set_local_macros_path(os.environ, new_local_macros_path)
-        except Exception as exc:
-            if new_local_macros_path is not None:
-                try:
-                    os.unlink(new_local_macros_path)
-                except OSError:
-                    pass
-                restore_local_macros_path(os.environ, previous_local_macros)
-            print(
-                "Warning: Skipping sase runner code refresh because local "
-                f"macros could not be re-materialized: {exc}",
-                file=sys.stderr,
-                flush=True,
-            )
-            return
-
-    previous_planned_name = os.environ.get(_PLANNED_AGENT_NAME_ENV)
-    planned_name_changed = False
-    continuation_planned_name = _validated_continuation_planned_name(
-        agent_name,
-        artifacts_dir,
+    prepared = prepare_runner_exec_handoff(
+        prompt_file=prompt_file,
+        submitted_prompt=submitted_prompt,
+        agent_name=agent_name,
+        artifacts_dir=artifacts_dir,
+        local_macros=local_macros,
     )
-    if agent_name is not None:
-        planned_name_changed = True
-        if continuation_planned_name is not None:
-            os.environ[_PLANNED_AGENT_NAME_ENV] = continuation_planned_name
-        else:
-            os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
-
-    os.environ[RUNNER_CODE_REFRESHED_ENV] = "1"
+    if prepared is None:
+        return
     try:
-        os.execv(sys.executable, [sys.executable, *sys.argv])
-    except OSError as exc:
-        os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None)
-        if planned_name_changed:
-            if previous_planned_name is None:
-                os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
-            else:
-                os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
-        if new_local_macros_path is not None:
-            restore_local_macros_path(os.environ, previous_local_macros)
+        for stream in (sys.stdout, sys.stderr):
             try:
-                os.unlink(new_local_macros_path)
-            except OSError:
+                stream.flush()
+            except (AttributeError, OSError, ValueError):
                 pass
-        try:
-            os.unlink(prompt_file)
-        except OSError:
-            pass
+        execv_with_sigterm_mask(sys.executable, [sys.executable, *sys.argv])
+    except OSError as exc:
+        prepared.rollback()
         print(
             f"Warning: Failed to refresh sase runner code; continuing: {exc}",
             file=sys.stderr,

@@ -34,38 +34,63 @@ def install_workspace_release_sigterm_handler(
     snapshot_oom_baseline()
 
     def _release_workspace_claim() -> None:
-        if is_home_mode:
-            return
-        fallback_artifacts_dir = None
-        if artifacts_dir_getter is not None:
-            try:
-                fallback_artifacts_dir = artifacts_dir_getter()
-            except Exception:
-                fallback_artifacts_dir = None
-        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
-        if _has_hijack_intent(artifacts_dir):
-            return
-        if _has_staged_handoff(artifacts_dir):
-            return
-        if monitor_handoff_claim_transferred(
+        release_workspace_claim(
             project_file,
             workspace_num,
+            workflow_name=workflow_name,
             cl_name=cl_name,
-        ):
-            return
-        from sase.running_field import release_workspace
-        from sase.workspace_provider.occupant import clear_occupant_record
-
-        release_workspace(
-            project_file,
-            workspace_num,
-            workflow_name,
-            cl_name,
-            expected_pid=os.getpid(),
+            is_home_mode=is_home_mode,
+            workspace_dir=workspace_dir,
+            artifacts_dir_getter=artifacts_dir_getter,
         )
-        clear_occupant_record(workspace_dir)
 
     install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)
+
+
+def release_workspace_claim(
+    project_file: str,
+    workspace_num: int,
+    *,
+    workflow_name: str,
+    cl_name: str,
+    is_home_mode: bool,
+    workspace_dir: str = "",
+    artifacts_dir_getter: Callable[[], str | None] | None = None,
+    artifacts_dir: str | None = None,
+) -> None:
+    """Run the same guarded workspace-claim release as the SIGTERM handler."""
+    if is_home_mode:
+        return
+    fallback_artifacts_dir = artifacts_dir
+    if artifacts_dir_getter is not None:
+        try:
+            fallback_artifacts_dir = artifacts_dir_getter() or fallback_artifacts_dir
+        except Exception:
+            pass
+    resolved_artifacts_dir = (
+        os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
+    )
+    if _has_hijack_intent(resolved_artifacts_dir):
+        return
+    if _has_staged_handoff(resolved_artifacts_dir):
+        return
+    if monitor_handoff_claim_transferred(
+        project_file,
+        workspace_num,
+        cl_name=cl_name,
+    ):
+        return
+    from sase.running_field import release_workspace
+    from sase.workspace_provider.occupant import clear_occupant_record
+
+    release_workspace(
+        project_file,
+        workspace_num,
+        workflow_name,
+        cl_name,
+        expected_pid=os.getpid(),
+    )
+    clear_occupant_record(workspace_dir)
 
 
 def _has_hijack_intent(artifacts_dir: str | None) -> bool:

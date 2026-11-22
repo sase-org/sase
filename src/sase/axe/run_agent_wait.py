@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,8 @@ from sase.core.agent_artifact_index_lifecycle import (
 _WAIT_DEPENDENCY_FALLBACK_INTERVAL = 60.0
 _WAIT_BEAD_HINT_FALLBACK_INTERVAL = 600.0
 _WAIT_READY_POLL_INTERVAL = 0.5
+_WAIT_TIME_POLL_INTERVAL = 2.0
+LEAN_WAIT_HANDOFF_AFTER_SECONDS = 30.0
 
 
 def remaining_until(wait_until: str) -> float:
@@ -73,6 +76,74 @@ def _identity_dep_label(dep: dict[str, Any]) -> str:
     return "artifact dependency"
 
 
+def _remove_wait_markers(artifacts_dir: str) -> None:
+    """Remove both rendezvous markers and refresh the index after mutation."""
+    changed = False
+    for filename in ("waiting.json", "ready.json"):
+        try:
+            os.unlink(os.path.join(artifacts_dir, filename))
+            changed = True
+        except OSError:
+            pass
+    if changed:
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+
+
+def _resume_lean_wait_result(
+    result: Mapping[str, Any],
+    *,
+    artifacts_dir: str,
+    agent_meta: dict[str, Any],
+    has_dependencies: bool,
+    wait_beads: list[str],
+    duration: float | None,
+    wait_until: str | None,
+) -> bool:
+    """Finish a lean wait after the refreshed runner returns from exec."""
+    if result.get("outcome") != "released":
+        raise ValueError("only a released lean-wait result can resume the barrier")
+    source = result.get("release_source")
+    if source not in {"ready_json", "manual", "runner_fallback", "timer"}:
+        raise ValueError("released lean-wait result has an invalid release_source")
+    satisfied_at = result.get("dependencies_satisfied_at")
+    if not isinstance(satisfied_at, (int, float)) or isinstance(satisfied_at, bool):
+        satisfied_at = None
+    released_at = result.get("released_at")
+    if not isinstance(released_at, (int, float)) or isinstance(released_at, bool):
+        released_at = None
+    if wait_beads:
+        # Bead-close times are not observable, even when the lean waiter was
+        # released by a probe rather than wait_checks' ready marker.
+        satisfied_at = None
+
+    post_dependency_wait_until = wait_until
+    if has_dependencies and duration is not None and duration > 0 and not was_killed():
+        base = released_at if released_at is not None else time.time()
+        deadline = datetime.fromtimestamp(base, UTC) + timedelta(seconds=duration)
+        post_dependency_wait_until = deadline.isoformat()
+        set_waiting_until(artifacts_dir, post_dependency_wait_until)
+
+    if has_dependencies and post_dependency_wait_until is not None and not was_killed():
+        remaining = remaining_until(post_dependency_wait_until)
+        if remaining > 0:
+            print(f"Dependencies satisfied, waiting until {post_dependency_wait_until}")
+            while remaining > 0 and not was_killed():
+                time.sleep(min(_WAIT_TIME_POLL_INTERVAL, remaining))
+                remaining = remaining_until(post_dependency_wait_until)
+
+    if not was_killed():
+        record_wait_completed_at(
+            artifacts_dir,
+            agent_meta,
+            wait_release_source=source,
+            wait_dependencies_satisfied_at=satisfied_at,
+            wait_released_at=released_at,
+        )
+    _remove_wait_markers(artifacts_dir)
+    print(f"Lean waiter returned to runner (outcome=released, source={source})")
+    return True
+
+
 def wait_for_dependencies(
     wait_names: list[str],
     artifacts_dir: str,
@@ -88,6 +159,8 @@ def wait_for_dependencies(
     duration: float | None = None,
     wait_until: str | None = None,
     wait_for_epics_of: list[str] | None = None,
+    lean_wait_handoff: Callable[[str, float | None, float], bool] | None = None,
+    lean_wait_result: Mapping[str, Any] | None = None,
 ) -> bool:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
@@ -102,7 +175,30 @@ def wait_for_dependencies(
     killed during the wait.
     """
     mark_lifecycle_phase(artifacts_dir, "waiting")
-    _WAIT_POLL_INTERVAL = 2  # seconds
+
+    wait_identity_deps = list(wait_identity_deps or [])
+    wait_fork_sources = list(wait_fork_sources or [])
+    wait_beads = list(wait_beads or [])
+    wait_hoods = list(wait_hoods or [])
+    wait_for_epics_of = list(wait_for_epics_of or [])
+    has_dependencies = bool(
+        wait_names
+        or wait_identity_deps
+        or wait_fork_sources
+        or wait_beads
+        or wait_hoods
+    )
+
+    if lean_wait_result is not None:
+        return _resume_lean_wait_result(
+            lean_wait_result,
+            artifacts_dir=artifacts_dir,
+            agent_meta=agent_meta,
+            has_dependencies=has_dependencies,
+            wait_beads=wait_beads,
+            duration=duration,
+            wait_until=wait_until,
+        )
 
     # A refreshed runner has already crossed the barrier. This durable fast path
     # also prevents duration and mixed dependency waits from running twice.
@@ -127,18 +223,6 @@ def wait_for_dependencies(
         return False
 
     blocked = False
-    wait_identity_deps = list(wait_identity_deps or [])
-    wait_fork_sources = list(wait_fork_sources or [])
-    wait_beads = list(wait_beads or [])
-    wait_hoods = list(wait_hoods or [])
-    wait_for_epics_of = list(wait_for_epics_of or [])
-    has_dependencies = bool(
-        wait_names
-        or wait_identity_deps
-        or wait_fork_sources
-        or wait_beads
-        or wait_hoods
-    )
     initial_decision = (
         resolve_initial_wait_release(
             wait_names,
@@ -244,6 +328,9 @@ def wait_for_dependencies(
             else None
         )
         next_trim_at = time.monotonic() + IDLE_TRIM_INTERVAL_SECONDS
+        blocked_since = time.time()
+        blocked_since_monotonic = time.monotonic()
+        next_handoff_at = blocked_since_monotonic + LEAN_WAIT_HANDOFF_AFTER_SECONDS
         while not dependencies_resolved:
             if os.path.exists(ready_path):
                 ready_result = read_ready_result(ready_path)
@@ -264,6 +351,10 @@ def wait_for_dependencies(
             if was_killed():
                 break
             now = time.monotonic()
+            if lean_wait_handoff is not None and now >= next_handoff_at:
+                if lean_wait_handoff("dependency", None, blocked_since):
+                    return True
+                next_handoff_at = now + LEAN_WAIT_HANDOFF_AFTER_SECONDS
             if next_fallback_at is not None and now >= next_fallback_at:
                 if next_bead_hint_at is not None and now >= next_bead_hint_at:
                     mark_bead_wait_sync_hint(project_name)
@@ -318,7 +409,7 @@ def wait_for_dependencies(
                     f"{post_dependency_wait_until}"
                 )
                 while remaining > 0 and not was_killed():
-                    sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+                    sleep_time = min(_WAIT_TIME_POLL_INTERVAL, remaining)
                     blocked = True
                     time.sleep(sleep_time)
                     remaining = remaining_until(post_dependency_wait_until)
@@ -333,13 +424,7 @@ def wait_for_dependencies(
             )
 
         # Clean up wait markers.
-        for path in (waiting_path, ready_path):
-            try:
-                os.unlink(path)
-                if path == waiting_path:
-                    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-            except OSError:
-                pass
+        _remove_wait_markers(artifacts_dir)
     elif wait_until is not None:
         # --- Absolute-time-only path (no agent-name dependencies) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
@@ -356,8 +441,16 @@ def wait_for_dependencies(
 
         print(f"Waiting until: {wait_until}")
         remaining = remaining_until(wait_until)
+        blocked_since = time.time()
+        blocked_since_monotonic = time.monotonic()
+        next_handoff_at = blocked_since_monotonic + LEAN_WAIT_HANDOFF_AFTER_SECONDS
         while remaining > 0 and not was_killed():
-            sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+            now = time.monotonic()
+            if lean_wait_handoff is not None and now >= next_handoff_at:
+                if lean_wait_handoff("until", time.time() + remaining, blocked_since):
+                    return True
+                next_handoff_at = now + LEAN_WAIT_HANDOFF_AFTER_SECONDS
+            sleep_time = min(_WAIT_TIME_POLL_INTERVAL, remaining)
             blocked = True
             time.sleep(sleep_time)
             remaining = remaining_until(wait_until)
@@ -368,11 +461,7 @@ def wait_for_dependencies(
             )
 
         # Clean up waiting.json.
-        try:
-            os.unlink(waiting_path)
-            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-        except OSError:
-            pass
+        _remove_wait_markers(artifacts_dir)
     else:
         # --- Duration-only path (no agent-name dependencies) ---
         assert duration is not None
@@ -392,8 +481,22 @@ def wait_for_dependencies(
 
         print(f"Waiting for duration: {duration:.0f}s")
         remaining = duration
+        blocked_since = time.time()
+        blocked_since_monotonic = time.monotonic()
+        next_handoff_at = blocked_since_monotonic + LEAN_WAIT_HANDOFF_AFTER_SECONDS
         while remaining > 0 and not was_killed():
-            sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+            now = time.monotonic()
+            if (
+                lean_wait_handoff is not None
+                and remaining >= LEAN_WAIT_HANDOFF_AFTER_SECONDS
+                and now >= next_handoff_at
+            ):
+                if lean_wait_handoff(
+                    "duration", time.time() + remaining, blocked_since
+                ):
+                    return True
+                next_handoff_at = now + LEAN_WAIT_HANDOFF_AFTER_SECONDS
+            sleep_time = min(_WAIT_TIME_POLL_INTERVAL, remaining)
             blocked = True
             time.sleep(sleep_time)
             remaining -= sleep_time
@@ -404,11 +507,7 @@ def wait_for_dependencies(
             )
 
         # Clean up waiting.json.
-        try:
-            os.unlink(waiting_path)
-            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-        except OSError:
-            pass
+        _remove_wait_markers(artifacts_dir)
 
     if was_killed():
         print("Agent killed while waiting", file=sys.stderr)

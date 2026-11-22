@@ -24,6 +24,12 @@ def killed_at() -> float | None:
     return value if isinstance(value, float) else None
 
 
+def mark_killed(*, at: float | None = None) -> None:
+    """Restore a kill observed by an exec'd waiter into this runner image."""
+    _killed_state["killed"] = True
+    _killed_state["killed_at"] = float(at) if at is not None else time.time()
+
+
 def install_sigterm_handler(
     description: str = "process",
     *,

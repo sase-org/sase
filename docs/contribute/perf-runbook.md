@@ -7,17 +7,31 @@ description:
 
 # `sase tui` Performance Runbook
 
-This runbook explains how to capture and compare performance data for sase's TUI, the
-`sase tui` terminal user interface. It started as the Phase 1 deliverable for the TUI
-performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`), and
-later performance phases still rely on the tracing and benchmark harness described here.
+This runbook documents tracing and benchmark methods developed for the TUI performance
+overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`) and used by later
+phases.
+
+## Lean waiting-runner measurement
+
+Planning baseline (athena, 2026-11-21): blocked runners used 330–355 MB RSS and 0.8–2.4%
+CPU. Measure the lean waiter with three concurrent processes and 15-minute windows; the
+harness prints median/max VmRSS, RssAnon, and PSS, CPU percent, release latency, and
+kill latency. `--json` preserves each result for comparison.
+
+```bash
+tools/lean_wait_harness --heartbeat fresh --minutes 15 --waiters 3 \
+  --json ~/.sase/perf/lean-wait-fresh.json
+tools/lean_wait_harness --heartbeat stale --minutes 15 --waiters 3 \
+  --end-action term --json ~/.sase/perf/lean-wait-stale.json
+```
+
+The harness uses a private temporary `SASE_HOME`, cleans up all waiters, and
+distinguishes fresh steady-state from stale-probe and SIGTERM costs.
 
 ## Athena host-relief baseline
 
-Bead `sase-zn.1` captured this host-pressure baseline on athena on 2026-09-11 while
-investigating prompt-input lag in a long-lived `sase tui` session. Use it as the
-reference point for the later `sase-zn` phases that measure remaining CPU, heap,
-refresh, and scratch pressure.
+Bead `sase-zn.1` recorded athena's 2026-09-11 host-pressure baseline during prompt-input
+lag. Later `sase-zn` phases use it to track CPU, heap, refresh, and scratch pressure.
 
 | signal               | before                                                                                                                            | after host relief                                                                           |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -44,10 +58,9 @@ resource deltas above are the reliable phase-1 baseline.
 
 ## Athena phase-8 verification
 
-Bead `sase-zn.8` remeasured the live athena session on 2026-09-12 at 13:15-13:20 EDT,
-while the host was under real agent load: load average `38.93 / 37.40 / 37.07`, many
-`run_agent_runner.py` processes were active, and pytest workers from several SASE
-workspaces were consuming CPU.
+Bead `sase-zn.8` remeasured athena on 2026-09-12, 13:15–13:20 EDT, under agent and
+pytest load: load average was `38.93 / 37.40 / 37.07`, with many runners and pytest
+workers active.
 
 | signal             | 2026-09-12 verification                                                                                                                                                           |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,14 +74,10 @@ workspaces were consuming CPU.
 | watchdog           | not green: the last 30 minutes contained 17 `tui_hitch` and 5 `tui_pump_hitch` starts, with fresh Agents-tab hitches during the run                                               |
 | key-to-paint       | not re-confirmed green: the live sase's TUI process was not started with `SASE_TUI_PERF=1`; the existing `tui_jk.jsonl` was stale from 2026-09-10 and showed Agents p95 174.06 ms |
 
-The profile is stored outside the repo at
-`~/.sase/perf/athena-verify-sase-zn8-20260912T131736.raw`. `py-spy` reported sampling
-delays and 550 read errors under host load, so use the capture for top-frame attribution
-only. The phase-8 result is therefore mixed: memory pressure, scratch placement,
-main-thread CPU, and the original reconcile/notification hot frames look bounded, but
-the watchdog and key-to-paint evidence do not prove the responsiveness target is green.
-The remaining hitches point at Agents-tab refresh/render work rather than the original
-`sase-zn` hot sites.
+Profile: `~/.sase/perf/athena-verify-sase-zn8-20260912T131736.raw`. Sampling delays and
+550 read errors under load limit it to top-frame attribution. Phase 8 is mixed: memory,
+scratch, CPU, and original hot frames look bounded, but watchdog and key-to-paint
+targets remain unproven. Remaining hitches point to Agents-tab refresh/render work.
 
 ## Agents query load tiering
 

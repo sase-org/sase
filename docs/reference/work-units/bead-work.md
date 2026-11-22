@@ -218,13 +218,17 @@ Once an epic bead exists, the shared launch path:
    releasing dependents merely because its original agent finished; the child epic must
    land and close the parent phase first. A failed or killed phase keeps dependents and
    the land agent parked until its agent name is retried successfully and its bead
-   closes. `xsmall`, `small`, and `medium` phases implement directly with
-   `%model:@xsmall`, `%model:@small`, and `%model:@medium`, respectively. Only `large`
-   and `xlarge` phases append `#plan` after their work reference and use `%model:@large`
-   and `%model:@xlarge`. Each size alias resolves directly to its configured target —
-   there is no intermediate hop through a second alias. A stored phase `model` always
-   wins over the size-derived alias without changing whether the phase receives `#plan`,
-   and a missing size behaves as `small`. The land agent emits `%model:<value>` when the
+   closes. A runner parked on one of these waits hands off to a lean waiter after 30
+   seconds, preserving the visible WAITING row and process identity; it returns to the
+   full runner when the dependency releases or the process is killed.
+   `SASE_RUNNER_LEAN_WAIT=0` keeps the wait in the full runner for diagnosis. `xsmall`,
+   `small`, and `medium` phases implement directly with `%model:@xsmall`,
+   `%model:@small`, and `%model:@medium`, respectively. Only `large` and `xlarge` phases
+   append `#plan` after their work reference and use `%model:@large` and
+   `%model:@xlarge`. Each size alias resolves directly to its configured target — there
+   is no intermediate hop through a second alias. A stored phase `model` always wins
+   over the size-derived alias without changing whether the phase receives `#plan`, and
+   a missing size behaves as `small`. The land agent emits `%model:<value>` when the
    epic plan bead has a stored `model`. Without one, it emits the configured
    `llm_provider.epic_lander_model` (shipped default `@large`) below
    `bead.big_epic_phase_threshold` and the configured

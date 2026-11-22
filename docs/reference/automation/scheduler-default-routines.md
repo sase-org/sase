@@ -284,8 +284,12 @@ ten-minute cadence as an outage backstop, in case a job failure ever leaves the
 tick-driven hint unconsumed. Setting `sdd.bead_refresh.mode: off` disables these hint
 carve-outs.
 
-A parked runner with agent dependencies stats `ready.json` every 0.5 seconds; the
-60-second direct-resolution fallback cadence is unchanged.
+A runner blocked on a dependency, duration, or until wait hands off to the stdlib-light
+lean waiter after 30 seconds on POSIX. Dependency waits still poll `ready.json` every
+0.5 seconds; probes run every 60 seconds when the `wait_checks` heartbeat is missing or
+stale, and every 1,800 seconds while it is fresh. A probe outage therefore cannot strand
+a runner. Post-dependency time floors and runner-slot queues stay in the full runner.
+Set `SASE_RUNNER_LEAN_WAIT=0` to keep waits in the full runner for diagnosis.
 
 The `agent_waits` and `sidecar_sync` routines activate on the scheduler restart
 `sase update` performs. The moved jobs start with fresh per-routine state: the
