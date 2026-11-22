@@ -372,7 +372,7 @@ For a custom handoff, pass `--turn` to `sase gate create`. `--next` supplies the
 answered-branch prompt; `--next-fork session|turn|none`, `--next-model`, and repeatable
 `--next-output none|results|tail|file` control its context, model, and output channels.
 Retired shell spellings still work (`--shell`, `--shell-status`, `--shell-stop-status`,
-`--next-fork shell`; spec `"shell"` / `"fork": "shell"` /
+the `--next-fork` value `shell`; spec `"shell"`, a `"fork"` key of `"shell"`,
 `"continuation_mode": "gate_shell"`; `--shell` on `sase proc list|run`, replaced by
 `--name`). Use turn spellings for gates. Stored records still read. Supplying both names
 for the same option is an error. See
