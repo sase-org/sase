@@ -30,6 +30,7 @@ class EventAutoRefreshAxeSurfaceMixin:
         # are ignored for the same reason. Also skip while the startup
         # axe init has started but not finished, so a tick cannot set
         # ``_axe_first_load_done`` and skip auto-start.
+        axe_file_opens = 0
         startup_axe_busy = getattr(
             self, "_startup_axe_surface_started", False
         ) and not getattr(self, "_axe_first_load_done", False)

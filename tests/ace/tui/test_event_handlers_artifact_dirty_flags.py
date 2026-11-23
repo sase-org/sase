@@ -89,7 +89,7 @@ async def test_known_marker_change_schedules_artifact_delta_not_broad_load() -> 
     assert app._dirty_agent_artifact_fallback_reason is None
 
 
-def test_project_refresh_pulses_mark_agents_dirty_without_delta_fallback() -> None:
+def test_project_refresh_pulses_do_not_mark_agents_dirty() -> None:
     app = _FakeApp(watcher_active=True)
     artifacts_root = Path.home() / ".sase" / "projects" / "sase" / "artifacts"
     project_pulse = artifacts_root / ".ace_refresh_pulse"
@@ -97,11 +97,74 @@ def test_project_refresh_pulses_mark_agents_dirty_without_delta_fallback() -> No
 
     app._on_artifact_change((project_pulse, legacy_month_pulse))
 
-    assert app._dirty_agents is True
+    assert app._dirty_agents is False
     assert app._dirty_agent_artifact_dirs == ()
     assert app._dirty_agent_artifact_fallback_reason is None
     assert app._dirty_patches is False
     assert app.refresh_calls == []
+
+
+@pytest.mark.asyncio
+async def test_project_refresh_pulses_do_not_schedule_agents_load() -> None:
+    app = _FakeApp(watcher_active=True)
+    artifacts_root = Path.home() / ".sase" / "projects" / "sase" / "artifacts"
+    project_pulse = artifacts_root / ".ace_refresh_pulse"
+    legacy_month_pulse = artifacts_root / "ace-run" / "202605" / ".ace_refresh_pulse"
+
+    app._on_artifact_change((project_pulse, legacy_month_pulse))
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.delta_requests == []
+    assert app._dirty_agents is False
+
+
+def test_agent_directory_refresh_pulse_marks_agents_dirty_with_exact_dir() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "202605"
+        / "28"
+        / "20260528120000"
+        / ".ace_refresh_pulse"
+    )
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (path.parent,)
+    assert app._dirty_agent_artifact_fallback_reason is None
+    assert app.refresh_calls == []
+
+
+@pytest.mark.asyncio
+async def test_agent_directory_refresh_pulse_schedules_exact_delta() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "202605"
+        / "28"
+        / "20260528120000"
+        / ".ace_refresh_pulse"
+    )
+
+    app._on_artifact_change((path,))
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["delta:watcher:1"]
+    assert app.delta_requests == [("watcher", (path.parent,))]
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
 
 
 @pytest.mark.asyncio

@@ -73,6 +73,19 @@ def test_fast_path_fallback_reasons() -> None:
         cache_query_matches=False,
     )
     assert classify_exact_delta_fast_path(mismatch).reason == "query-mismatch"
+    claims = incomplete_tier1_snapshot(
+        live,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=False,
+            running_claims_scanned=True,
+        ),
+    )
+    assert classify_exact_delta_fast_path(claims).reason == "running-claims-scan"
+    empty = incomplete_tier1_snapshot([], load_state=delta_load_state())
+    assert classify_exact_delta_fast_path(empty).reason == "empty-cache"
 
 
 def test_scalar_vs_relationship_keys_documented() -> None:
@@ -112,7 +125,8 @@ def test_delta_isolated_copy_detaches_mutable_containers() -> None:
     assert [agent_state(agent) for agent in live] == before_states
 
 
-def test_incomplete_history_snapshot_falls_back() -> None:
+def test_incomplete_history_snapshot_is_eligible() -> None:
+    """Artifact-delta patches never treat missing incoming rows as deletions."""
     live = hundred_row_cache()
     snapshot = incomplete_tier1_snapshot(
         live,
@@ -120,5 +134,5 @@ def test_incomplete_history_snapshot_falls_back() -> None:
         agents_seen_complete_history=False,
     )
     decision = classify_exact_delta_fast_path(snapshot)
-    assert not decision.eligible
-    assert decision.reason == "no-complete-watermark"
+    assert decision.eligible
+    assert decision.reason == "exact-delta"

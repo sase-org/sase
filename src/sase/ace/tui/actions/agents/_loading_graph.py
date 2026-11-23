@@ -14,7 +14,7 @@ of them.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence, Set as AbstractSet
 from dataclasses import dataclass, fields, replace
 
 from ...models._agent_graph import (
@@ -36,11 +36,24 @@ __all__ = [
     "adopt_prepared_apply_data",
     "classify_cached_graph_needs",
     "classify_exact_delta_fast_path",
+    "exact_delta_consumed_projection_unchanged",
     "own_exact_delta_snapshot_fast",
     "own_prepared_apply_snapshot",
     "own_required_apply_snapshot",
     "share_back_boundary_fast",
 ]
+
+#: Disk-consumed liveness/claim fields that stay ``compare=False`` on ``Agent``
+#: but must still block an unchanged-delta skip. Carry-over-only fields such as
+#: ``live_file_change_hint`` stay excluded so in-memory hints do not force a
+#: whole-roster prepare.
+_DELTA_CONSUMED_ALWAYS = frozenset(
+    {
+        "from_running_claim",
+        "runner_is_live",
+        "pid_liveness_unverified",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -186,12 +199,14 @@ def own_prepared_apply_snapshot(
 class ExactDeltaFastPath:
     """Eligibility of the conservative exact-artifact-delta fast path.
 
-    *eligible* is True only for Tier-1 ``artifact_delta`` patch merges over a
-    complete-history watermark with a matching committed query. Every other
-    load (full/authoritative replacements, repair-recommended deltas,
-    bounded-prefix window changes, running-claim scans, unreadable query
-    state) keeps the existing deep-detach safe path and records *reason* as
-    its explicit trace fallback.
+    *eligible* is True for Tier-1 ``artifact_delta`` patch merges over a
+    nonempty cached roster with a matching committed query. A complete-history
+    watermark is not required: missing incoming rows are not deletions, which
+    is already the merge contract for artifact deltas. Every other load
+    (full/authoritative replacements, repair-recommended deltas, bounded-prefix
+    window changes, running-claim scans, unreadable query state) keeps the
+    existing deep-detach safe path and records *reason* as its explicit trace
+    fallback.
     """
 
     eligible: bool
@@ -210,7 +225,8 @@ def classify_exact_delta_fast_path(
     replacement), so the same predicates as
     :func:`_merge_patches_cached_history` gate it, plus artifact-delta
     specificity and repair/query guards that would otherwise broaden the
-    write set beyond the isolated copies.
+    write set beyond the isolated copies. Isolation still copies every
+    mutated row; it never aliases the live UI graph.
     """
     load_state = snapshot.load_state
     if load_state is None:
@@ -223,8 +239,6 @@ def classify_exact_delta_fast_path(
         return ExactDeltaFastPath(eligible=False, reason="repair-recommended")
     if load_state.bounded_prefix:
         return ExactDeltaFastPath(eligible=False, reason="bounded-prefix")
-    if not snapshot.agents_seen_complete_history:
-        return ExactDeltaFastPath(eligible=False, reason="no-complete-watermark")
     if not snapshot.cache_query_matches:
         return ExactDeltaFastPath(eligible=False, reason="query-mismatch")
     if bool(getattr(load_state, "running_claims_scanned", False)):
@@ -232,6 +246,50 @@ def classify_exact_delta_fast_path(
     if not snapshot.cached_agents_with_children:
         return ExactDeltaFastPath(eligible=False, reason="empty-cache")
     return ExactDeltaFastPath(eligible=True, reason="exact-delta")
+
+
+def exact_delta_consumed_projection_unchanged(
+    incoming: Sequence[Agent],
+    cached: Sequence[Agent],
+    *,
+    deleted_artifact_dirs: AbstractSet[str] | None = None,
+) -> bool:
+    """Return whether an exact delta's consumed rows already match *cached*.
+
+    Empty incoming and deleted dirs cannot prove equivalence: a bounded miss
+    is not a deletion, but a declared deletion must still apply. New
+    identities always apply. In-memory carry-over fields such as live hints
+    do not count as a consumed change.
+    """
+    if deleted_artifact_dirs:
+        return False
+    if not incoming:
+        return False
+    cached_by_identity = {agent.identity: agent for agent in cached}
+    for agent in incoming:
+        live = cached_by_identity.get(agent.identity)
+        if live is None or not _consumed_delta_fields_match(agent, live):
+            return False
+    return True
+
+
+def _consumed_delta_fields_match(incoming: Agent, cached: Agent) -> bool:
+    """Compare disk-consumed fields, ignoring carry-over-only in-memory state."""
+    for field in fields(Agent):
+        if field.name in AGENT_RELINK_FIELDS:
+            continue
+        if field.compare is False and field.name not in _DELTA_CONSUMED_ALWAYS:
+            continue
+        incoming_value = getattr(incoming, field.name)
+        cached_value = getattr(cached, field.name)
+        if incoming_value is cached_value:
+            continue
+        try:
+            if incoming_value != cached_value:
+                return False
+        except Exception:  # noqa: BLE001 - an incomparable field cannot skip.
+            return False
+    return True
 
 
 def own_exact_delta_snapshot_fast(

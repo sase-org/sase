@@ -87,6 +87,29 @@ def test_fast_path_uses_no_deep_copies_for_small_delta(
     assert len(published) >= len(live) - 1
 
 
+def test_fast_path_without_complete_watermark_uses_no_deep_copies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live = hundred_row_cache()
+    counts = counting_deep_copy_spy(monkeypatch)
+    snapshot = replace(
+        annotated_snapshot(live),
+        agents_seen_complete_history=False,
+    )
+    target = live[10]
+    incoming = replace_status(target, "FAILED")
+    boundary = prepare_loaded_agents_worker_boundary(
+        [incoming], [], set(), False, snapshot
+    )
+    assert counts["rows"] == 0
+    shared = share_back_boundary_fast(boundary, snapshot)
+    published = shared.fold.unfiltered_agents  # type: ignore[union-attr]
+    live_ids = {id(agent) for agent in live}
+    retained_new = sum(1 for agent in published if id(agent) not in live_ids)
+    assert retained_new <= 8
+    assert len(published) >= len(live) - 1
+
+
 def test_exact_delta_deletion_equivalence() -> None:
     live = hundred_row_cache()
     snapshot = annotated_snapshot(live)

@@ -11,11 +11,12 @@ from tests.test_agents_tab_delta_copy_fast_path_eligibility import (
     test_fast_path_fallback_reasons,
     test_scalar_vs_relationship_keys_documented,
     test_delta_isolated_copy_detaches_mutable_containers,
-    test_incomplete_history_snapshot_falls_back,
+    test_incomplete_history_snapshot_is_eligible,
 )
 from tests.test_agents_tab_delta_copy_fast_path_preparation import (
     test_scalar_delta_equivalence_fast_vs_fallback,
     test_fast_path_uses_no_deep_copies_for_small_delta,
+    test_fast_path_without_complete_watermark_uses_no_deep_copies,
     test_exact_delta_deletion_equivalence,
     test_child_add_remove_equivalence,
 )
@@ -45,8 +46,9 @@ __all__ = (
     "test_fast_path_eligible_for_artifact_delta_patch",
     "test_fast_path_fallback_reasons",
     "test_fast_path_uses_no_deep_copies_for_small_delta",
+    "test_fast_path_without_complete_watermark_uses_no_deep_copies",
     "test_fleet_rows_stay_owned_and_shared",
-    "test_incomplete_history_snapshot_falls_back",
+    "test_incomplete_history_snapshot_is_eligible",
     "test_named_proc_rows_keep_aliases_consistent",
     "test_scalar_delta_equivalence_fast_vs_fallback",
     "test_scalar_vs_relationship_keys_documented",

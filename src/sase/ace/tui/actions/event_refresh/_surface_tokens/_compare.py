@@ -102,10 +102,11 @@ def agents_token_reload_kind(
 ) -> str:
     """Return ``skip`` or ``load`` for an Agents token pair.
 
-    Index-only metadata churn is not a roster change. With a watcher the
-    exact artifact-dir path is already queued; without one the poll
-    fallback still loads. Pulse, artifacts-dir, and membership parts stay
-    load signals.
+    Index-only metadata churn is not a roster change. Project-level refresh
+    pulses carry no exact row: with a watcher, agent-dir pulses and markers
+    are already queued as exact deltas, so a pulse-only (or index+pulse)
+    token is not a broad-load signal. Without a watcher the poll fallback
+    still loads. Artifacts-dir and membership parts stay load signals.
     """
     if current is None or last is None:
         return "load"
@@ -115,7 +116,7 @@ def agents_token_reload_kind(
     if not changed:
         return "skip"
     kinds = {kind for _path, kind in changed}
-    if kinds <= {"index"}:
+    if kinds <= {"index", "pulse"}:
         return "skip" if watcher_active else "load"
     return "load"
 

@@ -297,6 +297,47 @@ def test_agents_index_only_reload_kind_depends_on_watcher(tmp_path: Path) -> Non
     assert kinds <= {"index"}
 
 
+def test_agents_pulse_only_reload_kind_depends_on_watcher(tmp_path: Path) -> None:
+    projects = tmp_path / "projects"
+    pulse = projects / "demo" / "artifacts" / _PULSE
+    _write(pulse, "1")
+    first = _agents_token(projects)
+    _write(pulse, "22")
+    os.utime(pulse, ns=(1, 2))
+    second = _agents_token(projects)
+    assert first != second
+    assert agents_token_reload_kind(second, first, watcher_active=True) == "skip"
+    assert agents_token_reload_kind(second, first, watcher_active=False) == "load"
+    kinds = {kind for _path, kind in _surface_token_changed_entries(second, first)}
+    assert kinds <= {"pulse"}
+
+
+def test_agents_index_and_pulse_reload_kind_depends_on_watcher(tmp_path: Path) -> None:
+    projects = tmp_path / "projects"
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    pulse = projects / "demo" / "artifacts" / _PULSE
+    _write(pulse, "1")
+    _write(index_path, "before")
+    roots = SurfaceTokenRoots(
+        projects_root=projects,
+        axe_root=projects / ".unused-axe",
+        notifications_path=projects / ".unused-notifications.jsonl",
+        procs_path=projects / ".unused-procs.jsonl",
+        agent_index_path=index_path,
+    )
+    first = probe_surface_tokens(roots).agents
+    _write(pulse, "22")
+    os.utime(pulse, ns=(1, 2))
+    _write(index_path, "after")
+    os.utime(index_path, ns=(3, 4))
+    second = probe_surface_tokens(roots).agents
+    assert first != second
+    assert agents_token_reload_kind(second, first, watcher_active=True) == "skip"
+    assert agents_token_reload_kind(second, first, watcher_active=False) == "load"
+    kinds = {kind for _path, kind in _surface_token_changed_entries(second, first)}
+    assert kinds <= {"index", "pulse"}
+
+
 def test_lumberjack_status_change_is_visible(tmp_path: Path) -> None:
     axe = tmp_path / "axe"
     status = axe / "lumberjacks" / "hooks" / "status.json"

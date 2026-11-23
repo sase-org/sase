@@ -9,7 +9,10 @@ import time
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._artifact_delta import EventArtifactDeltaMixin
-from ._artifact_paths import artifact_path_affects_agents
+from ._artifact_paths import (
+    artifact_path_affects_agents,
+    artifact_path_is_project_refresh_pulse,
+)
 from ._constants import PROMPT_INPUT_DEFER_SECONDS, _LIVE_REPLY_ARTIFACT_NAMES
 from ._sdd_paths import cached_sdd_beads_dir
 from ...util.trace import is_enabled as tui_trace_enabled, trace_event
@@ -220,6 +223,12 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
                 targets.add("artifacts")
                 continue
             if "artifacts" in parts:
+                if artifact_path_is_project_refresh_pulse(path):
+                    # Project pulses carry no exact row. Agent-dir pulses still
+                    # map to exact deltas below; this path must not flip
+                    # ``_dirty_agents`` into a broad load.
+                    ignored_artifact_path = True
+                    continue
                 if artifact_path_affects_agents(path):
                     targets.add("agents")
                 else:

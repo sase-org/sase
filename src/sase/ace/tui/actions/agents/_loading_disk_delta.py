@@ -17,6 +17,7 @@ from ._loading_compute import (
 from ._loading_graph import (
     ExactDeltaFastPath,
     classify_exact_delta_fast_path,
+    exact_delta_consumed_projection_unchanged,
     share_back_boundary_fast,
 )
 from ._loading_compute_types import PreparedApplyBoundary, PreparedApplySnapshot
@@ -169,6 +170,39 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             worker_snapshot,
             capacity_generation=capacity_generation,
         )
+
+        deleted_dirs = set(load_result.load_state.deleted_artifact_dirs)
+        if deleted_artifact_dirs:
+            deleted_dirs.update(
+                str(Path(path).expanduser()) for path in deleted_artifact_dirs
+            )
+        if exact_delta_consumed_projection_unchanged(
+            all_agents,
+            worker_snapshot.cached_agents_with_children,
+            deleted_artifact_dirs=deleted_dirs,
+        ):
+            from ...util.trace import tui_trace
+
+            with tui_trace(
+                "agents.exact_delta_prep_unchanged",
+                incoming=len(all_agents),
+                cached=len(worker_snapshot.cached_agents_with_children),
+                source=source,
+            ):
+                pass
+            record_agents_refresh_trace(
+                self,
+                stage="delta_prep_unchanged",
+                source=source,
+                data_cost=data_cost,
+                agents=len(all_agents),
+                dismissed=len(dismissed_from_loader),
+            )
+            schedule_hints = getattr(self, "_schedule_live_hint_refresh", None)
+            if callable(schedule_hints):
+                schedule_hints(source=source)
+            self._schedule_monitor_reconcile(source=source)
+            return True
 
         prep_start = time.perf_counter()
         boundary = await asyncio.to_thread(

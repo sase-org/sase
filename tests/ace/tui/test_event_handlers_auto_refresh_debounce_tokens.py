@@ -478,7 +478,7 @@ async def test_agents_index_only_loads_without_watcher() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("field", ["pulse", "artifacts", "membership"])
+@pytest.mark.parametrize("field", ["artifacts", "membership"])
 async def test_agents_non_index_drift_loads_with_watcher(field: str) -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "agents"
@@ -488,6 +488,55 @@ async def test_agents_non_index_drift_loads_with_watcher(field: str) -> None:
     await app._run_auto_refresh()
 
     assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_agents_pulse_only_skips_with_watcher() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    previous = app._last_completed_surface_tokens["agents"]
+    bumped: list[str] = []
+    app._bump_agents_capacity_generation = lambda: bumped.append("capacity")
+    app._probed_surface_tokens = _axe_kinded_snapshot(pulse=8)
+
+    await app._run_auto_refresh()
+
+    assert "agents" not in app.refresh_calls
+    assert bumped == []
+    assert app._last_completed_surface_tokens["agents"] == previous
+
+
+@pytest.mark.asyncio
+async def test_agents_pulse_only_loads_without_watcher() -> None:
+    app = _FakeApp(watcher_active=False)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    bumped: list[str] = []
+    app._bump_agents_capacity_generation = lambda: bumped.append("capacity")
+    app._probed_surface_tokens = _axe_kinded_snapshot(pulse=8)
+
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+    assert bumped == ["capacity"]
+    assert app._last_completed_surface_tokens["agents"] == (
+        app._probed_surface_tokens.agents
+    )
+
+
+@pytest.mark.asyncio
+async def test_agents_index_and_pulse_skip_with_watcher() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    _seed_kinded(app, _axe_kinded_snapshot())
+    previous = app._last_completed_surface_tokens["agents"]
+    app._probed_surface_tokens = _axe_kinded_snapshot(index=4, pulse=8)
+
+    await app._run_auto_refresh()
+
+    assert "agents" not in app.refresh_calls
+    assert app._last_completed_surface_tokens["agents"] == previous
 
 
 @pytest.mark.asyncio
