@@ -40,6 +40,7 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
             if self._axe_collected_data_is_noop(data):
                 extra["apply_skipped"] = True
                 self._axe_last_apply_skipped = True
+                self._refresh_axe_header_caches(data)
                 return
             extra["apply_skipped"] = False
             self._apply_axe_status_data(data)

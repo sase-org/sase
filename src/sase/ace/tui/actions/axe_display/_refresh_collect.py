@@ -86,13 +86,40 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
 
         Heartbeat fields (uptime, last-tick counters, spawn samples,
         service ``generated_at``) are excluded so a successful bounded
-        read can skip rebuild/repaint.
+        read can skip rebuild/repaint. Header-only collects (Services tab
+        not visible and no sanity reconcile) compare only the
+        header-consumed fields: routine ``cycles_run`` / ``last_cycle``
+        timestamps and decaying spawn rates advance on every routine
+        cycle, but nothing off the Services tab renders them, so they
+        must not defeat the skip. Full collects keep comparing every
+        consumed detail.
         """
         if not getattr(self, "_axe_first_load_done", False):
             return False
-        return _axe_consumer_projection_from_data(
+        if data.include_full_snapshots:
+            return _axe_consumer_projection_from_data(
+                data
+            ) == _axe_consumer_projection_from_app(self)
+        return _axe_header_projection_from_data(
             data
-        ) == _axe_consumer_projection_from_app(self)
+        ) == _axe_header_projection_from_app(self)
+
+    def _refresh_axe_header_caches(self, data: AxeCollectedData) -> None:
+        """Refresh cheap status/metric caches after a skipped header tick.
+
+        A header noop skips item rebuilds, footer pushes, and display
+        refreshes, but the per-lumberjack status/metric maps stay current
+        so a Services-tab entry paints fresh data and the next full
+        compare measures against the latest disk state. Memory stores
+        only; no widget work.
+        """
+        self._axe_lumberjack_statuses = data.lumberjack_statuses
+        self._axe_lumberjack_metrics = data.lumberjack_metrics
+        for name, jack in getattr(self, "_axe_lumberjack_snapshots", {}).items():
+            if name in data.lumberjack_statuses:
+                jack.status = data.lumberjack_statuses[name]
+            if name in data.lumberjack_metrics:
+                jack.metrics = data.lumberjack_metrics[name]
 
     def _apply_axe_status_data(self, data: AxeCollectedData) -> None:
         """Apply collected axe status data to app state and refresh widgets."""
@@ -385,6 +412,47 @@ def _axe_consumer_projection_from_app(app: Any) -> tuple[object, ...]:
     )
 
 
+def _axe_header_projection_from_data(data: AxeCollectedData) -> tuple[object, ...]:
+    """Header-consumed axe fields from a collector payload.
+
+    Covers every surface the header-only consumer updates: the running
+    flag, routine roster and origins, bgcmd slots, service transitions,
+    and degradation. Per-routine progress counters (``cycles_run`` /
+    ``last_cycle`` timestamps, decaying spawn rates) are Services-tab
+    details; liveness signals (pid, status, error counts) stay so a
+    restart, stop, or error transition still applies off-tab on the
+    next tick.
+    """
+    return (
+        data.axe_running,
+        tuple(data.lumberjack_names),
+        _origin_projection(data.routine_origins),
+        _header_status_projection(data.lumberjack_statuses),
+        _header_metrics_projection(data.lumberjack_metrics),
+        _bgcmd_projection(data.bgcmd_slots),
+        _service_projection(data.service_status, data.service_status_error),
+        None if data.degraded_status is None else data.degraded_status.message,
+    )
+
+
+def _axe_header_projection_from_app(app: Any) -> tuple[object, ...]:
+    """Header-consumed axe fields currently applied to *app*."""
+    degraded = getattr(app, "_axe_degraded_status", None)
+    return (
+        bool(getattr(app, "axe_running", False)),
+        tuple(getattr(app, "_axe_lumberjack_names", ()) or ()),
+        _origin_projection(getattr(app, "_axe_routine_origins", {}) or {}),
+        _header_status_projection(getattr(app, "_axe_lumberjack_statuses", {}) or {}),
+        _header_metrics_projection(getattr(app, "_axe_lumberjack_metrics", {}) or {}),
+        _bgcmd_projection(getattr(app, "_bgcmd_slots", ()) or ()),
+        _service_projection(
+            getattr(app, "_service_status", None),
+            getattr(app, "_service_status_error", None),
+        ),
+        None if degraded is None else getattr(degraded, "message", str(degraded)),
+    )
+
+
 def _origin_projection(origins: object) -> tuple[tuple[str, str, str], ...]:
     if not isinstance(origins, dict):
         return ()
@@ -418,6 +486,52 @@ def _status_projection(statuses: object) -> tuple[object, ...]:
                 getattr(status, "errors_encountered", None),
             )
         )
+    return tuple(items)
+
+
+def _header_status_projection(statuses: object) -> tuple[object, ...]:
+    """Liveness subset of :func:`_status_projection` for header compares.
+
+    Keeps pid, status string, and error counts so restarts, stops, and
+    error transitions still apply off-tab. Drops ``cycles_run`` and
+    ``last_cycle``: they advance on every routine cycle (roughly every
+    auto-refresh tick on an ordinary host) and are only rendered on the
+    Services tab, where full compares still see them.
+    """
+    if not isinstance(statuses, dict):
+        return ()
+    items: list[object] = []
+    for name, status in sorted(statuses.items()):
+        if status is None:
+            items.append((name, None))
+            continue
+        items.append(
+            (
+                name,
+                getattr(status, "pid", None),
+                getattr(status, "status", None),
+                getattr(status, "errors_encountered", None),
+            )
+        )
+    return tuple(items)
+
+
+def _header_metrics_projection(metrics: object) -> tuple[object, ...]:
+    """Error-signal subset of :func:`_metrics_projection` for header compares.
+
+    Drops ``cycles_run``, ``chops_executed``, and the wall-clock-decayed
+    ``spawn_rate_per_minute``: all three move on routine heartbeats with
+    no off-tab consumer. Error counts stay so a newly erroring routine
+    still applies off-tab on the next tick.
+    """
+    if not isinstance(metrics, dict):
+        return ()
+    items: list[object] = []
+    for name, metric in sorted(metrics.items()):
+        if metric is None:
+            items.append((name, None))
+            continue
+        items.append((name, getattr(metric, "errors_encountered", None)))
     return tuple(items)
 
 
