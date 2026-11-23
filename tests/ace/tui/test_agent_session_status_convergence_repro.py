@@ -124,6 +124,13 @@ class _PreparedApplyHarness(AgentLoadingApplyMixin):
     def _agents_token_reload_kind(self, snapshot: SurfaceTokenSnapshot | None) -> str:
         return EventAutoRefreshMixin._agents_token_reload_kind(self, snapshot)
 
+    def _surface_token_consumer_drifted(
+        self, snapshot: SurfaceTokenSnapshot | None, surface: str
+    ) -> bool:
+        return EventAutoRefreshMixin._surface_token_consumer_drifted(
+            self, snapshot, surface
+        )
+
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

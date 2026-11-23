@@ -10,6 +10,7 @@ from ._timestamps import (
     normalize_to_14_digit,
 )
 from .agent import Agent, AgentType
+from .agent_status import HIJACK_SETTLED_STATUSES
 
 # Workflow name prefixes for axe-spawned agents (normalized: dashes → underscores)
 _AXE_WORKFLOW_PREFIXES = ["axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor("]
@@ -22,13 +23,9 @@ _DONE_AXE_PREFIXES = ["mentor_"]
 _PLAIN_AXE_WORKFLOWS = {"fix_hook", "crs", "mentor", "summarize_hook"}
 _PLAIN_AXE_PREFIXES = ("mentor_",)
 
-#: done.json hijack settlement labels. A SIGTERM'd occupant leaves
-#: ``workflow_state.json`` as FAILED (dead PID), so these must win over
-#: that inferred failure or the TUI row reads FAILED instead of HIJACKED.
-_HIJACK_SETTLED_STATUSES = frozenset({"HIJACKED", "ESCALATED", "CONTINUED"})
 _CLAIM_TERMINAL_STATUSES = (
     frozenset({"DONE", "FAILED", "FAILED (RETRIED)", "STOPPED"})
-    | _HIJACK_SETTLED_STATUSES
+    | HIJACK_SETTLED_STATUSES
 )
 
 
@@ -486,9 +483,9 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             # done.json instead. Hijack settlement is also terminal: the
             # occupant is SIGTERM'd, so a dead-PID FAILED workflow row must
             # not overwrite HIJACKED / ESCALATED / CONTINUED from done.json.
-            if agent.status in _HIJACK_SETTLED_STATUSES:
+            if agent.status in HIJACK_SETTLED_STATUSES:
                 matched.status = agent.status
-            elif matched.status in _HIJACK_SETTLED_STATUSES:
+            elif matched.status in HIJACK_SETTLED_STATUSES:
                 pass
             elif agent.status in _CLAIM_TERMINAL_STATUSES:
                 matched.status = agent.status

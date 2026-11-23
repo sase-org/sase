@@ -12,6 +12,10 @@ STOPPED_COLOR = "#8787AF"
 # pinned Fira Code visual snapshots; Ø preserves the slashed-circle identity.
 STOPPED_GLYPH = "Ø"
 HIJACKED_STATUS = "HIJACKED"
+#: done.json hijack settlement labels. A SIGTERM'd occupant leaves
+#: ``workflow_state.json`` as FAILED (dead PID), so these must win over
+#: that inferred failure or the TUI row reads FAILED instead of HIJACKED.
+HIJACK_SETTLED_STATUSES = frozenset({"HIJACKED", "ESCALATED", "CONTINUED"})
 HIJACKED_COLOR = "#FF5FAF"
 HIJACKED_GLYPH = "⏏"
 # ESCALATED / CONTINUED settle a resolved hijack in the same grey as a

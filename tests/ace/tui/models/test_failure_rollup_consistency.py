@@ -241,6 +241,25 @@ def _healthy_running() -> tuple[Agent, tuple[Agent, ...]]:
     return root, ()
 
 
+@pytest.mark.parametrize("status", ("HIJACKED", "ESCALATED", "CONTINUED"))
+def test_hijack_settled_root_keeps_status_over_failed_child(status: str) -> None:
+    root = _session_root(status=status)
+    failed = _row(
+        "research.8--after-hijack",
+        "FAILED",
+        minute=1,
+        parent=root.raw_suffix,
+        role="attempt",
+        bucket="Failed",
+    )
+    root.runtime_children = [failed]
+
+    apply_status_overrides([root, failed])
+
+    assert root.status == status
+    assert agent_status_bucket(root) != "Failed"
+
+
 @pytest.mark.parametrize(
     ("build_case", "expected_bucket", "expected_wave_state"),
     (

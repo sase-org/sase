@@ -41,6 +41,18 @@ _FFPROBE_PAYLOAD = {
 }
 
 
+@pytest.fixture
+def fake_video_executables(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_which = shutil.which
+
+    def which(name: str) -> str | None:
+        if name in {"ffmpeg", "ffprobe"}:
+            return f"/usr/bin/{name}"
+        return real_which(name)
+
+    monkeypatch.setattr(shutil, "which", which)
+
+
 def _write_clip(
     tmp_path: Path, name: str = "clip.mp4", *, body: bytes = b"video"
 ) -> Path:
@@ -191,7 +203,9 @@ def test_content_digest_memoizes_per_open_and_invalidates_on_change(
 
 
 def test_extract_frame_caches_and_reports_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_video_executables: None,
 ) -> None:
     video = _write_clip(tmp_path)
     cache = tmp_path / "cache"
@@ -362,7 +376,9 @@ class _FakeProc:
         return self.returncode
 
 
-def test_scrub_track_cancel_kills_process(tmp_path: Path) -> None:
+def test_scrub_track_cancel_kills_process(
+    tmp_path: Path, fake_video_executables: None
+) -> None:
     cache = tmp_path / "cache"
     cache.mkdir()
     seen: list[list[str]] = []
@@ -433,7 +449,9 @@ def test_scrub_track_reuses_completed_cache(tmp_path: Path) -> None:
     assert reuse.nearest(100.0) == track.track_dir / "frame-0010.png"
 
 
-def test_scrub_track_failed_process_reports_error(tmp_path: Path) -> None:
+def test_scrub_track_failed_process_reports_error(
+    tmp_path: Path, fake_video_executables: None
+) -> None:
     cache = tmp_path / "cache"
     cache.mkdir()
 
@@ -458,7 +476,9 @@ def test_scrub_track_failed_process_reports_error(tmp_path: Path) -> None:
 
 
 def test_metadata_service_caches_payload(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_video_executables: None,
 ) -> None:
     from sase.ace.tui.graphics._viewer_video_media import VideoMetadata
 
@@ -486,7 +506,9 @@ def test_metadata_service_caches_payload(
 
 
 def test_metadata_service_live_fallback_without_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_video_executables: None,
 ) -> None:
     video = _write_clip(tmp_path)
     monkeypatch.setattr(subprocess, "run", _ok_run_factory([]))

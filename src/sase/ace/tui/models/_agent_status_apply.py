@@ -35,6 +35,7 @@ from ._agent_status_agent_session import (
 )
 from ._agent_status_roles import agent_session_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
+from .agent_status import HIJACK_SETTLED_STATUSES
 from .agent_session_members import (
     agent_row_is_in_flight,
     monitor_row_lane_bucket,
@@ -556,7 +557,8 @@ def apply_status_overrides(
         newest = max(newest_pool, key=child_launch_time)
         newest_bucket = agent_status_bucket(newest)
         newest_is_failure_frontier = (
-            newest_bucket == "Failed"
+            parent.status not in HIJACK_SETTLED_STATUSES
+            and newest_bucket == "Failed"
             and newest.retried_as_timestamp is None
             and not row_is_not_adopted_handoff(newest)
         )

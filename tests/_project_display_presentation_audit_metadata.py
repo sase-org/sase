@@ -33,7 +33,7 @@ _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/dismissed_agents_bundles.py",
     "src/sase/ace/tui/actions/event_refresh/_auto_refresh_surfaces.py",
     "src/sase/agents/_wait_live_rows.py",
-    "src/sase/axe/lumberjack.py",
+    "src/sase/axe/_lumberjack_tick.py",
 )
 _PROJECT_METADATA_LOADER_NAMES = {
     "list_project_records",
@@ -103,7 +103,7 @@ _ALLOWED_METADATA_LOADERS = {
         "refresh_project_display_snapshot",
     ): "Wait live rows revalidate once per poll iteration.",
     (
-        "src/sase/axe/lumberjack.py",
+        "src/sase/axe/_lumberjack_tick.py",
         "_run_tick",
         "refresh_project_display_snapshot",
     ): "Lumberjack revalidates once per cycle, not per log line.",
