@@ -51,6 +51,7 @@ class _EpicFollowProgressCache:
             EpicProgressCacheKey,
             tuple[float, _EpicFollowProgress | None],
         ] = OrderedDict()
+        self._fingerprints: dict[str, str] = {}
         self._lock = RLock()
 
     def get(self, key: EpicProgressCacheKey) -> _EpicFollowProgress | None | object:
@@ -101,6 +102,22 @@ class _EpicFollowProgressCache:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._fingerprints.clear()
+
+    def fingerprint_for(self, project: str) -> str | None:
+        """Return the store token seen at the last successful project warm."""
+        with self._lock:
+            return self._fingerprints.get(project)
+
+    def set_fingerprint(self, project: str, fingerprint: str | None) -> None:
+        """Record the store token for *project*; ``None`` clears it to fail open."""
+        with self._lock:
+            if fingerprint is None:
+                self._fingerprints.pop(project, None)
+            else:
+                self._fingerprints[project] = fingerprint
+                while len(self._fingerprints) > self._max_entries:
+                    self._fingerprints.pop(next(iter(self._fingerprints)))
 
 
 _EPIC_FOLLOW_PROGRESS_CACHE = _EpicFollowProgressCache(max_entries=_CACHE_MAX_ENTRIES)
@@ -139,6 +156,39 @@ def _follow_progress_project_key(agent: Any, wait_agent: Any) -> str | None:
         return None
     project_key = Path(str(project_file)).parent.name
     return project_key or None
+
+
+def _follow_progress_project_fingerprint(project_key: str) -> str | None:
+    """Return a stat-only store token for *project_key* without reading rows.
+
+    Returns ``"MISSING"`` when the canonical store is absent (a stable known
+    state until the store appears), ``None`` when the token cannot be proven
+    (fail open to the legacy store read), or the store token otherwise. Must
+    only be called off the Textual event loop.
+    """
+    try:
+        from sase.bead.store_locator import canonical_beads_dir_for_project
+    except Exception:
+        return None
+    try:
+        beads_dir = canonical_beads_dir_for_project(project_key)
+    except Exception:
+        return None
+    if beads_dir is None:
+        return "MISSING"
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        return None
+    if fingerprint is not None:
+        return fingerprint.token
+    try:
+        stat = (beads_dir / "issues.jsonl").stat()
+    except OSError:
+        return None
+    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def cached_epic_follow_progress_snapshot(
@@ -299,8 +349,36 @@ def warm_epic_follow_progress(
                 epic_id,
                 None,
             )
+    from sase.ace.tui.models.agent_wait_beads import (
+        WAIT_BEAD_STATUS_CACHE_MISS,
+    )
+
     for project_key, epics_by_id in project_epics.items():
         epic_ids = list(epics_by_id)
+        if telemetry is not None:
+            telemetry["follow_progress_fingerprint_probes"] = (
+                telemetry.get("follow_progress_fingerprint_probes", 0) + 1
+            )
+        current_fingerprint = _follow_progress_project_fingerprint(project_key)
+        last_fingerprint = _EPIC_FOLLOW_PROGRESS_CACHE.fingerprint_for(project_key)
+        if current_fingerprint is not None and current_fingerprint == last_fingerprint:
+            cold_ids = [
+                epic_id
+                for epic_id in epic_ids
+                if _EPIC_FOLLOW_PROGRESS_CACHE.get((project_key, epic_id))
+                is WAIT_BEAD_STATUS_CACHE_MISS
+            ]
+            for epic_id in epic_ids:
+                if epic_id in cold_ids:
+                    continue
+                value = _EPIC_FOLLOW_PROGRESS_CACHE.get((project_key, epic_id))
+                _EPIC_FOLLOW_PROGRESS_CACHE.set(
+                    (project_key, epic_id),
+                    value if isinstance(value, _EpicFollowProgress) else None,
+                )
+            epic_ids = cold_ids
+            if not epic_ids:
+                continue
         if telemetry is not None:
             telemetry["follow_progress_heavy_resolutions"] = (
                 telemetry.get("follow_progress_heavy_resolutions", 0) + 1
@@ -312,6 +390,10 @@ def warm_epic_follow_progress(
         for epic_id in epic_ids:
             _EPIC_FOLLOW_PROGRESS_CACHE.set(
                 (project_key, epic_id), resolved.get(epic_id)
+            )
+        if current_fingerprint is not None:
+            _EPIC_FOLLOW_PROGRESS_CACHE.set_fingerprint(
+                project_key, current_fingerprint
             )
     changed: set[Any] = set()
     for agent in agent_list:
@@ -332,7 +414,6 @@ def warm_epic_follow_progress(
         if current != previous:
             changed.add(identity)
     if telemetry is not None:
-        telemetry["follow_progress_fingerprint_probes"] = 0
         telemetry["follow_progress_changed_outcomes"] = len(changed)
         telemetry["follow_progress_unchanged_outcomes"] = max(
             0, len(agent_list) - len(changed)

@@ -242,10 +242,10 @@ def resolve_bead_display(
         lookup_session=lookup_session,
     )
     _BEAD_DISPLAY_CACHE.set(key, display)
-    if isinstance(display, str):
-        _BEAD_DISPLAY_CACHE.set_fingerprint(key, _bead_display_fingerprint(agent))
-    else:
-        _BEAD_DISPLAY_CACHE.set_fingerprint(key, None)
+    # Record the store token for confirmed and unconfirmed results alike so
+    # TTL revalidation can skip the heavy lookup when the store is unchanged;
+    # an unprovable token clears the fingerprint to fail open to a full lookup.
+    _BEAD_DISPLAY_CACHE.set_fingerprint(key, _bead_display_fingerprint(agent))
     return display
 
 
@@ -282,7 +282,11 @@ def warm_confirmed_bead_displays(
             if key not in resolved_by_key:
                 previous = _BEAD_DISPLAY_CACHE.get(key)
                 previous_by_key[key] = previous
-                if isinstance(previous, str):
+                # A missing cache entry is always resolved: it has never been
+                # checked. A checked entry — confirmed or not — revalidates
+                # against the stat-only store token first so an unchanged
+                # store refreshes the TTL without a bead-store lookup.
+                if previous is None or isinstance(previous, str):
                     if telemetry is not None:
                         telemetry["bead_display_fingerprint_probes"] = (
                             telemetry.get("bead_display_fingerprint_probes", 0) + 1
@@ -304,12 +308,8 @@ def warm_confirmed_bead_displays(
                     telemetry["bead_display_heavy_resolutions"] = (
                         telemetry.get("bead_display_heavy_resolutions", 0) + 1
                     )
+                # ``resolve_bead_display`` records the fresh store token.
                 resolved_by_key[key] = resolved
-                if isinstance(resolved, str):
-                    current_fingerprint = _bead_display_fingerprint(agent)
-                    _BEAD_DISPLAY_CACHE.set_fingerprint(key, current_fingerprint)
-                else:
-                    _BEAD_DISPLAY_CACHE.set_fingerprint(key, None)
             previous_confirmed = isinstance(previous_by_key[key], str)
             current_confirmed = resolved_by_key[key] is not None
             if previous_confirmed != current_confirmed:
