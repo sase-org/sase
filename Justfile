@@ -65,6 +65,18 @@ default:
 _venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
 
+# Ensure the application venv can import the installed sase distribution and
+# PyYAML. `just fix` runs docs-gen and sync-footprint-catalog on every commit;
+# depending on `_setup` would fetch sase-core and may rebuild sase_core_rs.
+# Probe first so a provisioned checkout stays offline. The probe uses
+# `python -I` because the repo-root `sase/` directory is a namespace package
+# and an un-isolated `import sase` succeeds even when the venv is empty.
+_setup-app-import: _venv
+    @if ! "{{ venv_bin }}/python" -I -c "import importlib.metadata as m; m.distribution('sase'); import yaml" >/dev/null 2>&1; then \
+        printf "[setup] App venv is missing sase; running full _setup.\n"; \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _setup; \
+    fi
+
 # Bootstrap the narrow formatter venv used by `just fix`, formatting checks,
 # generated Markdown rendering, and keep-sorted. This intentionally does not
 # install sase, plugins, or the Rust extension.
@@ -592,7 +604,7 @@ fmt-docs: _setup-format-tools _setup-prettier
     {{ format_venv_bin }}/python tools/render_docs --format-only
 
 # Render generated docs whose sources import the sase package.
-docs-gen: _venv
+docs-gen: _setup-app-import
     @printf "\n---------- Rendering sase-backed docs... ----------\n"
     {{ venv_bin }}/python tools/render_docs --sase-only
 
@@ -615,16 +627,16 @@ fmt-docs-check: _setup-format-tools _setup-prettier
     {{ format_venv_bin }}/python tools/render_docs --format-only --check
 
 # Check generated docs whose sources import the sase package.
-docs-gen-check: _venv
+docs-gen-check: _setup-app-import
     @printf "\n---------- Checking sase-backed docs... ----------\n"
     {{ venv_bin }}/python tools/render_docs --sase-only --check
 
 # Regenerate the checked-in Footprint catalog from every sase registry.
-sync-footprint-catalog: _venv
+sync-footprint-catalog: _setup-app-import
     {{ venv_bin }}/python tools/sync_footprint_catalog --write
 
 # Check the Footprint catalog matches the registries (CI mode, no writes).
-sync-footprint-catalog-check: _venv
+sync-footprint-catalog-check: _setup-app-import
     {{ venv_bin }}/python tools/sync_footprint_catalog --check
 
 # Check the bundled size-alias policy from models.yml (CI mode, no writes).

@@ -352,6 +352,7 @@ def _materialize_external_repo(target: _ExternalRepoTarget) -> str:
 def _clone_external_project(source_dir: str, temp_dir: Path) -> None:
     """Clone a registered project's primary checkout into a staging path."""
 
+    from sase._linked_repo_workspaces import refresh_clean_linked_checkout
     from sase.workspace_provider.utils import ensure_git_clone_at
 
     try:
@@ -362,6 +363,7 @@ def _clone_external_project(source_dir: str, temp_dir: Path) -> None:
         raise ExternalRepoOpenError(
             f"Unable to clone external project from {source_dir}: {exc}"
         ) from exc
+    refresh_clean_linked_checkout(str(temp_dir))
 
 
 def _clone_provider_external(provider_ref: ExternalRepoRef, temp_dir: Path) -> None:

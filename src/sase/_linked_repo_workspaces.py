@@ -254,11 +254,13 @@ def materialize_linked_repo_workspace(
 def refresh_clean_linked_checkout(checkout_dir: str) -> str | None:
     """Fetch origin and fast-forward a clean checkout that is strictly behind.
 
-    Existing auto-clone workspaces and ``sase repo open`` reuse a valid clone
-    without updating HEAD, so a clean ``master``/``main`` can sit behind
-    ``origin`` while ``just install-venv`` rebuilds from that stale source. This
-    only fast-forwards; dirty, detached, diverged, or fetch/merge failures
-    leave the tree unchanged.
+    Linked-repo workspace clones, sidecar auto-sync, and newly created
+    external project clones use this helper after ``ensure_git_clone_at``.
+    Existing auto-clone workspaces and a valid ``sase repo open`` reopen reuse
+    the checkout without updating HEAD, so a clean ``master``/``main`` can sit
+    behind ``origin`` while ``just install-venv`` rebuilds from that stale
+    source. This only fast-forwards; dirty, detached, diverged, or
+    fetch/merge failures leave the tree unchanged.
     """
 
     from sase.version._git import (

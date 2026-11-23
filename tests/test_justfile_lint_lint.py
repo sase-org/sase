@@ -134,6 +134,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
 
     _install_executable(
         tmp_path / ".venv/bin/python",
+        'if [ "$1" = "-I" ]; then exit 0; fi\n'
         'if [ "$1" = "tools/render_docs" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'if [ "$1" = "tools/sync_footprint_catalog" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',

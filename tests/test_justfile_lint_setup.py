@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,6 +19,14 @@ from tests._justfile_lint_helpers import (
 pytestmark = pytest.mark.contract
 
 
+_SASE_BACKED_FIX_RECIPES = (
+    "docs-gen",
+    "docs-gen-check",
+    "sync-footprint-catalog",
+    "sync-footprint-catalog-check",
+)
+
+
 def _install_spy_python(root: Path) -> None:
     python = root / ".venv/bin/python"
     python.parent.mkdir(parents=True)
@@ -25,6 +35,86 @@ def _install_spy_python(root: Path) -> None:
         encoding="utf-8",
     )
     python.chmod(0o755)
+
+
+def _install_probe_spy_python(root: Path) -> None:
+    python = root / ".venv/bin/python"
+    python.parent.mkdir(parents=True)
+    python.write_text(
+        "#!/bin/sh\n"
+        'printf \'%s\\n\' "$@" >> "$JUST_SPY_FILE"\n'
+        'for arg in "$@"; do\n'
+        '  if [ "$arg" = "-I" ]; then\n'
+        '    exit "${JUST_PROBE_EXIT:-0}"\n'
+        "  fi\n"
+        "done\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+
+
+@pytest.mark.parametrize("recipe", _SASE_BACKED_FIX_RECIPES)
+def test_sase_backed_fix_recipes_probe_then_delegate_to_setup(recipe: str) -> None:
+    output = dry_run(recipe)
+
+    assert "-I -c" in output
+    assert "importlib.metadata" in output
+    assert "m.distribution('sase')" in output
+    assert "import yaml" in output
+    assert "--set venv_dir" in output
+    assert "--set sase_core_dir" in output
+    assert " _setup" in output
+
+
+@pytest.mark.parametrize("probe_succeeds", [False, True])
+def test_setup_app_import_delegates_to_setup_only_when_probe_fails(
+    tmp_path: Path, probe_succeeds: bool
+) -> None:
+    copy_justfile(tmp_path)
+    _install_probe_spy_python(tmp_path)
+    probe_log = tmp_path / "python-called"
+    setup_log = tmp_path / "just-setup"
+    spy_bin = tmp_path / "bin"
+    spy_bin.mkdir()
+    (spy_bin / "just").write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$JUST_SETUP_SPY"\nexit 0\n',
+        encoding="utf-8",
+    )
+    (spy_bin / "just").chmod(0o755)
+    just_bin = shutil.which("just")
+    assert just_bin is not None
+
+    result = subprocess.run(
+        [
+            just_bin,
+            "--justfile",
+            str(tmp_path / "Justfile"),
+            "--set",
+            "venv_dir",
+            ".venv",
+            "_setup-app-import",
+        ],
+        cwd=tmp_path,
+        env=clean_sase_core_env()
+        | {
+            "JUST_SPY_FILE": str(probe_log),
+            "JUST_SETUP_SPY": str(setup_log),
+            "JUST_PROBE_EXIT": "0" if probe_succeeds else "1",
+            "PATH": f"{spy_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "-I" in probe_log.read_text(encoding="utf-8")
+    if probe_succeeds:
+        assert "[setup] App venv is missing sase" not in result.stdout
+        assert not setup_log.exists()
+    else:
+        assert "[setup] App venv is missing sase; running full _setup." in result.stdout
+        assert "_setup" in setup_log.read_text(encoding="utf-8")
 
 
 def test_setup_is_fatal_on_the_core_version_behind_bit() -> None:

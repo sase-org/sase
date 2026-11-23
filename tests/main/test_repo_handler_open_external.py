@@ -21,6 +21,23 @@ from tests.main.repo_handler_helpers import (
 )
 
 
+def _git(args: list[str], cwd: Path) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _configure_git_identity(repo: Path) -> None:
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True)
+
+
 def test_repo_open_registered_project_clones_locally_and_reopens_without_cleaning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -89,12 +106,20 @@ def test_repo_open_registered_project_clones_locally_and_reopens_without_cleanin
 
     dirty = expected / "keep-me.txt"
     dirty.write_text("agent work\n", encoding="utf-8")
+    opened_head = _git(["rev-parse", "HEAD"], expected)
+    (source / "README.md").write_text("advanced\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-qm", "advance origin"], cwd=source, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "HEAD"], cwd=source, check=True)
+    advanced_head = _git(["rev-parse", "HEAD"], source)
+    assert advanced_head != opened_head
     with pytest.raises(SystemExit) as second_exit:
         handle_repo_command(args)
 
     assert second_exit.value.code == 0
     assert capsys.readouterr().out == f"{expected}\n"
     assert dirty.read_text(encoding="utf-8") == "agent work\n"
+    assert _git(["rev-parse", "HEAD"], expected) == opened_head
     exclude_lines = exclude.read_text(encoding="utf-8").splitlines()
     assert exclude_lines.count(".sase/") == 1
     assert exclude_lines.count("/sase/repos/") == 1
@@ -104,6 +129,82 @@ def test_repo_open_registered_project_clones_locally_and_reopens_without_cleanin
     events = read_repo_open_events(project="demo")
     assert [event.repo_kind for event in events] == ["external", "external"]
     assert [event.repo for event in events] == ["other", "other"]
+
+
+def test_repo_open_registered_project_fast_forwards_new_clone_to_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    state = tmp_path / "state"
+    artifacts = tmp_path / "artifacts"
+    monkeypatch.setenv("SASE_HOME", str(state))
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    monkeypatch.setenv("SASE_AGENT_NAME", "phase-two")
+
+    host_ctx = project_context(tmp_path)
+    source = tmp_path / "other-primary"
+    init_git_repo(source)
+    origin = tmp_path / "other-origin.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin)],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "push", "-q", "-u", "origin", "HEAD"], cwd=source, check=True
+    )
+    stale_head = _git(["rev-parse", "HEAD"], source)
+
+    pusher = tmp_path / "pusher"
+    subprocess.run(["git", "clone", "-q", str(origin), str(pusher)], check=True)
+    _configure_git_identity(pusher)
+    (pusher / "README.md").write_text("origin tip\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=pusher, check=True)
+    subprocess.run(["git", "commit", "-qm", "advance origin"], cwd=pusher, check=True)
+    subprocess.run(["git", "push", "-q"], cwd=pusher, check=True)
+    origin_tip = _git(["rev-parse", "HEAD"], pusher)
+    assert origin_tip != stale_head
+    assert _git(["rev-parse", "HEAD"], source) == stale_head
+
+    registered_project = project_record("other", source)
+    inventory = RepoInventory((repo_record(tmp_path, name="demo", kind="primary"),))
+    monkeypatch.setattr(
+        "sase.main.workspace_handler._resolve_project_context",
+        lambda _project: host_ctx,
+    )
+    monkeypatch.setattr(
+        "sase.main.workspace_handler._resolve_checkout_path",
+        lambda _ctx, _workspace, *, materialize: host_ctx.primary_workspace_dir,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler.collect_repo_inventory",
+        lambda **_kwargs: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_open_external.list_project_records",
+        lambda *_args, **_kwargs: [registered_project],
+    )
+
+    args = create_parser().parse_args(
+        ["repo", "open", "other", "-p", "demo", "-r", "port fix", "-w", "0"]
+    )
+    with pytest.raises(SystemExit) as first_exit:
+        handle_repo_command(args)
+
+    assert first_exit.value.code == 0
+    expected = (
+        Path(host_ctx.primary_workspace_dir)
+        / "sase"
+        / "repos"
+        / "external"
+        / "projects"
+        / "other"
+    )
+    assert capsys.readouterr().out == f"{expected}\n"
+    assert _git(["rev-parse", "HEAD"], expected) == origin_tip
+    assert _git(["rev-parse", "HEAD"], source) == stale_head
 
 
 def test_repo_open_provider_ref_is_atomic_audited_and_idempotent(
