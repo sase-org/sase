@@ -232,10 +232,11 @@ def test_catalog_getters_never_stop_start_or_join_watcher(tmp_path: Path) -> Non
 
     import pytest
 
-    from sase.ace.tui.util.fs_watcher import ArtifactWatcher, _libc
+    from sase.ace.tui.util._fs_watcher_common import load_libc
+    from sase.ace.tui.util.fs_watcher import ArtifactWatcher
     from tests.ace.tui._prompt_key_io_probes import prompt_key_io_probe
 
-    if not sys.platform.startswith("linux") or _libc() is None:
+    if not sys.platform.startswith("linux") or load_libc() is None:
         pytest.skip("inotify is Linux-only and not available in this environment")
 
     class GetterApp(StartupWatchersMixin, StartupPromptCatalogMixin):

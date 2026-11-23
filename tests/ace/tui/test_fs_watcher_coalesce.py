@@ -13,16 +13,18 @@ import pytest
 from sase.ace.tui.actions.event_refresh._artifact_paths import (
     artifact_watch_path_is_relevant,
 )
+from sase.ace.tui.util._fs_watcher_common import (
+    IN_CREATE,
+    IN_ISDIR,
+    IN_MODIFY,
+    IN_Q_OVERFLOW,
+    is_ignored_watch_name,
+)
 from sase.ace.tui.util.fs_watcher import (
     DEFAULT_COALESCE_S,
     DEFAULT_DISPATCH_DEADLINE_S,
     PIPE_IDLE_FALLBACK_S,
     ArtifactWatcher,
-    _IN_CREATE,
-    _IN_ISDIR,
-    _IN_MODIFY,
-    _IN_Q_OVERFLOW,
-    _is_ignored_watch_name,
 )
 from tests.ace.tui._fs_watcher_helpers import LINUX_ONLY, schedule_inline, wait
 
@@ -89,15 +91,15 @@ def _detached_watcher(
 
 
 def test_ignored_watch_names_cover_editor_and_sidecar_noise() -> None:
-    assert _is_ignored_watch_name(".foo.swp")
-    assert _is_ignored_watch_name("foo.pyo")
-    assert _is_ignored_watch_name("beads.db-wal")
-    assert _is_ignored_watch_name("__pycache__")
-    assert _is_ignored_watch_name(".git")
-    assert _is_ignored_watch_name("file.txt~")
-    assert not _is_ignored_watch_name("agent_meta.json")
-    assert not _is_ignored_watch_name("live_reply.md")
-    assert not _is_ignored_watch_name("")
+    assert is_ignored_watch_name(".foo.swp")
+    assert is_ignored_watch_name("foo.pyo")
+    assert is_ignored_watch_name("beads.db-wal")
+    assert is_ignored_watch_name("__pycache__")
+    assert is_ignored_watch_name(".git")
+    assert is_ignored_watch_name("file.txt~")
+    assert not is_ignored_watch_name("agent_meta.json")
+    assert not is_ignored_watch_name("live_reply.md")
+    assert not is_ignored_watch_name("")
 
 
 def test_idle_select_blocks_when_self_pipe_available(tmp_path: Path) -> None:
@@ -178,8 +180,8 @@ def test_collect_ignored_only_burst_returns_nothing(tmp_path: Path) -> None:
     watcher, _changed = _detached_watcher(
         agent_dir, is_relevant=artifact_watch_path_is_relevant
     )
-    data = _pack_event(1, _IN_MODIFY, ".foo.swp") + _pack_event(
-        1, _IN_MODIFY, "output.log"
+    data = _pack_event(1, IN_MODIFY, ".foo.swp") + _pack_event(
+        1, IN_MODIFY, "output.log"
     )
     assert watcher._collect_relevant_events(data) == set()  # noqa: SLF001
     stats = watcher.stats()
@@ -197,10 +199,10 @@ def test_collect_mixed_noise_keeps_real_path(tmp_path: Path) -> None:
     )
     watcher._watch_paths_by_wd[1] = agent_dir  # noqa: SLF001
     data = (
-        _pack_event(1, _IN_MODIFY, "output.log")
-        + _pack_event(1, _IN_MODIFY, ".x.swp")
-        + _pack_event(1, _IN_MODIFY, "agent_meta.json")
-        + _pack_event(1, _IN_MODIFY, "live_reply.md")
+        _pack_event(1, IN_MODIFY, "output.log")
+        + _pack_event(1, IN_MODIFY, ".x.swp")
+        + _pack_event(1, IN_MODIFY, "agent_meta.json")
+        + _pack_event(1, IN_MODIFY, "live_reply.md")
     )
     paths = watcher._collect_relevant_events(data)  # noqa: SLF001
     assert agent_dir / "agent_meta.json" in paths
@@ -211,7 +213,7 @@ def test_collect_mixed_noise_keeps_real_path(tmp_path: Path) -> None:
 
 def test_overflow_without_paths_fails_open_to_watch_roots(tmp_path: Path) -> None:
     watcher, changed = _detached_watcher(tmp_path, clock=_Clock())
-    data = _pack_event(-1, _IN_Q_OVERFLOW)
+    data = _pack_event(-1, IN_Q_OVERFLOW)
     paths = watcher._collect_relevant_events(data)  # noqa: SLF001
     assert tmp_path in paths
     watcher._note_relevant_paths(paths)  # noqa: SLF001
@@ -222,7 +224,7 @@ def test_overflow_without_paths_fails_open_to_watch_roots(tmp_path: Path) -> Non
 
 def test_directory_create_stays_relevant_for_watch_growth(tmp_path: Path) -> None:
     watcher, _changed = _detached_watcher(tmp_path)
-    data = _pack_event(1, _IN_CREATE | _IN_ISDIR, "20260828120000")
+    data = _pack_event(1, IN_CREATE | IN_ISDIR, "20260828120000")
     paths = watcher._collect_relevant_events(data)  # noqa: SLF001
     assert tmp_path / "20260828120000" in paths
 

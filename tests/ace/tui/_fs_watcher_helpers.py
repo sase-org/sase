@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 import pytest
 
-from sase.ace.tui.util.fs_watcher import _libc
+from sase.ace.tui.util._fs_watcher_common import load_libc
 
 __all__ = [
     "LINUX_ONLY",
@@ -23,7 +23,7 @@ __all__ = [
 
 
 LINUX_ONLY = pytest.mark.skipif(
-    not sys.platform.startswith("linux") or _libc() is None,
+    not sys.platform.startswith("linux") or load_libc() is None,
     reason="inotify is Linux-only and not available in this environment",
 )
 

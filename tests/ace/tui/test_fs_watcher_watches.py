@@ -10,10 +10,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.ace.tui.util.fs_watcher import (
-    ArtifactWatcher,
-    iter_startup_ace_run_shard_watch_paths,
-)
+from sase.ace.tui.util.fs_watcher import ArtifactWatcher
+from sase.core.agent_artifact_shards import iter_startup_ace_run_shard_watch_paths
 from tests.ace.tui._fs_watcher_helpers import LINUX_ONLY, schedule_inline
 
 __all__ = [
@@ -201,7 +199,7 @@ def test_ensure_watches_already_watched_path_does_not_consume_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sase.ace.tui.util.fs_watcher.MAX_INOTIFY_WATCHES", 1)
+    monkeypatch.setattr("sase.ace.tui.util._fs_watcher_watches.MAX_INOTIFY_WATCHES", 1)
     other = tmp_path / "other"
     other.mkdir()
     watcher = ArtifactWatcher(
