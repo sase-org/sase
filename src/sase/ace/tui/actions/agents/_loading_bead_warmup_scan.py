@@ -232,6 +232,7 @@ class AgentBeadWarmupScanMixin(AgentLoadingStateMixin):
                     "stranded_candidates_examined": 0,
                     "stranded_fingerprint_probes": 0,
                     "stranded_heavy_resolutions": 0,
+                    "stranded_liveness_checks": 0,
                     "stranded_changed_outcomes": 0,
                     "stranded_unchanged_outcomes": 0,
                 }

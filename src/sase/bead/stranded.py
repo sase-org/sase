@@ -23,11 +23,19 @@ _LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class StrandedReport:
-    """Reducer report plus bead titles and the collection timestamp."""
+    """Reducer report plus bead titles and the collection timestamp.
+
+    ``collection_failed`` is set when the collector raised; callers must not
+    treat that empty report as a successful unchanged generation.
+    ``stable_rebuild`` is true when bead/session projections were rematerialized
+    rather than reused from a Rust-certified store identity.
+    """
 
     report: StrandedWorkReport
     titles: Mapping[str, str]
     generated_at: float
+    collection_failed: bool = False
+    stable_rebuild: bool = True
 
 
 def load_stranded_report(project: str, *, now: float | None = None) -> StrandedReport:
@@ -37,9 +45,11 @@ def load_stranded_report(project: str, *, now: float | None = None) -> StrandedR
         report=StrandedWorkReport(schema_version=STRANDED_WORK_WIRE_SCHEMA_VERSION),
         titles={},
         generated_at=moment,
+        collection_failed=True,
+        stable_rebuild=True,
     )
     try:
-        facts, titles = collect_stranded_work_snapshot(project, now=moment)
+        facts, titles, rebuilt = collect_stranded_work_snapshot(project, now=moment)
         report = reduce_stranded_work(facts)
     except Exception:  # noqa: BLE001 - callers must never see collector errors.
         _LOG.warning(
@@ -48,7 +58,13 @@ def load_stranded_report(project: str, *, now: float | None = None) -> StrandedR
             exc_info=True,
         )
         return empty
-    return StrandedReport(report=report, titles=titles, generated_at=moment)
+    return StrandedReport(
+        report=report,
+        titles=titles,
+        generated_at=moment,
+        collection_failed=False,
+        stable_rebuild=rebuilt,
+    )
 
 
 __all__ = ["StrandedReport", "load_stranded_report"]

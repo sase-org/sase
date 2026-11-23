@@ -60,6 +60,7 @@ def _install(monkeypatch: Any, tmp_path: Any, issues: list[Issue]) -> dict[str, 
     monkeypatch.setattr(facts, "stranded_snapshot", stranded_snapshot)
     monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: beads_dir)
     monkeypatch.setattr(facts, "_session_record_cache", lambda _p, _k: {})
+    facts._snapshot_reader.cache_clear()
     return calls
 
 
@@ -69,8 +70,9 @@ def test_facts_and_titles_share_one_snapshot(monkeypatch: Any, tmp_path: Any) ->
         monkeypatch, tmp_path, [_phase("s.1"), _epic("s.epic"), _child("s.c", "s.1")]
     )
 
-    payload, titles = facts.collect_stranded_work_snapshot(PROJECT, now=_NOW)
+    payload, titles, rebuilt = facts.collect_stranded_work_snapshot(PROJECT, now=_NOW)
 
+    assert rebuilt is True
     assert calls["snapshots"] == 1
     fact_ids = {bead["id"] for bead in payload["beads"]}
     assert fact_ids == {"s.1", "s.epic", "s.c"}
@@ -87,7 +89,7 @@ def test_single_collectors_still_agree_with_combined(
     issues = [_phase("s.1"), _epic("s.epic"), _child("s.c", "s.1")]
     _install(monkeypatch, tmp_path, issues)
 
-    payload, titles = facts.collect_stranded_work_snapshot(PROJECT, now=_NOW)
+    payload, titles, _rebuilt = facts.collect_stranded_work_snapshot(PROJECT, now=_NOW)
 
     assert facts.collect_stranded_work_input(PROJECT, now=_NOW) == payload
     assert facts.collect_issue_titles(PROJECT) == titles

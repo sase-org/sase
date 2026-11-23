@@ -333,8 +333,8 @@ def warm_stranded_work_reports(
 
     A changed store fingerprint invalidates its cached report immediately,
     while the TTL revalidates the collector's process/artifact-liveness facts.
-    Store and collector failures remain quiet because the shared loader returns
-    an empty report on failure.
+    Collector failures stay quiet and do not replace a previous generation
+    with the empty fallback report.
     """
     changed: dict[str, frozenset[str]] = {}
     from sase.bead.stranded import load_stranded_report
@@ -370,11 +370,18 @@ def warm_stranded_work_reports(
             and previous.expires_at > monotonic()
         ):
             continue
-        if telemetry is not None:
-            telemetry["stranded_heavy_resolutions"] = (
-                telemetry.get("stranded_heavy_resolutions", 0) + 1
-            )
         snapshot = load_stranded_report(project_key)
+        if snapshot.collection_failed:
+            continue
+        if telemetry is not None:
+            if snapshot.stable_rebuild:
+                telemetry["stranded_heavy_resolutions"] = (
+                    telemetry.get("stranded_heavy_resolutions", 0) + 1
+                )
+            else:
+                telemetry["stranded_liveness_checks"] = (
+                    telemetry.get("stranded_liveness_checks", 0) + 1
+                )
         old_projection = (
             _report_projection(previous.snapshot.report) if previous is not None else ()
         )

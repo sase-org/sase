@@ -186,6 +186,8 @@ def wire_collector(
     index.write_bytes(b"")
     monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: beads_dir)
     monkeypatch.setattr(facts, "default_agent_artifact_index_path", lambda: index)
+    facts._snapshot_reader.cache_clear()
+    facts._session_index_reader.cache_clear()
 
     def stranded_snapshot(
         _beads_dir: Path, bead_ids: Any = None

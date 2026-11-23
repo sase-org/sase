@@ -44,7 +44,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
-from sase.core.bead_read_facade import stranded_snapshot
+from sase.core.bead_read_facade import store_fingerprint, stranded_snapshot
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import is_real_gate_member_record
 from sase.core.stranded_work_facade import STRANDED_WORK_WIRE_SCHEMA_VERSION
@@ -71,6 +71,71 @@ def _session_index_reader(
     # Rust still validates the complete query, paths, options and markers on every
     # read. Eviction only loses reuse; reports always build independent fact dicts.
     return AgentArtifactIndexReader()
+
+
+class _StrandedSnapshotReader:
+    """Retain one decoded candidate/context projection per store identity.
+
+    Rust ``bead_store_fingerprint`` certifies whether the bead store still
+    matches the identity that produced the retained rows. Platform liveness,
+    marker, handoff, and finalizer observations are never cached here.
+    A missing or failed fingerprint cannot certify reuse.
+    """
+
+    def __init__(self) -> None:
+        self._identity: tuple[str, str, tuple[str, ...] | None] | None = None
+        self._candidates: list[Issue] = []
+        self._context: list[Issue] = []
+
+    def read(
+        self,
+        beads_dir: Path,
+        bead_ids: Iterable[str] | None,
+    ) -> tuple[list[Issue], list[Issue], bool]:
+        identity = _stable_snapshot_identity(beads_dir, bead_ids)
+        if (
+            identity is not None
+            and identity == self._identity
+            and self._identity is not None
+        ):
+            return self._candidates, self._context, False
+        candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+        if identity is None:
+            self._identity = None
+            self._candidates = []
+            self._context = []
+            return candidates, context, True
+        self._identity = identity
+        self._candidates = candidates
+        self._context = context
+        return candidates, context, True
+
+
+@lru_cache(maxsize=8)
+def _snapshot_reader(
+    _project: str, _scope: tuple[str, ...] | None
+) -> _StrandedSnapshotReader:
+    return _StrandedSnapshotReader()
+
+
+def _scope_key(bead_ids: Iterable[str] | None) -> tuple[str, ...] | None:
+    if bead_ids is None:
+        return None
+    return tuple(sorted({str(item) for item in bead_ids if item}))
+
+
+def _stable_snapshot_identity(
+    beads_dir: Path, bead_ids: Iterable[str] | None
+) -> tuple[str, str, tuple[str, ...] | None] | None:
+    """Return the Rust-certified store identity, or ``None`` when uncertified."""
+    fingerprint = store_fingerprint(beads_dir)
+    if fingerprint is None:
+        return None
+    try:
+        path = str(Path(beads_dir).expanduser().resolve())
+    except OSError:
+        path = str(beads_dir)
+    return (path, fingerprint.token, _scope_key(bead_ids))
 
 
 def _query_session_index(
@@ -100,12 +165,10 @@ def collect_stranded_work_input(
     bead_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Build reducer input for *project*, optionally scoped to named beads."""
-    moment = float(now) if now is not None else _now_epoch()
-    beads_dir = canonical_beads_dir_for_project(project)
-    if beads_dir is None:
-        return _empty_payload(moment)
-    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
-    return _payload_for_snapshot(project, moment, candidates, context)
+    payload, _titles, _rebuilt = collect_stranded_work_snapshot(
+        project, now=now, bead_ids=bead_ids
+    )
+    return payload
 
 
 def collect_issue_titles(
@@ -115,7 +178,9 @@ def collect_issue_titles(
     beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
         return {}
-    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+    candidates, context, _rebuilt = _snapshot_reader(
+        project, _scope_key(bead_ids)
+    ).read(beads_dir, bead_ids)
     return _titles_for_snapshot(candidates, context)
 
 
@@ -124,21 +189,26 @@ def collect_stranded_work_snapshot(
     *,
     now: float | None = None,
     bead_ids: Iterable[str] | None = None,
-) -> tuple[dict[str, Any], dict[str, str]]:
-    """Collect reducer facts and titles from one candidate/context snapshot.
+) -> tuple[dict[str, Any], dict[str, str], bool]:
+    """Collect reducer facts, titles, and whether the stable snapshot rebuilt.
 
-    Facts and titles share a single :func:`stranded_snapshot` collection, so
-    a report stays coherent when the store changes between what would have
-    been separate candidate queries.
+    Facts and titles share one :func:`stranded_snapshot` collection, so a
+    report stays coherent when the store changes between what would have
+    been separate candidate queries. Unchanged Rust-certified store
+    identities reuse the retained candidate/context rows; member liveness
+    is always rebuilt.
     """
     moment = float(now) if now is not None else _now_epoch()
     beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
-        return _empty_payload(moment), {}
-    candidates, context = stranded_snapshot(beads_dir, bead_ids=bead_ids)
+        return _empty_payload(moment), {}, True
+    candidates, context, rebuilt = _snapshot_reader(project, _scope_key(bead_ids)).read(
+        beads_dir, bead_ids
+    )
     return (
         _payload_for_snapshot(project, moment, candidates, context),
         _titles_for_snapshot(candidates, context),
+        rebuilt,
     )
 
 
