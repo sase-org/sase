@@ -555,6 +555,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'tailnet-1e.7.1.4.1.7.1.7.1.2(AffectedClosure)' \
+        --epic-symbol 'tailnet-1e.7.1.4.1.7.1.7.1.2(compute_affected_closure)' \
+        --epic-symbol 'tailnet-1e.7.1.4.1.7.1.7.1.2(own_affected_delta_rows)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
