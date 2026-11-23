@@ -20,10 +20,10 @@ import pytest
 from textual.app import App
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.agents._loading_bead_warmup import (
-    AgentBeadWarmupMixin,
-    _AgentBeadWarmupCandidates,
-    _AgentBeadWarmupResults,
+from sase.ace.tui.actions.agents._loading_bead_warmup import AgentBeadWarmupMixin
+from sase.ace.tui.actions.agents._loading_bead_warmup_types import (
+    AgentBeadWarmupCandidates,
+    AgentBeadWarmupResults,
 )
 from sase.ace.tui.actions.agents._loading_helpers import _AgentDiskLoadResult
 from sase.ace.tui.actions.agents._roster_generation import bump_roster_generation
@@ -443,7 +443,7 @@ class _WarmupTimerApp(AgentBeadWarmupMixin, App[None]):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
-        self._bead_warmup_scheduled_candidates: _AgentBeadWarmupCandidates | None = None
+        self._bead_warmup_scheduled_candidates: AgentBeadWarmupCandidates | None = None
         self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
@@ -464,7 +464,7 @@ class _WarmupTimerApp(AgentBeadWarmupMixin, App[None]):
         self._patched.append(agent)
         return True
 
-    def _apply_bead_warmup_results(self, results: _AgentBeadWarmupResults) -> None:
+    def _apply_bead_warmup_results(self, results: AgentBeadWarmupResults) -> None:
         self.apply_calls += 1
         super()._apply_bead_warmup_results(results)
 
@@ -504,19 +504,19 @@ async def test_bead_warmup_real_timer_followup_apply_and_retry(
     worker_calls = 0
     fail_once = {"value": True}
 
-    def warmup(candidates: _AgentBeadWarmupCandidates) -> _AgentBeadWarmupResults:
+    def warmup(candidates: AgentBeadWarmupCandidates) -> AgentBeadWarmupResults:
         nonlocal worker_calls
         worker_calls += 1
         if fail_once["value"] and candidates.force_stranded_projects:
             fail_once["value"] = False
             raise RuntimeError("warmup-timer-failure")
-        return _AgentBeadWarmupResults(
+        return AgentBeadWarmupResults(
             {agent.identity: True for agent in candidates.bead_display_agents},
             set(),
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
+        "sase.ace.tui.actions.agents._loading_bead_warmup_scan._warm_agent_bead_caches",
         warmup,
     )
     app = _WarmupTimerApp()
@@ -535,7 +535,7 @@ async def test_bead_warmup_real_timer_followup_apply_and_retry(
         app.install_roster(_warmup_agents(2))
         app._bead_warmup_scan_pending = True
         app._bead_warmup_scan_scheduled = True
-        app._bead_warmup_scheduled_candidates = _AgentBeadWarmupCandidates(
+        app._bead_warmup_scheduled_candidates = AgentBeadWarmupCandidates(
             bead_display_agents=tuple(app._agents),
             roster_generation=0,
         )
@@ -547,17 +547,17 @@ async def test_bead_warmup_real_timer_followup_apply_and_retry(
         release = threading.Event()
 
         def blocked(
-            candidates: _AgentBeadWarmupCandidates,
-        ) -> _AgentBeadWarmupResults:
+            candidates: AgentBeadWarmupCandidates,
+        ) -> AgentBeadWarmupResults:
             started.set()
             release.wait(timeout=2.0)
-            return _AgentBeadWarmupResults(
+            return AgentBeadWarmupResults(
                 {agent.identity: True for agent in candidates.bead_display_agents},
                 set(),
             )
 
         monkeypatch.setattr(
-            "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
+            "sase.ace.tui.actions.agents._loading_bead_warmup_scan._warm_agent_bead_caches",
             blocked,
         )
         apply_before = app.apply_calls
@@ -570,14 +570,14 @@ async def test_bead_warmup_real_timer_followup_apply_and_retry(
         assert app.apply_calls > apply_before
 
         monkeypatch.setattr(
-            "sase.ace.tui.actions.agents._loading_bead_warmup._warm_agent_bead_caches",
+            "sase.ace.tui.actions.agents._loading_bead_warmup_scan._warm_agent_bead_caches",
             warmup,
         )
         fail_calls = worker_calls
         app._bead_warmup_forced_projects = {"proj"}
         app._bead_warmup_forced_immediate_projects = {"proj"}
         app._bead_warmup_scan_scheduled = True
-        app._bead_warmup_scheduled_candidates = _AgentBeadWarmupCandidates(
+        app._bead_warmup_scheduled_candidates = AgentBeadWarmupCandidates(
             force_stranded_projects=("proj",),
             force_stranded_immediate=True,
             roster_generation=app._agents_roster_generation,

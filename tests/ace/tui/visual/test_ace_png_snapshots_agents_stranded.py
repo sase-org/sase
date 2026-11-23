@@ -10,7 +10,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.agents._loading_bead_warmup import _AgentBeadWarmupResults
+from sase.ace.tui.actions.agents._loading_bead_warmup import AgentBeadWarmupResults
 from sase.ace.tui.models import agent_stranded
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE
@@ -466,7 +466,7 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
         )
         agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
         app._apply_bead_warmup_results(
-            _AgentBeadWarmupResults(
+            AgentBeadWarmupResults(
                 bead_display_results={},
                 wait_bead_status_identities=set(),
                 stranded_changed_projects=frozenset({"visual"}),

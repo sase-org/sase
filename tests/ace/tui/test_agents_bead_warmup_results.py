@@ -8,7 +8,9 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.actions.agents._loading_bead_warmup import _AgentBeadWarmupResults
+from sase.ace.tui.actions.agents._loading_bead_warmup_types import (
+    AgentBeadWarmupResults,
+)
 from sase.ace.tui.agent_completion import (
     WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
@@ -181,7 +183,7 @@ def test_apply_patches_only_result_rows() -> None:
     app._agents_with_children = [confirmed, other]
 
     app._apply_bead_warmup_results(
-        _AgentBeadWarmupResults({confirmed.identity: True}, set())
+        AgentBeadWarmupResults({confirmed.identity: True}, set())
     )
 
     assert app._patched == [confirmed]
@@ -195,7 +197,7 @@ def test_apply_patches_rows_losing_confirmed_bead() -> None:
     app._agents_with_children = [removed, other]
 
     app._apply_bead_warmup_results(
-        _AgentBeadWarmupResults({removed.identity: False}, set())
+        AgentBeadWarmupResults({removed.identity: False}, set())
     )
 
     assert app._patched == [removed]
@@ -210,7 +212,7 @@ def test_apply_rematches_current_object_by_identity() -> None:
     app._agents_with_children = [rebuilt]
 
     app._apply_bead_warmup_results(
-        _AgentBeadWarmupResults({snapshot.identity: True}, set())
+        AgentBeadWarmupResults({snapshot.identity: True}, set())
     )
 
     assert app._patched == [rebuilt]
@@ -220,7 +222,7 @@ def test_apply_noop_without_results() -> None:
     app = FakeApp()
     app._agents = [make_agent()]
 
-    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, set()))
+    app._apply_bead_warmup_results(AgentBeadWarmupResults({}, set()))
 
     assert app._patched == []
 
@@ -237,7 +239,7 @@ def test_apply_wait_bead_status_results_passes_fresh_count_override() -> None:
     app._agents = [waiter]
     app._agents_with_children = [waiter]
 
-    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, {waiter.identity}))
+    app._apply_bead_warmup_results(AgentBeadWarmupResults({}, {waiter.identity}))
 
     assert app._patched == [waiter]
     assert app._patch_kwargs == [
@@ -264,7 +266,7 @@ def test_apply_wait_bead_status_results_keeps_singleton_id_and_adds_warm_glyph()
     app._agents = [waiter]
     app._agents_with_children = [waiter]
 
-    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, {waiter.identity}))
+    app._apply_bead_warmup_results(AgentBeadWarmupResults({}, {waiter.identity}))
 
     assert "waiter (WAITING sase-1)" in cold_left.plain
     assert app._patched == [waiter]
@@ -307,7 +309,7 @@ def test_apply_wait_bead_status_results_rebuilds_once_on_patch_failure() -> None
     app._agents_with_children = [first, second]
 
     app._apply_bead_warmup_results(
-        _AgentBeadWarmupResults({}, {first.identity, second.identity})
+        AgentBeadWarmupResults({}, {first.identity, second.identity})
     )
 
     assert app._patched == [first, second]

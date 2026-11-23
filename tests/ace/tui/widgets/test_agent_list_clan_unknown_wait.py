@@ -8,7 +8,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.ace.tui.actions.agents._loading_bead_warmup import (
-    _AgentBeadWarmupResults,
+    AgentBeadWarmupResults,
 )
 from sase.ace.tui.agent_completion import (
     clan_unknown_wait_dependency_count,
@@ -261,7 +261,7 @@ def test_bead_warmup_patches_clan_container_for_unknown_bead() -> None:
         _WAIT_BEAD_STATUS_CACHE.set(("proj", "sase-1"), "unsupported")
 
         app._apply_bead_warmup_results(  # type: ignore[attr-defined]
-            _AgentBeadWarmupResults({}, {member.identity})
+            AgentBeadWarmupResults({}, {member.identity})
         )
 
         patched_identities = [a.identity for a in app._patched]
