@@ -15,9 +15,11 @@ from __future__ import annotations
 
 from tests.ace.tui.test_agent_archive_controller_generations import (
     test_cancel_drops_blocked_worker,
+    test_changed_link_facets_rebuild_and_requery_archive,
+    test_changed_link_rows_with_equal_facets_skip_idle_corpus_query,
     test_init_controller_is_cold,
     test_input_drift_rebuilds_and_keeps_selection,
-    test_link_signature_drift_reloads_facets,
+    test_link_metadata_only_drift_skips_facet_and_corpus_work,
     test_missing_index_is_honest_and_leaves_inbox_alone,
     test_probe_error_publishes_unavailable_and_unwedges_idle,
     test_query_reuses_warm_handle_without_facet_reload,
@@ -28,6 +30,7 @@ from tests.ace.tui.test_agent_archive_controller_generations import (
 )
 from tests.ace.tui.test_agent_archive_controller_lookup import (
     test_adjacent_selection_fallback,
+    test_archive_trace_counts_probe_reuse_and_apply_outcomes,
     test_coalesced_idle_does_not_publish_false_missing_for_queued_open,
     test_idle_with_pending_exact_name_does_not_short_circuit_unchanged,
     test_lookup_miss_clears_pending_and_publishes_missing,
@@ -51,8 +54,11 @@ __test__ = False
 
 __all__ = [
     "test_adjacent_selection_fallback",
+    "test_archive_trace_counts_probe_reuse_and_apply_outcomes",
     "test_bounded_inbox_load_does_not_open_prewarm_gate",
     "test_cancel_drops_blocked_worker",
+    "test_changed_link_facets_rebuild_and_requery_archive",
+    "test_changed_link_rows_with_equal_facets_skip_idle_corpus_query",
     "test_coalesced_idle_does_not_publish_false_missing_for_queued_open",
     "test_complete_idle_prewarms_once_and_idle_tick_skips_compile",
     "test_early_open_paints_loading_and_queues_until_gate",
@@ -61,7 +67,7 @@ __all__ = [
     "test_inbox_load_scheduled_resets_on_apply_and_failure",
     "test_init_controller_is_cold",
     "test_input_drift_rebuilds_and_keeps_selection",
-    "test_link_signature_drift_reloads_facets",
+    "test_link_metadata_only_drift_skips_facet_and_corpus_work",
     "test_lookup_miss_clears_pending_and_publishes_missing",
     "test_lookup_owner_of_workflow_child_is_typed",
     "test_lookup_reads_name_from_request_snapshot_not_live_state",
