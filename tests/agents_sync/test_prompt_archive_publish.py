@@ -15,6 +15,7 @@ from sase.agents_sync.prompt_archive.publish import (
     publish_prompt_archive,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.agents_sync.publication_outbox import list_agent_publications
 from tests.agents_sync._prompt_archive_helpers import (
     HostedLinks,
     make_record,
@@ -103,6 +104,55 @@ def test_publish_prompt_archive_without_artifacts_is_git_idempotent(
     assert prompt.is_file()
     assert "Archive this prompt." in prompt.read_text()
     assert not (verify / "artifacts/202608").exists()
+
+
+def test_publish_prompt_archive_from_monitor_starter_keeps_monitor_row_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, remote, monitor_dir = _publish_environment(
+        tmp_path,
+        monkeypatch,
+        "Monitor-local prompt must not be used.\n",
+    )
+    (monitor_dir / "raw_xprompt.md").unlink()
+    starter_dir = tmp_path / "runs/20260801120000"
+    starter_dir.mkdir(parents=True)
+    (starter_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(target.primary_checkout)}),
+        encoding="utf-8",
+    )
+    (starter_dir / "raw_prompt.md").write_text(
+        "Prompt from monitor starter.\n",
+        encoding="utf-8",
+    )
+    (monitor_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "workspace_dir": str(target.primary_checkout),
+                "monitor_starter_artifacts_dir": str(starter_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    outcome = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=monitor_dir,
+    )
+
+    assert outcome.published and outcome.error is None
+    [request] = list_agent_publications(target.project_key)
+    assert request.artifacts_dir == str(monitor_dir.resolve())
+    verify = tmp_path / "verify-monitor-prompt"
+    git(tmp_path, "clone", str(remote), str(verify))
+    prompt = verify / "prompts/202608/alice.athena.worker.md"
+    contents = prompt.read_text(encoding="utf-8")
+    assert "Prompt from monitor starter." in contents
+    assert "Monitor-local prompt must not be used." not in contents
 
 
 def test_prompt_archive_side_effects_run_after_the_archive_push(

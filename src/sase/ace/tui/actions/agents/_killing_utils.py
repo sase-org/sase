@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -17,6 +18,9 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
 from sase.core.agent_identity_facade import agent_name_in_hood
+
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.core.wait_dependency_resolution import WaitDependencyIndex
@@ -45,6 +49,18 @@ def delete_agent_artifacts(
         before_delete(artifacts_dir)
 
     _resolve_waiters_before_artifact_delete(artifacts_dir)
+
+    # Imported lazily so this guard does not add publication code to TUI startup.
+    from sase.agents_sync.prompt_archive.source import (
+        artifacts_dir_has_pending_prompt_obligation,
+    )
+
+    if artifacts_dir_has_pending_prompt_obligation(artifacts_dir):
+        log.info(
+            "Deferring agent artifact deletion while a publication request needs its prompt: %s",
+            artifacts_dir,
+        )
+        return False
 
     deleted = try_delete_agent_artifacts(artifacts_dir)
     artifacts_path = Path(artifacts_dir)

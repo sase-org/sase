@@ -133,10 +133,13 @@ def _publish_prompt_archive(
         return PromptArchivePublicationOutcome(skip_reason=detail)
     target = selection.targets[0]
 
-    from sase.legacy_xprompt_names import resolve_raw_prompt_path
-
     artifacts_dir = _agent_artifacts_dir(agent_artifacts_dir)
-    if artifacts_dir is None or resolve_raw_prompt_path(artifacts_dir) is None:
+    from sase.agents_sync.prompt_archive.source import first_prompt_source_dir
+
+    source_dir = (
+        None if artifacts_dir is None else first_prompt_source_dir(artifacts_dir)
+    )
+    if source_dir is None:
         return PromptArchivePublicationOutcome(
             skip_reason="agent raw_prompt.md is unavailable"
         )
@@ -226,7 +229,7 @@ def _publish_prompt_archive(
                 global_agent=global_agent,
                 primary_revision=primary_revision,
                 commit_cwd=commit_cwd,
-                agent_artifacts_dir=artifacts_dir,
+                agent_artifacts_dir=source_dir,
                 prompt_content=prompt_content,
                 plan_ref=plan_ref,
                 prompt_name=prompt_name,

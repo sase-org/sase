@@ -22,6 +22,7 @@ from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.paths import prompts_month_dir
 from sase.agents_sync.prompt_archive.preparation import PreparedPromptArchive
+from sase.agents_sync.prompt_archive.source import prompt_source_dirs
 from sase.agents_sync.publication_completion import snapshot_prompt_file_present
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
@@ -113,9 +114,9 @@ def prepare_deferred_prompt_archive(
 
     # A row can name a stale artifacts dir while the inventory run still
     # points at the live one, so every candidate with a prompt source is
-    # tried in order: the row's dir first, then the run's source label. A
-    # candidate that raises is skipped in favor of the next one; only the
-    # last candidate's error propagates.
+    # tried in order: the row's dir and starter chain, then the run's source
+    # label and starter chain. A candidate that raises is skipped in favor of
+    # the next one; only the last candidate's error propagates.
     last_error: Exception | None = None
     for artifacts_dir in source_dirs:
         try:
@@ -332,11 +333,11 @@ def classify_quarantined_prompt_archives(
     This is the probe-only twin of :func:`restore_deferred_prompt_archives`
     for rows that left the active queue: it never regenerates or writes an
     archive. Each row goes through the same Rust classifier with the same
-    probes -- the row's ``artifacts_dir``, the matching inventory run's
-    ``source_label``, the sidecar's archived sessions, and the published
-    snapshot. *load_inventory* runs at most once, and only when some row has
-    no prompt source in its own ``artifacts_dir``: the run's source label can
-    only add a source, never remove one, so skipping it then changes no
+    probes -- the row's ``artifacts_dir`` and starter chain, the matching
+    inventory run's ``source_label`` and starter chain, the sidecar's archived
+    sessions, and the published snapshot. *load_inventory* runs at most once,
+    and only when no row or starter has a prompt source: the run's source label
+    can only add a source, never remove one, so skipping it then changes no
     classifier input.
     """
 
@@ -400,20 +401,24 @@ def _prompt_source_candidates(
 
     The row's ``artifacts_dir`` and the inventory run's ``source_label`` can
     disagree when the row was queued against a stale directory, so both are
-    probed: the row names the wrong artifacts dir is a known way durable
-    obligations lose their bytes.
+    probed along with each directory's monitor-starter chain.
     """
 
-    candidates: list[str] = []
+    source_candidates: list[str] = []
     if request.artifacts_dir:
-        candidates.append(request.artifacts_dir)
+        source_candidates.append(request.artifacts_dir)
     source_label = getattr(matching, "source_label", None)
-    if (
-        isinstance(source_label, str)
-        and source_label
-        and source_label not in candidates
-    ):
-        candidates.append(source_label)
+    if isinstance(source_label, str) and source_label:
+        source_candidates.append(source_label)
+
+    candidates: list[str] = []
+    seen: set[Path] = set()
+    for candidate in source_candidates:
+        for directory in prompt_source_dirs(candidate):
+            if directory in seen:
+                continue
+            seen.add(directory)
+            candidates.append(str(directory))
     return candidates
 
 

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
+import shutil
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +21,8 @@ from tests._agent_loader_self_heal_helpers import (
     clear_cleaned_artifact_cache,
     make_agent,
 )
+from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_outbox_store import mutate_publication_outbox
 
 
 @pytest.fixture(autouse=True)
@@ -145,6 +149,68 @@ def test_cleanup_defers_bounded_index_timeout_without_caching_dir(
 
     assert cleaned_dirs == set()
     assert str(artifacts_dir) not in _loading._CLEANED_ARTIFACT_DIRS
+
+
+def test_cleanup_defers_pinned_prompt_dir_then_deletes_after_terminal_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    prompt = artifacts_dir / "raw_prompt.md"
+    prompt.write_text("Needed until publication resolves.\n", encoding="utf-8")
+    request = AgentPublicationOutboxItem(
+        project_key="proj",
+        project="Project",
+        local_agent="worker",
+        global_agent="alice.athena.worker",
+        primary_revision="d" * 40,
+        local_hood="worker",
+        artifacts_dir=str(artifacts_dir),
+    )
+    mutate_publication_outbox("proj", lambda _items: (request,))
+    agent = make_agent(artifacts_dir=str(artifacts_dir))
+
+    def delete_directory(path: str | None) -> bool:
+        assert path is not None
+        shutil.rmtree(path)
+        return True
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            side_effect=delete_directory,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.delete_agent_artifact_index_artifacts_bounded",
+            return_value=True,
+        ),
+    ):
+        _orphaned, first_cleaned = _loading._compute_loader_cleanup(
+            {agent.identity}, [agent]
+        )
+        assert first_cleaned == set()
+        assert str(artifacts_dir) not in _loading._CLEANED_ARTIFACT_DIRS
+        assert prompt.is_file()
+
+        terminal = replace(
+            request,
+            terminal=True,
+            terminal_reason="prompt_archive_unrecoverable",
+            last_error="terminalized",
+        )
+        mutate_publication_outbox("proj", lambda _items: (terminal,))
+        _orphaned, second_cleaned = _loading._compute_loader_cleanup(
+            {agent.identity}, [agent]
+        )
+
+    assert second_cleaned == {str(artifacts_dir)}
+    assert not artifacts_dir.exists()
 
 
 def test_load_agents_from_disk_does_not_include_bundle_only_archive_rows() -> None:

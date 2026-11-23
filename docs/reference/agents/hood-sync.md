@@ -418,21 +418,23 @@ budget before running the normal full reconciliation. It never revives terminal 
 
 ### Unrecoverable prompt archives
 
-An unresolved prompt-archive obligation becomes eligible for retirement 30 minutes after
-its request was queued. If restoration finds no source in the known artifacts
-directories (including legacy prompt filenames) and no archived copy in the sidecar, a
-request that reaches its retry limit or is already quarantined retires as
-`prompt_archive_unrecoverable`. Requests without a creation timestamp are treated as
-already past the grace period. The transition appends one record to
-`~/.sase/agent_publication/terminal_obligations.jsonl` with the project, agent,
-revision, run id, artifacts dir, and the probes performed. A terminal prompt row stops
-retries, releases that revision's staging-pool protection, is skipped by
-`--retry-quarantined`, and never counts as published: the request is retired, not
-acknowledged. A source that reappears before the terminal decision restores normally.
+Prompt restores get 30 minutes after enqueue before retirement. They probe the row and
+inventory-run artifact directories plus a monitor member's starter directory, accepting
+legacy prompt filenames. If no source or sidecar archive exists, a request at its retry
+limit or already quarantined retires as `prompt_archive_unrecoverable`; missing
+timestamps count as past grace. One record in
+`~/.sase/agent_publication/terminal_obligations.jsonl` captures the project, agent,
+revision, run id, artifacts dir, and probes. Terminal rows stop retries, release that
+revision's staging-pool protection, are skipped by `--retry-quarantined`, and never
+count as published. A source reappearing first restores normally.
 
-Already-quarantined prompt rows get there too: each publisher pass re-checks up to 25
-per project and retires the unrecoverable ones, never charging or erroring. A row whose
-source exists stays quarantined and is re-checked hourly.
+Dismissing or killing defers artifact deletion while a non-terminal, non-quarantined
+publication request needs that directory as a prompt source. Loader self-heal deletes it
+after acknowledgment, retirement, or quarantine.
+
+Publisher passes re-check up to 25 quarantined prompt rows per project, retiring
+unrecoverable ones without charging or erroring. Rows with a source stay quarantined and
+are re-checked hourly.
 
 ### Withheld publication
 
