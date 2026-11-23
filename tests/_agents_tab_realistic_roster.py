@@ -6,10 +6,10 @@ members, capacity aliases, and ordinary current-view settings, plus 1-, 6-,
 and 8-row scalar updates. Record shapes mirror the loader's real rows
 (synthetic names only: no private prompts, secrets, or file contents).
 
-The affected-closure primitive owns the write set for the scalar updates;
-the production fast path stays disabled until the delta-integration phase,
-so this fixture is consumed through the existing full prep pipeline plus
-the new closure/ownership helpers.
+The affected-closure primitive owns the write set for the scalar updates.
+The delta-integration fast path consumes this fixture through
+``prepare_loaded_agents_worker_boundary`` with live capacity and session
+context.
 """
 
 from __future__ import annotations

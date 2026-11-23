@@ -69,8 +69,8 @@ def hundred_row_cache() -> list[Agent]:
         )
         for index in range(100)
     ]
-    root, child = agent_session_graph()[0], agent_session_graph()[1]
-    return [*rows, root, child]
+    session = agent_session_graph()
+    return [*rows, *session]
 
 
 def annotated_snapshot(

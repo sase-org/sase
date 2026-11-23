@@ -9,10 +9,9 @@ correctness, discarded-generation safety, read-only out-of-closure
 references, and equivalence of scoped versus full preparation on 1-, 6-, and
 8-row scalar deltas with before/after work counts and elapsed cost.
 
-The expanded production fast path stays disabled: nothing here wires the new
-shapes into ``prepare_loaded_agents_worker_boundary``. That wiring belongs
-to the delta-integration phase, which also consumes the new public symbols
-(kept alive through its epic-symbol rows until it lands).
+The delta-integration phase wires these shapes into
+``prepare_loaded_agents_worker_boundary``; this module keeps the ownership
+and isolation proofs.
 """
 
 from __future__ import annotations

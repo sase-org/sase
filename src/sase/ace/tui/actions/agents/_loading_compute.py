@@ -619,9 +619,10 @@ def prepare_loaded_agents_worker_boundary(
     Detaches the captured UI graph once on this worker, then keeps that
     ownership through merge, named-proc carryover, and slot annotation.
     """
-    # Delta-scaled fast path: pure scalar terminal deltas patch in place
-    # with zero row copies and O(N) reads only. Falls back to the full
-    # pipeline on any structural shape (correct, just not scaled).
+    # Delta-scaled fast path: bounded scalar exact deltas own only the
+    # affected closure. Mixed-roster sessions, clans, and a live capacity
+    # report no longer force the full copy. Falls back on membership,
+    # repair, query, removal, or oversized closures.
     try:
         from ._loading_delta_scaled import try_scoped_worker_boundary
 
@@ -634,14 +635,6 @@ def prepare_loaded_agents_worker_boundary(
             dismissed_bundle_snapshot=dismissed_bundle_snapshot,
         )
         if scoped is not None:
-            from ...util.trace import tui_trace as _tui_trace
-
-            with _tui_trace(
-                "agents.delta_prep_scaled",
-                incoming=len(all_agents),
-                cached=len(snapshot.cached_agents_with_children),
-            ):
-                pass
             return scoped  # type: ignore[return-value]
     except Exception:
         pass

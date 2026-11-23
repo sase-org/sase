@@ -19,9 +19,12 @@ from dataclasses import dataclass, fields, replace
 
 from ...models._agent_graph import (
     AGENT_RELINK_FIELDS,
+    AffectedClosure,
     adopt_agents,
+    compute_affected_closure,
     copy_agent_graph,
     copy_agent_rows_delta_isolated,
+    own_affected_delta_rows,
 )
 from ...models.agent import Agent
 from ._loading_compute_types import (
@@ -37,6 +40,7 @@ __all__ = [
     "classify_cached_graph_needs",
     "classify_exact_delta_fast_path",
     "exact_delta_consumed_projection_unchanged",
+    "own_affected_apply_snapshot",
     "own_exact_delta_snapshot_fast",
     "own_prepared_apply_snapshot",
     "own_required_apply_snapshot",
@@ -342,6 +346,55 @@ def own_exact_delta_snapshot_fast(
         fleet_rows=new_fleet,
     )
     return owned, memo, decision
+
+
+def own_affected_apply_snapshot(
+    snapshot: PreparedApplySnapshot,
+    incoming: Sequence[Agent],
+) -> tuple[PreparedApplySnapshot, dict[int, Agent], AffectedClosure] | None:
+    """Own only the affected closure for a bounded exact scalar delta.
+
+    Returns None when the delta is a membership change or the closure is
+    ineligible, so the caller keeps the existing full safe path. Cached,
+    capacity, and fleet roots share one memo so overlapping rows stay a
+    single detached clone. Live rows outside the closure are reused
+    read-only.
+    """
+    cached = snapshot.cached_agents_with_children
+    if not cached or not incoming:
+        return None
+    cached_identities = {agent.identity for agent in cached}
+    if any(agent.identity not in cached_identities for agent in incoming):
+        return None
+    closure = compute_affected_closure(cached, incoming)
+    if not closure.eligible:
+        return None
+    memo: dict[int, Agent] = {}
+    new_cached, memo = own_affected_delta_rows(cached, closure, memo)
+    if snapshot.capacity_agents_with_children:
+        new_capacity, memo = own_affected_delta_rows(
+            snapshot.capacity_agents_with_children,
+            closure,
+            memo,
+        )
+    else:
+        new_capacity = snapshot.capacity_agents_with_children
+    if snapshot.fleet_rows:
+        new_fleet_list, memo = own_affected_delta_rows(
+            list(snapshot.fleet_rows),
+            closure,
+            memo,
+        )
+        new_fleet = tuple(new_fleet_list)
+    else:
+        new_fleet = snapshot.fleet_rows
+    owned = replace(
+        snapshot,
+        cached_agents_with_children=new_cached,
+        capacity_agents_with_children=new_capacity,
+        fleet_rows=new_fleet,
+    )
+    return owned, memo, closure
 
 
 _AGENT_NON_RELINK_FIELDS = tuple(

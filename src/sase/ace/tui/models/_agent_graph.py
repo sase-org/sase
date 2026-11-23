@@ -385,9 +385,8 @@ class AffectedClosure:
     ``"bounded"``). Any other reason (``"empty-cache"``,
     ``"unanchored-new-row"``, ``"relationship-change"``,
     ``"oversized-closure"``) is an explicit fallback contract: the caller
-    must use the existing full safe path instead. No production caller
-    consumes this yet; the delta-integration phase will wire the eligible
-    case into the expanded fast path.
+    must use the existing full safe path instead. The delta-scaled worker
+    boundary consumes the eligible case for mixed-roster exact deltas.
     """
 
     affected_identities: frozenset[tuple[Any, str, str | None]]
@@ -639,8 +638,8 @@ def own_affected_delta_rows(
 
     Raises :exc:`ValueError` when the closure is not eligible, so an
     unbounded, structural, or unanchored delta fails closed to the existing
-    full safe path instead of silently widening aliasing. No production
-    caller uses this yet; the delta-integration phase owns that wiring.
+    full safe path instead of silently widening aliasing. The delta-scaled
+    worker boundary is the production caller.
     """
     if not closure.eligible:
         raise ValueError(

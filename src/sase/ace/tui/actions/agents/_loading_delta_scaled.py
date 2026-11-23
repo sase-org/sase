@@ -1,28 +1,29 @@
 """Delta-scaled preparation for exact-artifact deltas.
 
-Small ``artifact_delta`` loads (1-7 agents from inflight_poll / notification)
-currently pay full-corpus preparation: copying the entire 948-agent roster,
-merging over it, and sharing it back. This module implements a scoped fast
-path that scales with the delta instead of the corpus while preserving exact
-deltas, complete-history ownership, and in-flight convergence.
+Small ``artifact_delta`` loads currently pay full-corpus preparation when
+the roster has ordinary sessions, clans, capacity, or a live capacity
+report. This module uses the bounded affected-graph ownership primitive
+to copy only the write set, then runs status, slot, and clan projections
+on those detached rows while live unaffected rows stay read-only.
 
 The scoped path only triggers for scalar-only deltas: every incoming row
-matches a cached row by identity with all ``EXACT_DELTA_RELATIONSHIP_KEYS``
-equal, no new roots, no deletions, no dismissals, no repair, no bounded
-prefix, no running-claims scans. Anything structural falls back to the full
-pipeline (existing behavior, unchanged).
+matches a cached row by identity, the affected closure is eligible, no
+new roots, no deletions, no dismissals, no repair, no bounded prefix, no
+running-claims scans. Membership, order, dedup, identity, query, and
+oversized-closure cases fall back to the full pipeline.
 
-For scalar-only deltas the global order, dedup, and reattach passes are
-no-ops (their keys are all in the relationship set), so the scoped path:
+For eligible scalar deltas the global order, dedup, and reattach passes
+are no-ops (their keys are all in the relationship set), so the scoped
+path:
 
-* copies only the affected closure (affected rows + parents/children/siblings
-  + full clan membership for affected clans) via ``copy_agent_rows_delta_isolated``,
-* patches affected positions in place preserving order,
+* owns only the affected closure via ``own_affected_apply_snapshot``,
+* patches incoming scalars onto those detached rows,
 * runs scoped status normalization on the closure,
-* builds capacity snapshots via O(N) reads (cheap, no copies) and applies
-  slot updates copy-on-write (only when values differ),
 * scopes tree projection to affected clans,
-* runs fold/finalize full (reads only, safe over mixed live + worker rows),
+* builds capacity snapshots via O(N) reads and applies slot writes to
+  detached rows, copy-on-write when an unrelated waiter/runner actually
+  changes,
+* runs fold filtering as a read-only selection,
 * shares back only the closure (unaffected rows are already live).
 
 Fallback preserves exactness: any uncertainty returns None and the caller
@@ -31,295 +32,221 @@ runs the full pipeline unchanged.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from copy import copy
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
-from ._loading_compute_merge import (
-    EXACT_DELTA_RELATIONSHIP_KEYS,
-    _merge_clan_context,
-    _tier1_merge_key,
-    _tier1_stable_merge_key,
-)
+from ...models._agent_graph import AGENT_RELINK_FIELDS, AffectedClosure
+from ...models.agent import Agent
+from ._loading_compute_merge import _merge_clan_context
 
 if TYPE_CHECKING:
     from collections.abc import Set as AbstractSet
 
-    from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ._loading_compute_types import PreparedApplySnapshot
 
-
 _SCALAR_ONLY_MAX_INCOMING = 16
-_SCALAR_ONLY_MAX_CLOSURE = 64
-_SCALAR_ONLY_MAX_CACHED = 5000
-
-
-def _relationship_keys_equal(cached: Agent, incoming: Agent) -> bool:
-    for name in EXACT_DELTA_RELATIONSHIP_KEYS:
-        if getattr(cached, name) != getattr(incoming, name):
-            return False
-    return True
-
-
-def try_scoped_scalar_patch(
-    incoming: list[Agent],
-    snapshot: PreparedApplySnapshot,
-) -> tuple[list[Agent], dict[int, int]] | None:
-    """Return (merged_roster, closure_index_by_id) for scalar-only deltas.
-
-    The returned roster reuses live cached objects for unaffected rows and
-    worker-owned incoming objects (with clan-context merged) for affected
-    rows, preserving cached order. Returns None when the delta is not
-    scalar-only and the caller must use the full pipeline.
-    """
-    cached = list(snapshot.cached_agents_with_children)
-    if not cached or not incoming:
-        return None
-    if len(incoming) > _SCALAR_ONLY_MAX_INCOMING:
-        return None
-    if len(cached) < 100:
-        # Tiny caches gain nothing from scoping; keep the tested full path.
-        return None
-
-    load_state = snapshot.load_state
-    if load_state is None:
-        return None
-    if load_state.complete_history:
-        return None
-    if load_state.artifact_source != "artifact_delta":
-        return None
-    if getattr(load_state, "repair_recommended", False):
-        return None
-    if getattr(load_state, "bounded_prefix", False):
-        return None
-    if bool(getattr(load_state, "running_claims_scanned", False)):
-        return None
-    if not snapshot.agents_seen_complete_history:
-        return None
-    if not snapshot.cache_query_matches:
-        return None
-    deleted_dirs = set(
-        getattr(load_state, "deleted_artifact_dirs", frozenset()) or frozenset()
-    )
-    if deleted_dirs:
-        return None
-
-    # Dismissals / explicit removals change membership beyond the delta.
-    if snapshot.dismissed_agents:
-        # Dismissed sets are checked per-row below; a non-empty set alone
-        # does not force fallback, but explicit removals do (tombstones).
-        pass
-    if snapshot.explicit_removals is not None:
-        from ._removal_tombstones import EMPTY_EXPLICIT_REMOVALS
-
-        if snapshot.explicit_removals is not EMPTY_EXPLICIT_REMOVALS:
-            # Non-empty tombstones need the full merge's removal pass.
-            try:
-                if len(snapshot.explicit_removals) > 0:  # type: ignore[arg-type]
-                    return None
-            except Exception:
-                return None
-
-    cached_by_identity: dict[object, tuple[int, Agent]] = {}
-    for idx, agent in enumerate(cached):
-        # First wins; duplicates would need full dedup to disambiguate.
-        if agent.identity not in cached_by_identity:
-            cached_by_identity[agent.identity] = (idx, agent)
-
-    # All incoming must match an existing cached row by identity with
-    # relationship keys equal. No new roots, no identity changes.
-    matched: list[tuple[int, Agent, Agent]] = []
-    for inc in incoming:
-        found = cached_by_identity.get(inc.identity)
-        if found is None:
-            return None
-        idx, live = found
-        if live.identity != inc.identity:
-            return None
-        if not _relationship_keys_equal(live, inc):
-            return None
-        # Stable replacement must win (same rule as the full merge for
-        # artifact deltas with matching types).
-        if live.agent_type != inc.agent_type:
-            return None
-        matched.append((idx, live, inc))
-
-    if not matched:
-        return None
-
-    # Dismissal check for affected rows only (full merge checks all cached,
-    # but unaffected cached rows were already filtered when they became live;
-    # a newly-dismissed unaffected row would need full handling).
-    dismissed = set(snapshot.dismissed_agents)
-    if dismissed:
-        dismissed_suffixes = {raw for _, _, raw in dismissed if raw is not None}
-        for _, live, _ in matched:
-            if live.identity in dismissed:
-                return None
-            if live.raw_suffix is not None and live.raw_suffix in dismissed_suffixes:
-                # Suffix-level dismissal needs the full merge's broad check.
-                return None
-        # Unaffected rows: verify none became newly dismissed by scanning
-        # identities only (O(N) reads, no copies). Any hit falls back.
-        for agent in cached:
-            if agent.identity in dismissed:
-                # Dismissed rows should not be in the cached roster; if one
-                # is, the full merge's dismissal pass must run.
-                return None
-
-    # Build closure: affected + parents + children + siblings + clan members.
-    # All are O(delta)-sized for scalar updates; clan membership could be
-    # large, so cap the closure and fall back when too big.
-    affected_idx = {idx for idx, _, _ in matched}
-    affected_suffixes = {
-        live.raw_suffix for _, live, _ in matched if live.raw_suffix is not None
+_SCALAR_ONLY_MIN_CACHED = 100
+_SLOT_STATUSES = frozenset(
+    {
+        "QUEUED",
+        "RUNNING",
+        "WAITING",
+        "Queued",
+        "Running",
+        "Waiting",
     }
-    {live.agent_session for _, live, _ in matched if live.agent_session}
-    affected_clans = {
-        (live.agent_clan, live.agent_clan_generation)
-        for _, live, _ in matched
-        if live.agent_clan
-    }
+)
 
-    parent_suffix_by_idx: dict[int, str | None] = {}
-    for idx, agent in enumerate(cached):
-        parent_suffix_by_idx[idx] = agent.parent_timestamp
 
-    # Children of affected (parent_timestamp in affected suffixes) and
-    # siblings (share a parent with affected) plus parents of affected.
-    closure_idx: set[int] = set(affected_idx)
-    # Parents: cached rows whose suffix equals an affected row's parent.
-    affected_parent_suffixes = {
-        live.parent_timestamp for _, live, _ in matched if live.parent_timestamp
-    }
-    suffix_to_idx: dict[str, list[int]] = {}
-    for idx, agent in enumerate(cached):
-        if agent.raw_suffix is not None and not agent.is_workflow_child:
-            suffix_to_idx.setdefault(agent.raw_suffix, []).append(idx)
-
-    for psuffix in affected_parent_suffixes:
-        for idx in suffix_to_idx.get(psuffix, []):
-            closure_idx.add(idx)
-
-    # Children + siblings: rows whose parent is affected or shares a parent
-    # with affected.
-    parent_of_affected: dict[int, str | None] = {}
-    for idx in list(affected_idx):
-        parent_of_affected[idx] = parent_suffix_by_idx.get(idx)
-    sibling_parents = {p for p in parent_of_affected.values() if p}
-    for idx, agent in enumerate(cached):
-        if len(closure_idx) > _SCALAR_ONLY_MAX_CLOSURE:
-            break
-        pt = agent.parent_timestamp
-        if pt is None:
+def _apply_incoming_scalars(owned: Agent, incoming: Agent) -> None:
+    """Copy scalar fields from worker-owned *incoming* onto a detached row."""
+    owned.clan_context = _merge_clan_context(owned.clan_context, incoming.clan_context)
+    skip = set(AGENT_RELINK_FIELDS)
+    skip.add("clan_context")
+    for field in fields(Agent):
+        if field.name in skip:
             continue
-        if pt in affected_suffixes or pt in sibling_parents:
-            closure_idx.add(idx)
-
-    # Clan members of affected clans (needed for tree + status propagation).
-    if affected_clans:
-        for idx, agent in enumerate(cached):
-            if len(closure_idx) > _SCALAR_ONLY_MAX_CLOSURE:
-                break
-            key = (agent.agent_clan, agent.agent_clan_generation)
-            if key in affected_clans:
-                closure_idx.add(idx)
-
-    if len(closure_idx) > _SCALAR_ONLY_MAX_CLOSURE:
-        return None
-
-    # Patch: merge clan context into incoming copies (mutates incoming only,
-    # which are worker-owned fresh disk objects).
-    for _, live, inc in matched:
-        inc.clan_context = _merge_clan_context(live.clan_context, inc.clan_context)
-
-    merged = list(cached)
-    for idx, _, inc in matched:
-        merged[idx] = inc
-
-    closure_index_by_id = {id(merged[idx]): idx for idx in closure_idx}
-    return merged, closure_index_by_id
+        value = getattr(incoming, field.name)
+        if isinstance(value, (list, dict, set)):
+            value = copy(value)
+        setattr(owned, field.name, value)
 
 
-def _capacity_irrelevant(
-    matched: list[tuple[int, Agent, Agent]],
+def _normalize_owned_closure(roster: list[Agent], closure: AffectedClosure) -> None:
+    """Rebuild session presentation only on detached affected rows."""
+    from ...models._agent_status_apply import apply_status_overrides
+
+    owned = [agent for agent in roster if agent.identity in closure.affected_identities]
+    if not owned:
+        return
+    top_level = [agent for agent in owned if not agent.parent_workflow]
+    workflow_steps = [agent for agent in owned if agent.parent_workflow]
+    apply_status_overrides(
+        top_level,
+        workflow_steps,
+        classify_diff_badges=False,
+    )
+
+
+def _project_affected_clans(
+    roster: list[Agent],
+    closure: AffectedClosure,
+) -> list[Agent]:
+    """Project clan trees only for clans that intersect the write set."""
+    from ...models._agent_tree import project_clan_tree
+
+    by_identity = {agent.identity: agent for agent in roster}
+    affected_clan_keys: set[tuple[str | None, str | None]] = set()
+    for ident in closure.affected_identities:
+        agent = by_identity.get(ident)
+        if agent is None or not agent.agent_clan:
+            continue
+        affected_clan_keys.add((agent.agent_clan, agent.agent_clan_generation))
+    if not affected_clan_keys:
+        return roster
+
+    def _in_affected_clan(agent: Agent) -> bool:
+        return (agent.agent_clan, agent.agent_clan_generation) in affected_clan_keys
+
+    first_idx = next(
+        (index for index, agent in enumerate(roster) if _in_affected_clan(agent)),
+        None,
+    )
+    if first_idx is None:
+        return roster
+    clan_rows = [agent for agent in roster if _in_affected_clan(agent)]
+    projected = project_clan_tree(clan_rows)
+    kept_before = [
+        agent for agent in roster[:first_idx] if not _in_affected_clan(agent)
+    ]
+    kept_after = [agent for agent in roster[first_idx:] if not _in_affected_clan(agent)]
+    return [*kept_before, *projected, *kept_after]
+
+
+def _slot_signature(agent: Agent) -> tuple[object, ...]:
+    return (
+        agent.status,
+        agent.runner_slots_in_use,
+        agent.runner_slot_queue_position,
+        agent.runner_slot_queue_size,
+        agent.runner_occupied_capacity,
+        agent.runner_effective_limit,
+        agent.runner_admission_limit,
+        agent.runner_capacity_blockers,
+    )
+
+
+def _slot_write_candidate(agent: Agent) -> bool:
+    if agent.slot_requested_at or agent.runner_is_live or agent.is_clan_container:
+        return True
+    return agent.status in _SLOT_STATUSES
+
+
+def _delta_changes_capacity(
+    roster: list[Agent],
+    incoming: list[Agent],
 ) -> bool:
-    """Return whether the scalar patch cannot affect runner capacity."""
     from sase.agent.status_buckets import agent_status_bucket
 
-    for _, live, inc in matched:
-        try:
-            live_bucket = agent_status_bucket(live)
-        except Exception:
-            live_bucket = getattr(live, "status", "")
-        try:
-            inc_bucket = agent_status_bucket(inc)
-        except Exception:
-            inc_bucket = getattr(inc, "status", "")
-        # Terminal->terminal (Done/Failed/DONE/FAILED in any combination)
-        # is capacity-irrelevant: running/live/waiter counts unchanged.
-        # Running/live/waiter buckets fall back to full.
-        if live_bucket not in {
-            "Done",
-            "Failed",
-            "DONE",
-            "FAILED",
-        } or inc_bucket not in {
-            "Done",
-            "Failed",
-            "DONE",
-            "FAILED",
-        }:
-            return False
-        if bool(getattr(live, "runner_is_live", False)) != bool(
-            getattr(inc, "runner_is_live", False)
-        ):
-            return False
-        if getattr(live, "pid", None) != getattr(inc, "pid", None):
-            return False
-    return True
-
-
-def _roster_has_structure(agents: list[Agent]) -> bool:
-    """Return whether any row needs session/workflow/clan/named-proc/fleet handling."""
-    for a in agents:
-        if getattr(a, "parent_workflow", None):
+    by_identity = {agent.identity: agent for agent in roster}
+    for inc in incoming:
+        live = by_identity.get(inc.identity)
+        if live is None:
             return True
-        if bool(getattr(a, "is_workflow_child", False)):
+        if bool(live.runner_is_live) != bool(inc.runner_is_live):
             return True
-        if bool(getattr(a, "is_agent_session_member_child", False)):
-            return True
-        if getattr(a, "agent_session", None):
-            return True
-        if getattr(a, "agent_clan", None):
-            return True
-        if bool(getattr(a, "is_named_proc", False)):
-            return True
-        if getattr(a, "fleet_origin_alias", None):
-            return True
-        if bool(getattr(a, "is_clan_container", False)):
-            return True
-    return False
-
-
-def _roster_has_capacity_shapes(agents: list[Agent]) -> bool:
-    """Return whether any row could be a slot waiter/runner (needs slot writes)."""
-    for a in agents:
-        if bool(getattr(a, "runner_is_live", False)):
-            return True
-        if getattr(a, "slot_requested_at", None):
+        if live.pid != inc.pid or live.slot_requested_at != inc.slot_requested_at:
             return True
         try:
-            from sase.agent.status_buckets import agent_status_bucket
-
-            bucket = agent_status_bucket(a)
-            if bucket not in {"Done", "Failed", "DONE", "FAILED"}:
+            if agent_status_bucket(live) != agent_status_bucket(inc):
                 return True
         except Exception:
-            st = getattr(a, "status", "")
-            if st not in {"DONE", "FAILED", "Done", "Failed"}:
+            if live.status != inc.status:
                 return True
     return False
+
+
+def _apply_scoped_slot_context(
+    roster: list[Agent],
+    closure: AffectedClosure,
+    snapshot: PreparedApplySnapshot,
+    memo: dict[int, Agent],
+    *,
+    occupancy_changed: bool,
+) -> tuple[RunnerCapacitySnapshot, list[Agent]]:
+    """Apply slot writes to detached rows; copy-on-write changed waiters."""
+    from sase.config.core import get_max_running_agents
+    from sase.core.agent_hold_facade import active_agent_hold_records
+
+    from ...models._agent_graph import copy_agent_rows_delta_isolated
+    from ...models.agent_runner_slots import refresh_runner_slot_context
+
+    owned_rows = [
+        agent for agent in roster if agent.identity in closure.affected_identities
+    ]
+    extras: list[Agent] = []
+    if occupancy_changed:
+        extras = [
+            agent
+            for agent in roster
+            if agent.identity not in closure.affected_identities
+            and _slot_write_candidate(agent)
+        ]
+    extra_copies = copy_agent_rows_delta_isolated(extras, memo) if extras else []
+    original_signatures = {extra.identity: _slot_signature(extra) for extra in extras}
+    write_targets = [*owned_rows, *extra_copies]
+    report = snapshot.capacity_report
+    try:
+        active_holds = tuple(active_agent_hold_records())
+    except Exception:
+        active_holds = ()
+    if report is None:
+        runner_capacity = refresh_runner_slot_context(
+            write_targets,
+            effective_limit=float(get_max_running_agents()),
+            capacity_agents=roster,
+            active_holds=active_holds,
+        )
+    else:
+        runner_capacity = refresh_runner_slot_context(
+            write_targets,
+            capacity_agents=roster,
+            raw_snapshot=report.raw_snapshot,
+            report=report,
+        )
+    replacements = {
+        extra.identity: copy_row
+        for extra, copy_row in zip(extras, extra_copies, strict=True)
+        if _slot_signature(copy_row) != original_signatures[extra.identity]
+    }
+    if replacements:
+        roster = [replacements.get(agent.identity, agent) for agent in roster]
+    return runner_capacity, roster
+
+
+def _fold_filter(
+    agents: list[Agent],
+    snapshot: PreparedApplySnapshot,
+) -> tuple[list[Agent], dict[str, tuple[int, int]]]:
+    if snapshot.fold_levels is None:
+        return list(agents), {}
+    from ...models.fold_state import FoldLevel
+    from ...models._fold_filter import filter_agents_by_fold_state
+
+    class _FoldStateSnapshot:
+        def __init__(self, levels: dict[str, FoldLevel]) -> None:
+            self._levels = levels
+
+        def get(self, key: str) -> FoldLevel:
+            return self._levels.get(key, FoldLevel.COLLAPSED)
+
+    return filter_agents_by_fold_state(
+        agents,
+        _FoldStateSnapshot(snapshot.fold_levels),  # type: ignore[arg-type]
+    )
 
 
 def try_scoped_worker_boundary(
@@ -332,24 +259,22 @@ def try_scoped_worker_boundary(
     dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
     | None = None,
 ) -> object | None:
-    """Attempt the delta-scaled worker boundary.
+    """Attempt the delta-scaled worker boundary for mixed-roster scalars.
 
-    Returns a ``PreparedApplyBoundary`` that is bit-identical to the full
-    pipeline for pure scalar terminal deltas, or None when the delta needs
-    the full pipeline. Pure scalar means: exact-delta eligible, small
-    incoming, all relationship keys equal, terminal buckets equal, no
-    session/workflow/clan/named-proc/fleet anywhere in cached+incoming, no
-    waiters/runners, no dismissed/deleted, capacity report None, no holds.
-    Anything else falls back to full (correct, just not scaled).
+    Returns a ``PreparedApplyBoundary`` equivalent to the full pipeline for
+    bounded scalar exact deltas, including ordinary sessions, clans, and a
+    live capacity report. A non-None capacity report or an unrelated
+    session elsewhere in the roster does not by itself force fallback.
+    Membership, repair, query, removal, and oversized closures still use
+    the full path.
     """
-    from dataclasses import replace as _replace
-
-    from ._loading_compute import compute_apply_loaded_agents
+    del dismissed_snapshot
     from ._loading_graph import (
         classify_exact_delta_fast_path,
-        copy_agent_rows_delta_isolated,
+        own_affected_apply_snapshot,
     )
 
+    fleet_source_rows = snapshot.fleet_rows
     fast = classify_exact_delta_fast_path(snapshot)
     if not fast.eligible:
         return None
@@ -361,150 +286,139 @@ def try_scoped_worker_boundary(
                 return None
         except Exception:
             return None
-    if getattr(snapshot, "capacity_report", None) is not None:
-        return None
-    if getattr(snapshot, "fleet_rows", ()):
-        try:
-            if len(snapshot.fleet_rows) > 0:
+    if snapshot.explicit_removals is not None:
+        from ._removal_tombstones import EMPTY_EXPLICIT_REMOVALS
+
+        if snapshot.explicit_removals is not EMPTY_EXPLICIT_REMOVALS:
+            try:
+                if len(snapshot.explicit_removals) > 0:  # type: ignore[arg-type]
+                    return None
+            except Exception:
                 return None
-        except Exception:
-            return None
-    if getattr(snapshot, "proc_projection", None) is not None:
-        return None
-    if getattr(snapshot, "agent_search_query", ""):
-        return None
-    if getattr(snapshot, "agent_status_overrides", {}):
-        return None
-    if getattr(snapshot, "agent_tabs_view_config", None) is not None:
-        return None
-    if getattr(snapshot, "unread_agent_ids", frozenset()):
-        try:
-            if len(snapshot.unread_agent_ids) > 0:
-                return None
-        except Exception:
-            return None
-
-    patch = try_scoped_scalar_patch(list(all_agents), snapshot)
-    if patch is None:
-        return None
-    merged_full, _ = patch
-
-    cached = list(snapshot.cached_agents_with_children)
-    if _roster_has_structure(cached) or _roster_has_structure(list(all_agents)):
-        return None
-    if _roster_has_capacity_shapes(cached) or _roster_has_capacity_shapes(
-        list(all_agents)
-    ):
-        return None
-
-    cached_by_identity = {a.identity: (i, a) for i, a in enumerate(cached)}
-    matched: list[tuple[int, Agent, Agent]] = []
-    for inc in all_agents:
-        found = cached_by_identity.get(inc.identity)
-        if found is None:
-            return None
-        idx, live = found
-        matched.append((idx, live, inc))
-    if not _capacity_irrelevant(matched):
-        return None
-
-    # Pure scalar simple: closure is affected only (no parents/children/
-    # siblings/clan since no structure). No live closure rows to copy
-    # because affected positions hold worker-owned incoming. Zero copies.
-    _, closure_by_id = patch
-    closure_idx = set(closure_by_id.values())
-    # Verify closure is exactly affected (no extra structure pulled in).
-    affected_idx = {idx for idx, _, _ in matched}
-    if closure_idx != affected_idx:
-        return None
-
-    prep = compute_apply_loaded_agents(
-        list(all_agents),
-        list(dismissed_from_loader),
-        set(dismissed_snapshot),
-        bool(hide_non_run_agents),
-        dismissed_bundle_snapshot=dismissed_bundle_snapshot,
-        explicit_removals=snapshot.explicit_removals,
+    load_state = snapshot.load_state
+    deleted_dirs = set(
+        getattr(load_state, "deleted_artifact_dirs", frozenset()) or frozenset()
+        if load_state is not None
+        else frozenset()
     )
+    if deleted_dirs:
+        return None
+
+    incoming = list(all_agents)
+    cached = list(snapshot.cached_agents_with_children)
+    if not incoming or not cached:
+        return None
+    if len(incoming) > _SCALAR_ONLY_MAX_INCOMING:
+        return None
+    if len(cached) < _SCALAR_ONLY_MIN_CACHED:
+        return None
+
+    occupancy_changed = _delta_changes_capacity(cached, incoming)
+    owned = own_affected_apply_snapshot(snapshot, incoming)
+    if owned is None:
+        return None
+    snapshot, memo, closure = owned
+    roster = list(snapshot.cached_agents_with_children)
+    by_identity = {agent.identity: agent for agent in roster}
+    for inc in incoming:
+        owned_row = by_identity.get(inc.identity)
+        if owned_row is None:
+            return None
+        _apply_incoming_scalars(owned_row, inc)
+
+    _normalize_owned_closure(roster, closure)
+    roster = _project_affected_clans(roster, closure)
+    runner_capacity, roster = _apply_scoped_slot_context(
+        roster,
+        closure,
+        snapshot,
+        memo,
+        occupancy_changed=occupancy_changed,
+    )
+
+    if snapshot.proc_projection is not None:
+        from ...models.agent_named_procs import (
+            merge_named_proc_agents,
+            named_proc_agents_from_observed,
+        )
+
+        named_procs = named_proc_agents_from_observed(
+            snapshot.proc_projection.rows,
+            dismissed_proc_ids=snapshot.dismissed_named_procs,
+        )
+        roster = merge_named_proc_agents(roster, named_procs)
+
+    from sase.project_display_names import attach_project_display_names
+
+    attach_project_display_names(
+        [agent for agent in roster if agent.identity in closure.affected_identities]
+    )
+
     from ._loading_helpers import is_always_visible
 
-    always_visible = [a for a in merged_full if is_always_visible(a)]
-    hideable = [a for a in merged_full if not is_always_visible(a)]
+    always_visible = [agent for agent in roster if is_always_visible(agent)]
+    hideable = [agent for agent in roster if not is_always_visible(agent)]
     if always_visible and bool(hide_non_run_agents) and hideable:
-        prep.filtered_agents = always_visible
-        prep.hidden_count = len(hideable)
+        filtered = always_visible
+        hidden_count = len(hideable)
     else:
-        prep.filtered_agents = list(merged_full)
-        prep.hidden_count = 0
-    prep.has_always_visible = bool(always_visible)
-    prep.hideable_agents = list(hideable)
-    prep.capacity_agents = list(snapshot.capacity_agents_with_children)
+        filtered = list(roster)
+        hidden_count = 0
 
-    # Runner capacity: no waiters/runners anywhere (verified), report None,
-    # no holds (check global holds empty to avoid external drift).
-    try:
-        from sase.core.agent_hold_facade import active_agent_hold_records
+    from ._loading_compute_types import PreparedApplyData
 
-        if tuple(active_agent_hold_records()):
-            return None
-    except Exception:
-        pass
-    from sase.config.core import get_max_running_agents
-
-    from ...models.agent_runner_slots import refresh_runner_slot_context
-
-    # Slot is a no-op for pure terminal with no waiters/runners, but run
-    # the fallback once over merged_full to produce the neutral snapshot.
-    # It writes only neutral runner_* fields; to avoid touching live rows,
-    # run it over worker-owned copies of affected incoming only, then reuse
-    # the neutral snapshot. Since affected are terminal with no slot shapes,
-    # their runner_* fields are already neutral; verify and skip.
-    for _, _, inc in matched:
-        if getattr(inc, "runner_slots_in_use", None) is not None:
-            return None
-        if getattr(inc, "runner_slot_queue_position", None) is not None:
-            return None
-    runner_capacity = refresh_runner_slot_context(
-        [],
-        effective_limit=float(get_max_running_agents()),
-        capacity_agents=[],
+    capacity_agents = list(snapshot.capacity_agents_with_children) or list(filtered)
+    prep = PreparedApplyData(
+        filtered_agents=filtered,
+        has_always_visible=bool(always_visible),
+        hidden_count=hidden_count,
+        hideable_agents=hideable,
+        dismissed_agent_objects=[],
+        capacity_agents=capacity_agents,
     )
 
-    # Fold: no fold levels (verify) and no clan (verified) => identity.
-    if snapshot.fold_levels is not None:
-        return None
-    from ._loading_compute import (
-        PreparedFoldFiltering,
-        project_and_fold_rosters,
-    )
+    visible, fold_counts = _fold_filter(filtered, snapshot)
 
-    # project_and_fold_rosters with no fleet + no folds still calls
-    # project_mixed_agent_tree which mutates via _reset even with no clans.
-    # Skip tree entirely when no clans (verified): unfiltered = merged_full.
     def _local_rows(rows: list[Agent]) -> list[Agent]:
-        return [a for a in rows if not a.fleet_origin_alias]
+        return [agent for agent in rows if not agent.fleet_origin_alias]
 
-    fold = PreparedFoldFiltering(
-        unfiltered_agents=list(merged_full),
-        visible_agents=list(merged_full),
-        fold_counts={},
-        local_unfiltered_agents=list(merged_full),
-        local_visible_agents=_local_rows(list(merged_full)),
-    )
-
+    from ._loading_compute import PreparedFoldFiltering
     from ._loading_compute_types import PreparedApplyBoundary
-    from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
-    boundary = PreparedApplyBoundary(
+    copied = sum(
+        1
+        for live_row, owned_row in zip(
+            cached, snapshot.cached_agents_with_children, strict=True
+        )
+        if live_row is not owned_row
+    )
+    from ...util.trace import tui_trace
+
+    with tui_trace(
+        "agents.delta_prep_scaled",
+        incoming=len(incoming),
+        cached=len(cached),
+        closure=closure.closure_size,
+        copied=copied,
+        reason=closure.reason,
+    ):
+        pass
+
+    return PreparedApplyBoundary(
         prep=prep,
-        fold=fold,
+        fold=PreparedFoldFiltering(
+            unfiltered_agents=list(filtered),
+            visible_agents=visible,
+            fold_counts=fold_counts,
+            local_unfiltered_agents=list(filtered),
+            local_visible_agents=_local_rows(visible),
+        ),
         selection=snapshot.selection,
         runner_capacity=runner_capacity,
         runner_capacity_estimate=runner_capacity,
         capacity_generation=snapshot.capacity_generation,
         proc_generation=snapshot.proc_generation,
-        fleet_source_rows=tuple(snapshot.fleet_rows),
+        fleet_source_rows=tuple(fleet_source_rows),
         dismissed_agents_snapshot=frozenset(snapshot.dismissed_agents),
         removal_generation=snapshot.removal_generation,
     )
-    return boundary
