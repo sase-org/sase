@@ -53,6 +53,18 @@ log = logging.getLogger(__name__)
 _ARCHIVE_TASK_REGISTRY = "_archive_controller_tasks"
 _ARCHIVE_TASK_NAME = "sase-archive-corpus"
 
+# Quiet-tick cadence for the background Archive idle revalidation. The
+# auto-refresh tick fires every ~10 s; running a full corpus IDLE build on
+# every tick costs p50 ~29 ms / mean ~158 ms even when nothing changed
+# (grade-20261123). When the Archive view is not visible an explicit open
+# rebuilds on demand, so the auto-refresh caller throttles background idle
+# work to once per minute. Foreground (Archive visible) keeps the 10 s
+# cadence. The constants live here so the caller and tests share them;
+# schedule_archive_idle_tick itself always schedules (its contract), and
+# the caller applies the cadence.
+_ARCHIVE_IDLE_BACKGROUND_SECONDS = 60.0
+_ARCHIVE_IDLE_FOREGROUND_SECONDS = 10.0
+
 
 def _controller(owner: Any) -> AgentsArchiveControllerState:
     state = getattr(owner, "_agents_archive_controller", None)

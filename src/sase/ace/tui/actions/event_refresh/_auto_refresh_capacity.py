@@ -100,7 +100,29 @@ class EventAutoRefreshCapacityMixin(EventAutoRefreshCapacityProbeMixin):
                 log.debug("Failed to stop capacity report timer", exc_info=True)
 
     def _on_machine_capacity_feed_tick(self) -> None:
-        """Thin timer callback: hand work to the pump-free task (no I/O)."""
+        """Thin timer callback: hand work to the pump-free task (no I/O).
+
+        The 10 s poll stays, but quiet background ticks are throttled to
+        ~30 s: when the inspector is closed and no waiters need a
+        time-authoritative check, a recent report (installed or confirmed
+        unchanged) skips the request. Real changes still surface on the
+        next 10 s token-change probe via the revalidation path, and the
+        inspector/waiter cases keep the full 10 s cadence.
+        """
+        try:
+            if not self._capacity_inspector_open():
+                last = float(getattr(self, "_machine_capacity_report_mono", 0.0) or 0.0)
+                if last and time.monotonic() - last < 30.0:
+                    try:
+                        needs_time_check = (
+                            self._capacity_needs_time_authoritative_check()
+                        )
+                    except Exception:
+                        needs_time_check = True
+                    if not needs_time_check:
+                        return
+        except Exception:
+            pass
         self._request_machine_capacity_report_refresh(source="capacity_tick")
 
     def _request_machine_capacity_report_refresh(self, *, source: str) -> None:

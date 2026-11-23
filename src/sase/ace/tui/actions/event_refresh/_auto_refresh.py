@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ...util.pump_tasks import spawn_pump_free_task
 from ._auto_refresh_capacity import EventAutoRefreshCapacityMixin
@@ -42,9 +44,33 @@ class EventAutoRefreshMixin(_CapacityReportFeedMixin, EventAutoRefreshSurfacesMi
             return
         if self._prompt_input_active():
             return
-        from ..agents._archive_controller import schedule_archive_idle_tick
+        from ..agents._archive_controller import (
+            _ARCHIVE_IDLE_BACKGROUND_SECONDS,
+            _ARCHIVE_IDLE_FOREGROUND_SECONDS,
+            schedule_archive_idle_tick,
+        )
 
-        schedule_archive_idle_tick(self)
+        try:
+            now = time.monotonic()
+            last = float(getattr(self, "_archive_last_idle_tick_mono", 0.0))
+            try:
+                view = getattr(
+                    getattr(self, "_agents_archive_view", None),
+                    "active_view",
+                    "inbox",
+                )
+            except Exception:
+                view = "inbox"
+            interval = (
+                _ARCHIVE_IDLE_FOREGROUND_SECONDS
+                if view == "archive"
+                else _ARCHIVE_IDLE_BACKGROUND_SECONDS
+            )
+            if not (now - last < interval):
+                self._archive_last_idle_tick_mono = now
+                schedule_archive_idle_tick(self)
+        except Exception:
+            schedule_archive_idle_tick(self)
         if getattr(self, "_auto_refresh_running", False):
             self._auto_refresh_pending = True
             return
