@@ -170,16 +170,16 @@ def test_live_successor_owns_recovered_work(
         AgentArtifactScanWire,
     )
 
-    def query(_index_path, projects_root, _query, options):
+    def query(_project, _keys, _query, options):
         return AgentArtifactScanWire(
             schema_version=12,
-            projects_root=str(projects_root),
+            projects_root="/unused",
             options=options or AgentArtifactScanOptionsWire(),
             stats=AgentArtifactScanStatsWire(),
             records=[live],
         )
 
-    monkeypatch.setattr("sase.bead.stranded_facts.query_agent_artifact_index", query)
+    monkeypatch.setattr("sase.bead.stranded_facts._query_session_index", query)
     report = reduce_stranded_work(collect_stranded_work_input(PROJECT, now=_NOW))
     assert report.stranded_ids == ()
     assert report.verdicts[0].bead_id == task_id
@@ -273,16 +273,16 @@ def test_in_progress_parent_is_blocked_by_recovered_phase(
         AgentArtifactScanWire,
     )
 
-    def query(_index_path, projects_root, _query, options):
+    def query(_project, _keys, _query, options):
         return AgentArtifactScanWire(
             schema_version=12,
-            projects_root=str(projects_root),
+            projects_root="/unused",
             options=options or AgentArtifactScanOptionsWire(),
             stats=AgentArtifactScanStatsWire(),
             records=[live_parent, dead_phase],
         )
 
-    monkeypatch.setattr("sase.bead.stranded_facts.query_agent_artifact_index", query)
+    monkeypatch.setattr("sase.bead.stranded_facts._query_session_index", query)
     report = reduce_stranded_work(collect_stranded_work_input(PROJECT, now=_NOW))
     assert phase_id in report.stranded_ids
     assert plan_id in report.blocked_ids

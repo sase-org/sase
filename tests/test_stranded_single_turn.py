@@ -50,18 +50,18 @@ def _capturing_collector(
     """Like ``wire_collector`` but captures the index queries sent."""
     captured: list[Any] = []
     wire_collector(monkeypatch, tmp_path, issues, records)
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(
-        index_path: Path,
-        projects_root: Path,
+        project: str,
+        keys: tuple[str, ...],
         index_query: Any,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         captured.append(index_query)
-        return original(index_path, projects_root, index_query, options)
+        return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     return captured
 
 

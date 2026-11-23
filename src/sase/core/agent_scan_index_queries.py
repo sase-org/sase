@@ -49,6 +49,7 @@ from sase.core.agent_output_variable_selector_wire import (
 from sase.core.agent_output_variable_selector_wire import (
     agent_output_variable_selector_result_from_dict,
 )
+from sase.core.agent_scan_index_reader import AgentArtifactIndexReader
 from sase.core.agent_scan_source import scan_agent_artifacts
 from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
@@ -354,6 +355,7 @@ def query_agent_artifact_index_list_bounded(
 
 
 __all__ = [
+    "AgentArtifactIndexReader",
     "agent_artifact_list_wire_schema_version",
     "find_gate_turn_by_gate_id",
     "load_agent_artifact_records_bounded",

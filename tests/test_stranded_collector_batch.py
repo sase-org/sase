@@ -91,12 +91,13 @@ def _legacy_answers(project: str, keys: set[str]) -> dict[str, tuple[list[str], 
     """The pre-batch answer: one query per key with the exact recheck."""
     answers: dict[str, tuple[list[str], bool]] = {}
     for key in sorted(keys):
-        scan = facts.query_agent_artifact_index(
-            facts.default_agent_artifact_index_path(),
-            facts.sase_projects_dir(),
+        scan = facts._query_session_index(
+            project,
+            (key,),
             _legacy_single_key_query(project, key),
             _legacy_options(project),
         )
+        assert scan is not None
         dirs: list[str] = []
         seen: set[str] = set()
         for item in scan.records:
@@ -178,18 +179,18 @@ def test_single_batched_query_carries_every_key(monkeypatch, tmp_path: Path) -> 
         _rich_records(tmp_path),
     )
     captured: list[Any] = []
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(
-        index_path: Path,
-        projects_root: Path,
+        project: str,
+        keys: tuple[str, ...],
         index_query: Any,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         captured.append((index_query, options))
-        return original(index_path, projects_root, index_query, options)
+        return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     keys = {"key-a", "key-b", "shared"}
     facts._session_record_cache(PROJECT, keys)
     assert len(captured) == 1
@@ -217,19 +218,19 @@ def test_more_than_100_keys_uses_multiple_chunks(monkeypatch, tmp_path: Path) ->
     ]
     wire_collector(monkeypatch, tmp_path, [], records)
     calls = 0
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(
-        index_path: Path,
-        projects_root: Path,
+        project: str,
+        keys: tuple[str, ...],
         index_query: Any,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         nonlocal calls
         calls += 1
-        return original(index_path, projects_root, index_query, options)
+        return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     cache = facts._session_record_cache(PROJECT, set(keys))
     assert calls == 3
     assert set(cache) == set(keys)
@@ -255,20 +256,20 @@ def test_failing_chunk_marks_only_its_keys_unavailable(
         [phase("sase-1.2", assignee="good-c")],
         records,
     )
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(
-        index_path: Path,
-        projects_root: Path,
+        project: str,
+        keys: tuple[str, ...],
         index_query: Any,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         values = {item["value"] for item in index_query.candidate_filter["filters"]}
         if values & {"bad-a", "bad-b"}:
             raise OSError("index busy")
-        return original(index_path, projects_root, index_query, options)
+        return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     # Sorted: bad-a, bad-b, good-c, good-d -> chunks [bad-a, bad-b], [good-c, good-d].
     cache = facts._session_record_cache(PROJECT, {"good-d", "good-c", "bad-b", "bad-a"})
     assert cache["bad-a"] == ([], False)
@@ -293,14 +294,14 @@ def test_missing_index_file_marks_every_key_unavailable(
         lambda: tmp_path / "missing.sqlite",
     )
     calls = 0
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(*args: Any, **kwargs: Any) -> AgentArtifactScanWire:
         nonlocal calls
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     cache = facts._session_record_cache(PROJECT, {"key-a", "key-b"})
     assert cache == {"key-a": ([], False), "key-b": ([], False)}
     assert calls == 0
@@ -315,19 +316,19 @@ def test_collector_end_to_end_uses_batched_query(monkeypatch, tmp_path: Path) ->
         [record(artifact, name="sase-1.2", session="sase-1.2")],
     )
     calls = 0
-    original = facts.query_agent_artifact_index
+    original = facts._query_session_index
 
     def query(
-        index_path: Path,
-        projects_root: Path,
+        project: str,
+        keys: tuple[str, ...],
         index_query: Any,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         nonlocal calls
         calls += 1
-        return original(index_path, projects_root, index_query, options)
+        return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     payload = collect_stranded_work_input(PROJECT, now=_NOW)
     assert calls == 1
     bead = bead_facts(payload, "sase-1.2")

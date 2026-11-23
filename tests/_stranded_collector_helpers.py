@@ -216,20 +216,20 @@ def wire_collector(
     monkeypatch.setattr(facts, "stranded_snapshot", stranded_snapshot)
 
     def query(
-        _index_path: Path,
-        projects_root: Path,
+        _project: str,
+        keys: tuple[str, ...],
         _query: object,
         options: AgentArtifactScanOptionsWire | None,
     ) -> AgentArtifactScanWire:
         return AgentArtifactScanWire(
             schema_version=12,
-            projects_root=str(projects_root),
+            projects_root="/unused",
             options=options or AgentArtifactScanOptionsWire(),
             stats=AgentArtifactScanStatsWire(),
             records=list(records),
         )
 
-    monkeypatch.setattr(facts, "query_agent_artifact_index", query)
+    monkeypatch.setattr(facts, "_query_session_index", query)
     return beads_dir
 
 

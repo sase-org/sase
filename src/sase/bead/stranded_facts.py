@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import asdict
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -34,12 +35,14 @@ from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
-    query_agent_artifact_index,
 )
+from sase.core.agent_scan_index_queries import AgentArtifactIndexReader
+from sase.core.agent_artifact_index_lock import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
 )
 from sase.core.bead_read_facade import stranded_snapshot
 from sase.core.paths import sase_projects_dir
@@ -58,6 +61,32 @@ from sase.finalizers.declaration_manifest import (
     load_latest_finalizer_submission,
 )
 from sase.workspace_provider.retention_record import read_workspace_retention_record
+
+
+@lru_cache(maxsize=8)
+def _session_index_reader(
+    _project: str, _keys: tuple[str, ...]
+) -> AgentArtifactIndexReader:
+    # Own a bounded set of batches: projects and >100-session chunks interleave.
+    # Rust still validates the complete query, paths, options and markers on every
+    # read. Eviction only loses reuse; reports always build independent fact dicts.
+    return AgentArtifactIndexReader()
+
+
+def _query_session_index(
+    project: str,
+    keys: tuple[str, ...],
+    query: AgentArtifactIndexQueryWire,
+    options: AgentArtifactScanOptionsWire,
+) -> AgentArtifactScanWire | None:
+    return _session_index_reader(project, keys).query(
+        default_agent_artifact_index_path(),
+        sase_projects_dir(),
+        query,
+        options,
+        lock_timeout_seconds=DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+    )
+
 
 _SETTLE_GRACE_SECONDS = 120.0
 _FINALIZER_ACTIVE_PHASES = frozenset({"declaring", "executing"})
@@ -235,9 +264,9 @@ def _query_session_records_chunk(
         include_raw_prompt_snippets=False,
         only_projects=(project,),
     )
-    scan = query_agent_artifact_index(
-        default_agent_artifact_index_path(), sase_projects_dir(), query, options
-    )
+    scan = _query_session_index(project, tuple(keys), query, options)
+    if scan is None:
+        raise RuntimeError("artifact index operation lock is busy")
     return list(scan.records)
 
 
