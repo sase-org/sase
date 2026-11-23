@@ -13,9 +13,11 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
     axe_token_consumer_drifted,
     probe_procs_token,
     probe_surface_tokens,
-    _surface_token_changed_entries,
     surface_token_changed_kinds,
     surface_token_drifted,
+)
+from sase.ace.tui.actions.event_refresh._surface_tokens._compare import (
+    _surface_token_changed_entries,
 )
 
 _PULSE = ".ace_refresh_pulse"

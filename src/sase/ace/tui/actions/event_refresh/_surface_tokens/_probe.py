@@ -1,11 +1,4 @@
-"""Stat-only change tokens for ACE auto-refresh surfaces.
-
-Each token is built from path metadata (existence, mtime, size) without
-opening file contents. Directory probes stay shallow: project and
-lumberjack membership plus a bounded set of files. The bead-store part is
-the exact stat-only store fingerprint over every stream file's metadata.
-Callers treat an indeterminate token as dirty and fail open.
-"""
+"""Stat-only filesystem probes for ACE auto-refresh surface tokens."""
 
 from __future__ import annotations
 
@@ -21,6 +14,8 @@ from sase.ace.patch.project_spec_path import (
     legacy_archive_project_spec_filename,
 )
 
+from ._models import SurfaceToken, SurfaceTokenRoots, SurfaceTokenSnapshot
+
 _ACE_REFRESH_PULSE_NAME = ".ace_refresh_pulse"
 _AXE_ROOT_PID_FILES = (
     "pid",
@@ -34,8 +29,6 @@ _AXE_LUMBERJACK_FILES = (
     "pid",
 )
 _BEAD_FINGERPRINT_PART_PREFIX = "bead-store-fingerprint:"
-_AXE_DETAIL_KINDS = frozenset({"status", "metrics", "log"})
-_AXE_ALWAYS_KINDS = frozenset({"membership", "pid", "service", "content"})
 
 
 @dataclass(frozen=True)
@@ -47,76 +40,6 @@ class _PathMeta:
     mtime_ns: int | None = None
     size: int | None = None
     kind: str = "content"
-
-
-@dataclass(frozen=True)
-class SurfaceToken:
-    """Immutable metadata token for one ACE refresh surface.
-
-    ``part_kinds`` is parallel to ``parts`` and does not participate in
-    equality: a heartbeat rewrite of an unconsumed file still changes
-    ``parts``, while consumers filter by kind before deciding to reload.
-    """
-
-    surface: str
-    parts: tuple[tuple[str, bool, int | None, int | None], ...]
-    indeterminate: bool = False
-    part_kinds: tuple[str, ...] = ()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, SurfaceToken):
-            return NotImplemented
-        return (
-            self.surface == other.surface
-            and self.parts == other.parts
-            and self.indeterminate == other.indeterminate
-        )
-
-    def __hash__(self) -> int:
-        return hash((self.surface, self.parts, self.indeterminate))
-
-
-@dataclass(frozen=True)
-class SurfaceTokenSnapshot:
-    """One probe of every ACE refresh surface."""
-
-    agents: SurfaceToken
-    axe: SurfaceToken
-    notifications: SurfaceToken
-    patches: SurfaceToken
-    procs: SurfaceToken
-    tool_runs: SurfaceToken | None = None
-    runner_capacity: SurfaceToken | None = None
-
-    def token_for(self, surface: str) -> SurfaceToken:
-        """Return the token for *surface*."""
-        try:
-            token = getattr(self, surface)
-        except AttributeError as exc:
-            raise KeyError(surface) from exc
-        if not isinstance(token, SurfaceToken):
-            raise KeyError(surface)
-        return token
-
-
-@dataclass(frozen=True)
-class SurfaceTokenRoots:
-    """Filesystem roots a token probe may inspect."""
-
-    projects_root: Path
-    axe_root: Path
-    notifications_path: Path
-    procs_path: Path
-    beads_dir: Path | None = None
-    agent_index_path: Path | None = None
-    runner_limit_override_path: Path | None = None
-    agent_hold_store_path: Path | None = None
-    runner_slot_token_path: Path | None = None
-    service_dir: Path | None = None
-    service_state_path: Path | None = None
-    service_status_path: Path | None = None
-    tool_run_store_path: Path | None = None
-    tool_run_wal_path: Path | None = None
 
 
 def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRoots:
@@ -415,142 +338,6 @@ def probe_procs_token(procs_path: Path) -> SurfaceToken:
     return _token("procs", parts, ok=ok)
 
 
-def surface_token_drifted(
-    current: SurfaceToken | None,
-    last: SurfaceToken | None,
-) -> bool:
-    """Return True when *current* cannot be treated as unchanged."""
-    if current is None or last is None:
-        return True
-    if current.indeterminate or last.indeterminate:
-        return True
-    return current != last
-
-
-def surface_token_changed_kinds(
-    current: SurfaceToken | None,
-    last: SurfaceToken | None,
-    *,
-    consumed_kinds: frozenset[str] | None = None,
-) -> tuple[str, ...]:
-    """Return bounded part-kind labels for changed token inputs.
-
-    Missing or indeterminate inputs are reported as ``("unknown",)`` so
-    callers can explain fail-open refreshes without logging file paths.
-    """
-    if current is None or last is None or current.indeterminate or last.indeterminate:
-        return ("unknown",)
-    current_map = _part_map(current)
-    last_map = _part_map(last)
-    changed_kinds: set[str] = set()
-    for path in current_map.keys() | last_map.keys():
-        current_entry = current_map.get(path)
-        last_entry = last_map.get(path)
-        if current_entry == last_entry:
-            continue
-        kind = (
-            current_entry[3]
-            if current_entry is not None
-            else last_entry[3]
-            if last_entry is not None
-            else "content"
-        )
-        if consumed_kinds is None or kind in consumed_kinds:
-            changed_kinds.add(kind)
-    return tuple(sorted(changed_kinds))
-
-
-def _consumed_axe_part_kinds(*, consume_details: bool) -> frozenset[str]:
-    """Return axe token kinds the current consumer actually reads."""
-    if consume_details:
-        return _AXE_ALWAYS_KINDS | _AXE_DETAIL_KINDS
-    return _AXE_ALWAYS_KINDS
-
-
-def axe_token_consumer_drifted(
-    current: SurfaceToken | None,
-    last: SurfaceToken | None,
-    *,
-    consume_details: bool,
-) -> bool:
-    """Return True when consumed axe parts cannot be treated as unchanged.
-
-    Lumberjack ``status.json`` / ``metrics.json`` / ``output.log`` rewrite
-    every tick with heartbeat fields the Agents tab does not display.
-    Those parts only invalidate the Services dashboard and visible logs.
-    """
-    if current is None or last is None:
-        return True
-    if current.indeterminate or last.indeterminate:
-        return True
-    kinds = _consumed_axe_part_kinds(consume_details=consume_details)
-    return _parts_for_kinds(current, kinds) != _parts_for_kinds(last, kinds)
-
-
-def axe_token_changed_kinds(
-    current: SurfaceToken | None,
-    last: SurfaceToken | None,
-    *,
-    consume_details: bool,
-) -> tuple[str, ...]:
-    """Return changed, currently consumed AXE token-part labels."""
-    return surface_token_changed_kinds(
-        current,
-        last,
-        consumed_kinds=_consumed_axe_part_kinds(consume_details=consume_details),
-    )
-
-
-def agents_token_reload_kind(
-    current: SurfaceToken | None,
-    last: SurfaceToken | None,
-    *,
-    watcher_active: bool,
-) -> str:
-    """Return ``skip`` or ``load`` for an Agents token pair.
-
-    Index-only metadata churn is not a roster change. With a watcher the
-    exact artifact-dir path is already queued; without one the poll
-    fallback still loads. Pulse, artifacts-dir, and membership parts stay
-    load signals.
-    """
-    if current is None or last is None:
-        return "load"
-    if current.indeterminate or last.indeterminate:
-        return "load"
-    changed = _surface_token_changed_entries(current, last)
-    if not changed:
-        return "skip"
-    kinds = {kind for _path, kind in changed}
-    if kinds <= {"index"}:
-        return "skip" if watcher_active else "load"
-    return "load"
-
-
-def _surface_token_changed_entries(
-    current: SurfaceToken,
-    last: SurfaceToken,
-) -> tuple[tuple[str, str], ...]:
-    """Return ``(path, kind)`` for parts whose metadata differs."""
-    current_map = _part_map(current)
-    last_map = _part_map(last)
-    changed: list[tuple[str, str]] = []
-    for path in sorted(set(current_map) | set(last_map)):
-        current_entry = current_map.get(path)
-        last_entry = last_map.get(path)
-        if current_entry == last_entry:
-            continue
-        kind = (
-            current_entry[3]
-            if current_entry is not None
-            else last_entry[3]
-            if last_entry is not None
-            else "content"
-        )
-        changed.append((path, kind))
-    return tuple(changed)
-
-
 def _token(surface: str, parts: Iterable[_PathMeta], *, ok: bool) -> SurfaceToken:
     metas = tuple(parts)
     return SurfaceToken(
@@ -560,31 +347,6 @@ def _token(surface: str, parts: Iterable[_PathMeta], *, ok: bool) -> SurfaceToke
         ),
         indeterminate=not ok,
         part_kinds=tuple(part.kind for part in metas),
-    )
-
-
-def _kind_at(token: SurfaceToken, index: int) -> str:
-    if index < len(token.part_kinds) and token.part_kinds[index]:
-        return token.part_kinds[index]
-    return "content"
-
-
-def _part_map(
-    token: SurfaceToken,
-) -> dict[str, tuple[bool, int | None, int | None, str]]:
-    mapped: dict[str, tuple[bool, int | None, int | None, str]] = {}
-    for index, (path, exists, mtime_ns, size) in enumerate(token.parts):
-        mapped[path] = (exists, mtime_ns, size, _kind_at(token, index))
-    return mapped
-
-
-def _parts_for_kinds(
-    token: SurfaceToken, kinds: frozenset[str]
-) -> tuple[tuple[str, bool, int | None, int | None], ...]:
-    return tuple(
-        part
-        for index, part in enumerate(token.parts)
-        if _kind_at(token, index) in kinds
     )
 
 
@@ -704,15 +466,9 @@ def _project_spec_filenames(project_name: str) -> tuple[str, ...]:
 
 
 __all__ = [
-    "SurfaceToken",
-    "SurfaceTokenRoots",
-    "SurfaceTokenSnapshot",
-    "agents_token_reload_kind",
-    "axe_token_consumer_drifted",
     "live_surface_token_roots",
     "probe_procs_token",
     "probe_runner_capacity_token",
     "probe_surface_tokens",
     "probe_tool_runs_token",
-    "surface_token_drifted",
 ]
