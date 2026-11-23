@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -43,6 +43,12 @@ class ArtifactLinksSnapshot:
     rows: tuple[Mapping[str, Any], ...] = ()
     source_key: tuple[object, ...] = ()
     errors: tuple[str, ...] = ()
+    rows_by_project: Mapping[str, tuple[Mapping[str, Any], ...]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+    errors_by_project: Mapping[str, str] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
 
 _CACHE_LOCK = RLock()
@@ -80,11 +86,42 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
         if cached is not None and cached[0] == signature:
             _CACHE.move_to_end(scope)
             return cached[1]
-    rows: list[Mapping[str, Any]] = []
-    errors: list[str] = []
+
+    old_snapshot = cached[1] if cached is not None else None
+    old_signatures = (
+        _project_signatures(old_snapshot.source_key) if old_snapshot is not None else {}
+    )
+    current_signatures = _project_signatures(signature)
+    changed = {
+        project_key
+        for project_key in old_signatures.keys() | current_signatures.keys()
+        if old_signatures.get(project_key) != current_signatures.get(project_key)
+    }
+
+    rows_by_project = (
+        dict(old_snapshot.rows_by_project)
+        if old_snapshot is not None and old_snapshot.rows_by_project
+        else _partition_rows_by_project(old_snapshot.rows if old_snapshot else ())
+    )
+    errors_by_project = (
+        dict(old_snapshot.errors_by_project)
+        if old_snapshot is not None and old_snapshot.errors_by_project
+        else _partition_errors_by_project(old_snapshot.errors if old_snapshot else ())
+    )
+    for project_key in tuple(rows_by_project):
+        if project_key not in current_signatures or project_key in changed:
+            rows_by_project.pop(project_key, None)
+    for project_key in tuple(errors_by_project):
+        if project_key not in current_signatures or project_key in changed:
+            errors_by_project.pop(project_key, None)
+
     for project_key in projects:
+        if project_key not in changed:
+            continue
         path = artifact_link_aggregate_path(project_key)
+        project_rows: list[Mapping[str, Any]] = []
         if not path.is_file():
+            rows_by_project[project_key] = ()
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -94,17 +131,32 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
             if not isinstance(raw_rows, list):
                 raise RuntimeError("artifact link aggregate rows must be a list")
         except Exception as exc:  # noqa: BLE001 - relation rail degrades to no rows
-            errors.append(f"{project_key}: {exc}")
+            rows_by_project[project_key] = ()
+            errors_by_project[project_key] = f"{project_key}: {exc}"
             continue
         for row in raw_rows:
             if isinstance(row, Mapping):
                 copied = dict(row)
-                copied.setdefault("_project", project_key)
-                rows.append(copied)
+                copied["_project"] = project_key
+                project_rows.append(copied)
+        rows_by_project[project_key] = tuple(project_rows)
+
+    ordered_rows = tuple(
+        row for project_key in projects for row in rows_by_project.get(project_key, ())
+    )
+    ordered_errors = tuple(
+        errors_by_project[project_key]
+        for project_key in projects
+        if project_key in errors_by_project
+    )
     snapshot = ArtifactLinksSnapshot(
-        rows=tuple(rows),
+        rows=ordered_rows,
         source_key=signature,
-        errors=tuple(errors),
+        errors=ordered_errors,
+        rows_by_project={key: rows_by_project[key] for key in projects},
+        errors_by_project={
+            key: errors_by_project[key] for key in projects if key in errors_by_project
+        },
     )
     with _CACHE_LOCK:
         _CACHE[scope] = (signature, snapshot)
@@ -112,6 +164,36 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
         while len(_CACHE) > _CACHE_MAX:
             _CACHE.popitem(last=False)
     return snapshot
+
+
+def _project_signatures(
+    source_key: tuple[object, ...],
+) -> dict[str, tuple[object, ...]]:
+    signatures: dict[str, tuple[object, ...]] = {}
+    for item in source_key:
+        if isinstance(item, tuple) and item:
+            signatures[str(item[0])] = tuple(item[1:])
+    return signatures
+
+
+def _partition_rows_by_project(
+    rows: Iterable[Mapping[str, Any]],
+) -> dict[str, tuple[Mapping[str, Any], ...]]:
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        project = str(row.get("_project") or "")
+        if project:
+            grouped.setdefault(project, []).append(row)
+    return {project: tuple(project_rows) for project, project_rows in grouped.items()}
+
+
+def _partition_errors_by_project(errors: Iterable[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for error in errors:
+        project, separator, _detail = error.partition(":")
+        if separator and project:
+            result[project] = error
+    return result
 
 
 def artifact_link_edges(

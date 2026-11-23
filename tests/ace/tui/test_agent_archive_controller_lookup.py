@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
@@ -66,33 +67,85 @@ async def test_archive_trace_counts_probe_reuse_and_apply_outcomes(
     trace._context.clear()
     owner = make_owner()
     spawn, _builds, _facets = instrument(owner, tokens=archive_tokens())
+    from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
+
+    token_box = [archive_tokens()]
+    owner._archive_probe_tokens = lambda: token_box[0]
+    original_links = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:guide"},),
+        source_key=(("proj", 1, 2),),
+    )
+    current_links = [original_links]
+    owner._archive_load_link_snapshot = lambda: current_links[0]
+    owner._archive_catalog_link_identity = lambda: "catalog-v1"
 
     note_inbox_applied_for_archive(owner, load_state=complete_load())
     await spawn.drain()
     schedule_archive_idle_tick(owner)
     await spawn.drain()
 
+    metadata_rewrite = ArtifactLinksSnapshot(
+        rows=original_links.rows,
+        source_key=(("proj", 9, 9),),
+    )
+    token_box[0] = replace(token_box[0], link_signature=(("proj", 9, 9),))
+    current_links[0] = metadata_rewrite
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
+
+    changed_links = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:new"},),
+        source_key=(("proj", 10, 10),),
+    )
+    token_box[0] = replace(token_box[0], link_signature=(("proj", 10, 10),))
+    current_links[0] = changed_links
+
+    def _fail_facets() -> None:
+        raise RuntimeError("facet fixture failure")
+
+    owner._archive_load_facets = _fail_facets
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
+
     trace._flush_trace_writes()
     rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
     builds = [row for row in rows if row.get("span") == "agents.archive_build"]
-    assert len(builds) == 2
+    assert len(builds) == 4
     assert builds[0]["idle_probe_count"] == 0
     assert builds[0]["facet_load_count"] == 1
     assert builds[0]["corpus_lookup_count"] == 1
+    assert builds[0]["corpus_compile_count"] is None
+    assert builds[0]["corpus_summary_query_count"] == 1
+    assert builds[0]["corpus_window_query_count"] == 0
+    assert builds[0]["corpus_count_query_count"] == 1
     assert builds[0]["outcome"] == "built"
     assert builds[1]["idle_probe_count"] == 1
     assert builds[1]["changed_token_components"] == []
     assert builds[1]["facet_load_count"] == 0
     assert builds[1]["corpus_lookup_count"] == 0
+    assert builds[1]["corpus_compile_count"] == 0
     assert builds[1]["outcome"] == "unchanged"
+    assert builds[2]["link_snapshot_unchanged_count"] == 1
+    assert builds[2]["link_aggregate_drift_count"] == 1
+    assert builds[2]["catalog_identity_probe_count"] == 1
+    assert builds[2]["facet_load_count"] == 0
+    assert builds[2]["corpus_lookup_count"] == 0
+    assert builds[2]["corpus_summary_query_count"] == 0
+    assert builds[2]["unchanged_reason"] == "link_metadata_only"
+    assert builds[3]["facet_load_count"] == 1
+    assert builds[3]["facet_load_duration_ms"] >= 0
+    assert builds[3]["corpus_lookup_count"] == 0
+    assert builds[3]["outcome"] == "error"
 
     applies = [row for row in rows if row.get("event") == "agents.archive_apply"]
     assert [row["outcome"] for row in applies] == [
         "applied_changed",
         "read_unchanged",
+        "read_unchanged",
+        "error",
     ]
-    assert [row["changed_apply_count"] for row in applies] == [1, 0]
-    assert [row["unchanged_apply_count"] for row in applies] == [0, 1]
+    assert [row["changed_apply_count"] for row in applies] == [1, 0, 0, 0]
+    assert [row["unchanged_apply_count"] for row in applies] == [0, 1, 1, 0]
 
 
 @pytest.mark.asyncio

@@ -52,6 +52,19 @@ def _write_aggregate(aggregate: Path, n: int) -> None:
     aggregate.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_link_rows(aggregate: Path, rows: list[dict[str, str]], *, pad: int) -> None:
+    aggregate.write_text(
+        json.dumps(
+            {
+                "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                "rows": rows,
+                "pad": "x" * pad,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_artifact_links_replaces_entry_across_external_rewrites(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -66,6 +79,57 @@ def test_artifact_links_replaces_entry_across_external_rewrites(
 
     assert len(artifact_links_mod._CACHE) == 1
     assert list(artifact_links_mod._CACHE) == [("proj",)]
+
+
+def test_artifact_links_rewrite_only_reads_changed_project_aggregate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = {key: tmp_path / f"{key}.json" for key in ("alpha", "beta")}
+    monkeypatch.setattr(
+        artifact_links_mod, "_project_keys", lambda _project: ("alpha", "beta")
+    )
+    monkeypatch.setattr(
+        artifact_links_mod,
+        "artifact_link_aggregate_path",
+        lambda project_key: paths[project_key],
+    )
+    alpha_rows = [
+        {"source_ref": "agent:one", "relation": "uses", "target_ref": "file:a"}
+    ]
+    beta_rows = [
+        {"source_ref": "agent:two", "relation": "uses", "target_ref": "file:b"}
+    ]
+    _write_link_rows(paths["alpha"], alpha_rows, pad=0)
+    _write_link_rows(paths["beta"], beta_rows, pad=0)
+    first = artifact_links_mod.load_artifact_links_snapshot(None)
+
+    reads: list[str] = []
+    original_read_text = Path.read_text
+
+    def _read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path in paths.values():
+            reads.append(path.name)
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_text)
+    _write_link_rows(paths["alpha"], alpha_rows, pad=16)
+    metadata_only = artifact_links_mod.load_artifact_links_snapshot(None)
+
+    assert reads == ["alpha.json"]
+    assert metadata_only.rows == first.rows
+    assert metadata_only.source_key != first.source_key
+
+    reads.clear()
+    changed_beta = [
+        {"source_ref": "agent:two", "relation": "blocks", "target_ref": "file:c"}
+    ]
+    _write_link_rows(paths["beta"], changed_beta, pad=16)
+    changed = artifact_links_mod.load_artifact_links_snapshot(None)
+
+    assert reads == ["beta.json"]
+    assert changed.rows_by_project["alpha"] == first.rows_by_project["alpha"]
+    assert changed.rows_by_project["beta"][0]["relation"] == "blocks"
 
 
 def test_artifact_links_cache_stays_bounded_across_many_scopes(

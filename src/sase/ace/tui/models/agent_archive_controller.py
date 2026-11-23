@@ -103,6 +103,8 @@ class ArchiveRequestSnapshot:
     corpus: Any = None
     profile: Any = None
     pending_exact_name: str | None = None
+    link_snapshot: Any = None
+    catalog_link_identity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +151,8 @@ class AgentsArchiveControllerState:
     corpus: Any = None
     profile: Any = None
     link_facets: Mapping[str, Any] | None = None
+    link_snapshot: Any = None
+    catalog_link_identity: str | None = None
     tokens: ArchiveRevalidationTokens | None = None
     summary: Mapping[str, Any] | None = None
     windows: tuple[ArchiveLoadedWindow, ...] = ()

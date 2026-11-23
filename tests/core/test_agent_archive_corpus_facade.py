@@ -16,6 +16,7 @@ from sase.core.agent_archive_corpus_cache import (
     _archive_corpus_cache_key,
     _link_facet_signature,
     get_agent_archive_corpus,
+    get_agent_archive_corpus_with_compile_status,
 )
 from sase.core.agent_archive_facade import (
     agents_archive_profile,
@@ -122,6 +123,24 @@ def test_shared_cache_returns_missing_corpus_and_reuses_it(
             profile_digest=first.profile.digest,
         )
         assert first.key == key
+    finally:
+        _reset_archive_corpus_cache()
+
+
+def test_archive_cache_reports_exact_compile_count(tmp_path: Path) -> None:
+    _reset_archive_corpus_cache()
+    try:
+        progress = DismissedBundleIndexProgress(rebuilding=False, indexed_rows=0)
+        first, first_compiled = get_agent_archive_corpus_with_compile_status(
+            root=tmp_path, progress=progress, link_facets={}
+        )
+        second, second_compiled = get_agent_archive_corpus_with_compile_status(
+            root=tmp_path, progress=progress, link_facets={}
+        )
+
+        assert first_compiled is True
+        assert second_compiled is False
+        assert second is first
     finally:
         _reset_archive_corpus_cache()
 

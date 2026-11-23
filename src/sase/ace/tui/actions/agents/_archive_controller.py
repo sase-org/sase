@@ -130,6 +130,8 @@ def lookup_archive_light_row(owner: Any, name: str) -> Mapping[str, Any] | None:
         tokens=state.tokens,
         corpus=state.corpus,
         profile=state.profile,
+        link_snapshot=state.link_snapshot,
+        catalog_link_identity=state.catalog_link_identity,
         pending_exact_name=name,
     )
     result = build_archive_result(owner, snapshot)
@@ -408,6 +410,8 @@ def _schedule_request(owner: Any, *, kind: str) -> int:
         corpus=state.corpus,
         profile=state.profile,
         pending_exact_name=str(pending_exact_name) if pending_exact_name else None,
+        link_snapshot=state.link_snapshot,
+        catalog_link_identity=state.catalog_link_identity,
     )
     state.last_query = query
     state.last_grouping = grouping
@@ -490,8 +494,17 @@ def _apply_archive_result(
     if isinstance(tokens, ArchiveRevalidationTokens):
         state.tokens = tokens
     display_snapshot = result.get("display_snapshot")
+    display_changed = (
+        display_snapshot is not None and display_snapshot != state.display_snapshot
+    )
     if display_snapshot is not None:
         state.display_snapshot = display_snapshot
+    link_snapshot = result.get("link_snapshot")
+    if link_snapshot is not None:
+        state.link_snapshot = link_snapshot
+    catalog_link_identity = result.get("catalog_link_identity")
+    if isinstance(catalog_link_identity, str):
+        state.catalog_link_identity = catalog_link_identity
     kind = result.get("kind")
     trace_event(
         "agents.archive_apply",
@@ -505,10 +518,13 @@ def _apply_archive_result(
         ),
         changed_apply_count=int(kind == "built"),
         unchanged_apply_count=int(kind == "unchanged"),
+        unchanged_reason=str(result.get("unchanged_reason") or ""),
     )
     if kind == "unchanged":
         # Unchanged idle results never ran a lookup; publishing from them
         # would report a false missing arrival for a queued exact-name open.
+        if display_changed:
+            _notify_snapshot_applied(owner)
         _maybe_coalesce_idle(owner, snapshot)
         return
     if kind in {"unreadable", "error"}:

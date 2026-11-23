@@ -114,6 +114,23 @@ def get_agent_archive_corpus(
     :func:`~sase.agents.catalog.build_agent_catalog_link_facets` over the
     current catalog snapshot and link snapshot.
     """
+    cached, _compiled = get_agent_archive_corpus_with_compile_status(
+        root=root,
+        progress=progress,
+        link_facets=link_facets,
+        profile=profile,
+    )
+    return cached
+
+
+def get_agent_archive_corpus_with_compile_status(
+    *,
+    root: Path | str | None = None,
+    progress: DismissedBundleIndexProgress | None = None,
+    link_facets: Mapping[str, Any] | None = None,
+    profile: CompiledQueryProfile | None = None,
+) -> tuple[CachedAgentArchiveCorpus, bool]:
+    """Return the cached corpus and whether this call compiled a new handle."""
     global _CACHED
     resolved_profile = profile if profile is not None else agents_archive_profile()
     if link_facets is not None:
@@ -124,18 +141,18 @@ def get_agent_archive_corpus(
         )
         with _LOCK:
             if _CACHED is not None and _CACHED.key == fast_key:
-                return _CACHED
+                return _CACHED, False
     with _LOCK:
         generation = _bump_generation_locked()
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="archive-corpus") as pool:
-        built = pool.submit(
+        built, compiled = pool.submit(
             _build_snapshot, root, progress, link_facets, resolved_profile
         ).result()
     with _LOCK:
         if _CACHED is not None and generation != _GENERATION:
-            return _CACHED
+            return _CACHED, compiled
         _CACHED = built
-        return built
+        return built, compiled
 
 
 def _bump_generation_locked() -> int:
@@ -149,7 +166,7 @@ def _build_snapshot(
     progress: DismissedBundleIndexProgress | None,
     link_facets: Mapping[str, Any] | None,
     profile: CompiledQueryProfile,
-) -> CachedAgentArchiveCorpus:
+) -> tuple[CachedAgentArchiveCorpus, bool]:
     from sase.ace.dismissed_bundle_index import index_signature
 
     resolved_root = _resolve_root(root)
@@ -166,13 +183,13 @@ def _build_snapshot(
     )
     with _LOCK:
         if _CACHED is not None and _CACHED.key == key:
-            return _CACHED
+            return _CACHED, False
     corpus = compile_agent_archive_corpus(
         root=resolved_root,
         index_status=_index_status_wire(resolved_root, resolved_progress),
         link_facets=resolved_facets,
     )
-    return CachedAgentArchiveCorpus(key=key, corpus=corpus, profile=profile)
+    return CachedAgentArchiveCorpus(key=key, corpus=corpus, profile=profile), True
 
 
 def _resolve_root(root: Path | str | None) -> Path:
@@ -249,4 +266,5 @@ def _facet_count(facets: Any) -> int:
 __all__ = [
     "CachedAgentArchiveCorpus",
     "get_agent_archive_corpus",
+    "get_agent_archive_corpus_with_compile_status",
 ]

@@ -150,11 +150,20 @@ def agent_catalog_runtime_seconds(row: AgentCatalogRow) -> int | None:
 def build_agent_catalog_link_facets(
     rows: Iterable[AgentCatalogRow],
     link_rows: Iterable[Mapping[str, Any]],
+    *,
+    identity: Any = None,
 ) -> Mapping[str, AgentCatalogLinkFacets]:
     """Return artifact-link query facets keyed by agent catalog row name."""
 
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
     catalog_rows = tuple(rows)
-    agent_names = _agent_ref_candidate_index(catalog_rows)
+    resolved_identity = (
+        identity
+        if isinstance(identity, AgentIdentitySnapshot)
+        else AgentIdentitySnapshot.current()
+    )
+    agent_names = _agent_ref_candidate_index(catalog_rows, identity=resolved_identity)
     relations: dict[str, set[str]] = {}
     artifacts: dict[str, set[str]] = {}
     counts: dict[str, int] = {}
@@ -199,13 +208,19 @@ def build_agent_catalog_link_facets(
     }
 
 
-def _agent_ref_candidate_index(rows: tuple[AgentCatalogRow, ...]) -> dict[str, str]:
+def _agent_ref_candidate_index(
+    rows: tuple[AgentCatalogRow, ...], *, identity: Any = None
+) -> dict[str, str]:
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
         current_owner_agent_name_lookup_candidates,
     )
 
-    identity = AgentIdentitySnapshot.current()
+    resolved_identity = (
+        identity
+        if isinstance(identity, AgentIdentitySnapshot)
+        else AgentIdentitySnapshot.current()
+    )
     index: dict[str, str] = {}
     for row in rows:
         _remember_agent_ref_candidate(index, row.name, row.name, replace=True)
@@ -217,7 +232,7 @@ def _agent_ref_candidate_index(rows: tuple[AgentCatalogRow, ...]) -> dict[str, s
             if not value:
                 continue
             for candidate in current_owner_agent_name_lookup_candidates(
-                value, identity
+                value, resolved_identity
             ):
                 _remember_agent_ref_candidate(index, candidate, row.name)
     return index

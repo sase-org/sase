@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -39,7 +40,9 @@ __all__ = [
     "test_cancel_drops_blocked_worker",
     "test_init_controller_is_cold",
     "test_input_drift_rebuilds_and_keeps_selection",
-    "test_link_signature_drift_reloads_facets",
+    "test_link_metadata_only_drift_skips_facet_and_corpus_work",
+    "test_changed_link_rows_with_equal_facets_skip_idle_corpus_query",
+    "test_changed_link_facets_rebuild_and_requery_archive",
     "test_missing_index_is_honest_and_leaves_inbox_alone",
     "test_probe_error_publishes_unavailable_and_unwedges_idle",
     "test_query_reuses_warm_handle_without_facet_reload",
@@ -144,26 +147,152 @@ async def test_input_drift_rebuilds_and_keeps_selection() -> None:
 
 
 @pytest.mark.asyncio
-async def test_link_signature_drift_reloads_facets() -> None:
+async def test_link_metadata_only_drift_skips_facet_and_corpus_work() -> None:
     owner = make_owner()
     spawn, compile_calls, facet_calls = instrument(owner)
-    link_drift = ArchiveRevalidationTokens(
-        index_exists=True,
-        index_stat=(1, 2),
-        link_signature=(("proj", 9, 9),),
-        profile_digest="profile-1",
-        rebuilding=False,
-        indexed_rows=0,
+    from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
+
+    original = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:guide"},),
+        source_key=(("proj", 1, 2),),
+    )
+    rewritten = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:guide"},),
+        source_key=(("proj", 9, 9),),
+    )
+    current_links = [original]
+    owner._archive_load_link_snapshot = lambda: current_links[0]
+    owner._archive_catalog_link_identity = lambda: "catalog-v1"
+
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    owner._archive_probe_tokens = lambda: replace(
+        archive_tokens(), link_signature=(("proj", 9, 9),)
+    )
+    current_links[0] = rewritten
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
+
+    assert len(compile_calls) == 1
+    assert facet_calls == ["facets"]
+    assert owner._agents_archive_controller.link_snapshot is rewritten
+    assert owner._agents_archive_controller.tokens.link_signature == (("proj", 9, 9),)
+
+
+@pytest.mark.asyncio
+async def test_changed_link_rows_with_equal_facets_skip_idle_corpus_query() -> None:
+    owner = make_owner()
+    corpus = FakeCorpus()
+    spawn, corpus_lookups, facet_calls = instrument(owner, corpus=corpus)
+    from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
+
+    original = ArtifactLinksSnapshot(
+        rows=(
+            {
+                "source_ref": "agent:worker",
+                "target_ref": "file:guide",
+                "relation": "uses",
+                "description": "old label",
+            },
+        ),
+        source_key=(("proj", 1, 2),),
+    )
+    updated = ArtifactLinksSnapshot(
+        rows=(
+            {
+                "source_ref": "agent:worker",
+                "target_ref": "file:guide",
+                "relation": "uses",
+                "description": "new label",
+            },
+        ),
+        source_key=(("proj", 9, 9),),
+    )
+    current_links = [original]
+    owner._archive_load_link_snapshot = lambda: current_links[0]
+    owner._archive_catalog_link_identity = lambda: "catalog-v1"
+    owner._archive_load_facets = lambda: (
+        facet_calls.append("facets")
+        or {
+            "worker": {"relations": ("uses",), "artifacts": ("file:guide",), "count": 1}
+        }
     )
 
     note_inbox_applied_for_archive(owner, load_state=complete_load())
     await spawn.drain()
-    owner._archive_probe_tokens = lambda: link_drift
+    assert corpus.summary_calls == 1
+
+    owner._archive_probe_tokens = lambda: replace(
+        archive_tokens(), link_signature=(("proj", 9, 9),)
+    )
+    current_links[0] = updated
     schedule_archive_idle_tick(owner)
     await spawn.drain()
 
-    assert len(compile_calls) == 2
+    assert len(facet_calls) == 2
+    assert len(corpus_lookups) == 1
+    assert corpus.summary_calls == 1
+    assert owner._agents_archive_controller.link_snapshot is updated
+    assert owner._agents_archive_controller.link_facets == {
+        "worker": {"relations": ("uses",), "artifacts": ("file:guide",), "count": 1}
+    }
+
+
+@pytest.mark.asyncio
+async def test_changed_link_facets_rebuild_and_requery_archive() -> None:
+    owner = make_owner()
+    spawn, corpus_lookups, facet_calls = instrument(owner)
+    from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
+
+    old_facets = {
+        "worker": {"relations": ("uses",), "artifacts": ("file:old",), "count": 1}
+    }
+    new_facets = {
+        "worker": {"relations": ("uses",), "artifacts": ("file:new",), "count": 1}
+    }
+    facet_results = [old_facets, new_facets]
+    owner._archive_load_facets = lambda: (
+        facet_calls.append("facets") or facet_results.pop(0)
+    )
+    original = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:old"},),
+        source_key=(("proj", 1, 2),),
+    )
+    updated = ArtifactLinksSnapshot(
+        rows=({"source_ref": "agent:worker", "target_ref": "file:new"},),
+        source_key=(("proj", 9, 9),),
+    )
+    current_links = [original]
+    owner._archive_load_link_snapshot = lambda: current_links[0]
+    owner._archive_catalog_link_identity = lambda: "catalog-v1"
+
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    first_corpus = owner._agents_archive_controller.corpus
+    assert first_corpus.summary_calls == 1
+
+    second_corpus = type(first_corpus)()
+
+    def _get_changed_corpus(**kwargs: Any) -> SimpleNamespace:
+        corpus_lookups.append(kwargs)
+        return SimpleNamespace(
+            corpus=second_corpus,
+            profile=SimpleNamespace(digest="profile-1"),
+        )
+
+    owner._archive_get_corpus = _get_changed_corpus
+    owner._archive_probe_tokens = lambda: replace(
+        archive_tokens(), link_signature=(("proj", 9, 9),)
+    )
+    current_links[0] = updated
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
+
     assert facet_calls == ["facets", "facets"]
+    assert len(corpus_lookups) == 2
+    assert owner._agents_archive_controller.corpus is second_corpus
+    assert second_corpus.summary_calls == 1
+    assert owner._agents_archive_controller.link_facets == new_facets
 
 
 @pytest.mark.asyncio

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 from collections.abc import Mapping
 from pathlib import Path
+from time import perf_counter_ns
 from typing import Any
 
 from ...models.agent_archive_controller import (
@@ -61,6 +64,136 @@ def _idle_tokens_match(
     )
 
 
+def _non_link_tokens_match(
+    held: ArchiveRevalidationTokens | None,
+    current: ArchiveRevalidationTokens,
+) -> bool:
+    if held is None:
+        return False
+    return (
+        held.index_exists == current.index_exists
+        and held.index_stat == current.index_stat
+        and held.profile_digest == current.profile_digest
+        and held.rebuilding == current.rebuilding
+        and held.indexed_rows == current.indexed_rows
+    )
+
+
+def _same_link_snapshot_content(held: Any, current: Any) -> bool:
+    return (
+        held is not None
+        and current is not None
+        and getattr(held, "rows", None) == getattr(current, "rows", None)
+        and getattr(held, "errors", None) == getattr(current, "errors", None)
+    )
+
+
+def _changed_link_project_count(held: Any, current: Any) -> int:
+    old_key = getattr(held, "source_key", ()) if held is not None else ()
+    new_key = getattr(current, "source_key", ()) if current is not None else ()
+    old = {str(item[0]): tuple(item[1:]) for item in old_key}
+    new = {str(item[0]): tuple(item[1:]) for item in new_key}
+    return sum(old.get(key) != new.get(key) for key in old.keys() | new.keys())
+
+
+def _catalog_link_identity_from_rows(rows: Any, identity: Any) -> str:
+    owner = getattr(identity, "owner", None)
+    owner_key = (
+        (str(owner.username), str(owner.machine_name)) if owner is not None else None
+    )
+    payload = {
+        "rows": sorted(
+            (
+                str(getattr(row, "name", "")),
+                str(getattr(row, "canonical_global_name", None) or ""),
+            )
+            for row in rows
+        ),
+        "owner": owner_key,
+        "sibling_machines": tuple(
+            str(value) for value in getattr(identity, "sibling_machines", ())
+        ),
+        "known_owner_roots": tuple(
+            str(value) for value in getattr(identity, "known_owner_roots", ())
+        ),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _catalog_link_identity(owner: Any) -> str | None:
+    probe = getattr(owner, "_archive_catalog_link_identity", None)
+    if callable(probe):
+        value = probe()
+        return str(value) if value is not None else None
+    if callable(getattr(owner, "_archive_load_facets", None)):
+        return None
+
+    from sase.agent.names import load_name_registry
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+    registry = load_name_registry()
+    entries = registry.get("entries", {})
+    if not isinstance(entries, Mapping):
+        raise RuntimeError("agent-name registry entries are unavailable")
+    pairs = tuple(
+        sorted(
+            (
+                str(name),
+                str(entry.get("canonical_global_name") or ""),
+            )
+            for name, entry in entries.items()
+            if isinstance(entry, Mapping)
+        )
+    )
+    identity = AgentIdentitySnapshot.current()
+    payload = {
+        "rows": pairs,
+        "owner": (
+            (identity.owner.username, identity.owner.machine_name)
+            if identity.owner is not None
+            else None
+        ),
+        "sibling_machines": identity.sibling_machines,
+        "known_owner_roots": identity.known_owner_roots,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _elapsed_ms(start: int) -> float:
+    return round((perf_counter_ns() - start) / 1_000_000, 3)
+
+
+def _add_duration(telemetry: dict[str, Any] | None, name: str, start: int) -> None:
+    if telemetry is not None:
+        telemetry[name] = float(telemetry.get(name, 0.0)) + _elapsed_ms(start)
+
+
+def _load_link_snapshot_traced(owner: Any, telemetry: dict[str, Any] | None) -> Any:
+    if telemetry is not None:
+        telemetry["link_snapshot_probe_count"] += 1
+    started = perf_counter_ns() if telemetry is not None else 0
+    try:
+        return _load_link_snapshot(owner)
+    finally:
+        _add_duration(telemetry, "link_snapshot_duration_ms", started)
+
+
+def _build_facets_traced(
+    owner: Any,
+    link_snapshot: Any,
+    telemetry: dict[str, Any] | None,
+) -> tuple[Mapping[str, Any], Any, str | None]:
+    if telemetry is not None:
+        telemetry["facet_load_count"] += 1
+    started = perf_counter_ns() if telemetry is not None else 0
+    try:
+        return _build_facets(owner, link_snapshot)
+    finally:
+        _add_duration(telemetry, "facet_load_duration_ms", started)
+
+
 def build_archive_result(
     owner: Any,
     snapshot: ArchiveRequestSnapshot,
@@ -81,6 +214,7 @@ def build_archive_result(
             result = {"kind": "error"}
         if tui_trace_enabled():
             telemetry["outcome"] = str(result.get("kind", "error"))
+            telemetry["unchanged_reason"] = str(result.get("unchanged_reason") or "")
         return result
 
 
@@ -92,10 +226,34 @@ def _build_archive_result(
 ) -> dict[str, Any]:
     if telemetry is not None:
         telemetry["idle_probe_count"] = int(snapshot.kind == ARCHIVE_REQUEST_IDLE)
+        telemetry["link_snapshot_probe_count"] = 0
+        telemetry["link_aggregate_drift_count"] = 0
+        telemetry["link_snapshot_unchanged_count"] = 0
+        telemetry["catalog_identity_probe_count"] = 0
+        telemetry["facet_projection_compare_count"] = 0
+        telemetry["facet_projection_unchanged_count"] = 0
         telemetry["corpus_handle_reuse_count"] = 0
         telemetry["facet_load_count"] = 0
         telemetry["corpus_lookup_count"] = 0
-    tokens = _probe_tokens(owner)
+        telemetry["corpus_compile_count"] = 0
+        telemetry["corpus_summary_query_count"] = 0
+        telemetry["corpus_window_query_count"] = 0
+        telemetry["corpus_count_query_count"] = 0
+        for name in (
+            "token_probe_duration_ms",
+            "link_snapshot_duration_ms",
+            "catalog_identity_duration_ms",
+            "facet_load_duration_ms",
+            "display_snapshot_duration_ms",
+            "corpus_lookup_duration_ms",
+            "corpus_query_duration_ms",
+        ):
+            telemetry[name] = 0.0
+    started = perf_counter_ns() if telemetry is not None else 0
+    try:
+        tokens = _probe_tokens(owner)
+    finally:
+        _add_duration(telemetry, "token_probe_duration_ms", started)
     if telemetry is not None:
         telemetry["changed_token_components"] = list(
             _changed_token_components(snapshot.tokens, tokens)
@@ -105,33 +263,125 @@ def _build_archive_result(
         and not snapshot.pending_exact_name
         and _idle_tokens_match(snapshot, tokens)
     ):
-        return {"kind": "unchanged", "tokens": tokens}
+        return {
+            "kind": "unchanged",
+            "tokens": tokens,
+            "unchanged_reason": "tokens_match",
+        }
+
+    facets = snapshot.link_facets
+    link_snapshot = snapshot.link_snapshot
+    catalog_link_identity = snapshot.catalog_link_identity
+    link_rows_unchanged = False
+    link_changed = _link_signature_changed(snapshot.tokens, tokens)
+
+    if link_changed:
+        candidate_link_snapshot = _load_link_snapshot_traced(owner, telemetry)
+        if telemetry is not None:
+            telemetry["link_aggregate_drift_count"] = _changed_link_project_count(
+                link_snapshot, candidate_link_snapshot
+            )
+        if _same_link_snapshot_content(link_snapshot, candidate_link_snapshot):
+            link_snapshot = candidate_link_snapshot
+            link_rows_unchanged = True
+            if telemetry is not None:
+                telemetry["link_snapshot_unchanged_count"] = 1
+
+            if catalog_link_identity is not None:
+                if telemetry is not None:
+                    telemetry["catalog_identity_probe_count"] = 1
+                stage_started = perf_counter_ns() if telemetry is not None else 0
+                try:
+                    current_catalog_identity = _catalog_link_identity(owner)
+                finally:
+                    _add_duration(
+                        telemetry, "catalog_identity_duration_ms", stage_started
+                    )
+                if current_catalog_identity == catalog_link_identity:
+                    catalog_link_identity = current_catalog_identity
+                else:
+                    facets, link_snapshot, catalog_link_identity = _build_facets_traced(
+                        owner, candidate_link_snapshot, telemetry
+                    )
+            else:
+                facets, link_snapshot, catalog_link_identity = _build_facets_traced(
+                    owner, candidate_link_snapshot, telemetry
+                )
+        else:
+            facets, link_snapshot, catalog_link_identity = _build_facets_traced(
+                owner, candidate_link_snapshot, telemetry
+            )
+    elif facets is None:
+        link_snapshot = _load_link_snapshot_traced(owner, telemetry)
+        facets, link_snapshot, catalog_link_identity = _build_facets_traced(
+            owner, link_snapshot, telemetry
+        )
+
+    stage_started = perf_counter_ns() if telemetry is not None else 0
+    try:
+        display_snapshot = _load_display_snapshot(owner)
+    finally:
+        _add_duration(telemetry, "display_snapshot_duration_ms", stage_started)
+
+    facet_projection_unchanged = (
+        snapshot.link_facets is not None
+        and facets is not None
+        and facets == snapshot.link_facets
+    )
+    can_reuse_inputs = _non_link_tokens_match(snapshot.tokens, tokens)
+    if telemetry is not None and link_changed and not link_rows_unchanged:
+        telemetry["facet_projection_compare_count"] = 1
+        telemetry["facet_projection_unchanged_count"] = int(facet_projection_unchanged)
+    if (
+        snapshot.kind == ARCHIVE_REQUEST_IDLE
+        and not snapshot.pending_exact_name
+        and snapshot.corpus is not None
+        and can_reuse_inputs
+        and facet_projection_unchanged
+    ):
+        return {
+            "kind": "unchanged",
+            "tokens": tokens,
+            "link_snapshot": link_snapshot,
+            "catalog_link_identity": catalog_link_identity,
+            "display_snapshot": display_snapshot,
+            "unchanged_reason": (
+                "link_metadata_only"
+                if link_rows_unchanged
+                else "facet_projection_unchanged"
+            ),
+        }
 
     reuse_handle = (
         snapshot.corpus is not None
         and snapshot.kind != ARCHIVE_REQUEST_PREWARM
-        and _idle_tokens_match(snapshot, tokens)
+        and can_reuse_inputs
+        and facet_projection_unchanged
     )
     if telemetry is not None:
         telemetry["corpus_handle_reuse_count"] = int(reuse_handle)
-    facets = snapshot.link_facets
-    display_snapshot = _load_display_snapshot(owner)
     if reuse_handle:
         corpus = snapshot.corpus
         profile = snapshot.profile
     else:
-        if facets is None or _link_signature_changed(snapshot.tokens, tokens):
-            if telemetry is not None:
-                telemetry["facet_load_count"] = 1
-            facets = _load_facets(owner)
+        if facets is None:
+            facets, link_snapshot, catalog_link_identity = _build_facets_traced(
+                owner, link_snapshot, telemetry
+            )
         if telemetry is not None:
             telemetry["corpus_lookup_count"] = 1
-        cached = _get_corpus(owner, tokens, facets)
+        stage_started = perf_counter_ns() if telemetry is not None else 0
+        try:
+            cached = _get_corpus(owner, tokens, facets, telemetry=telemetry)
+        finally:
+            _add_duration(telemetry, "corpus_lookup_duration_ms", stage_started)
         if cached is None:
             return {
                 "kind": "unreadable",
                 "tokens": tokens,
                 "facets": facets,
+                "link_snapshot": link_snapshot,
+                "catalog_link_identity": catalog_link_identity,
                 "display_snapshot": display_snapshot,
                 "lookup_row": _lookup_pending(snapshot.pending_exact_name, None),
             }
@@ -142,11 +392,19 @@ def _build_archive_result(
                 corpus is not None and corpus is snapshot.corpus
             )
     status_name, indexed_rows, error_message = _status_from_corpus(corpus, tokens)
-    summary, windows, identities, count = _query_handle(corpus, profile, snapshot)
+    stage_started = perf_counter_ns() if telemetry is not None else 0
+    try:
+        summary, windows, identities, count = _query_handle(
+            corpus, profile, snapshot, telemetry=telemetry
+        )
+    finally:
+        _add_duration(telemetry, "corpus_query_duration_ms", stage_started)
     return {
         "kind": "built",
         "tokens": tokens,
         "facets": facets,
+        "link_snapshot": link_snapshot,
+        "catalog_link_identity": catalog_link_identity,
         "corpus": corpus,
         "profile": profile,
         "status": status_name,
@@ -257,45 +515,87 @@ def _resolved_profile(owner: Any) -> Any:
     return agents_archive_profile()
 
 
-def _load_facets(owner: Any) -> Mapping[str, Any]:
+def _load_link_snapshot(owner: Any) -> Any:
+    loader = getattr(owner, "_archive_load_link_snapshot", None)
+    if callable(loader):
+        return loader()
+    if callable(getattr(owner, "_archive_load_facets", None)):
+        return None
+    from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
+
+    return load_artifact_links_snapshot(None)
+
+
+def _build_facets(
+    owner: Any,
+    link_snapshot: Any,
+) -> tuple[Mapping[str, Any], Any, str | None]:
     loader = getattr(owner, "_archive_load_facets", None)
     if callable(loader):
         loaded = loader()
-        return loaded if isinstance(loaded, Mapping) else {}
+        facets = loaded if isinstance(loaded, Mapping) else {}
+        return facets, link_snapshot, _catalog_link_identity(owner)
+
+    if link_snapshot is None:
+        link_snapshot = _load_link_snapshot(owner)
     from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
     from sase.agents.catalog import (
         build_agent_catalog_link_facets,
         build_agent_catalog_snapshot,
     )
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
-    snapshot = build_agent_catalog_snapshot()
-    link_snapshot = load_artifact_links_snapshot(None)
-    return build_agent_catalog_link_facets(snapshot.rows, link_snapshot.rows)
+    catalog = build_agent_catalog_snapshot()
+    resolved_links = link_snapshot or load_artifact_links_snapshot(None)
+    identity = AgentIdentitySnapshot.current()
+    facets = build_agent_catalog_link_facets(
+        catalog.rows,
+        getattr(resolved_links, "rows", ()),
+        identity=identity,
+    )
+    return (
+        facets,
+        resolved_links,
+        _catalog_link_identity_from_rows(catalog.rows, identity),
+    )
 
 
 def _get_corpus(
     owner: Any,
     tokens: ArchiveRevalidationTokens,
     facets: Mapping[str, Any] | None,
+    *,
+    telemetry: dict[str, Any] | None = None,
 ) -> Any:
     from sase.ace.dismissed_bundle_index._models import DismissedBundleIndexProgress
 
     getter = getattr(owner, "_archive_get_corpus", None)
-    if getter is None:
-        from sase.core.agent_archive_corpus_cache import get_agent_archive_corpus
-
-        getter = get_agent_archive_corpus
     progress = DismissedBundleIndexProgress(
         rebuilding=tokens.rebuilding,
         indexed_rows=tokens.indexed_rows,
     )
     try:
-        return getter(
-            root=_archive_root(owner),
-            progress=progress,
-            link_facets=facets if facets is not None else {},
-            profile=_resolved_profile(owner),
-        )
+        kwargs = {
+            "root": _archive_root(owner),
+            "progress": progress,
+            "link_facets": facets if facets is not None else {},
+            "profile": _resolved_profile(owner),
+        }
+        if getter is not None:
+            if telemetry is not None:
+                telemetry["corpus_compile_count"] = None
+            return getter(**kwargs)
+        if telemetry is not None:
+            from sase.core.agent_archive_corpus_cache import (
+                get_agent_archive_corpus_with_compile_status,
+            )
+
+            cached, compiled = get_agent_archive_corpus_with_compile_status(**kwargs)
+            telemetry["corpus_compile_count"] = int(compiled)
+            return cached
+        from sase.core.agent_archive_corpus_cache import get_agent_archive_corpus
+
+        return get_agent_archive_corpus(**kwargs)
     except Exception:
         log.debug("archive corpus compile failed", exc_info=True)
         return None
@@ -357,6 +657,8 @@ def _query_handle(
     corpus: Any,
     profile: Any,
     snapshot: ArchiveRequestSnapshot,
+    *,
+    telemetry: dict[str, Any] | None = None,
 ) -> tuple[
     Mapping[str, Any] | None,
     tuple[ArchiveLoadedWindow, ...],
@@ -369,6 +671,8 @@ def _query_handle(
     if query is None:
         return None, (), (), 0
     summary: Mapping[str, Any] | None = None
+    if telemetry is not None:
+        telemetry["corpus_summary_query_count"] = 1
     try:
         summary = corpus.summary(query, group_by=snapshot.grouping, profile=profile)
     except Exception:
@@ -377,6 +681,8 @@ def _query_handle(
     windows: list[ArchiveLoadedWindow] = []
     identities: list[str] = []
     for window in snapshot.windows:
+        if telemetry is not None:
+            telemetry["corpus_window_query_count"] += 1
         try:
             payload = corpus.rows(
                 query,
@@ -407,6 +713,8 @@ def _query_handle(
             if identity is not None:
                 identities.append(identity)
     count = 0
+    if telemetry is not None:
+        telemetry["corpus_count_query_count"] = 1
     try:
         count = int(corpus.count(query, profile=profile))
     except Exception:
