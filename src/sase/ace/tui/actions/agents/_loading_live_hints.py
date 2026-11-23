@@ -35,7 +35,11 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
-_LIVE_HINT_REFRESH_FRESH_SECONDS = 5.0
+# Quiet-tick cost control (grade-20261123: 1120 ms mean at 1.9/min).
+# Same-signature revalidations within 30 s are skipped; off-Agents-tab
+# ticks are skipped once a hint has been computed, since the patch leg
+# is a no-op off-tab and the next Agents-tab load reschedules.
+_LIVE_HINT_REFRESH_FRESH_SECONDS = 30.0
 _LiveHintSignature = tuple[tuple[object, ...], ...]
 
 
@@ -119,6 +123,12 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
             signature == completed_signature
             and now - completed_mono < _LIVE_HINT_REFRESH_FRESH_SECONDS
         ):
+            return
+        try:
+            on_agents_tab = getattr(self, "current_tab", "agents") == "agents"
+        except Exception:
+            on_agents_tab = True
+        if not on_agents_tab and completed_signature is not None:
             return
         if self._live_hints_scan_running:
             if signature == getattr(self, "_live_hints_inflight_signature", None):

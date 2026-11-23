@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 _Tier1MergeKey = tuple[object, ...]
 
 
-def _merge_clan_context(
+def merge_clan_context(
     previous: AgentClanContextWire | None,
     current: AgentClanContextWire | None,
 ) -> AgentClanContextWire | None:
@@ -389,7 +389,7 @@ def merge_incomplete_load_after_complete_history(
         )
         if key is None or cached.clan_context is None:
             continue
-        merged_context = _merge_clan_context(
+        merged_context = merge_clan_context(
             cached_context_by_clan.get(key),
             cached.clan_context,
         )
@@ -402,7 +402,7 @@ def merge_incomplete_load_after_complete_history(
         )
         if key is None:
             continue
-        incoming.clan_context = _merge_clan_context(
+        incoming.clan_context = merge_clan_context(
             cached_context_by_clan.get(key),
             incoming.clan_context,
         )

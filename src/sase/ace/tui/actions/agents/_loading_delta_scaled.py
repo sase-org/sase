@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 
 from ...models._agent_graph import AGENT_RELINK_FIELDS, AffectedClosure
 from ...models.agent import Agent
-from ._loading_compute_merge import _merge_clan_context
+from ._loading_compute_merge import merge_clan_context
 
 if TYPE_CHECKING:
     from collections.abc import Set as AbstractSet
@@ -63,7 +63,7 @@ _SLOT_STATUSES = frozenset(
 
 def _apply_incoming_scalars(owned: Agent, incoming: Agent) -> None:
     """Copy scalar fields from worker-owned *incoming* onto a detached row."""
-    owned.clan_context = _merge_clan_context(owned.clan_context, incoming.clan_context)
+    owned.clan_context = merge_clan_context(owned.clan_context, incoming.clan_context)
     skip = set(AGENT_RELINK_FIELDS)
     skip.add("clan_context")
     for field in fields(Agent):

@@ -328,8 +328,14 @@ def test_stationary_selection_settles_into_per_lane_revalidation(
         {"slow-tools"}
     )
 
-    # 10.5 s in: the default-cadence lanes join it, but wait-beads never does.
+    # 10.5 s in: default-cadence lanes (30 s quiet-tick control) stay fresh.
     now += 5.0
+    assert should_refresh_detail_header_summary(widget, agent) == frozenset(
+        {"slow-tools"}
+    )
+
+    # 30.5 s in: the default-cadence lanes join it, but wait-beads never does.
+    now += 20.0
     stale = should_refresh_detail_header_summary(widget, agent)
     assert "slow-tools" in stale
     assert "memory" in stale

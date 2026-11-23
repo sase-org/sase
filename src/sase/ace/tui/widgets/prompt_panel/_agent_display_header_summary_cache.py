@@ -32,9 +32,12 @@ DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = 256
 HINT_DETAIL_HEADER_REFRESH_INTERVAL_SECONDS = 30.0
 
 # No lane keeps the old 1 s blanket cadence; see the module docstring for why
-# each lane below gets the cadence it gets.
+# each lane below gets the cadence it gets. Quiet-tick cost control
+# (grade-20261123: header summary 570 ms mean at 2.9/min): same-selection
+# revalidation moves from 10 s to 30 s. New selections still resolve
+# immediately (no cache entry), so freshness for navigation is preserved.
 _LANE_NO_TTL_SECONDS = float("inf")
-_LANE_DEFAULT_REFRESH_INTERVAL_SECONDS = 10.0
+_LANE_DEFAULT_REFRESH_INTERVAL_SECONDS = 30.0
 _LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS = 5.0
 _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
     "wait-beads": _LANE_NO_TTL_SECONDS,

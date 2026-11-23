@@ -637,7 +637,10 @@ def prepare_loaded_agents_worker_boundary(
         if scoped is not None:
             return scoped  # type: ignore[return-value]
     except Exception:
-        pass
+        log.debug(
+            "delta-scaled worker boundary failed; using the full pipeline",
+            exc_info=True,
+        )
     from sase.config.core import get_max_running_agents
 
     from ...models._agent_graph import adopt_agents
