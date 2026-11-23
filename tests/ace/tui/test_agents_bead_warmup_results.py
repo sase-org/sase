@@ -17,6 +17,7 @@ from sase.ace.tui.agent_completion import (
 )
 from sase.ace.tui.models.agent_bead import (
     _BEAD_DISPLAY_CACHE,
+    _bead_display_fingerprint,
     _bead_display_cache_key,
     agent_has_confirmed_bead,
     warm_confirmed_bead_displays,
@@ -31,6 +32,8 @@ from tests.ace.tui._agents_bead_warmup_helpers import (
     make_agent,
 )
 
+pytestmark = pytest.mark.usefixtures("clear_bead_display_cache")
+
 __all__ = [
     "test_apply_noop_without_results",
     "test_apply_patches_only_result_rows",
@@ -41,6 +44,10 @@ __all__ = [
     "test_apply_wait_bead_status_results_rebuilds_once_on_patch_failure",
     "test_warm_confirmed_bead_displays_clears_fingerprint_with_entries",
     "test_warm_confirmed_bead_displays_dedupes_lookups_by_cache_key",
+    "test_bead_display_fingerprint_ignores_other_event_lineages",
+    "test_bead_display_fingerprint_tracks_candidate_lineage_creation",
+    "test_bead_display_fingerprint_tracks_legacy_store_changes",
+    "test_warm_confirmed_bead_displays_skips_unrelated_lineage_changes",
     "test_warm_confirmed_bead_displays_omits_missing_and_non_candidates",
     "test_warm_confirmed_bead_displays_omits_unchanged_expired_confirmation",
     "test_warm_confirmed_bead_displays_reports_deleted_confirmed_candidate",
@@ -341,6 +348,154 @@ def _issue_payload(issue_id: str, title: str) -> dict[str, object]:
         "patch_bug_id": "",
         "dependencies": [],
     }
+
+
+def test_bead_display_fingerprint_ignores_other_event_lineages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    streams_dir = beads_dir / "events" / "streams"
+    streams_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    (beads_dir / "events" / "manifest.json").write_text(
+        '{"schema_version":1,"stream_count":2}\n', encoding="utf-8"
+    )
+    candidate_stream = streams_dir / "sase-x.jsonl"
+    unrelated_stream = streams_dir / "other.jsonl"
+    candidate_stream.write_text("candidate event\n", encoding="utf-8")
+    unrelated_stream.write_text("unrelated event\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    agent = make_agent(
+        agent_name="sase-x.3",
+        cl_name="fingerprint",
+        raw_suffix="1",
+        project_file=str(tmp_path / "project" / "project.yml"),
+    )
+
+    before = _bead_display_fingerprint(agent)
+    assert before is not None
+
+    unrelated_stream.write_text(
+        "unrelated stream received another event\n", encoding="utf-8"
+    )
+    assert _bead_display_fingerprint(agent) == before
+
+    candidate_stream.write_text("candidate lineage changed\n", encoding="utf-8")
+    assert _bead_display_fingerprint(agent) != before
+
+
+def test_bead_display_fingerprint_tracks_candidate_lineage_creation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    streams_dir = beads_dir / "events" / "streams"
+    streams_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    manifest = beads_dir / "events" / "manifest.json"
+    manifest.write_text('{"schema_version":1,"stream_count":1}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    agent = make_agent(
+        agent_name="sase-new.1",
+        cl_name="new-lineage",
+        raw_suffix="1",
+        project_file=str(tmp_path / "project" / "project.yml"),
+    )
+
+    missing = _bead_display_fingerprint(agent)
+    assert missing is not None
+    (streams_dir / "sase-new.jsonl").write_text(
+        "new candidate bead\n", encoding="utf-8"
+    )
+    manifest.write_text('{"schema_version":1,"stream_count":2}\n', encoding="utf-8")
+
+    assert _bead_display_fingerprint(agent) != missing
+
+
+def test_bead_display_fingerprint_tracks_legacy_store_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    (beads_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    issues = beads_dir / "issues.jsonl"
+    issues.write_text('{"id":"sase-x.3"}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    agent = make_agent(
+        agent_name="sase-x.3",
+        cl_name="legacy",
+        raw_suffix="1",
+        project_file=str(tmp_path / "project" / "project.yml"),
+    )
+
+    before = _bead_display_fingerprint(agent)
+    assert before is not None
+    issues.write_text('{"id":"sase-x.3","title":"updated"}\n', encoding="utf-8")
+
+    assert _bead_display_fingerprint(agent) != before
+
+
+def test_warm_confirmed_bead_displays_skips_unrelated_lineage_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _BEAD_DISPLAY_CACHE.clear()
+    beads_dir = tmp_path / "beads"
+    streams_dir = beads_dir / "events" / "streams"
+    streams_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    (beads_dir / "events" / "manifest.json").write_text(
+        '{"schema_version":1,"stream_count":2}\n', encoding="utf-8"
+    )
+    (streams_dir / "sase-x.jsonl").write_text("candidate event\n", encoding="utf-8")
+    unrelated_stream = streams_dir / "other.jsonl"
+    unrelated_stream.write_text("unrelated event\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    agent = make_agent(
+        agent_name="sase-x.3",
+        cl_name="fingerprint-gate",
+        raw_suffix="1",
+        project_file=str(tmp_path / "project" / "project.yml"),
+    )
+    lookups: list[str] = []
+
+    def lookup_issue(_session: object, bead_id: str, _dirs: object) -> Issue:
+        lookups.append(bead_id)
+        return Issue(id=bead_id, title="Issue", description="")
+
+    monkeypatch.setattr(
+        "sase.agent.bead_display.BeadIssueLookupSession.lookup", lookup_issue
+    )
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+
+    assert warm_confirmed_bead_displays([agent]) == {agent.identity: True}
+    cached = _BEAD_DISPLAY_CACHE.get(key)
+    assert isinstance(cached, str)
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, cached)
+    unrelated_stream.write_text(
+        "unrelated stream changed without touching candidate lineage\n",
+        encoding="utf-8",
+    )
+
+    assert warm_confirmed_bead_displays([agent]) == {}
+    assert lookups == ["sase-x.3"]
+    assert _BEAD_DISPLAY_CACHE.should_resolve(key) is False
+    _BEAD_DISPLAY_CACHE.clear()
 
 
 def test_warm_confirmed_bead_displays_reuses_unchanged_store_across_ttl(

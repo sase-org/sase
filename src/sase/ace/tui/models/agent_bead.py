@@ -17,6 +17,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 import os
 from pathlib import Path
+from stat import S_ISDIR, S_ISREG
 from threading import RLock
 from time import monotonic
 from typing import Final
@@ -122,36 +123,36 @@ class _BeadDisplayCache:
 _BEAD_DISPLAY_CACHE = _BeadDisplayCache(max_entries=_CACHE_MAX_ENTRIES)
 
 
-def _store_token_for_beads_dir(beads_dir: Path) -> str | None:
-    """Return a stat-only token for *beads_dir* or ``None`` when unprovable."""
+def _stat_token(path: Path, *, directory: bool = False) -> str | None:
+    """Return stable stat metadata, ``missing``, or ``None`` when unprovable."""
     try:
-        from sase.core.bead_read_facade import store_fingerprint
-
-        fingerprint = store_fingerprint(beads_dir)
-    except Exception:
-        return None
-    if fingerprint is not None:
-        return fingerprint.token
-    try:
-        stat = (beads_dir / "issues.jsonl").stat()
+        metadata = path.stat()
+    except FileNotFoundError:
+        return "missing"
     except OSError:
         return None
-    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
+
+    expected_kind = S_ISDIR if directory else S_ISREG
+    if not expected_kind(metadata.st_mode):
+        return None
+    return f"{metadata.st_size}:{metadata.st_mtime_ns}:{getattr(metadata, 'st_ino', 0)}"
 
 
 def _bead_display_fingerprint(agent: Agent) -> str | None:
-    """Return a stat-only token for the authoritative project bead store.
+    """Return a stat-only token for the candidate bead's authoritative lineage.
 
-    Uses the existing canonical project-store locator and Rust-owned store
-    fingerprints; workspace fallbacks stay on the legacy lookup path so no
-    private backend helper is imported here. Returns ``None`` when no
-    authoritative store can be proven (fail open to a full lookup) and a
-    ``"MISSING:..."`` sentinel for a stable absent store. Must only be called
-    off the Textual event loop.
+    Event stores keep each bead lineage in its own stream, so unrelated writes
+    must not invalidate this candidate's cached display. The token includes
+    the store config and manifest plus only the candidate root stream. Legacy
+    stores have one issues file and keep the broader file token. Workspace
+    fallbacks stay on the legacy lookup path because no canonical project
+    store can be proven. Returns ``None`` when a token cannot be proven (fail
+    open to a full lookup) and a ``"MISSING:..."`` sentinel for an absent
+    canonical store. Must only be called off the Textual event loop.
     """
-    tokens: list[str] = []
     project_name = _agent_project_name(agent)
-    if project_name is None:
+    bead_id = _derive_agent_bead_id(agent)
+    if project_name is None or bead_id is None:
         return None
     try:
         from sase.bead.store_locator import canonical_beads_dir_for_project
@@ -160,15 +161,32 @@ def _bead_display_fingerprint(agent: Agent) -> str | None:
     except Exception:
         return None
     if beads_dir is None:
-        tokens.append(f"MISSING:project:{project_name}")
-    else:
-        token = _store_token_for_beads_dir(beads_dir)
-        if token is None:
-            return None
-        tokens.append(f"proj:{token}")
-    if not tokens:
+        return f"MISSING:project:{project_name}"
+
+    config_token = _stat_token(beads_dir / "config.json")
+    manifest_token = _stat_token(beads_dir / "events" / "manifest.json")
+    streams_dir = beads_dir / "events" / "streams"
+    streams_token = _stat_token(streams_dir, directory=True)
+    if config_token is None or manifest_token is None or streams_token is None:
         return None
-    return "|".join(sorted(tokens))
+
+    event_store = manifest_token != "missing" or streams_token != "missing"
+    if event_store:
+        root_id = bead_id.split(".", 1)[0]
+        if not root_id or "/" in root_id or "\\" in root_id:
+            return None
+        stream_token = _stat_token(streams_dir / f"{root_id}.jsonl")
+        if stream_token is None:
+            return None
+        return (
+            f"{beads_dir}:events:{config_token}:{manifest_token}:"
+            f"{root_id}:{stream_token}"
+        )
+
+    issues_token = _stat_token(beads_dir / "issues.jsonl")
+    if issues_token is None or issues_token == "missing":
+        return None
+    return f"{beads_dir}:legacy:{config_token}:{issues_token}"
 
 
 def _derive_agent_bead_id(agent: Agent) -> str | None:
