@@ -27,7 +27,7 @@ _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/tui/modals/_prompt_stash_preview.py",
     "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash_store.py",
     "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
-    "src/sase/ace/tui/actions/agents/_archive_controller_build.py",
+    "src/sase/ace/tui/actions/agents/_archive_controller_build_support.py",
     "src/sase/ace/tui/actions/agents/_loading_compute.py",
     "src/sase/ace/tui/models/_agent_loader_tiered.py",
     "src/sase/ace/dismissed_agents_bundles.py",
@@ -73,8 +73,8 @@ _ALLOWED_METADATA_LOADERS = {
         "load_project_display_snapshot",
     ): "Launch approval resolves its task label inside the tracked task worker.",
     (
-        "src/sase/ace/tui/actions/agents/_archive_controller_build.py",
-        "_load_display_snapshot",
+        "src/sase/ace/tui/actions/agents/_archive_controller_build_support.py",
+        "load_display_snapshot",
         "load_project_display_snapshot",
     ): "Archive corpus worker warms project labels off-thread for project banners.",
     (
