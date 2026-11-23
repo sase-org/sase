@@ -12,6 +12,10 @@ import pytest
 
 from sase.ace.tui.models import agent_stranded
 from sase.agent.handoff_inflight import HANDOFF_INFLIGHT_MARKER
+from sase.bead import _stranded_facts_beads as beads
+from sase.bead import _stranded_facts_collect as collect
+from sase.bead import _stranded_facts_members as members
+from sase.bead import _stranded_facts_snapshot as snapshot
 from sase.bead import stranded as stranded_module
 from sase.bead import stranded_facts as facts
 from sase.bead.stranded import load_stranded_report
@@ -60,20 +64,20 @@ def _fingerprint(token: str) -> SimpleNamespace:
 
 
 def _wrap_snapshot(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    original = facts.stranded_snapshot
+    original = snapshot.stranded_snapshot
     calls: list[int] = []
 
     def wrapped(beads_dir: Path, bead_ids: object = None):
         calls.append(1)
         return original(beads_dir, bead_ids)
 
-    monkeypatch.setattr(facts, "stranded_snapshot", wrapped)
+    monkeypatch.setattr(snapshot, "stranded_snapshot", wrapped)
     return calls
 
 
 def _pin_fingerprint(monkeypatch: pytest.MonkeyPatch, tokens: list[str]) -> None:
     monkeypatch.setattr(
-        facts, "store_fingerprint", lambda _beads_dir: _fingerprint(tokens[0])
+        snapshot, "store_fingerprint", lambda _beads_dir: _fingerprint(tokens[0])
     )
 
 
@@ -118,7 +122,7 @@ def test_unchanged_store_reuses_snapshot_and_refreshes_process_death(
     )
     _pin_fingerprint(monkeypatch, ["store-1"])
     calls = _wrap_snapshot(monkeypatch)
-    monkeypatch.setattr(facts, "_process_live", lambda _record: live[0])
+    monkeypatch.setattr(members, "_process_live", lambda _record: live[0])
 
     owned = load_stranded_report(PROJECT, now=_NOW)
     assert owned.stable_rebuild is True
@@ -159,7 +163,7 @@ def test_pid_identity_change_with_unchanged_files_is_not_live(
     )
     _pin_fingerprint(monkeypatch, ["store-1"])
     calls = _wrap_snapshot(monkeypatch)
-    monkeypatch.setattr(facts, "record_is_live", lambda _record: False)
+    monkeypatch.setattr(members, "record_is_live", lambda _record: False)
 
     first = load_stranded_report(PROJECT, now=_NOW)
     second = load_stranded_report(PROJECT, now=_NOW)
@@ -281,7 +285,7 @@ def test_delivered_handoff_and_finalizer_and_recovery_refresh_without_rebuild(
     _pin_fingerprint(monkeypatch, ["store-1"])
     calls = _wrap_snapshot(monkeypatch)
     inflight = [True]
-    monkeypatch.setattr(facts, "recovery_in_flight", lambda _path: inflight[0])
+    monkeypatch.setattr(members, "recovery_in_flight", lambda _path: inflight[0])
 
     first = load_stranded_report(PROJECT, now=_NOW)
     member = bead_facts(
@@ -362,7 +366,7 @@ def test_bead_deletion_and_missing_store(
     assert deleted.report.verdicts == ()
     assert deleted.titles == {}
 
-    monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: None)
+    monkeypatch.setattr(collect, "canonical_beads_dir_for_project", lambda _p: None)
     payload, titles, rebuilt = collect_stranded_work_snapshot(PROJECT, now=_NOW)
     assert payload["beads"] == []
     assert titles == {}
@@ -379,7 +383,7 @@ def test_uncertified_fingerprint_never_reuses(
         [phase("sase-1.2", assignee="sase-1.2")],
         [record(artifact, name="sase-1.2", session="sase-1.2", pid=_PID)],
     )
-    monkeypatch.setattr(facts, "store_fingerprint", lambda _beads_dir: None)
+    monkeypatch.setattr(snapshot, "store_fingerprint", lambda _beads_dir: None)
     calls = _wrap_snapshot(monkeypatch)
     first = load_stranded_report(PROJECT, now=_NOW)
     second = load_stranded_report(PROJECT, now=_NOW)
@@ -399,18 +403,18 @@ def test_snapshot_failure_does_not_install_identity(
         [record(artifact, name="sase-1.2", session="sase-1.2", pid=_PID)],
     )
     _pin_fingerprint(monkeypatch, ["store-1"])
-    original = facts.stranded_snapshot
+    original = snapshot.stranded_snapshot
     calls: list[int] = []
 
     def boom(_beads_dir: Path, bead_ids: object = None) -> object:
         calls.append(1)
         raise RuntimeError("snapshot failed")
 
-    monkeypatch.setattr(facts, "stranded_snapshot", boom)
+    monkeypatch.setattr(snapshot, "stranded_snapshot", boom)
     failed = load_stranded_report(PROJECT, now=_NOW)
     assert failed.collection_failed is True
     assert failed.stable_rebuild is True
-    monkeypatch.setattr(facts, "stranded_snapshot", original)
+    monkeypatch.setattr(snapshot, "stranded_snapshot", original)
     recovered = load_stranded_report(PROJECT, now=_NOW)
     assert recovered.collection_failed is False
     assert recovered.stable_rebuild is True
@@ -524,7 +528,7 @@ def test_measured_realistic_fixture_ttl_skips_stable_rebuild(
     issues = [phase(f"s.ph{index}", assignee=f"s.ph{index}") for index in range(80)]
     issues.append(epic("s.epic"))
     wire_collector(monkeypatch, tmp_path, issues, [])
-    monkeypatch.setattr(facts, "_session_record_cache", lambda _p, _k: {})
+    monkeypatch.setattr(beads, "session_record_cache", lambda _p, _k: {})
     _pin_fingerprint(monkeypatch, ["store-1"])
     calls = _wrap_snapshot(monkeypatch)
 

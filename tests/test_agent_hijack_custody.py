@@ -28,7 +28,7 @@ from sase.agent.hijack.custody import (
 from sase.agent.names._common import NamedAgent
 from sase.agent.running import list_all_agents, list_running_agents
 from sase.agents import cli_list, cli_show
-from sase.bead import stranded_facts as stranded
+from sase.bead._stranded_facts_members import _lifecycle, _process_live
 from sase.core.agent_auto_restart_wire import AgentRecoveryWire
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -338,8 +338,8 @@ def test_stranded_hijacked_owner_is_parked_by_user(tmp_path: Path) -> None:
             recovery=AgentRecoveryWire(state="pending", kind="hijack"),
         ),
     )
-    assert stranded._lifecycle(rec) == "asking"
-    assert stranded._process_live(rec) is True
+    assert _lifecycle(rec) == "asking"
+    assert _process_live(rec) is True
     assert recovery_is_user_parked(AgentRecoveryWire(state="expired", kind="hijack"))
     assert not recovery_is_user_parked(
         AgentRecoveryWire(state="dismissed", kind="hijack")

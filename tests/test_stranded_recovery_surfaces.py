@@ -76,11 +76,11 @@ def _point_collector_at_store(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, beads_dir: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.bead.stranded_facts.canonical_beads_dir_for_project",
+        "sase.bead._stranded_facts_collect.canonical_beads_dir_for_project",
         lambda _project: beads_dir,
     )
     monkeypatch.setattr(
-        "sase.bead.stranded_facts.default_agent_artifact_index_path",
+        "sase.bead._stranded_facts_snapshot.default_agent_artifact_index_path",
         lambda: tmp_path / "missing-index.sqlite",
     )
 
@@ -162,7 +162,8 @@ def test_live_successor_owns_recovered_work(
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_bytes(b"")
     monkeypatch.setattr(
-        "sase.bead.stranded_facts.default_agent_artifact_index_path", lambda: index
+        "sase.bead._stranded_facts_snapshot.default_agent_artifact_index_path",
+        lambda: index,
     )
     from sase.core.agent_scan_wire import (
         AgentArtifactScanOptionsWire,
@@ -179,7 +180,9 @@ def test_live_successor_owns_recovered_work(
             records=[live],
         )
 
-    monkeypatch.setattr("sase.bead.stranded_facts._query_session_index", query)
+    monkeypatch.setattr(
+        "sase.bead._stranded_facts_snapshot._query_session_index", query
+    )
     report = reduce_stranded_work(collect_stranded_work_input(PROJECT, now=_NOW))
     assert report.stranded_ids == ()
     assert report.verdicts[0].bead_id == task_id
@@ -265,7 +268,8 @@ def test_in_progress_parent_is_blocked_by_recovered_phase(
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_bytes(b"")
     monkeypatch.setattr(
-        "sase.bead.stranded_facts.default_agent_artifact_index_path", lambda: index
+        "sase.bead._stranded_facts_snapshot.default_agent_artifact_index_path",
+        lambda: index,
     )
     from sase.core.agent_scan_wire import (
         AgentArtifactScanOptionsWire,
@@ -282,7 +286,9 @@ def test_in_progress_parent_is_blocked_by_recovered_phase(
             records=[live_parent, dead_phase],
         )
 
-    monkeypatch.setattr("sase.bead.stranded_facts._query_session_index", query)
+    monkeypatch.setattr(
+        "sase.bead._stranded_facts_snapshot._query_session_index", query
+    )
     report = reduce_stranded_work(collect_stranded_work_input(PROJECT, now=_NOW))
     assert phase_id in report.stranded_ids
     assert plan_id in report.blocked_ids

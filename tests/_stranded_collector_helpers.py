@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.bead import stranded_facts as facts
+from sase.bead import _stranded_facts_collect as collect
+from sase.bead import _stranded_facts_snapshot as snapshot
 from sase.bead.model import BeadCompletionFailure, BeadTier, Issue, IssueType, Status
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -184,10 +185,12 @@ def wire_collector(
     beads_dir.mkdir(exist_ok=True)
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_bytes(b"")
-    monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: beads_dir)
-    monkeypatch.setattr(facts, "default_agent_artifact_index_path", lambda: index)
-    facts._snapshot_reader.cache_clear()
-    facts._session_index_reader.cache_clear()
+    monkeypatch.setattr(
+        collect, "canonical_beads_dir_for_project", lambda _p: beads_dir
+    )
+    monkeypatch.setattr(snapshot, "default_agent_artifact_index_path", lambda: index)
+    snapshot._snapshot_reader.cache_clear()
+    snapshot._session_index_reader.cache_clear()
 
     def stranded_snapshot(
         _beads_dir: Path, bead_ids: Any = None
@@ -215,7 +218,7 @@ def wire_collector(
         ]
         return candidates, context
 
-    monkeypatch.setattr(facts, "stranded_snapshot", stranded_snapshot)
+    monkeypatch.setattr(snapshot, "stranded_snapshot", stranded_snapshot)
 
     def query(
         _project: str,
@@ -231,7 +234,7 @@ def wire_collector(
             records=list(records),
         )
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
     return beads_dir
 
 

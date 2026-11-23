@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead import stranded_facts as facts
+from sase.bead import _stranded_facts_snapshot as snapshot
 from sase.bead.stranded_facts import collect_stranded_work_input
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
@@ -91,7 +91,7 @@ def _legacy_answers(project: str, keys: set[str]) -> dict[str, tuple[list[str], 
     """The pre-batch answer: one query per key with the exact recheck."""
     answers: dict[str, tuple[list[str], bool]] = {}
     for key in sorted(keys):
-        scan = facts._query_session_index(
+        scan = snapshot._query_session_index(
             project,
             (key,),
             _legacy_single_key_query(project, key),
@@ -121,7 +121,7 @@ def _batched_answers(project: str, keys: set[str]) -> dict[str, tuple[list[str],
             [item.artifact_dir for item in records],
             available,
         )
-        for key, (records, available) in facts._session_record_cache(
+        for key, (records, available) in snapshot.session_record_cache(
             project, keys
         ).items()
     }
@@ -148,7 +148,7 @@ def test_cross_key_record_reaches_every_matching_key(
         [phase("sase-1.2", assignee="key-a")],
         _rich_records(tmp_path),
     )
-    cache = facts._session_record_cache(PROJECT, {"key-a", "key-b"})
+    cache = snapshot.session_record_cache(PROJECT, {"key-a", "key-b"})
     assert str(cross_dir) in [item.artifact_dir for item in cache["key-a"][0]]
     assert str(cross_dir) in [item.artifact_dir for item in cache["key-b"][0]]
     assert cache["key-a"][1] is True
@@ -165,7 +165,7 @@ def test_duplicate_artifact_dirs_keep_first_per_key(
         [phase("sase-1.2", assignee="dupe-key")],
         _rich_records(tmp_path),
     )
-    cache = facts._session_record_cache(PROJECT, {"dupe-key"})
+    cache = snapshot.session_record_cache(PROJECT, {"dupe-key"})
     dirs = [item.artifact_dir for item in cache["dupe-key"][0]]
     assert dirs.count(str(dupe_dir)) == 1
     assert cache["dupe-key"][0][0].agent_meta.name == "dupe-first"
@@ -179,7 +179,7 @@ def test_single_batched_query_carries_every_key(monkeypatch, tmp_path: Path) -> 
         _rich_records(tmp_path),
     )
     captured: list[Any] = []
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(
         project: str,
@@ -190,9 +190,9 @@ def test_single_batched_query_carries_every_key(monkeypatch, tmp_path: Path) -> 
         captured.append((index_query, options))
         return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
     keys = {"key-a", "key-b", "shared"}
-    facts._session_record_cache(PROJECT, keys)
+    snapshot.session_record_cache(PROJECT, keys)
     assert len(captured) == 1
     index_query, options = captured[0]
     values = sorted(item["value"] for item in index_query.candidate_filter["filters"])
@@ -218,7 +218,7 @@ def test_more_than_100_keys_uses_multiple_chunks(monkeypatch, tmp_path: Path) ->
     ]
     wire_collector(monkeypatch, tmp_path, [], records)
     calls = 0
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(
         project: str,
@@ -230,8 +230,8 @@ def test_more_than_100_keys_uses_multiple_chunks(monkeypatch, tmp_path: Path) ->
         calls += 1
         return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
-    cache = facts._session_record_cache(PROJECT, set(keys))
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
+    cache = snapshot.session_record_cache(PROJECT, set(keys))
     assert calls == 3
     assert set(cache) == set(keys)
     assert all(available for _, available in cache.values())
@@ -243,7 +243,7 @@ def test_more_than_100_keys_uses_multiple_chunks(monkeypatch, tmp_path: Path) ->
 def test_failing_chunk_marks_only_its_keys_unavailable(
     monkeypatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(facts, "_BATCH_CHUNK_SIZE", 2)
+    monkeypatch.setattr(snapshot, "_BATCH_CHUNK_SIZE", 2)
     good_c_dir = _dir(tmp_path, "good-c")
     good_d_dir = _dir(tmp_path, "good-d")
     records = [
@@ -256,7 +256,7 @@ def test_failing_chunk_marks_only_its_keys_unavailable(
         [phase("sase-1.2", assignee="good-c")],
         records,
     )
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(
         project: str,
@@ -269,9 +269,11 @@ def test_failing_chunk_marks_only_its_keys_unavailable(
             raise OSError("index busy")
         return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
     # Sorted: bad-a, bad-b, good-c, good-d -> chunks [bad-a, bad-b], [good-c, good-d].
-    cache = facts._session_record_cache(PROJECT, {"good-d", "good-c", "bad-b", "bad-a"})
+    cache = snapshot.session_record_cache(
+        PROJECT, {"good-d", "good-c", "bad-b", "bad-a"}
+    )
     assert cache["bad-a"] == ([], False)
     assert cache["bad-b"] == ([], False)
     assert cache["good-c"][1] is True
@@ -289,20 +291,20 @@ def test_missing_index_file_marks_every_key_unavailable(
         _rich_records(tmp_path),
     )
     monkeypatch.setattr(
-        facts,
+        snapshot,
         "default_agent_artifact_index_path",
         lambda: tmp_path / "missing.sqlite",
     )
     calls = 0
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(*args: Any, **kwargs: Any) -> AgentArtifactScanWire:
         nonlocal calls
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
-    cache = facts._session_record_cache(PROJECT, {"key-a", "key-b"})
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
+    cache = snapshot.session_record_cache(PROJECT, {"key-a", "key-b"})
     assert cache == {"key-a": ([], False), "key-b": ([], False)}
     assert calls == 0
 
@@ -316,7 +318,7 @@ def test_collector_end_to_end_uses_batched_query(monkeypatch, tmp_path: Path) ->
         [record(artifact, name="sase-1.2", session="sase-1.2")],
     )
     calls = 0
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(
         project: str,
@@ -328,7 +330,7 @@ def test_collector_end_to_end_uses_batched_query(monkeypatch, tmp_path: Path) ->
         calls += 1
         return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
     payload = collect_stranded_work_input(PROJECT, now=_NOW)
     assert calls == 1
     bead = bead_facts(payload, "sase-1.2")

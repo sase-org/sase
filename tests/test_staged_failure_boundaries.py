@@ -175,7 +175,7 @@ def test_auto_restart_pending_includes_staged(tmp_path: Path, monkeypatch) -> No
 
 
 def test_stranded_facts_show_staged(tmp_path: Path, monkeypatch) -> None:
-    from sase.bead import stranded_facts as facts_mod
+    from sase.bead._stranded_facts_members import _staged_facts
 
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -191,7 +191,7 @@ def test_stranded_facts_show_staged(tmp_path: Path, monkeypatch) -> None:
         },
         artifacts_dir=str(artifacts),
     )
-    kind, outcome = facts_mod._staged_facts(str(artifacts))
+    kind, outcome = _staged_facts(str(artifacts))
     assert kind == "plan"
     assert outcome == "handoff_not_adopted"
 

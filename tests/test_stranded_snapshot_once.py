@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import sase.bead.stranded as stranded_module
+from sase.bead import _stranded_facts_beads as beads
+from sase.bead import _stranded_facts_collect as collect
+from sase.bead import _stranded_facts_snapshot as snapshot
 from sase.bead import stranded_facts as facts
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from tests._stranded_collector_helpers import PROJECT, bead_facts
@@ -57,10 +60,12 @@ def _install(monkeypatch: Any, tmp_path: Any, issues: list[Issue]) -> dict[str, 
             issue for issue in issues if issue.status is Status.CLOSED
         ]
 
-    monkeypatch.setattr(facts, "stranded_snapshot", stranded_snapshot)
-    monkeypatch.setattr(facts, "canonical_beads_dir_for_project", lambda _p: beads_dir)
-    monkeypatch.setattr(facts, "_session_record_cache", lambda _p, _k: {})
-    facts._snapshot_reader.cache_clear()
+    monkeypatch.setattr(snapshot, "stranded_snapshot", stranded_snapshot)
+    monkeypatch.setattr(
+        collect, "canonical_beads_dir_for_project", lambda _p: beads_dir
+    )
+    monkeypatch.setattr(beads, "session_record_cache", lambda _p, _k: {})
+    snapshot._snapshot_reader.cache_clear()
     return calls
 
 

@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.bead.stranded import load_stranded_report
-from sase.bead import stranded_facts as facts
+from sase.bead import _stranded_facts_snapshot as snapshot
+from sase.bead.stranded_facts import collect_stranded_work_input
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -50,7 +51,7 @@ def _capturing_collector(
     """Like ``wire_collector`` but captures the index queries sent."""
     captured: list[Any] = []
     wire_collector(monkeypatch, tmp_path, issues, records)
-    original = facts._query_session_index
+    original = snapshot._query_session_index
 
     def query(
         project: str,
@@ -61,7 +62,7 @@ def _capturing_collector(
         captured.append(index_query)
         return original(project, keys, index_query, options)
 
-    monkeypatch.setattr(facts, "_query_session_index", query)
+    monkeypatch.setattr(snapshot, "_query_session_index", query)
     return captured
 
 
@@ -84,7 +85,7 @@ def test_single_turn_query_matches_session_or_name(monkeypatch, tmp_path: Path) 
         [phase("sase-1.2", assignee="sase-1.2")],
         _root_done_records(tmp_path),
     )
-    bead = bead_facts(facts.collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
+    bead = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
     assert bead["records_available"] is True
     assert len(bead["members"]) == 1
     assert bead["members"][0]["name"] == "sase-1.2"
@@ -192,7 +193,7 @@ def test_duplicate_artifact_dirs_are_deduped(monkeypatch, tmp_path: Path) -> Non
             ),
         ],
     )
-    bead = bead_facts(facts.collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
+    bead = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
     assert len(bead["members"]) == 1
 
 

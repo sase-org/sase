@@ -362,7 +362,7 @@ def test_missing_index_marks_records_unavailable(monkeypatch, tmp_path: Path) ->
         [],
     )
     monkeypatch.setattr(
-        "sase.bead.stranded_facts.default_agent_artifact_index_path",
+        "sase.bead._stranded_facts_snapshot.default_agent_artifact_index_path",
         lambda: tmp_path / "missing.sqlite",
     )
     bead = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
