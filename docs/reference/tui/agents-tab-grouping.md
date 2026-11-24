@@ -60,7 +60,8 @@ rows. The clan row's fold count and status chrome count those direct clan agent 
 once; nested session or workflow members do not inflate them. To reveal descendants
 within a session or workflow, move to that row and press `l` there; pressing `l` again
 on the clan row itself has no effect unless the clan has exactly one running member, in
-which case `l` jumps to it (see
+which case `l` jumps to that member, or through it to the session's running monitor when
+that monitor is the session's only in-flight turn (see
 [Agent clans](../agents/agent-clans.md)). Lowercase `h` moves to the validated parent
 without changing fold state. Sequential session members use `--<suffix>` names and run
 one after another. Killing or dismissing a clan row cascades to the clan's live members;

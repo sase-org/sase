@@ -97,21 +97,36 @@ def __getattr__(name: str) -> Any:
 _PACKAGE_GETATTR = __getattr__
 
 
+def _live_require_rust_binding(name: str) -> Any:
+    """Delegate so impl copies follow the live facade monkeypatch seam."""
+    return require_rust_binding(name)
+
+
+def _live_agent_artifact_index_operation_lock(*args: Any, **kwargs: Any) -> Any:
+    return agent_artifact_index_operation_lock(*args, **kwargs)
+
+
+def _live_try_agent_artifact_index_operation_lock(*args: Any, **kwargs: Any) -> Any:
+    return try_agent_artifact_index_operation_lock(*args, **kwargs)
+
+
 def _sync_source_patchables() -> None:
     global source_impl
     if source_impl is None:
         source_impl = import_module("sase.core.agent_scan_source")
-    source_impl.require_rust_binding = require_rust_binding
+    source_impl.require_rust_binding = _live_require_rust_binding
 
 
 def _sync_index_patchables() -> None:
     global index_impl
     if index_impl is None:
         index_impl = import_module("sase.core.agent_scan_index")
-    index_impl.require_rust_binding = require_rust_binding
-    index_impl.agent_artifact_index_operation_lock = agent_artifact_index_operation_lock
+    index_impl.require_rust_binding = _live_require_rust_binding
+    index_impl.agent_artifact_index_operation_lock = (
+        _live_agent_artifact_index_operation_lock
+    )
     index_impl.try_agent_artifact_index_operation_lock = (
-        try_agent_artifact_index_operation_lock
+        _live_try_agent_artifact_index_operation_lock
     )
 
 
@@ -119,12 +134,12 @@ def _sync_mutations_patchables() -> None:
     global mutations_impl
     if mutations_impl is None:
         mutations_impl = import_module("sase.core.agent_scan_index_mutations")
-    mutations_impl.require_rust_binding = require_rust_binding
+    mutations_impl.require_rust_binding = _live_require_rust_binding
     mutations_impl.agent_artifact_index_operation_lock = (
-        agent_artifact_index_operation_lock
+        _live_agent_artifact_index_operation_lock
     )
     mutations_impl.try_agent_artifact_index_operation_lock = (
-        try_agent_artifact_index_operation_lock
+        _live_try_agent_artifact_index_operation_lock
     )
 
 
@@ -132,12 +147,12 @@ def _sync_queries_patchables() -> None:
     global queries_impl
     if queries_impl is None:
         queries_impl = import_module("sase.core.agent_scan_index_queries")
-    queries_impl.require_rust_binding = require_rust_binding
+    queries_impl.require_rust_binding = _live_require_rust_binding
     queries_impl.agent_artifact_index_operation_lock = (
-        agent_artifact_index_operation_lock
+        _live_agent_artifact_index_operation_lock
     )
     queries_impl.try_agent_artifact_index_operation_lock = (
-        try_agent_artifact_index_operation_lock
+        _live_try_agent_artifact_index_operation_lock
     )
 
 

@@ -405,17 +405,38 @@ def test_footer_refresh_includes_running_member_jump_availability() -> None:
         agent_clan="research",
         agent_clan_generation="20260717100000",
     )
-    app._resolve_clan_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+    app._resolve_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
 
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
-    assert (
-        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
-        is True
-    )
+    member_call = app.footer_widget.agent_binding_calls[-1]
+    assert member_call["running_member_jump_available"] is True
+    assert member_call["running_member_jump_label"] == "running member"
 
-    app._resolve_clan_running_member_jump_target = lambda: None  # type: ignore[attr-defined]
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="research.one--mon",
+        project_file="/tmp/test.sase",
+        status="MONITORING",
+        start_time=datetime(2026, 7, 17, 10, 1, 0),
+        raw_suffix="one-mon",
+        agent_name="research.one--mon",
+        agent_session="research.one",
+        agent_session_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m-one",
+        monitor_state="running",
+    )
+    app._resolve_running_member_jump_target = lambda: monitor  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+    monitor_call = app.footer_widget.agent_binding_calls[-1]
+    assert monitor_call["running_member_jump_available"] is True
+    assert monitor_call["running_member_jump_label"] == "running monitor"
+
+    app._resolve_running_member_jump_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
@@ -424,7 +445,7 @@ def test_footer_refresh_includes_running_member_jump_availability() -> None:
         is False
     )
 
-    app._resolve_clan_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+    app._resolve_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
     app._resolve_focused_panel = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         panel_key=None, collapsed=False
     )

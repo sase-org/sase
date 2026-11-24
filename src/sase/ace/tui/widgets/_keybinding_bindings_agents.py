@@ -49,6 +49,7 @@ class AgentBindingsMixin:
         panel_hint_collapse_available: bool = False,
         left_navigation_kind: str | None = None,
         running_member_jump_available: bool = False,
+        running_member_jump_label: str = "running member",
         lane_collapse_available: bool = False,
         clan_collapse_available: bool = False,
         selected_clan_collapse_available: bool = False,
@@ -196,7 +197,7 @@ class AgentBindingsMixin:
                 )
             )
         if running_member_jump_available and not panel_focused:
-            bindings.append((self._kd("expand_or_layout"), "running member"))
+            bindings.append((self._kd("expand_or_layout"), running_member_jump_label))
 
         collapse_all_label: str | None = None
         if llm_calls_can_compact:

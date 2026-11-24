@@ -28,7 +28,9 @@ def _session_index_reader(
 ) -> AgentArtifactIndexReader:
     # Own a bounded set of batches: projects and >100-session chunks interleave.
     # Rust still validates the complete query, paths, options and markers on every
-    # read. Eviction only loses reuse; reports always build independent fact dicts.
+    # read. Session/name pushdowns never certify a payload generation, so these
+    # readers isolate consumers instead of skipping hydration. Eviction only
+    # drops that isolation; reports always build independent fact dicts.
     return AgentArtifactIndexReader()
 
 

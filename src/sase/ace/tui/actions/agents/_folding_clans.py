@@ -212,14 +212,18 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
     _fold_manager: FoldStateManager
 
-    def _resolve_clan_running_member_jump_target(self) -> Agent | None:
-        """Return the clan's lone running member for an ``l`` jump, if any.
+    def _resolve_running_member_jump_target(self) -> Agent | None:
+        """Return the ``l`` jump target for a lone running member or monitor.
 
-        Applies only to a selected clan-container row on the Agents tab:
-        no whole-panel focus, no grouping-banner focus, and the selected
-        clan must have exactly one running member. The footer reuses this
-        resolver so the chip and the key cannot disagree. The Archive and
-        Tools-card routes stay in the dispatcher before ``_expand_fold``.
+        Applies on the Agents tab with no whole-panel focus and no grouping-
+        banner focus. A selected clan-container row whose lone running member
+        is a session whose only in-flight turn is a running monitor drills
+        through to that monitor; otherwise the clan member itself is the
+        target. Any other selected row jumps only when it is a sequential
+        session whose only in-flight turn is a running monitor. The footer
+        reuses this resolver so the chip and the key cannot disagree. The
+        Archive and Tools-card routes stay in the dispatcher before
+        ``_expand_fold``.
         """
         if getattr(self, "current_tab", None) != "agents":
             return None
@@ -234,17 +238,26 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
             return None
         get_selected = getattr(self, "_get_selected_agent", None)
         selected = get_selected() if callable(get_selected) else None
-        if selected is None or not selected.is_clan_container:
+        if selected is None:
             return None
-        from ...models._agent_clan import clan_lone_running_member
+        from ...models.agent_session_members import (
+            agent_session_lone_running_monitor_row,
+        )
 
         try:
-            return clan_lone_running_member(selected)
+            if selected.is_clan_container:
+                from ...models._agent_clan import clan_lone_running_member
+
+                member = clan_lone_running_member(selected)
+                if member is None:
+                    return None
+                return agent_session_lone_running_monitor_row(member) or member
+            return agent_session_lone_running_monitor_row(selected)
         except Exception:
             return None
 
-    def _jump_to_clan_running_member(self, member: Agent) -> bool:
-        """Reveal a clan's lone running member row without a toast."""
+    def _jump_to_running_member(self, member: Agent) -> bool:
+        """Reveal a lone running member or monitor row without a toast."""
         reveal = getattr(self, "_try_reveal_agent_row", None)
         if not callable(reveal):
             return False

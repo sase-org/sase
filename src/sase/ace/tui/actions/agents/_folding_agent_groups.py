@@ -175,7 +175,9 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
           agent must already be inside an expanded group, since
           collapsed groups hide agents). On a selected clan-container
           row with exactly one running member, ``l`` instead jumps to
-          that member (expanding first when collapsed).
+          that member (or through it to a session's lone running
+          monitor). On a sequential-session row whose only in-flight
+          turn is a running monitor, ``l`` jumps to that monitor.
         * Other tabs preserve the original per-workflow behavior.
         """
         if self.current_tab == "agents":
@@ -215,20 +217,18 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
             wf_key = self._get_workflow_key_for_agent(agent)
             if wf_key is None:
                 return
+            resolve_jump = getattr(self, "_resolve_running_member_jump_target", None)
+            jump_to_member = getattr(self, "_jump_to_running_member", None)
+            if callable(resolve_jump) and callable(jump_to_member):
+                try:
+                    jump_target = resolve_jump()
+                except Exception:
+                    jump_target = None
+                if jump_target is not None and jump_to_member(jump_target):
+                    return
             if agent.is_clan_container:
                 from ...models.fold_state import FoldLevel
 
-                resolve_jump = getattr(
-                    self, "_resolve_clan_running_member_jump_target", None
-                )
-                jump_to_member = getattr(self, "_jump_to_clan_running_member", None)
-                if callable(resolve_jump) and callable(jump_to_member):
-                    try:
-                        jump_target = resolve_jump()
-                    except Exception:
-                        jump_target = None
-                    if jump_target is not None and jump_to_member(jump_target):
-                        return
                 if self._fold_manager.get(wf_key) != FoldLevel.COLLAPSED:
                     return
             if self._fold_manager.expand(wf_key):

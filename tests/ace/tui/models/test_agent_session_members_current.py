@@ -10,9 +10,11 @@ from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.tui.models._agent_status_apply import apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_session_members import (
+    agent_session_lone_running_monitor_row,
     agent_session_running_monitor_row,
     current_agent_session_turn_row,
 )
+from sase.monitor_state import MONITOR_HELD_STATE
 from tests.ace.tui.models._agent_session_members_helpers import (
     make_agent,
     make_monitor_member,
@@ -34,6 +36,13 @@ __all__ = [
     "test_running_monitor_row_returns_none_for_settled_monitor",
     "test_running_monitor_row_returns_none_for_non_session_row",
     "test_running_monitor_row_returns_none_for_clan_container",
+    "test_lone_running_monitor_row_returns_monitor_when_first_turn_is_done",
+    "test_lone_running_monitor_row_returns_none_for_running_agent_turn",
+    "test_lone_running_monitor_row_returns_none_for_settled_monitor",
+    "test_lone_running_monitor_row_returns_none_for_held_monitor",
+    "test_lone_running_monitor_row_returns_none_when_agent_turn_still_in_flight",
+    "test_lone_running_monitor_row_returns_none_for_non_session_row",
+    "test_lone_running_monitor_row_returns_none_for_clan_container",
 ]
 
 
@@ -314,6 +323,108 @@ def test_running_monitor_row_returns_none_for_clan_container() -> None:
 
     assert clan.is_clan_container is True
     assert agent_session_running_monitor_row(clan) is None
+
+
+def _session_with_monitor(
+    *,
+    root_status: str = "DONE",
+    root_stop_offset: int | None = 1,
+    monitor_state: str = "running",
+    monitor_stop_offset: int | None = None,
+    extra_in_flight: bool = False,
+) -> tuple[object, object]:
+    root = make_agent(
+        "alpha--0",
+        role="root",
+        status=root_status,
+        stop_offset=root_stop_offset,
+    )
+    monitor = make_monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m-lone",
+        monitor_state=monitor_state,
+        stop_offset=monitor_stop_offset,
+    )
+    children = [monitor]
+    if extra_in_flight:
+        coder = make_agent(
+            "alpha--code",
+            role="code",
+            parent_timestamp=root.raw_suffix,
+            status="RUNNING",
+            start_offset=2,
+        )
+        children = [coder, monitor]
+        coder.runtime_children = [monitor]
+        coder.followup_agents = [monitor]
+    root.runtime_children = children
+    root.followup_agents = children
+    return root, monitor
+
+
+def test_lone_running_monitor_row_returns_monitor_when_first_turn_is_done() -> None:
+    root, monitor = _session_with_monitor()
+
+    assert agent_session_lone_running_monitor_row(root) is monitor
+
+
+def test_lone_running_monitor_row_returns_none_for_running_agent_turn() -> None:
+    root = make_agent("alpha--0", role="root", status="RUNNING")
+    waiting_child = make_agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        status="WAITING",
+        start_offset=1,
+    )
+    root.followup_agents = [waiting_child]
+
+    assert agent_session_lone_running_monitor_row(root) is None
+
+
+def test_lone_running_monitor_row_returns_none_for_settled_monitor() -> None:
+    root, _monitor = _session_with_monitor(
+        monitor_state="completed",
+        monitor_stop_offset=2,
+    )
+
+    assert agent_session_lone_running_monitor_row(root) is None
+
+
+def test_lone_running_monitor_row_returns_none_for_held_monitor() -> None:
+    root, _monitor = _session_with_monitor(monitor_state=MONITOR_HELD_STATE)
+
+    assert agent_session_lone_running_monitor_row(root) is None
+
+
+def test_lone_running_monitor_row_returns_none_when_agent_turn_still_in_flight() -> (
+    None
+):
+    root, _monitor = _session_with_monitor(
+        root_status="RUNNING",
+        root_stop_offset=None,
+        extra_in_flight=True,
+    )
+
+    assert agent_session_lone_running_monitor_row(root) is None
+
+
+def test_lone_running_monitor_row_returns_none_for_non_session_row() -> None:
+    agent = make_agent("solo", role="code", status="RUNNING")
+    agent.agent_session = None
+
+    assert agent_session_lone_running_monitor_row(agent) is None
+
+
+def test_lone_running_monitor_row_returns_none_for_clan_container() -> None:
+    member = make_agent("bench.1", role="code", status="DONE", stop_offset=1)
+    member.agent_clan = "bench"
+    member.agent_clan_generation = "gen-1"
+    clan = project_clan_tree([member])[0]
+
+    assert clan.is_clan_container is True
+    assert agent_session_lone_running_monitor_row(clan) is None
 
 
 def test_root_rollup_keeps_failed_bucket_when_followup_errored() -> None:

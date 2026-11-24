@@ -370,8 +370,9 @@ class AgentFooterDisplayMixin:
                 if left_navigation is not None:
                     left_navigation_kind = left_navigation.kind
             running_member_jump_available = False
+            running_member_jump_label = "running member"
             resolve_running_member_jump = getattr(
-                self, "_resolve_clan_running_member_jump_target", None
+                self, "_resolve_running_member_jump_target", None
             )
             if (
                 not panel_focused
@@ -379,11 +380,13 @@ class AgentFooterDisplayMixin:
                 and callable(resolve_running_member_jump)
             ):
                 try:
-                    running_member_jump_available = (
-                        resolve_running_member_jump() is not None
-                    )
+                    jump_target = resolve_running_member_jump()
                 except Exception:
-                    running_member_jump_available = False
+                    jump_target = None
+                if jump_target is not None:
+                    running_member_jump_available = True
+                    if jump_target.is_monitor:
+                        running_member_jump_label = "running monitor"
 
             # Under whole-panel focus, ``H`` arms a hinted collapse instead of
             # the row-scoped ladder below, so these resolvers stay row-only;
@@ -608,6 +611,7 @@ class AgentFooterDisplayMixin:
                 panel_hint_collapse_available=panel_hint_collapse_available,
                 left_navigation_kind=left_navigation_kind,
                 running_member_jump_available=running_member_jump_available,
+                running_member_jump_label=running_member_jump_label,
                 lane_collapse_available=lane_collapse_available,
                 clan_collapse_available=clan_collapse_available,
                 selected_clan_collapse_available=selected_clan_collapse_available,

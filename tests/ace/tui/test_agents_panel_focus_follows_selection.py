@@ -176,7 +176,10 @@ class _ApplyCaptureApp(AgentLoadingMixin):
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents: list[Agent] = list(agents)
-        self._agents_with_children: list[Agent] = list(agents)
+        # Keep the visible list for j/k during the load, but leave the
+        # apply-snapshot cache incomplete so an exact delta still reaches
+        # the apply seam instead of the unchanged short-circuit.
+        self._agents_with_children: list[Agent] = list(agents[:1])
         self._agents_last_idx = 0
         self._agents_last_identity = None
         self.hide_non_run_agents = False
@@ -203,6 +206,23 @@ class _ApplyCaptureApp(AgentLoadingMixin):
         self._agent_load_state = None
         self._agents_applied_query_key = None
         self._agents_complete_history_query_key = None
+        self._live_hints_scan_scheduled = False
+        self._live_hints_scan_running = False
+        self._live_hints_scan_pending = False
+        self._live_hints_scan_source = "unknown"
+        self._live_hints_scan_scheduled_signature = None
+        self._live_hints_scan_pending_signature = None
+        self._live_hints_inflight_signature = None
+        self._live_hints_completed_signature = None
+        self._live_hints_completed_mono = 0.0
+        self._bead_warmup_scan_scheduled = False
+        self._bead_warmup_scan_running = False
+        self._bead_warmup_scan_pending = False
+        self._bead_warmup_scan_source = "unknown"
+        self._diff_badge_scan_scheduled = False
+        self._diff_badge_scan_running = False
+        self._diff_badge_scan_pending = False
+        self._diff_badge_scan_source = "unknown"
         self.applied: tuple[bool, Any] | None = None
 
     def _should_seed_agent_search_query(self) -> bool:
@@ -231,6 +251,9 @@ class _ApplyCaptureApp(AgentLoadingMixin):
         return None
 
     def _schedule_monitor_reconcile(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def _spawn_live_hint_refresh_task(self) -> None:
         return None
 
     def _record_slow_loader_stages(self, *args: Any, **kwargs: Any) -> None:

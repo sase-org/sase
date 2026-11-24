@@ -33,7 +33,7 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.expand_or_layout),
-                    "Clan: jump to its lone running member",
+                    "Clan/session: jump to lone running member/monitor",
                 ),
                 (
                     d(a.hooks_or_collapse),

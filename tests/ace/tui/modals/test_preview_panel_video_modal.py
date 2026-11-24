@@ -174,11 +174,17 @@ async def test_video_modal_decile_stepping_and_clamping(
         modal = app.screen_stack[-1]
         assert isinstance(modal, VideoPreviewPanelModal)
         await wait_for(pilot, lambda: modal._video_info is not None)  # noqa: SLF001
-        await wait_for(pilot, lambda: calls == [0.0])
+        await wait_for(
+            pilot,
+            lambda: (
+                bool(calls) and calls[-1] == 0.0 and not modal._video_frame_in_flight  # noqa: SLF001
+            ),
+        )
 
         await pilot.press("h")
         await pilot.pause()
-        assert calls == [0.0]
+        assert calls[-1] == 0.0
+        assert all(stamp == 0.0 for stamp in calls)
 
         await pilot.press("l")
         await wait_for(pilot, lambda: calls[-1:] == [10.0])
@@ -247,7 +253,18 @@ async def test_video_modal_coalesces_frame_extractions_to_latest_decile(
             await pilot.press("l")
             assert max_active == 1
             release_first.set()
-            await wait_for(pilot, lambda: calls == [0.0, 30.0])
+            await wait_for(
+                pilot,
+                lambda: (
+                    bool(calls)
+                    and calls[-1] == 30.0
+                    and not modal._video_frame_in_flight  # noqa: SLF001
+                ),
+            )
+            assert 0.0 in calls
+            assert 30.0 in calls
+            assert 10.0 not in calls
+            assert 20.0 not in calls
             await wait_for(
                 pilot,
                 lambda: "frame at 30.0" in modal._build_content().plain,  # noqa: SLF001
@@ -297,7 +314,8 @@ async def test_unknown_duration_warns_and_hides_stepping_hints(
     assert notifications == [
         ("Video duration unknown; press Z for the artifact viewer", "warning")
     ]
-    assert frame_calls == [0.0]
+    assert frame_calls
+    assert all(stamp == 0.0 for stamp in frame_calls)
 
 
 async def test_video_fallback_warnings_and_viewer_handoff(

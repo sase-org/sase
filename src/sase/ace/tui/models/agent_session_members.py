@@ -474,6 +474,31 @@ def agent_session_running_monitor_row(agent: Agent) -> Agent | None:
     return None
 
 
+def agent_session_lone_running_monitor_row(agent: Agent) -> Agent | None:
+    """Return the session's only in-flight turn when that turn is a monitor.
+
+    A held (not-adopted) monitor is not in flight, so it never qualifies.
+    Bounded to the loaded session subtree: no projection-wide scan.
+    """
+    if agent.is_clan_container or not is_sequential_agent_session_container(agent):
+        return None
+    in_flight: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for row in concrete_agent_session_turn_rows(agent):
+        if row.identity in seen:
+            continue
+        seen.add(row.identity)
+        if not agent_row_is_in_flight(row):
+            continue
+        in_flight.append(row)
+        if len(in_flight) > 1:
+            return None
+    if len(in_flight) != 1:
+        return None
+    lone = in_flight[0]
+    return lone if lone.is_monitor else None
+
+
 def concrete_agent_session_member_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return ordered concrete agent turns represented by a session container.
 
@@ -650,6 +675,7 @@ __all__ = [
     "concrete_agent_session_member_rows",
     "concrete_agent_session_turn_rows",
     "current_agent_session_turn_row",
+    "agent_session_lone_running_monitor_row",
     "agent_session_member_status_buckets",
     "agent_session_roster_container",
     "agent_session_running_monitor_row",

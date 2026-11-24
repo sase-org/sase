@@ -5,6 +5,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sase.core.agent_artifact_index_lock import (
     agent_artifact_index_operation_lock,
     try_agent_artifact_index_operation_lock,
@@ -15,9 +17,13 @@ from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     query_agent_artifact_index_bounded,
     read_agent_artifact_index_meta,
+    rebuild_agent_artifact_index,
     write_agent_artifact_index_meta,
 )
-from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactIndexQueryWire,
+)
 
 
 def test_artifact_index_operation_lock_allows_nested_facade_call(
@@ -303,3 +309,50 @@ def test_bounded_artifact_index_query_returns_none_during_contention(
 
     assert snapshot is None
     assert not thread.is_alive()
+
+
+def test_direct_query_import_does_not_keep_restored_facade_stub(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_scan_index_queries import (
+        query_agent_artifact_index as direct_query,
+    )
+
+    root = tmp_path / "projects"
+    root.mkdir()
+    index = tmp_path / "index.sqlite"
+    rebuild_agent_artifact_index(index, root)
+
+    def fail_require_binding(name: str) -> object:
+        raise AssertionError(f"leaked lock-test stub: {name}")
+
+    acquired = threading.Event()
+    release = threading.Event()
+
+    def hold_lock() -> None:
+        with agent_artifact_index_operation_lock():
+            acquired.set()
+            release.wait(timeout=1.0)
+
+    thread = threading.Thread(target=hold_lock)
+    thread.start()
+    assert acquired.wait(timeout=1.0)
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(
+                "sase.core.agent_scan_facade.require_rust_binding",
+                fail_require_binding,
+            )
+            assert (
+                query_agent_artifact_index_bounded(
+                    index, root, lock_timeout_seconds=0.01
+                )
+                is None
+            )
+    finally:
+        release.set()
+        thread.join(timeout=1.0)
+
+    snapshot = direct_query(index, root, AgentArtifactIndexQueryWire())
+    assert snapshot.records == []

@@ -102,7 +102,8 @@ aggregates both lanes across the whole tribe, so a fully collapsed panel still r
 both what is still running and how much has already completed inside it. A single `l` on
 the session container row reveals every member and monitor in that session in one step;
 monitors are not deferred to a further "fully expanded" press the way hidden workflow
-steps are. Selecting a monitor row and pressing `l` or `H` acts on that governing
+steps are. When the session's only in-flight turn is a running monitor, that same `l`
+selects the monitor, expanding the session first if needed. Selecting a monitor row and pressing `l` or `H` acts on that governing
 session fold — `H` collapses the session and reanchors the cursor there — while `h`
 still walks up to the monitor's starter.
 

@@ -44,11 +44,16 @@ def test_interleaved_projects_and_chunks_reuse_then_repair(
     try:
         cold = [snapshot.session_record_cache(p, keys) for p in ("one", "two")]
         warm = [snapshot.session_record_cache(p, keys) for p in ("one", "two")]
-        assert hydrated == [1, 1, 1, 1, 0, 0, 0, 0]
+        # Session/name pushdowns stay on the uncached native candidate path
+        # (sase-core 102b009d): interleaved Python readers still isolate
+        # batches, but every read rehydrates because native never certifies
+        # a payload generation for this query shape.
+        assert hydrated == [1, 1, 1, 1, 1, 1, 1, 1]
         for before, after in zip(cold, warm, strict=True):
             for key in keys:
                 assert before[key][1] and after[key][1]
-                assert before[key][0][0] is after[key][0][0]
+                assert before[key][0][0] == after[key][0][0]
+                assert before[key][0][0] is not after[key][0][0]
                 assert before[key][0] is not after[key][0]
 
         marker = root / "one/artifacts/ace-run/20261123000000/agent_meta.json"
@@ -58,13 +63,11 @@ def test_interleaved_projects_and_chunks_reuse_then_repair(
         old_meta = cold[0]["agent-0"][0][0].agent_meta
         assert meta is not None and old_meta is not None
         assert meta.model == "repaired" and old_meta.model == "original"
-        # Repair invalidates native generations conservatively, including the
-        # other batch. Never assume that an unchanged Python key proves reuse.
         assert changed["agent-1"][0][0] == cold[0]["agent-1"][0][0]
         assert hydrated[-2:] == [1, 1]
         snapshot.session_record_cache("one", keys)
-        assert hydrated[-2:] == [1, 0]  # Repaired batch establishes a generation.
+        assert hydrated[-2:] == [1, 1]
         snapshot.session_record_cache("one", keys)
-        assert hydrated[-2:] == [0, 0]
+        assert hydrated[-2:] == [1, 1]
     finally:
         snapshot._session_index_reader.cache_clear()
