@@ -103,7 +103,8 @@ both what is still running and how much has already completed inside it. A singl
 the session container row reveals every member and monitor in that session in one step;
 monitors are not deferred to a further "fully expanded" press the way hidden workflow
 steps are. When the session's only in-flight turn is a running monitor, that same `l`
-selects the monitor, expanding the session first if needed. Selecting a monitor row and pressing `l` or `H` acts on that governing
+selects the monitor, expanding the session first if needed. A failed session with
+nothing running selects its newest failed turn instead. Selecting a monitor row and pressing `l` or `H` acts on that governing
 session fold — `H` collapses the session and reanchors the cursor there — while `h`
 still walks up to the monitor's starter.
 

@@ -16,6 +16,14 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+class _MemberJumpTarget:
+    """Resolved ``l`` jump target and its footer chip label."""
+
+    row: Agent
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
 class _AgentPanelClanCollapseTarget:
     """Validated open clan folds owned by one selected tribe panel."""
 
@@ -212,18 +220,20 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
     _fold_manager: FoldStateManager
 
-    def _resolve_running_member_jump_target(self) -> Agent | None:
-        """Return the ``l`` jump target for a lone running member or monitor.
+    def _resolve_member_jump_target(self) -> _MemberJumpTarget | None:
+        """Return the ``l`` jump target for a lone running/failed node.
 
         Applies on the Agents tab with no whole-panel focus and no grouping-
         banner focus. A selected clan-container row whose lone running member
         is a session whose only in-flight turn is a running monitor drills
         through to that monitor; otherwise the clan member itself is the
-        target. Any other selected row jumps only when it is a sequential
-        session whose only in-flight turn is a running monitor. The footer
-        reuses this resolver so the chip and the key cannot disagree. The
-        Archive and Tools-card routes stay in the dispatcher before
-        ``_expand_fold``.
+        target. With no running member, a clan with exactly one failed member
+        jumps to that member, or through it to the session's failed turn.
+        Any other selected row jumps to its lone running monitor, or to its
+        failed turn when the session itself failed with nothing in flight.
+        The footer reuses this resolver so the chip and the key cannot
+        disagree. The Archive and Tools-card routes stay in the dispatcher
+        before ``_expand_fold``.
         """
         if getattr(self, "current_tab", None) != "agents":
             return None
@@ -241,23 +251,46 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         if selected is None:
             return None
         from ...models.agent_session_members import (
+            agent_session_failed_turn_row,
             agent_session_lone_running_monitor_row,
         )
 
         try:
             if selected.is_clan_container:
-                from ...models._agent_clan import clan_lone_running_member
+                from ...models._agent_clan import (
+                    clan_lone_failed_member,
+                    clan_lone_running_member,
+                )
 
                 member = clan_lone_running_member(selected)
-                if member is None:
+                if member is not None:
+                    monitor = agent_session_lone_running_monitor_row(member)
+                    if monitor is not None and monitor.identity != selected.identity:
+                        return _MemberJumpTarget(row=monitor, label="running monitor")
+                    if member.identity != selected.identity:
+                        return _MemberJumpTarget(row=member, label="running member")
                     return None
-                return agent_session_lone_running_monitor_row(member) or member
-            return agent_session_lone_running_monitor_row(selected)
+                failed = clan_lone_failed_member(selected)
+                if failed is None:
+                    return None
+                turn = agent_session_failed_turn_row(failed)
+                if turn is not None and turn.identity != selected.identity:
+                    return _MemberJumpTarget(row=turn, label="failed turn")
+                if failed.identity != selected.identity:
+                    return _MemberJumpTarget(row=failed, label="failed member")
+                return None
+            monitor = agent_session_lone_running_monitor_row(selected)
+            if monitor is not None and monitor.identity != selected.identity:
+                return _MemberJumpTarget(row=monitor, label="running monitor")
+            failed_turn = agent_session_failed_turn_row(selected)
+            if failed_turn is not None and failed_turn.identity != selected.identity:
+                return _MemberJumpTarget(row=failed_turn, label="failed turn")
+            return None
         except Exception:
             return None
 
-    def _jump_to_running_member(self, member: Agent) -> bool:
-        """Reveal a lone running member or monitor row without a toast."""
+    def _jump_to_member_row(self, member: Agent) -> bool:
+        """Reveal a lone running/failed member or turn row without a toast."""
         reveal = getattr(self, "_try_reveal_agent_row", None)
         if not callable(reveal):
             return False

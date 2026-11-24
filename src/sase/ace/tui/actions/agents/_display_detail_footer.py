@@ -369,24 +369,19 @@ class AgentFooterDisplayMixin:
                 left_navigation = resolve_left_navigation()
                 if left_navigation is not None:
                     left_navigation_kind = left_navigation.kind
-            running_member_jump_available = False
-            running_member_jump_label = "running member"
-            resolve_running_member_jump = getattr(
-                self, "_resolve_running_member_jump_target", None
-            )
+            member_jump_label: str | None = None
+            resolve_member_jump = getattr(self, "_resolve_member_jump_target", None)
             if (
                 not panel_focused
                 and not llm_calls_visible
-                and callable(resolve_running_member_jump)
+                and callable(resolve_member_jump)
             ):
                 try:
-                    jump_target = resolve_running_member_jump()
+                    jump_target = resolve_member_jump()
                 except Exception:
                     jump_target = None
                 if jump_target is not None:
-                    running_member_jump_available = True
-                    if jump_target.is_monitor:
-                        running_member_jump_label = "running monitor"
+                    member_jump_label = jump_target.label
 
             # Under whole-panel focus, ``H`` arms a hinted collapse instead of
             # the row-scoped ladder below, so these resolvers stay row-only;
@@ -610,8 +605,7 @@ class AgentFooterDisplayMixin:
                 all_panel_fold_restore_armed=all_panel_fold_restore_armed,
                 panel_hint_collapse_available=panel_hint_collapse_available,
                 left_navigation_kind=left_navigation_kind,
-                running_member_jump_available=running_member_jump_available,
-                running_member_jump_label=running_member_jump_label,
+                member_jump_label=member_jump_label,
                 lane_collapse_available=lane_collapse_available,
                 clan_collapse_available=clan_collapse_available,
                 selected_clan_collapse_available=selected_clan_collapse_available,

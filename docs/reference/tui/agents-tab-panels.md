@@ -335,7 +335,9 @@ Lowercase `l` only advances a real fold owned by the selected row or its immedia
 workflow/session owner, so a visible hidden leaf under an already fully expanded
 workflow is a no-op. The running-member/monitor jump is the exception: `l` on a session
 whose only in-flight turn is a running monitor, or on a clan whose only running member
-is such a session, selects that monitor. Uppercase `H` is the structural mutation key. When the selected row
+is such a session, selects that monitor. The failed clan/session case is the same: `l`
+on a failed session with nothing running selects its failed turn, and `l` on a clan
+with no running member and one failed member selects that member or its failed turn. Uppercase `H` is the structural mutation key. When the selected row
 owns an open workflow or sequential-session agent node, the first press retreats that
 agent node one fold level. From a visible hidden step that hides the selected row,
 selection re-anchors to the agent-node owner. After the selected agent node is

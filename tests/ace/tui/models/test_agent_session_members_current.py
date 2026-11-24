@@ -10,6 +10,7 @@ from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.tui.models._agent_status_apply import apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_session_members import (
+    agent_session_failed_turn_row,
     agent_session_lone_running_monitor_row,
     agent_session_running_monitor_row,
     current_agent_session_turn_row,
@@ -43,6 +44,13 @@ __all__ = [
     "test_lone_running_monitor_row_returns_none_when_agent_turn_still_in_flight",
     "test_lone_running_monitor_row_returns_none_for_non_session_row",
     "test_lone_running_monitor_row_returns_none_for_clan_container",
+    "test_failed_turn_row_returns_last_failed_agent_turn",
+    "test_failed_turn_row_returns_agent_turn_with_newer_held_monitor",
+    "test_failed_turn_row_skips_retried_turn",
+    "test_failed_turn_row_returns_none_when_bucket_not_failed",
+    "test_failed_turn_row_returns_none_when_turn_in_flight",
+    "test_failed_turn_row_returns_none_when_only_container_failed",
+    "test_failed_turn_row_returns_none_for_clan_and_non_session",
 ]
 
 
@@ -442,3 +450,116 @@ def test_root_rollup_keeps_failed_bucket_when_followup_errored() -> None:
 
     assert root.status == "TESTED"
     assert agent_status_bucket(root) == "Failed"
+
+
+def _failed_session_with_code_turn() -> tuple[object, object]:
+    root = make_agent("alpha--0", role="root", status="FAILED", stop_offset=3)
+    first = make_agent(
+        "alpha--plan",
+        role="plan",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=1,
+        stop_offset=2,
+    )
+    code = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="FAILED",
+        start_offset=2,
+        stop_offset=3,
+    )
+    root.runtime_children = [first, code]
+    root.followup_agents = [first, code]
+    return root, code
+
+
+def test_failed_turn_row_returns_last_failed_agent_turn() -> None:
+    root, code = _failed_session_with_code_turn()
+
+    assert agent_session_failed_turn_row(root) is code
+
+
+def test_failed_turn_row_returns_agent_turn_with_newer_held_monitor() -> None:
+    root, code = _failed_session_with_code_turn()
+    held = make_monitor_member(
+        "alpha--held",
+        root=code,
+        monitor_id="m-held",
+        monitor_state=MONITOR_HELD_STATE,
+    )
+    code.runtime_children = [held]
+    code.followup_agents = [held]
+
+    assert agent_session_failed_turn_row(root) is code
+
+
+def test_failed_turn_row_skips_retried_turn() -> None:
+    root, code = _failed_session_with_code_turn()
+    code.retried_as_timestamp = "20260719090100"
+
+    assert agent_session_failed_turn_row(root) is None
+
+
+def test_failed_turn_row_returns_none_when_bucket_not_failed() -> None:
+    root = make_agent("alpha--0", role="root", status="DONE", stop_offset=3)
+    code = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="FAILED",
+        start_offset=1,
+        stop_offset=2,
+    )
+    root.runtime_children = [code]
+    root.followup_agents = [code]
+
+    assert agent_status_bucket(root) != "Failed"
+    assert agent_session_failed_turn_row(root) is None
+
+
+def test_failed_turn_row_returns_none_when_turn_in_flight() -> None:
+    root = make_agent("alpha--0", role="root", status="FAILED")
+    running = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="RUNNING",
+        start_offset=1,
+    )
+    root.runtime_children = [running]
+    root.followup_agents = [running]
+
+    assert agent_session_failed_turn_row(root) is None
+
+
+def test_failed_turn_row_returns_none_when_only_container_failed() -> None:
+    root = make_agent("alpha--0", role="root", status="FAILED", stop_offset=2)
+    done = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=1,
+        stop_offset=2,
+    )
+    root.runtime_children = [done]
+    root.followup_agents = [done]
+
+    assert agent_session_failed_turn_row(root) is None
+
+
+def test_failed_turn_row_returns_none_for_clan_and_non_session() -> None:
+    member = make_agent("bench.1", role="code", status="DONE", stop_offset=1)
+    member.agent_clan = "bench"
+    member.agent_clan_generation = "gen-1"
+    clan = project_clan_tree([member])[0]
+
+    assert clan.is_clan_container is True
+    assert agent_session_failed_turn_row(clan) is None
+
+    solo = make_agent("solo", role="code", status="FAILED")
+    solo.agent_session = None
+
+    assert agent_session_failed_turn_row(solo) is None

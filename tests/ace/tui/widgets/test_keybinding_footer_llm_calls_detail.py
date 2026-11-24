@@ -604,7 +604,7 @@ def test_footer_running_member_jump_chip_follows_availability() -> None:
     shown = _labels(
         footer._compute_agent_bindings(
             None,
-            running_member_jump_available=True,
+            member_jump_label="running member",
         )
     )
     hidden = _labels(
@@ -615,7 +615,7 @@ def test_footer_running_member_jump_chip_follows_availability() -> None:
     suppressed = _labels(
         footer._compute_agent_bindings(
             None,
-            running_member_jump_available=True,
+            member_jump_label="running member",
             panel_focused=True,
         )
     )
@@ -631,19 +631,31 @@ def test_footer_running_monitor_jump_chip_renders_monitor_label() -> None:
     shown = _labels(
         footer._compute_agent_bindings(
             None,
-            running_member_jump_available=True,
-            running_member_jump_label="running monitor",
+            member_jump_label="running monitor",
         )
     )
     suppressed = _labels(
         footer._compute_agent_bindings(
             None,
-            running_member_jump_available=True,
-            running_member_jump_label="running monitor",
+            member_jump_label="running monitor",
             panel_focused=True,
+        )
+    )
+    failed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            member_jump_label="failed member",
+        )
+    )
+    failed_turn = _labels(
+        footer._compute_agent_bindings(
+            None,
+            member_jump_label="failed turn",
         )
     )
 
     assert ("l", "running monitor") in shown
     assert ("l", "running member") not in shown
     assert ("l", "running monitor") not in suppressed
+    assert ("l", "failed member") in failed
+    assert ("l", "failed turn") in failed_turn

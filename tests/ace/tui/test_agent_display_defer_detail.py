@@ -391,6 +391,7 @@ def test_footer_all_panel_fold_sweep_probe_across_eligible_panels() -> None:
 def test_footer_refresh_includes_running_member_jump_availability() -> None:
     from datetime import datetime
 
+    from sase.ace.tui.actions.agents._folding_clans import _MemberJumpTarget
     from sase.ace.tui.models.agent import Agent, AgentType
 
     app = _FakeApp()
@@ -405,14 +406,15 @@ def test_footer_refresh_includes_running_member_jump_availability() -> None:
         agent_clan="research",
         agent_clan_generation="20260717100000",
     )
-    app._resolve_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+    app._resolve_member_jump_target = lambda: _MemberJumpTarget(  # type: ignore[attr-defined]
+        row=running, label="running member"
+    )
 
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
     member_call = app.footer_widget.agent_binding_calls[-1]
-    assert member_call["running_member_jump_available"] is True
-    assert member_call["running_member_jump_label"] == "running member"
+    assert member_call["member_jump_label"] == "running member"
 
     monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -428,34 +430,49 @@ def test_footer_refresh_includes_running_member_jump_availability() -> None:
         monitor_id="m-one",
         monitor_state="running",
     )
-    app._resolve_running_member_jump_target = lambda: monitor  # type: ignore[attr-defined]
+    app._resolve_member_jump_target = lambda: _MemberJumpTarget(  # type: ignore[attr-defined]
+        row=monitor, label="running monitor"
+    )
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
     monitor_call = app.footer_widget.agent_binding_calls[-1]
-    assert monitor_call["running_member_jump_available"] is True
-    assert monitor_call["running_member_jump_label"] == "running monitor"
+    assert monitor_call["member_jump_label"] == "running monitor"
 
-    app._resolve_running_member_jump_target = lambda: None  # type: ignore[attr-defined]
+    failed = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="research.two",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=datetime(2026, 7, 17, 10, 2, 0),
+        raw_suffix="two",
+        agent_name="research.two",
+    )
+    for label in ("failed member", "failed turn"):
+        app._resolve_member_jump_target = lambda _label=label: _MemberJumpTarget(  # type: ignore[attr-defined]
+            row=failed, label=_label
+        )
+        app._apply_agent_footer_update(
+            _DetailWidget(), app.footer_widget, app._get_selected_agent()
+        )
+        assert app.footer_widget.agent_binding_calls[-1]["member_jump_label"] == label
+
+    app._resolve_member_jump_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
-    assert (
-        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
-        is False
-    )
+    assert app.footer_widget.agent_binding_calls[-1]["member_jump_label"] is None
 
-    app._resolve_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+    app._resolve_member_jump_target = lambda: _MemberJumpTarget(  # type: ignore[attr-defined]
+        row=running, label="running member"
+    )
     app._resolve_focused_panel = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         panel_key=None, collapsed=False
     )
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
-    assert (
-        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
-        is False
-    )
+    assert app.footer_widget.agent_binding_calls[-1]["member_jump_label"] is None
 
 
 def test_fold_hint_footer_survives_incidental_agent_footer_refresh() -> None:

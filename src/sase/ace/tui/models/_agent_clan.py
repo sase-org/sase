@@ -315,6 +315,41 @@ def clan_lone_running_member(agent: Agent) -> Agent | None:
     return running[0]
 
 
+def clan_lone_failed_member(agent: Agent) -> Agent | None:
+    """Return the clan's single failed member when nothing is running, if any.
+
+    Matches the clan row's ``F`` chip: a unique direct clan member counts
+    when ``agent_status_bucket(member) == "Failed"``. Returns ``None`` for a
+    non-clan row, when zero or two-or-more unique members failed, and when
+    any member is still running: its bucket is in ``_CLAN_RUNNING_BUCKETS``
+    (``"Running"`` or ``"Starting"``), its own row is in flight, or it owns
+    an in-flight session turn (the same test ``clan_running_lane_rows``
+    uses). Waiting, queued, asking/plan-review, and done members do not
+    block the jump. Returns the single failed member otherwise.
+    """
+    if not agent.is_clan_container:
+        return None
+    failed: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in clan_members(agent):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        if (
+            agent_status_bucket(member) in _CLAN_RUNNING_BUCKETS
+            or agent_row_is_in_flight(member)
+            or current_agent_session_turn_row(member) is not None
+        ):
+            return None
+        if agent_status_bucket(member) == "Failed":
+            failed.append(member)
+            if len(failed) > 1:
+                return None
+    if len(failed) != 1:
+        return None
+    return failed[0]
+
+
 def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return the clan's own in-flight member rows, one per running lane.
 
@@ -622,6 +657,7 @@ __all__ = [
     "agent_summary_status_counts",
     "aggregate_clan_status",
     "apply_clan_container_status",
+    "clan_lone_failed_member",
     "clan_lone_running_member",
     "clan_lone_stopped_member",
     "clan_running_lane_rows",

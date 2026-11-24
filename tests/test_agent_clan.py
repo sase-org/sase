@@ -9,6 +9,7 @@ from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
     aggregate_clan_status,
     apply_clan_container_status,
+    clan_lone_failed_member,
     clan_lone_running_member,
     clan_lone_stopped_member,
     clan_member_counts,
@@ -389,6 +390,83 @@ def test_clan_lone_running_member_respects_bucket_override() -> None:
 
     assert clan_lone_running_member(container) is None
     assert clan_member_counts(container).running == 0
+
+
+def _failed_clan(statuses: list[str]) -> tuple[Agent, list[Agent]]:
+    container = _agent("research", "FAILED", suffix=None)
+    container.is_clan_container = True
+    members = [
+        _agent(f"research.{index}", status, suffix=str(index))
+        for index, status in enumerate(statuses)
+    ]
+    container.runtime_children = members
+    return container, members
+
+
+def test_clan_lone_failed_member_returns_member() -> None:
+    container, members = _failed_clan(["FAILED", "DONE", "WAITING"])
+
+    assert clan_lone_failed_member(container) is members[0]
+
+
+def test_clan_lone_failed_member_allows_question_alongside() -> None:
+    container, members = _failed_clan(["FAILED", "QUESTION"])
+
+    assert clan_lone_failed_member(container) is members[0]
+
+
+def test_clan_lone_failed_member_respects_bucket_override() -> None:
+    container = _agent("research", "FAILED", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "DONE", suffix="one")
+    member.status_bucket = "Failed"
+    done = _agent("research.two", "DONE", suffix="two")
+    container.runtime_children = [member, done]
+
+    assert clan_lone_failed_member(container) is member
+
+
+def test_clan_lone_failed_member_returns_none_for_two_failed() -> None:
+    container, _ = _failed_clan(["FAILED", "FAILED", "DONE"])
+
+    assert clan_lone_failed_member(container) is None
+
+
+def test_clan_lone_failed_member_returns_none_next_to_running() -> None:
+    for running_status in ("RUNNING", "STARTING"):
+        container, _ = _failed_clan(["FAILED", running_status, "DONE"])
+
+        assert clan_lone_failed_member(container) is None
+
+
+def test_clan_lone_failed_member_returns_none_next_to_in_flight_done() -> None:
+    container = _agent("research", "FAILED", suffix=None)
+    container.is_clan_container = True
+    failed = _agent("research.one", "FAILED", suffix="one")
+    masked = _agent("research.two", "RUNNING", suffix="two")
+    masked.status_bucket = "Done"
+    container.runtime_children = [failed, masked]
+
+    assert clan_lone_failed_member(container) is None
+
+
+def test_clan_lone_failed_member_returns_none_for_non_clan_and_zero_failed() -> None:
+    leaf = _agent("solo", "FAILED", suffix="solo")
+
+    assert clan_lone_failed_member(leaf) is None
+
+    container, _ = _failed_clan(["DONE", "WAITING"])
+
+    assert clan_lone_failed_member(container) is None
+
+
+def test_clan_lone_failed_member_deduplicates_identity() -> None:
+    container = _agent("research", "FAILED", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "FAILED", suffix="one")
+    container.runtime_children = [member, member]
+
+    assert clan_lone_failed_member(container) is member
 
 
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:

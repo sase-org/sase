@@ -136,7 +136,7 @@ def test_two_running_expanded_is_noop() -> None:
 
 
 def test_zero_running_keeps_today_behavior() -> None:
-    app, container, _ = _make_clan(["DONE", "WAITING", "FAILED"])
+    app, container, _ = _make_clan(["DONE", "WAITING", "QUESTION"])
     key = _clan_key(container)
 
     app.action_expand_or_layout()

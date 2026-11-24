@@ -499,6 +499,47 @@ def agent_session_lone_running_monitor_row(agent: Agent) -> Agent | None:
     return lone if lone.is_monitor else None
 
 
+def agent_session_failed_turn_row(agent: Agent) -> Agent | None:
+    """Return the session's failure-frontier turn when nothing is running.
+
+    Applies to a sequential-session row whose own bucket is ``Failed`` and
+    that has no in-flight turn. The candidates mirror the exclusions
+    ``failure_focus_for_agent`` uses: rows that are not the container
+    itself, whose lane bucket is ``Failed`` (a failed check whose
+    continuation launched reads as ``Running`` and does not count), that
+    were never retried, and that are not held (not-adopted) handoffs.
+    Returns the last candidate in the walk's causal order, or ``None``.
+    """
+    if agent.is_clan_container or not is_sequential_agent_session_container(agent):
+        return None
+    if agent_status_bucket(agent) != "Failed":
+        return None
+    candidate: Agent | None = None
+    rows = concrete_agent_session_turn_rows(agent)
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for row in rows:
+        if row.identity in seen:
+            continue
+        seen.add(row.identity)
+        if agent_row_is_in_flight(row):
+            return None
+    seen.clear()
+    for row in rows:
+        if row.identity in seen:
+            continue
+        seen.add(row.identity)
+        if row.identity == agent.identity:
+            continue
+        if monitor_row_lane_bucket(row) != "Failed":
+            continue
+        if row.retried_as_timestamp is not None:
+            continue
+        if row_is_not_adopted_handoff(row):
+            continue
+        candidate = row
+    return candidate
+
+
 def concrete_agent_session_member_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return ordered concrete agent turns represented by a session container.
 
@@ -675,6 +716,7 @@ __all__ = [
     "concrete_agent_session_member_rows",
     "concrete_agent_session_turn_rows",
     "current_agent_session_turn_row",
+    "agent_session_failed_turn_row",
     "agent_session_lone_running_monitor_row",
     "agent_session_member_status_buckets",
     "agent_session_roster_container",

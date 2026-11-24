@@ -319,6 +319,8 @@ async def test_failed_session_incident_by_status_expanded_png_snapshot(
         await page.expect_state("agent_count", 1)
         await page.press("l")
         await wait_for_visual_idle(page)
+        await page.press("h")
+        await wait_for_visual_idle(page)
         assert page.app._grouping_mode is GroupingMode.BY_STATUS
         assert_page_svg_contains(page, "visual-incident-family")
         assert_page_svg_contains(page, "FAILED")

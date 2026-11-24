@@ -1031,8 +1031,11 @@ ace:
       # l expands or enters a selected panel; on a clan row whose only
       # running member is unique, l also jumps to that member, drilling
       # through to a session's lone running monitor when that is the
-      # clan's only live work. On a session whose only in-flight turn is
-      # a running monitor, l jumps to that monitor. L hints the
+      # clan's only live work. With no running member, l on a clan with
+      # one failed member jumps to it, or to that session's failed turn.
+      # On a session whose only in-flight turn is a running monitor, l
+      # jumps to that monitor; l on a failed session row jumps to its
+      # failed turn. L hints the
       # selected tribe's folds, and one key toggles one fold. Z toggles
       # in-place deck zoom or isolates/restores a selected panel. Other tabs
       # retain their fold behavior.)
