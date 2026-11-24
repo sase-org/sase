@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from sase.ace.tui.models.agent_session_members import (
     TurnLaneCounts,
+    panel_turn_lane_counts,
+)
+from sase.ace.tui.models._agent_session_lanes import (
     _GateLaneCounts,
     _MonitorLaneCounts,
-    panel_turn_lane_counts,
 )
 
 from ._agent_session_members_helpers import _agent, _gate_member, _monitor_member

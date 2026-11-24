@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_session_members import (
-    _concrete_agent_rows,
     concrete_agent_session_member_rows,
     concrete_agent_statuses,
     is_sequential_agent_session_container,
 )
+from sase.ace.tui.models._agent_session_status import _concrete_agent_rows
 from tests.ace.tui.models._agent_session_members_helpers import (
     make_agent,
     make_plan_root,
