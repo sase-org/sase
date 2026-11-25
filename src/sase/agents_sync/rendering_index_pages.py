@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from sase.agents_sync.rendering_markdown import (
+    format_state_counts,
     md_cell,
     md_code,
     md_escape,
@@ -13,6 +14,7 @@ from sase.agents_sync.rendering_markdown import (
     run_timing,
     state_counts,
 )
+from sase.agents_sync.publication_roster import HoodRosterSummary
 from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2OwnerManifest,
@@ -116,7 +118,7 @@ def render_user_page(username: str, manifests: tuple[V2OwnerManifest, ...]) -> s
 
 
 def render_machine_page(
-    manifest: V2OwnerManifest, snapshots: tuple[V2HoodSnapshot, ...]
+    manifest: V2OwnerManifest, summaries: tuple[HoodRosterSummary, ...]
 ) -> str:
     """Render one machine's hood index."""
 
@@ -129,18 +131,17 @@ def render_machine_page(
         f"[{md_escape(username)}](../../README.md) / {md_escape(machine)}",
         "",
         f"**Project:** {md_escape(manifest.project.name)} · **Hoods:** "
-        f"{len(snapshots)} · **Runs:** {sum(len(item.runs) for item in snapshots)}",
+        f"{len(summaries)} · **Runs:** {sum(item.run_count for item in summaries)}",
         "",
         "| Hood | Runs | Sessions | States |",
         "|---|---:|---:|---|",
     ]
-    for snapshot in sorted(snapshots, key=lambda item: item.local_hood):
-        states = state_counts(snapshot.runs)
+    for summary in sorted(summaries, key=lambda item: item.local_hood):
+        states = format_state_counts(summary.state_counts)
         lines.append(
-            f"| [{md_cell(snapshot.local_hood)}]"
-            f"({page_url(f'hoods/{snapshot.local_hood}/README.md')}) "
-            f"| {len(snapshot.runs)} | "
-            f"{sum(is_session_container(item.kind) for item in snapshot.containers)} "
+            f"| [{md_cell(summary.local_hood)}]"
+            f"({page_url(f'hoods/{summary.local_hood}/README.md')}) "
+            f"| {summary.run_count} | {summary.session_count} "
             f"| {md_cell(states)} |"
         )
     lines.append("")

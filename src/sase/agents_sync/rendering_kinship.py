@@ -106,6 +106,12 @@ class _Node:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class _NodeIndex:
+    nodes: tuple[_Node, ...]
+    counts_by_name: dict[str, int]
+
+
 def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
     """Build every agent-node-relative kinship roster for one hood snapshot."""
 
@@ -153,8 +159,16 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
 
     ordered_nodes = tuple(sorted(nodes, key=_node_sort_key))
     by_name = {node.name: node for node in ordered_nodes}
+    members_by_ancestor = _node_indexes(ordered_nodes, include_self=True)
+    strict_descendants = _node_indexes(ordered_nodes, include_self=False)
     projections = tuple(
-        _node_projection(node, ordered_nodes, by_name) for node in ordered_nodes
+        _node_projection(
+            node,
+            by_name,
+            members_by_ancestor,
+            strict_descendants,
+        )
+        for node in ordered_nodes
     )
     session_node_names = {
         source_id: container.global_name.removeprefix(owner_prefix)
@@ -209,8 +223,9 @@ def render_neighbors_section(
 
 def _node_projection(
     node: _Node,
-    nodes: tuple[_Node, ...],
     by_name: dict[str, _Node],
+    members_by_ancestor: dict[str, _NodeIndex],
+    strict_descendants: dict[str, _NodeIndex],
 ) -> _NodeKinshipProjection:
     assigned = {node.name}
     groups: list[_NodeKinshipGroup] = []
@@ -224,34 +239,86 @@ def _node_projection(
         groups.append(_bounded_group("ancestor", ancestors))
         assigned.update(item.name for item in ancestors)
 
-    descendants = sorted(
-        (
-            candidate
-            for candidate in nodes
-            if node.name in candidate.chain[:-1] and candidate.name not in assigned
-        ),
-        key=_node_sort_key,
+    assigned_cover = strict_descendants.get(node.name)
+    descendants = _indexed_group(
+        "descendant",
+        assigned_cover,
+        assigned,
+        None,
     )
-    if descendants:
-        groups.append(_bounded_group("descendant", descendants))
-        assigned.update(item.name for item in descendants)
+    if descendants is not None:
+        groups.append(descendants)
+        assigned.update(row.lane_name for row in descendants.rows)
 
     for hood in reversed(node.chain):
-        neighbors = sorted(
-            (
-                candidate
-                for candidate in nodes
-                if hood in candidate.chain and candidate.name not in assigned
-            ),
-            key=_node_sort_key,
+        current_index = members_by_ancestor.get(hood)
+        neighbors = _indexed_group(
+            f"{hood} hood",
+            current_index,
+            assigned,
+            assigned_cover,
         )
-        if not neighbors:
-            continue
-        relation = f"{hood} hood"
-        groups.append(_bounded_group(relation, neighbors))
-        assigned.update(item.name for item in neighbors)
+        if neighbors is not None:
+            groups.append(neighbors)
+            assigned.update(row.lane_name for row in neighbors.rows)
+        if current_index is not None:
+            assigned_cover = current_index
 
     return _NodeKinshipProjection(node.name, tuple(groups))
+
+
+def _node_indexes(
+    nodes: tuple[_Node, ...],
+    *,
+    include_self: bool,
+) -> dict[str, _NodeIndex]:
+    """Index sorted nodes by their unique chain members, preserving node order."""
+
+    members: dict[str, list[_Node]] = {}
+    counts: dict[str, dict[str, int]] = {}
+    for node in nodes:
+        chain = node.chain if include_self else node.chain[:-1]
+        for hood in dict.fromkeys(chain):
+            members.setdefault(hood, []).append(node)
+            hood_counts = counts.setdefault(hood, {})
+            hood_counts[node.name] = hood_counts.get(node.name, 0) + 1
+    return {
+        hood: _NodeIndex(tuple(rows), counts[hood]) for hood, rows in members.items()
+    }
+
+
+def _indexed_group(
+    relation: str,
+    index: _NodeIndex | None,
+    assigned: set[str],
+    assigned_cover: _NodeIndex | None,
+) -> _NodeKinshipGroup | None:
+    """Collect a bounded indexed group without materializing its remainder."""
+
+    if index is None:
+        return None
+    covered_count = len(assigned_cover.nodes) if assigned_cover is not None else 0
+    covered_names = assigned_cover.counts_by_name if assigned_cover is not None else {}
+    explicit_count = sum(
+        max(0, index.counts_by_name.get(name, 0) - covered_names.get(name, 0))
+        for name in assigned
+    )
+    remaining_count = len(index.nodes) - covered_count - explicit_count
+    if remaining_count <= 0:
+        return None
+    visible_limit = min(NEIGHBOR_GROUP_LIMIT, remaining_count)
+    visible: list[_Node] = []
+    for candidate in index.nodes:
+        if candidate.name in assigned or candidate.name in covered_names:
+            continue
+        visible.append(candidate)
+        if len(visible) == visible_limit:
+            break
+    return _NodeKinshipGroup(
+        relation=relation,
+        rows=tuple(candidate.row(relation) for candidate in visible),
+        overflow_count=remaining_count - len(visible),
+    )
 
 
 def _bounded_group(relation: str, nodes: list[_Node]) -> _NodeKinshipGroup:

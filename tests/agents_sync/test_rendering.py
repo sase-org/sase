@@ -6,6 +6,7 @@ import posixpath
 import re
 
 from sase.agents_sync.rendering import render_browsing_payload
+from sase.agents_sync.rendering_markdown import relative_page_url
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
@@ -66,6 +67,60 @@ def test_renderer_escapes_markdown_tables_and_contains_no_volatile_text() -> Non
     assert "generated at" not in "\n".join(
         value.decode().lower() for value in payload.values()
     )
+
+
+def test_relative_page_url_normalized_paths_match_posixpath_without_abspath(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    sources = (
+        "README.md",
+        "a/README.md",
+        "a/b/README.md",
+        "users/alice/machines/athena/README.md",
+    )
+    targets = (
+        "README.md",
+        "index.md",
+        "a/README.md",
+        "a/b/page.md",
+        "users/alice/README.md",
+        "users/alice/machines/athena/hoods/foo/README.md",
+    )
+    expected = {
+        (source, target): posixpath.relpath(target, posixpath.dirname(source))
+        for source in sources
+        for target in targets
+    }
+
+    def unexpected_abspath(_path: str) -> str:
+        raise AssertionError("normalized repository paths must not call abspath")
+
+    monkeypatch.setattr(posixpath, "abspath", unexpected_abspath)
+    for (source, target), relative in expected.items():
+        assert relative_page_url(source, target) == relative
+
+
+def test_relative_page_url_normalized_edges_and_anchors() -> None:
+    assert relative_page_url("README.md", "README.md") == "README.md"
+    assert relative_page_url("a/README.md", "a/other.md") == "other.md"
+    assert relative_page_url("a/README.md", "a") == "."
+    assert relative_page_url("a/README.md", "b/page.md#heading here") == (
+        "../b/page.md#heading%20here"
+    )
+
+
+def test_relative_page_url_falls_back_for_non_normalized_paths() -> None:
+    for source, target in (
+        ("a/../source.md", "b/target.md"),
+        ("a//source.md", "./b/target.md"),
+        ("/root/source.md", "/target.md"),
+        ("a/source.md", "../target.md"),
+    ):
+        path, marker, anchor = target.partition("#")
+        expected = posixpath.relpath(path, posixpath.dirname(source))
+        if marker:
+            expected += f"#{anchor}"
+        assert relative_page_url(source, target).split("#", 1)[0] == expected
 
 
 def test_agent_and_session_pages_render_relative_breadcrumbs() -> None:

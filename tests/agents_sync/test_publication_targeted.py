@@ -11,6 +11,9 @@ from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
+from sase.agents_sync.publication_roster import (
+    read_roster_summary_cache,
+)
 from sase.agents_sync.publication_planning import (
     plan_hoods,
     plan_targeted_hoods,
@@ -26,6 +29,7 @@ from sase.agents_sync.v2_models import (
     V2ProjectIdentity,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.agent_session_manifest import classify_session_manifest_files
 from tests.agents_sync.publication_fixtures import _identity, _inventory, _target
 
 
@@ -35,6 +39,18 @@ def _disk_bytes(repo: Path) -> dict[str, bytes]:
         for path in repo.rglob("*")
         if path.is_file()
     }
+
+
+def _write_owner_manifest(
+    repo: Path,
+    owner: AgentOwnerIdentity,
+    project: V2ProjectIdentity,
+    entries: dict[str, V2OwnerHoodEntry],
+) -> None:
+    manifest = V2OwnerManifest(owner, project, tuple(sorted(entries.items())))
+    (repo / _owner_manifest_path(owner)).write_bytes(
+        v2_json_bytes(manifest.to_json_dict())
+    )
 
 
 def _bob_inventory() -> tuple[AgentIdentitySnapshot, ProjectHoodInventory]:
@@ -294,17 +310,45 @@ def test_targeted_shares_validation_within_transaction(
 
     monkeypatch.setattr(planning, "read_hood_snapshot", counting, raising=False)
 
+    shared_cache_path = tmp_path / "shared-summary-cache.json"
+    outside_cache_path = tmp_path / "outside-summary-cache.json"
     with shared_targeted_planning():
-        shared_first, _ = plan_targeted_hoods(target, repo, inventory, ("foo",), owner)
+        shared_first, _ = plan_targeted_hoods(
+            target,
+            repo,
+            inventory,
+            ("foo",),
+            owner,
+            summary_cache_path=shared_cache_path,
+        )
         shared_calls_first = len(calls)
         shared_second, _ = plan_targeted_hoods(
-            target, repo, inventory, ("work",), owner
+            target,
+            repo,
+            inventory,
+            ("work",),
+            owner,
+            summary_cache_path=shared_cache_path,
         )
         shared_calls_total = len(calls)
     calls.clear()
-    outside_first, _ = plan_targeted_hoods(target, repo, inventory, ("foo",), owner)
+    outside_first, _ = plan_targeted_hoods(
+        target,
+        repo,
+        inventory,
+        ("foo",),
+        owner,
+        summary_cache_path=outside_cache_path,
+    )
     outside_calls_first = len(calls)
-    outside_second, _ = plan_targeted_hoods(target, repo, inventory, ("work",), owner)
+    outside_second, _ = plan_targeted_hoods(
+        target,
+        repo,
+        inventory,
+        ("work",),
+        owner,
+        summary_cache_path=outside_cache_path,
+    )
     outside_calls_total = len(calls)
 
     # Sharing never changes the payload: cached validation matches fresh.
@@ -386,3 +430,242 @@ def test_targeted_rejects_tampered_cached_snapshot(tmp_path: Path) -> None:
         tampered.write_bytes(tampered.read_bytes() + b" ")
         with pytest.raises(AgentsSyncFormatError, match="digest mismatch"):
             plan_targeted_hoods(target, repo, inventory, ("zap",), owner)
+
+
+def test_targeted_summary_cache_preserves_payload_and_skips_unselected_decodes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    full_payload, _ = plan_hoods(target, repo, inventory, ("foo",), owner)
+
+    import sase.agents_sync.v2_snapshot_io as snapshot_io
+    import sase.agents_sync.publication_validation as validation
+
+    real_decode = snapshot_io.decode_hood_snapshot
+    decoded_hoods: list[str] = []
+
+    def counting_decode(value: object):  # type: ignore[no-untyped-def]
+        if isinstance(value, dict) and isinstance(value.get("hood"), dict):
+            decoded_hoods.append(str(value["hood"].get("local_name")))
+        return real_decode(value)
+
+    monkeypatch.setattr(snapshot_io, "decode_hood_snapshot", counting_decode)
+    monkeypatch.setattr(validation, "decode_hood_snapshot", counting_decode)
+    cache_path = tmp_path / "summary-cache.json"
+    cold_stats: dict[str, int] = {}
+    cold_payload, _ = plan_targeted_hoods(
+        target,
+        repo,
+        inventory,
+        ("foo",),
+        owner,
+        summary_cache_stats=cold_stats,
+        summary_cache_path=cache_path,
+    )
+    cold_decodes = len(decoded_hoods)
+    decoded_hoods.clear()
+    warm_stats: dict[str, int] = {}
+    warm_payload, _ = plan_targeted_hoods(
+        target,
+        repo,
+        inventory,
+        ("foo",),
+        owner,
+        summary_cache_stats=warm_stats,
+        summary_cache_path=cache_path,
+    )
+
+    assert cold_payload == warm_payload
+    machine_path = "users/alice/machines/athena/README.md"
+    assert cold_payload[machine_path] == full_payload[machine_path]
+    assert cold_stats == {"hits": 0, "misses": 1}
+    assert warm_stats == {"hits": 1, "misses": 0}
+    assert cold_decodes >= 2
+    assert decoded_hoods and set(decoded_hoods) == {"foo"}
+
+
+def test_targeted_summary_cache_still_checks_unselected_file_digest(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    cache_path = tmp_path / "summary-cache.json"
+
+    plan_targeted_hoods(
+        target, repo, inventory, ("foo",), owner, summary_cache_path=cache_path
+    )
+    snapshot_path = repo / "users/alice/machines/athena/hoods/work/snapshot.json"
+    snapshot_path.write_bytes(snapshot_path.read_bytes() + b" ")
+    with pytest.raises(AgentsSyncFormatError, match="digest mismatch"):
+        plan_targeted_hoods(
+            target, repo, inventory, ("foo",), owner, summary_cache_path=cache_path
+        )
+
+
+def test_new_unselected_digest_is_decoded_and_cached(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    cache_path = tmp_path / "summary-cache.json"
+
+    plan_targeted_hoods(
+        target, repo, inventory, ("foo",), owner, summary_cache_path=cache_path
+    )
+    snapshot_file = repo / "users/alice/machines/athena/hoods/work/snapshot.json"
+    snapshot = read_hood_snapshot(snapshot_file)
+    raw = (
+        json.dumps(snapshot.to_json_dict(), indent=2, sort_keys=True) + "\n"
+    ).encode()
+    snapshot_file.write_bytes(raw)
+    manifest = _read_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"))
+    entries = dict(manifest.by_hood())
+    previous = entries["work"]
+    entries["work"] = V2OwnerHoodEntry(
+        content_digest(raw),
+        previous.files,
+        previous.run_count,
+        previous.agent_session_count,
+    )
+    _write_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"), entries)
+
+    import sase.agents_sync.v2_snapshot_io as snapshot_io
+
+    real_decode = snapshot_io.decode_hood_snapshot
+    decoded: list[str] = []
+
+    def counting_decode(value: object):  # type: ignore[no-untyped-def]
+        if isinstance(value, dict) and isinstance(value.get("hood"), dict):
+            decoded.append(str(value["hood"].get("local_name")))
+        return real_decode(value)
+
+    monkeypatch.setattr(snapshot_io, "decode_hood_snapshot", counting_decode)
+    stats: dict[str, int] = {}
+    plan_targeted_hoods(
+        target,
+        repo,
+        inventory,
+        ("foo",),
+        owner,
+        summary_cache_stats=stats,
+        summary_cache_path=cache_path,
+    )
+    cache = read_roster_summary_cache(repo, "proj", path_override=cache_path)
+
+    assert stats == {"hits": 0, "misses": 1}
+    assert "work" in decoded
+    assert any(
+        key[4] == "work" and key[-1] == content_digest(raw) for key in cache.summaries
+    )
+
+
+def test_identity_mismatched_unselected_snapshot_is_not_cached(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    cache_path = tmp_path / "summary-cache.json"
+    snapshot_file = repo / "users/alice/machines/athena/hoods/work/snapshot.json"
+    data = json.loads(snapshot_file.read_text(encoding="utf-8"))
+    data["project"]["name"] = "Wrong project"
+    raw = v2_json_bytes(data)
+    snapshot_file.write_bytes(raw)
+    manifest = _read_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"))
+    entries = dict(manifest.by_hood())
+    previous = entries["work"]
+    entries["work"] = V2OwnerHoodEntry(
+        content_digest(raw),
+        previous.files,
+        previous.run_count,
+        previous.agent_session_count,
+    )
+    _write_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"), entries)
+
+    with pytest.raises(AgentsSyncFormatError, match="identity mismatch"):
+        plan_targeted_hoods(
+            target, repo, inventory, ("foo",), owner, summary_cache_path=cache_path
+        )
+
+    assert not cache_path.exists()
+
+
+def test_explicit_file_entries_bypass_the_summary_cache(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    cache_path = tmp_path / "summary-cache.json"
+
+    plan_targeted_hoods(
+        target, repo, inventory, ("foo",), owner, summary_cache_path=cache_path
+    )
+    snapshot = read_hood_snapshot(
+        repo / "users/alice/machines/athena/hoods/work/snapshot.json"
+    )
+    files = classify_session_manifest_files(
+        owner_username=owner.username,
+        owner_machine=owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+        explicit_files=None,
+    ).canonical_files
+    manifest = _read_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"))
+    entries = dict(manifest.by_hood())
+    previous = entries["work"]
+    entries["work"] = V2OwnerHoodEntry(
+        previous.digest, files, previous.run_count, previous.agent_session_count
+    )
+    _write_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"), entries)
+
+    import sase.agents_sync.v2_snapshot_io as snapshot_io
+
+    real_decode = snapshot_io.decode_hood_snapshot
+    decoded: list[str] = []
+
+    def counting_decode(value: object):  # type: ignore[no-untyped-def]
+        if isinstance(value, dict) and isinstance(value.get("hood"), dict):
+            decoded.append(str(value["hood"].get("local_name")))
+        return real_decode(value)
+
+    snapshot_io.decode_hood_snapshot = counting_decode
+    try:
+        stats: dict[str, int] = {}
+        plan_targeted_hoods(
+            target,
+            repo,
+            inventory,
+            ("foo",),
+            owner,
+            summary_cache_stats=stats,
+            summary_cache_path=cache_path,
+        )
+    finally:
+        snapshot_io.decode_hood_snapshot = real_decode
+
+    assert "work" in decoded
+    assert stats == {"hits": 0, "misses": 0}

@@ -339,7 +339,7 @@ def test_apply_keeps_local_terminal_transition_when_upstream_matches_merge_base(
     assert applied.action == REPLAY_APPLY_ACTION_APPLY
     verify = tmp_path / "verify"
     git(tmp_path, "clone", str(remote), str(verify))
-    _manifests, snapshots, _diagnostics = load_validated_publication(verify)
+    _manifests, snapshots, _summaries, _diagnostics = load_validated_publication(verify)
     snapshot = snapshots[("alice", "athena", "foo")]
     run = next(item for item in snapshot.runs if item.global_name == active.global_name)
     assert run.state == "completed"
@@ -373,7 +373,9 @@ def test_apply_keeps_both_sides_unique_content_and_pending_objects(
     ).read_text(encoding="utf-8")
     assert (fixture.sidecar / fixture.object_relpath).read_bytes() == PENDING_OBJECT
     assert (fixture.sidecar / agent_session_page_path("alice.athena.foo.bar")).is_file()
-    manifests, snapshots, _diagnostics = load_validated_publication(fixture.sidecar)
+    manifests, snapshots, _summaries, _diagnostics = load_validated_publication(
+        fixture.sidecar
+    )
     assert manifests
     hood = snapshots[("alice", "athena", "foo")]
     names = {run.global_name for run in hood.runs}

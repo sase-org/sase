@@ -403,6 +403,7 @@ def _plan_state_pages(
     pages = render_targeted_browsing_payload(
         (manifest,),
         dict(changed_snapshots),
+        {},
         selected_keys,
         bead_links=bead_links,
         include_index_pages=False,

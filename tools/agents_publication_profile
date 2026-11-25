@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Profile one representative agent-hood publication drain (read-only).
+"""Profile one representative agent-hood publication drain (sidecar read-only).
 
 Runs ``build_project_hood_inventory`` and hood planning against real state.
 The default comparison mode profiles one large hood and one small hood with
 full planning. ``--hood`` profiles exactly the requested hoods with scoped
-inventory and targeted planning. All modes write nothing: the inventory is
-in-memory and planning returns its payload dict without touching the
-sidecar clone.
+inventory and targeted planning. Planning returns its payload dict without
+touching the sidecar clone. Targeted planning may warm the local summary cache
+unless ``--cold`` is passed.
 
 Usage:
     .venv/bin/python tools/agents_publication_profile --project sase
@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import tempfile
 import json
 import subprocess
 import sys
@@ -66,6 +67,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Print the breakdown as JSON instead of text.",
+    )
+    parser.add_argument(
+        "--cold",
+        action="store_true",
+        help="Run targeted planning against an empty temporary summary cache.",
     )
     return parser.parse_args(argv)
 
@@ -127,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     counts, git_runner = _counting_runner()
 
     requested = tuple(dict.fromkeys(args.hoods or ()))
+    if args.cold and not requested:
+        raise SystemExit("--cold requires at least one --hood")
     if requested:
         # Explicit requested-hood selection: build scoped inventory only
         # for the requested set (no full scan to choose hoods), then plan
@@ -145,9 +153,27 @@ def main(argv: list[str] | None = None) -> int:
         prompt_bytes = sum(len(run.prompt_bytes or b"") for run in inventory.runs)
         chat_bytes = sum(len(run.chat_bytes or b"") for run in inventory.runs)
         start = time.perf_counter()
-        payload, hood_counts = plan_targeted_hoods(
-            target, target.sidecar_path, inventory, requested, owner
-        )
+        cache_stats: dict[str, int] = {}
+        if args.cold:
+            with tempfile.TemporaryDirectory(prefix="agents-profile-cold-") as cold_dir:
+                payload, hood_counts = plan_targeted_hoods(
+                    target,
+                    target.sidecar_path,
+                    inventory,
+                    requested,
+                    owner,
+                    summary_cache_stats=cache_stats,
+                    summary_cache_path=Path(cold_dir) / "summary-cache.json",
+                )
+        else:
+            payload, hood_counts = plan_targeted_hoods(
+                target,
+                target.sidecar_path,
+                inventory,
+                requested,
+                owner,
+                summary_cache_stats=cache_stats,
+            )
         elapsed = time.perf_counter() - start
         payload_bytes = sum(len(chunk) for chunk in payload.values())
         hood_timings = {
@@ -161,6 +187,9 @@ def main(argv: list[str] | None = None) -> int:
                 "hoods_unchanged": hood_counts.hoods_unchanged,
                 "runs_published": hood_counts.runs_published,
                 "requested_hoods": list(requested),
+            "summary_cache_hits": cache_stats.get("hits", 0),
+            "summary_cache_misses": cache_stats.get("misses", 0),
+            "summary_cache_cold": args.cold,
                 "targeted": True,
             }
         }
@@ -259,6 +288,12 @@ def _emit(breakdown: dict[str, object], as_json: bool) -> int:
     if requested_hoods:
         assert isinstance(requested_hoods, list)
         print(f"requested hoods: {', '.join(requested_hoods)} (targeted)")
+        print(
+            "summary cache: "
+            f"{breakdown.get('summary_cache_hits', 0)} hits, "
+            f"{breakdown.get('summary_cache_misses', 0)} misses"
+            + (" (cold)" if breakdown.get("summary_cache_cold") else "")
+        )
     else:
         print("top hoods by runs:")
         top_hoods = breakdown.get("top_hoods_by_runs", [])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import posixpath
+from collections.abc import Mapping
 from urllib.parse import quote
 
 from sase.agents_sync.v2_models import V2RunRecord
@@ -66,9 +67,27 @@ def relative_page_url(source: str, target: str) -> str:
     """Return an encoded URL from one rendered page to another."""
 
     path, marker, anchor = target.partition("#")
-    relative = posixpath.relpath(path, posixpath.dirname(source))
+    if _is_normalized_repo_relative(source) and _is_normalized_repo_relative(path):
+        source_parts = source.split("/")[:-1]
+        target_parts = path.split("/")
+        common = 0
+        for source_part, target_part in zip(source_parts, target_parts, strict=False):
+            if source_part != target_part:
+                break
+            common += 1
+        relative_parts = [".."] * (len(source_parts) - common)
+        relative_parts.extend(target_parts[common:])
+        relative = "/".join(relative_parts) or "."
+    else:
+        relative = posixpath.relpath(path, posixpath.dirname(source))
     suffix = f"#{quote(anchor, safe='-._')}" if marker else ""
     return page_url(relative) + suffix
+
+
+def _is_normalized_repo_relative(path: str) -> bool:
+    if not path or path.startswith("/"):
+        return False
+    return all(part not in {"", ".", ".."} for part in path.split("/"))
 
 
 def page_bytes(text: str) -> bytes:
@@ -83,6 +102,12 @@ def state_counts(runs: tuple[V2RunRecord, ...]) -> str:
     counts: dict[str, int] = defaultdict(int)
     for run in runs:
         counts[run.state] += 1
+    return format_state_counts(counts)
+
+
+def format_state_counts(counts: Mapping[str, int]) -> str:
+    """Format pre-counted run states like :func:`state_counts`."""
+
     return ", ".join(f"{state} {count}" for state, count in sorted(counts.items()))
 
 
@@ -111,6 +136,7 @@ __all__ = [
     "page_bytes",
     "page_url",
     "relative_page_url",
+    "format_state_counts",
     "run_timing",
     "state_counts",
 ]

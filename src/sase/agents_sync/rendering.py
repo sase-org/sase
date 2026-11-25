@@ -19,6 +19,7 @@ from sase.agents_sync.rendering_index_pages import (
 )
 from sase.agents_sync.rendering_kinship import build_hood_kinship
 from sase.agents_sync.rendering_markdown import page_bytes
+from sase.agents_sync.publication_roster import HoodRosterSummary
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
@@ -63,8 +64,12 @@ def render_browsing_payload(
                 snapshots[(username, manifest.owner.machine_name, hood)]
                 for hood, _entry in manifest.hoods
             )
+            machine_summaries = tuple(
+                HoodRosterSummary.from_snapshot(snapshot)
+                for snapshot in machine_snapshots
+            )
             payload[f"{machine_root}/README.md"] = page_bytes(
-                render_machine_page(manifest, machine_snapshots)
+                render_machine_page(manifest, machine_summaries)
             )
             for snapshot in machine_snapshots:
                 hood_root = f"{machine_root}/hoods/{snapshot.local_hood}"
@@ -85,6 +90,7 @@ def render_browsing_payload(
 def render_targeted_browsing_payload(
     manifests: tuple[V2OwnerManifest, ...],
     snapshots: dict[tuple[str, str, str], V2HoodSnapshot],
+    summaries: Mapping[tuple[str, str, str], HoodRosterSummary],
     selected_keys: set[tuple[str, str, str]] | frozenset[tuple[str, str, str]],
     *,
     commit_url_base: str | None = None,
@@ -96,7 +102,7 @@ def render_targeted_browsing_payload(
 
     Root totals come from complete manifests. User pages cover affected users
     only. Machine pages cover affected machines with their complete hood
-    rosters (states preserved from full snapshots). Hood, agent, session, and
+    rosters (states preserved from validated summaries). Hood, agent, session, and
     legacy redirect pages cover selected hoods only; unrelated pages are
     omitted so targeted payloads scale with the selection. State-only repair
     sets ``include_index_pages=False`` so previously rendered root, user, and
@@ -137,13 +143,13 @@ def render_targeted_browsing_payload(
                     f"users/{username}/machines/{manifest.owner.machine_name}"
                 )
                 # Complete roster: every hood in the manifest must resolve, so a
-                # missing snapshot fails loudly instead of silently truncating.
-                machine_snapshots = tuple(
-                    snapshots[(username, manifest.owner.machine_name, hood)]
+                # missing summary fails loudly instead of silently truncating.
+                machine_summaries = tuple(
+                    summaries[(username, manifest.owner.machine_name, hood)]
                     for hood, _entry in manifest.hoods
                 )
                 payload[f"{machine_root}/README.md"] = page_bytes(
-                    render_machine_page(manifest, machine_snapshots)
+                    render_machine_page(manifest, machine_summaries)
                 )
     links = bead_links or {}
     for key in sorted(selected):

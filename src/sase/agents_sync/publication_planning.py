@@ -17,6 +17,11 @@ from sase.agents_sync.publication_validation import (
     previous_snapshot,
     snapshot_path,
 )
+from sase.agents_sync.publication_roster import (
+    HoodRosterSummary,
+    RosterSummaryKey,
+    roster_summary_key,
+)
 from sase.agents_sync.rendering import (
     render_browsing_payload,
     render_targeted_browsing_payload,
@@ -49,6 +54,7 @@ _SnapshotKey = tuple[str, str, str]
 # before retry prepares (upstream may have changed). No on-disk schema.
 _TARGETED_CACHE_ENABLED = False
 _TARGETED_SNAPSHOT_CACHE: dict[str, dict[_SnapshotKey, V2HoodSnapshot]] = {}
+_TARGETED_ROSTER_CACHE: dict[str, dict[RosterSummaryKey, HoodRosterSummary]] = {}
 
 
 @contextmanager
@@ -60,13 +66,19 @@ def shared_targeted_planning() -> Iterator[None]:
     previous_cache = {
         key: dict(value) for key, value in _TARGETED_SNAPSHOT_CACHE.items()
     }
+    previous_rosters = {
+        key: dict(value) for key, value in _TARGETED_ROSTER_CACHE.items()
+    }
     _TARGETED_CACHE_ENABLED = True
     _TARGETED_SNAPSHOT_CACHE.clear()
+    _TARGETED_ROSTER_CACHE.clear()
     try:
         yield
     finally:
         _TARGETED_SNAPSHOT_CACHE.clear()
         _TARGETED_SNAPSHOT_CACHE.update(previous_cache)
+        _TARGETED_ROSTER_CACHE.clear()
+        _TARGETED_ROSTER_CACHE.update(previous_rosters)
         _TARGETED_CACHE_ENABLED = previous_enabled
 
 
@@ -75,8 +87,11 @@ def invalidate_shared_targeted_planning(repo_root: Path | None = None) -> None:
 
     if repo_root is None:
         _TARGETED_SNAPSHOT_CACHE.clear()
+        _TARGETED_ROSTER_CACHE.clear()
         return
-    _TARGETED_SNAPSHOT_CACHE.pop(str(repo_root.resolve()), None)
+    key = str(repo_root.resolve())
+    _TARGETED_SNAPSHOT_CACHE.pop(key, None)
+    _TARGETED_ROSTER_CACHE.pop(key, None)
 
 
 def _targeted_cache_for(repo_root: Path) -> dict[_SnapshotKey, V2HoodSnapshot] | None:
@@ -84,6 +99,15 @@ def _targeted_cache_for(repo_root: Path) -> dict[_SnapshotKey, V2HoodSnapshot] |
         return None
     key = str(repo_root.resolve())
     return _TARGETED_SNAPSHOT_CACHE.setdefault(key, {})
+
+
+def _targeted_roster_cache_for(
+    repo_root: Path,
+) -> dict[RosterSummaryKey, HoodRosterSummary] | None:
+    if not _TARGETED_CACHE_ENABLED:
+        return None
+    key = str(repo_root.resolve())
+    return _TARGETED_ROSTER_CACHE.setdefault(key, {})
 
 
 def plan_hoods(
@@ -189,7 +213,7 @@ def plan_hoods(
     manifest_bytes = v2_json_bytes(manifest.to_json_dict())
     check_manifest_write_size(len(manifest.hoods), manifest_bytes)
     payload[owner_manifest_path(owner)] = manifest_bytes
-    manifests, snapshots, diagnostics = load_validated_publication(
+    manifests, snapshots, _summaries, diagnostics = load_validated_publication(
         repo_root,
         override_manifest=manifest,
         override_snapshots=current_snapshots,
@@ -238,6 +262,9 @@ def plan_targeted_hoods(
     inventory: ProjectHoodInventory,
     hoods: tuple[str, ...],
     owner: AgentOwnerIdentity,
+    *,
+    summary_cache_stats: dict[str, int] | None = None,
+    summary_cache_path: Path | None = None,
 ) -> tuple[dict[str, bytes], V2PublicationCounts]:
     """Plan a targeted payload for exactly the selected hoods.
 
@@ -285,6 +312,7 @@ def plan_targeted_hoods(
         "sessions/.gitkeep": b"",
     }
     cache = _targeted_cache_for(repo_root)
+    roster_cache = _targeted_roster_cache_for(repo_root)
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
     withheld_runs: list[tuple[str, str]] = []
@@ -359,17 +387,26 @@ def plan_targeted_hoods(
     if base is not None:
         for key in current_snapshots:
             base.pop(key, None)
-    manifests, snapshots, diagnostics = load_validated_publication(
+    base_rosters = dict(roster_cache) if roster_cache is not None else None
+    if base_rosters is not None:
+        selected_identity = (owner.username, owner.machine_name)
+        for roster_key in tuple(base_rosters):
+            if roster_key[:2] == selected_identity and roster_key[4] in selected:
+                base_rosters.pop(roster_key, None)
+    manifests, snapshots, summaries, diagnostics = load_validated_publication(
         repo_root,
         override_manifest=manifest,
         override_snapshots=current_snapshots,
         override_payload=payload,
         base_snapshots=base,
+        summarize_unselected=True,
+        base_summaries=base_rosters,
+        summary_cache_stats=summary_cache_stats,
+        summary_cache_path=summary_cache_path,
     )
-    # Cache unselected snapshots only: selected snapshots are rebuilt fresh
-    # on every plan (and applied to disk by the caller), so caching them
-    # would serve unapplied bytes to a later plan. Unselected snapshots never
-    # change during a transaction, so they are safe to reuse.
+    # Cache unselected snapshots and summaries only. Selected hoods are rebuilt
+    # fresh on every plan (and applied by the caller), so retaining their new
+    # bytes could serve unapplied state to a later plan.
     if cache is not None:
         cache.update(
             {
@@ -378,6 +415,22 @@ def plan_targeted_hoods(
                 if key not in current_snapshots
             }
         )
+    if roster_cache is not None:
+        selected_identity = (owner.username, owner.machine_name)
+        for roster_key in tuple(roster_cache):
+            if roster_key[:2] == selected_identity and roster_key[4] in selected:
+                roster_cache.pop(roster_key, None)
+        for manifest_item in manifests:
+            for hood, entry in manifest_item.hoods:
+                key = (
+                    manifest_item.owner.username,
+                    manifest_item.owner.machine_name,
+                    hood,
+                )
+                if key not in current_snapshots:
+                    roster_cache[
+                        roster_summary_key(manifest_item, hood, entry.digest)
+                    ] = summaries[key]
     selected_keys = frozenset(current_snapshots)
     # Bead links stay best-effort and scoped: only pages being written need
     # link resolution, so only selected snapshots are gathered.
@@ -390,6 +443,7 @@ def plan_targeted_hoods(
         render_targeted_browsing_payload(
             manifests,
             snapshots,
+            summaries,
             selected_keys,
             commit_url_base=_commit_url_base(inventory.primary_remote_url),
             commit_repo_name=inventory.primary_repo_name,
