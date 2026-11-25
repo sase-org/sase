@@ -367,9 +367,9 @@ and its tooltip section, and clicking the group opens Launch Control.
 When sase's TUI is about to launch an agent that can only run on a **hard**-disabled
 provider, it opens a one-keypress panel instead of submitting a launch that would fail
 at invoke time. Soft disables never open this panel. After the instant input and
-project-tag checks pass, the prompt bar is released and the accepted launch appears as a
+project-tag checks pass, the prompt composer is released and the accepted launch appears as a
 preparing proc row while the provider check runs. Aborting restores the prompt when the
-bar and screen are free; if the user is already typing or another modal owns focus, it
+composer and screen are free; if the user is already typing or another modal owns focus, it
 saves the prompt to the stash instead and never steals focus.
 
 The panel is one blocked agent at a time. A four-agent swarm with two blocked units

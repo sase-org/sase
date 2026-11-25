@@ -37,7 +37,7 @@ _SECTIONS: Sections = [
         ],
     ),
     (
-        "Prompt Input",
+        "Prompt Composer",
         [
             ("Ctrl+D", "Delete saved completion entry"),
             ("Ctrl+L", "Reveal/complete / accept"),
@@ -91,7 +91,7 @@ def test_multi_token_and_across_section_name_and_description() -> None:
 def test_token_matching_only_the_key_display() -> None:
     result = filter_sections(_SECTIONS, "ctrl+d")
 
-    assert [section.name for section in result.sections] == ["Prompt Input"]
+    assert [section.name for section in result.sections] == ["Prompt Composer"]
     row = result.sections[0].rows[0]
     assert row.key == "Ctrl+D"
     assert row.key_runs != ()
@@ -101,7 +101,7 @@ def test_token_matching_only_the_key_display() -> None:
 def test_token_matching_only_the_description() -> None:
     result = filter_sections(_SECTIONS, "reveal")
 
-    assert [section.name for section in result.sections] == ["Prompt Input"]
+    assert [section.name for section in result.sections] == ["Prompt Composer"]
     row = result.sections[0].rows[0]
     assert row.key == "Ctrl+L"
     assert row.key_runs == ()

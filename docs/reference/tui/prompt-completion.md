@@ -1,11 +1,11 @@
 ---
 title: Prompt completion
-description: Token completion in the sase TUI prompt widget, including next-word prediction.
+description: Token completion in the sase TUI prompt composer, including next-word prediction.
 ---
 
 # Prompt completion
 
-This page lists token completion in the sase TUI prompt widget, including next-word
+This page lists token completion in the sase TUI prompt composer, including next-word
 prediction.
 
 ## Completion
@@ -134,7 +134,8 @@ token under the cursor:
   completion suppresses duplicates and mutually exclusive keywords, and
   `%model(..., alias=...)` suppresses the alias's own `@alias` value, while manually
   typed values still flow to launch-time validation. Dynamic agent and bead rows come
-  from sase's TUI warmed snapshots rather than synchronous prompt-bar bead-store reads;
+  from sase's TUI warmed snapshots rather than synchronous bead-store reads from the
+  prompt composer;
   if a dynamic refresh is unavailable, static directive names, aliases, keyword rows,
   and fixed values remain available.
 - **Model shortcuts**: When the cursor is on a `=alias` or `==model` token at the start
@@ -504,5 +505,5 @@ Moved to [Prompt completion panels](prompt-completion-panels.md#word-definitions
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets, repos, and spellcheck.

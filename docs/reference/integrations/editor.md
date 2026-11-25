@@ -92,7 +92,7 @@ delimiter and leaves the caret inside the pair, for example `#review:: body` bec
 the caret before `)`, including when a `::` text tail follows. These are on-type text
 edits only; the argument menu comes from the client's next completion request. The edits
 preserve authored spacing and suffix text, and the syntax/literal-region exclusions
-match the TUI prompt input.
+match the TUI prompt composer.
 
 Snippet completions come from the same registry sase's TUI uses: macros with `snippet`
 front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
@@ -154,10 +154,10 @@ because the source text differs from the inserted `%m:` value. The catalog is a
 launch-time snapshot: restart the LSP after config or plugin changes. Manual editor
 completion also works while the caret is in a valid equals token.
 
-`ace.prompt_completion.auto_directive_menu` remains a setting for the prompt bar in
-sase's TUI and does not govern an editor client's trigger policy. The TUI prompt input
-uses these same shortcuts; see
-[Prompt Input](../tui/prompt-input.md#prompt-input-widget) and
+`ace.prompt_completion.auto_directive_menu` remains a setting for the prompt composer in
+sase's TUI and does not govern an editor client's trigger policy. The TUI prompt
+composer uses these same shortcuts; see
+[Prompt Composer](../tui/prompt-input.md#prompt-composer) and
 [Equals model shortcuts](../macros/directive-syntax.md#equals-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
@@ -176,10 +176,10 @@ completion offers. Historical aliases such as `@commit:`, `@plans:`, `@chat:`, a
 `@bug:` are not offered by completion. The LSP never contacts git hosts, issue trackers,
 or other network providers. Unknown `@kind:` text remains ordinary prose.
 
-This canonical-only rule is specific to the editor LSP. sase's TUI prompt bar currently
-also lists recognized aliases and historical kinds, and its repository-history payload
-picker remains attached to `@commit:`; both `@commit:` and `@stitch:` resolve through
-the same launch resolver.
+This canonical-only rule is specific to the editor LSP. sase's TUI prompt composer
+currently also lists recognized aliases and historical kinds, and its repository-history
+payload picker remains attached to `@commit:`; both `@commit:` and `@stitch:` resolve
+through the same launch resolver.
 
 Matching is **fuzzy and ranked on the server** for every enumerated kind — document
 roles, indexed artifact files, Patches, beads, agents, and stitches — against the
@@ -271,8 +271,8 @@ server also advertises the catalog's accent palette at
 `accentN`-modified tags with the same colors as sase's TUI.
 
 Argument spans come from the same `sase-core` argument parser that colors arguments in
-sase's TUI prompt input, so both surfaces agree on roles. Argument tokens that belong to
-a key the macro does not declare carry the `deprecated` modifier; type mismatches and
+sase's TUI prompt composer, so both surfaces agree on roles. Argument tokens that belong
+to a key the macro does not declare carry the `deprecated` modifier; type mismatches and
 duplicate keys are reported only through diagnostics. A call that is still being typed
 (no closing parenthesis yet) gets structural tokens without validity markers. Multi-line
 `[[...]]` values are tokenized line by line with UTF-16 positions, and an artifact
@@ -423,7 +423,7 @@ remaining outer stops.
   Python helper facade.
 - [Configuration](../cli/editor.md#sase-editor) for CLI flag and environment-variable
   reference.
-- [sase's TUI snippets](../tui/snippets.md#snippets-1) for the in-TUI prompt widget
+- [sase's TUI snippets](../tui/snippets.md#snippets-1) for the in-TUI prompt composer
   behavior.
 
 ## `sase editor`

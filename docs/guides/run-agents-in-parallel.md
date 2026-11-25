@@ -17,15 +17,15 @@ instead.
 
 ## 1. Write one task per agent
 
-Open SASE's TUI and write the first task in the prompt bar. Give it one outcome, a clear
-scope, and a way to tell when it is done. Keep the task small enough for one agent to
-finish and review.
+Open SASE's TUI and write the first task in the prompt composer. Give it one outcome, a
+clear scope, and a way to tell when it is done. Keep the task small enough for one agent
+to finish and review.
 
 ## 2. Add a pane for each task
 
-Press `Ctrl+G -` in the prompt bar to add an empty pane. Write the next task there, then
-repeat for each independent task. Keep each pane focused on one outcome and give agents
-different files or areas to own when possible.
+Press `Ctrl+G -` in the prompt composer to add an empty pane. Write the next task there,
+then repeat for each independent task. Keep each pane focused on one outcome and give
+agents different files or areas to own when possible.
 
 ## 3. Launch the whole stack
 

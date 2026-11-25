@@ -558,9 +558,9 @@ empty shortcut list rather than unrelated completion. Unaccepted equals text has
 launch-time meaning.
 
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
-after alias or provider config changes. sase's TUI live prompt bar can additionally
+after alias or provider config changes. sase's TUI live prompt composer can additionally
 overlay temporary alias overrides for `=alias`; see sase's TUI
-[model shortcut](../tui/prompt-input.md#prompt-input-widget) and the
+[model shortcut](../tui/prompt-input.md#prompt-composer) and the
 [editor integration](../integrations/editor.md#equals-model-shortcuts) notes.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in

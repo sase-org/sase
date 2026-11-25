@@ -82,7 +82,7 @@ snippets. To troubleshoot the raw registry, run:
 printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 ```
 
-See [Snippets](../tui/snippets.md#snippets-1) for snippet usage in the prompt input
+See [Snippets](../tui/snippets.md#snippets-1) for snippet usage in the prompt composer
 widget and editor completion, and [Snippets panel](../tui/prompt-completion-panels.md#snippets-panel)
 for sase's TUI browse-and-edit panel (`gT` / `Ctrl+G T`).
 

@@ -684,12 +684,12 @@ app pushes `current_tab` and `current_idx` automatically).
 Point-in-time records emitted by `trace_event(...)` contain `event` instead of
 `span`/`duration_ms`. They are used for selection and highlight watcher transitions
 where there is no timed block to measure, and for the prompt-submit pipeline:
-`launch.accepted` fires in the handler that unmounts the prompt bar, and
+`launch.accepted` fires in the handler that unmounts the prompt composer, and
 `launch.submitted` fires when the durable `sase run` proc takes over, carrying
 `accept_to_submit_ms` and the pending-launch `stages` it waited in. Pair them by
 `launch_id`
 (`jq -c 'select(.event|startswith("launch."))' ~/.sase/perf/tui_trace.jsonl`) to measure
-how long a submit stayed pending after the bar disappeared.
+how long a submit stayed pending after the composer disappeared.
 
 Timed spans for the main Patch, agents, and AXE hot paths (by file, relative to
 `src/sase/ace/tui/`; run `rg 'tui_trace\(' src/sase` for the complete set, which also
@@ -1597,8 +1597,8 @@ armed at first paint keep their stat-only token probes during that hold and skip
 collection, sanity/broad Agents loads, and Patch reloads until release. The first
 post-release sanity refresh waits a full `--sanity-refresh-interval` because the startup
 loads themselves are the first full loads. After release, prompt-catalog warm, the
-app-wide link index, the startup update check, usage-refresh fallback, and prompt-bar
-import warm run one at a time.
+app-wide link index, the startup update check, usage-refresh fallback, and prompt
+composer import warm run one at a time.
 
 ### Attributed startup capture (sase-132.1)
 
@@ -1910,8 +1910,8 @@ conversation sections became fold-inert.
 `tab=current_tab`:
 
 - `prompt_space` — begins at `action_start_agent_from_patch` entry; the model timestamp
-  lands in `activate()` (reveal or fresh mount) when the bar focuses, and paint lands on
-  the next refresh.
+  lands in `activate()` (reveal or fresh mount) when the prompt composer focuses, and
+  paint lands on the next refresh.
 - `prompt_cycle_ctrl_p` / `prompt_cycle_ctrl_n` — begin when the key reaches
   `_handle_vcs_mru_cycle_key` (after macro arg-name completion declines it); the model
   timestamp lands once the cycle edit applies, and paint lands on the next refresh.
@@ -1969,10 +1969,10 @@ ms, met); burst key-to-paint p95 is 12.17 ms (target: at most 16 ms, met); the
 multi-hundred-millisecond first-press and first-visit spikes are gone. `<space>` p95
 stays above the 60 ms target (143.30 ms steady, 101.93 ms first) even with the
 `sase-1ex.11` hidden hot spare landed, so the remaining lever is the overlay-docked
-prompt bar experiment, recorded as a follow-up on the bead. A cold snapshot never blocks
-the first `<space>`: it opens a blank bar at once and late-prefills only an untouched
-session. No budget assertions live in the slow bench by design; the committed regression
-gates are the structural tests below, all cheap enough for `just check`:
+prompt composer experiment, recorded as a follow-up on the bead. A cold snapshot never
+blocks the first `<space>`: it opens a blank composer at once and late-prefills only an
+untouched session. No budget assertions live in the slow bench by design; the committed
+regression gates are the structural tests below, all cheap enough for `just check`:
 
 - warm `ctrl+p` / `ctrl+n`, first-visit getters, and warm `<space>` perform zero
   main-thread MRU reads/writes, `list_project_records` calls, `Popen`s, watcher

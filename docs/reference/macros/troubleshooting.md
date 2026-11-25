@@ -12,7 +12,7 @@ This page lists common macro expansion problems and how to diagnose them.
 If a launch prompt contains an unknown `#name` reference, SASE warns before launch and
 passes the text through literally. This is non-blocking so prose hashtags can still be
 used, but typos such as `#reviewww` are visible at `sase run`, `sase macro expand`, and
-from the `sase tui` prompt bar.
+from the `sase tui` prompt composer.
 
 If a definition file is malformed, run:
 

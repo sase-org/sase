@@ -340,7 +340,7 @@ def handle_hijack_prompt_submitted(app: Any, prompt_text: str) -> bool:
         session_id = None
     if context.session_id is not None and session_id != context.session_id:
         app.notify(  # type: ignore[attr-defined]
-            "Launch cancelled; the prompt bar was closed while submitting.",
+            "Launch cancelled; the prompt composer was closed while submitting.",
             severity="warning",
         )
         clear_hijack_prompt_context(app)

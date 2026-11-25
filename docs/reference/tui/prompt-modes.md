@@ -1,11 +1,11 @@
 ---
 title: Prompt modes
-description: NORMAL and Visual mode keys for the sase TUI prompt input widget.
+description: NORMAL and Visual mode keys for the sase TUI prompt composer.
 ---
 
 # Prompt modes
 
-This page lists NORMAL and Visual mode keys for the sase TUI prompt input widget.
+This page lists NORMAL and Visual mode keys for the sase TUI prompt composer.
 
 ## NORMAL Mode
 
@@ -241,5 +241,5 @@ always apply to whole selected lines regardless of the cursor column.
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt stacks](prompt-stacks.md) — multi-agent panes, stash, and trash.

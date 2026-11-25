@@ -43,7 +43,7 @@ ace:
 ```
 
 See
-[Authoring a snippet from the prompt bar](../tui/snippets.md#authoring-a-snippet-from-the-prompt-bar).
+[Authoring a snippet from the prompt composer](../tui/snippets.md#authoring-a-snippet-from-the-prompt-composer).
 
 Source: `src/sase/macro/snippet_targets.py`
 

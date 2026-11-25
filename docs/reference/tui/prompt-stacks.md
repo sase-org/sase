@@ -1,43 +1,44 @@
 ---
 title: Prompt stacks
-description: Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
+description: Multi-agent prompt stacks, stash, and trash in the sase TUI prompt composer.
 ---
 
 # Prompt stacks
 
-This page lists prompt-stack panes, stash, and trash keys in the sase TUI prompt widget.
+This page lists prompt-stack panes, stash, and trash keys in the sase TUI prompt composer.
 
 ## Prompt Stacks {#prompt-stacks-1}
 
 Prompt stacks are sase's TUI editing surface for literal `---` multi-agent prompts.
-Loading multi-agent prompt text from history, a whole-bar editor session, or an editor
-buffer that returned with a ` @` review marker splits top-level `---` segment separators
-into panes labeled `agent 1`, `agent 2`, and so on; the border title shows
-`Prompt · N agents`. Restoring stashed prompts and using marked-agent `,x` can also open
-a stack, but those paths load one pane per selected draft or agent instead of re-parsing
-each pane's text. Panes are ordered top-to-bottom for whole-stack submission. The bottom
-pane is active by default so you can keep drafting the newest segment; it is not a
-priority marker, and pressing `Enter` immediately opens the submit chooser.
+Loading multi-agent prompt text from history, an editor session that opened the full
+prompt composer, or an editor buffer that returned with a ` @` review marker splits
+top-level `---` segment separators into panes labeled `agent 1`, `agent 2`, and so on.
+The border title shows `Prompt · N agents`. Restoring stashed prompts and using
+marked-agent `,x` can also open a stack, but those paths load one pane per selected draft
+or agent instead of re-parsing each pane's text. Panes are ordered top-to-bottom for
+whole-stack submission. The bottom pane is active by default so you can keep drafting the
+newest segment; it is not a priority marker, and pressing `Enter` immediately opens the
+submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height; each parked
 pane's separator rule also carries a live [cursor readout](prompt-input.md#cursor-readout) of that
 pane's own position. A `---` line typed while INSERT mode is active stays literal prompt
 text; use `Ctrl+G -` while drafting, or `g-` from prompt NORMAL mode, to add a new
 bottom pane. `Ctrl+G g` and `Ctrl+G Ctrl+G` open the whole stack in `$EDITOR` when the
-bar already has multiple panes (a single-pane bar opens just the current prompt).
-Returning from a whole-bar editor session, or from a single-pane editor buffer with a
-` @` review marker, reloads macro-style Markdown and parses `---` separators into fresh
-panes. History loads parse only real multi-agent prompts; a single history item with
-leading YAML frontmatter stays one verbatim pane instead of auto-opening the Frontmatter
-Panel.
+composer already has multiple panes (a single-pane composer opens just the current prompt).
+Returning from an editor session that opened the full prompt composer, or from a
+single-pane editor buffer with a ` @` review marker, reloads macro-style Markdown and
+parses `---` separators into fresh panes. History loads parse only real multi-agent
+prompts; a single history item with leading YAML frontmatter stays one verbatim pane
+instead of auto-opening the Frontmatter Panel.
 
 A single-pane editor session normally launches the moment you close `$EDITOR`. To review
-it in the prompt bar first, end any line of the buffer with the exact suffix ` @` (a
+it in the prompt composer first, end any line of the buffer with the exact suffix ` @` (a
 space followed by `@`). On return, that marker is stripped from every matching line and
 the cleaned text reloads with editor-file semantics: leading macro frontmatter is lifted
 into the Frontmatter Panel and real `---` separators split into one pane per agent, so a
 marked multi-agent buffer comes back as a reviewable stack instead of launching. The
-marker is editor-return-only — typing ` @` in the prompt bar and submitting carries no
+marker is editor-return-only — typing ` @` in the prompt composer and submitting carries no
 special meaning. (This replaces the removed `%edit` directive.)
 
 In prompt INSERT mode, pressing `Ctrl+G` opens the same context-aware hint row as prompt
@@ -62,14 +63,14 @@ prefix actions currently available.
 | `gD`        | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                        |
 | `gT`        | Open the Snippets panel; seeds from a bare trigger or `#[trigger]` under the cursor when one can be resolved without I/O                                                            |
 | `g=`        | Show/focus the macro frontmatter panel; in panel rows mode, return to the originating prompt pane                                                                                   |
-| `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                                                           |
-| `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                                                                      |
+| `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt composer                                                                                                           |
+| `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the composer open                                                                                                      |
 | `gw`        | Write a bound macro definition; unbound drafts fall through to save-as                                                                                                              |
-| `gd`        | Edit the macro definition under the cursor in the prompt bar                                                                                                                        |
+| `gd`        | Edit the macro definition under the cursor in the prompt composer                                                                                                                        |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                                                            |
 | `gx`        | Open, retarget, or edit an existing mini-macro pane                                                                                                                                 |
-| `gt`        | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt bar](snippets.md#authoring-a-snippet-from-the-prompt-bar))                                          |
-| `gX`        | Save as reusable macro/snippet; macro mode converts raw `<tags>` and leaves the bar open                                                                                            |
+| `gt`        | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt composer](snippets.md#authoring-a-snippet-from-the-prompt-composer))                                          |
+| `gX`        | Save as reusable macro/snippet; macro mode converts raw `<tags>` and leaves the composer open                                                                                            |
 | `gL`        | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                  |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane
@@ -93,11 +94,11 @@ immediately submits an ordinary single pane, the active pane of a stack, or a ta
 pane. Outside that chooser, `Ctrl+S` is always an active-pane stash shortcut.
 
 Prompt stashes are a per-user draft pile stored outside prompt history. `Ctrl+S`
-captures the selected non-empty pane plus the shared prompt frontmatter; when other
-panes remain the bar stays open, and when the last pane is stashed the bar closes
-without also recording the draft as cancelled history. If the active pane is empty,
+captures the selected non-empty pane plus the shared prompt frontmatter. The prompt
+composer stays open while other panes remain; stashing the last pane closes it without
+also recording the draft as cancelled history. If the active pane is empty,
 `Ctrl+S` opens the Prompts overlay on Stash instead. `gs` captures all non-empty panes
-in their current order as one bundled stash row and dismisses the bar. `gS` opens an
+in their current order as one bundled stash row and dismisses the composer. `gS` opens an
 update flow for an existing pinned stash and overwrites the chosen row with the current
 non-empty panes. Manual and restart stashes remember the active pane and its cursor, and
 restore focuses that pane in INSERT mode at the same logical line and column. Older
@@ -106,7 +107,7 @@ the last pane at end of text. See
 [TUI migration notes](../upgrading/tui.md#prompt-stack-restore-and-macro-sources). `gX` and `Ctrl+G X` open one save screen containing the
 name, storage location, resolved path, and a live preview when the name collides. Inside
 that screen, `Ctrl+X` switches between macro and snippet mode. `Ctrl+T` remains manual
-completion in the prompt input and does not toggle this save screen. A successful
+completion in the prompt composer and does not toggle this save screen. A successful
 whole-stack save binds the prompt stack to that source. `gw` then performs atomic
 write-back, and if the source changed since load it offers overwrite, reload, or save-as
 instead of clobbering it. `gd` loads the simple macro under the cursor for the same
@@ -130,11 +131,11 @@ fenced code, and disabled macro regions stay literal throughout. See
 [Raw Prompt Placeholders](../macros/templating.md#raw-prompt-placeholders) for
 the exact launch, conversion, and naming rules.
 
-`Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
+`Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt composer. From the main
 sase's TUI tabs, when you are not typing in a text field, `@` acts on Stash. If the open
-bar is Plan Feedback or Coder Prompt, `@` warns
+composer is showing Plan Feedback or Coder Prompt, `@` warns
 `Restore is only available for agent prompts` and stops. Otherwise a lone pinned draft
-is loaded into the prompt bar and stays in Stash. A lone unpinned draft is loaded and
+is loaded into the prompt composer and stays in Stash. A lone unpinned draft is loaded and
 then removed from Stash; it is not moved to Trash. When Stash is empty or holds more
 than one draft, `@` opens the overlay on Stash instead of loading one. `,@` or clicking
 the `stash:` chip always opens that overlay, including when exactly one draft is stashed
@@ -178,7 +179,7 @@ then `Enter` sends the marked rows straight to Trash, including pinned rows and 
 that overflow the Trash limit — newest-deleted-first with the deletion age visible,
 unless `ace.prompt_stash.trash_limit` is `0` (see below). In the Trash view, `Enter` (or
 a digit key, or marked `Tab`/`a`) restores rows back to Stash while the overlay stays
-open; it never loads the prompt bar. `d`/`D` stage rows for permanent deletion and
+open; it never loads the prompt composer. `d`/`D` stage rows for permanent deletion and
 `Enter` asks for explicit confirmation before purging; `Ctrl+Y` copies a row. Trash
 holds at most `ace.prompt_stash.trash_limit` entries (default 100; this is an
 entry-count limit, not a byte quota): when a discard batch overflows it, the success
@@ -233,6 +234,6 @@ drafts from that backup.
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompts overlay](prompts-overlay.md) — History, Stash, and Trash.
 - [Run agents in parallel](../../guides/run-agents-in-parallel.md) — splitting work across panes.

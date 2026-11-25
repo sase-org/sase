@@ -1,4 +1,6 @@
-"""The prompt Frontmatter Panel widget (Phase 3 of the frontmatter-panel epic).
+"""Property panel (`FrontmatterPanel`) for the prompt composer.
+
+Glossary: Prompt Composer.
 
 A persistent, navigable, focusable panel rendered directly above the prompt
 stack (``#prompt-stack``).  It is the visible editing surface over the structured
@@ -92,7 +94,7 @@ class FrontmatterPanel(
     FrontmatterPanelRenderingMixin,
     Vertical,
 ):
-    """Structured editor for a prompt's YAML frontmatter, above the prompt stack."""
+    """Property panel for the prompt composer (glossary: Prompt Composer)."""
 
     can_focus = True
 

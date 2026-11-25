@@ -213,7 +213,7 @@ def test_all_pane_cancel_saves_single_joined_entry_and_detaches_once() -> None:
         (
             '"first pane cancelled now --- second pane cancelled now"',
             None,
-            "Prompt input cancelled — saved to history",
+            "Prompt cancelled — saved to history",
         )
     ]
 
@@ -235,7 +235,7 @@ def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
         (
             '"fix bug"',
             None,
-            "Prompt input cancelled — saved to history",
+            "Prompt cancelled — saved to history",
         )
     ]
 
@@ -262,7 +262,7 @@ def test_cancel_toast_uses_short_preview_for_long_prompts() -> None:
 
     assert len(harness.notifications) == 1
     message, _severity, title = harness.notifications[0]
-    assert title == "Prompt input cancelled — saved to history"
+    assert title == "Prompt cancelled — saved to history"
     assert message.startswith('"longprompt longprompt')
     assert message.endswith('…"')
 

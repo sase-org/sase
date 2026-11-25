@@ -119,7 +119,7 @@ class PromptBarSubmitMixin:
         """Show the prompt-history receipt toast for a cancelled prompt."""
         from sase.history.prompt_stats import short_preview
 
-        title = "Prompt pane cancelled" if pane else "Prompt input cancelled"
+        title = "Prompt pane cancelled" if pane else "Prompt cancelled"
         self.notify(  # type: ignore[attr-defined]
             f'"{short_preview(stored_text)}"',
             title=f"{title} — saved to history",

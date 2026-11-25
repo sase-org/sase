@@ -136,13 +136,13 @@ def test_launch_card_includes_project_cl_hint_when_targets_exist() -> None:
     )
     launch_text = _section_plain(sections, "#agent-onboarding-launch")
 
-    assert "open the prompt bar" in launch_text
+    assert "open the prompt composer" in launch_text
     assert "pre-filled with your last VCS macro" in launch_text
     assert "clears it" in launch_text
     assert "and describe a task" in launch_text
     assert "launches an agent in your home workspace." in launch_text
     assert "launch against a specific project or PR instead." in launch_text
-    assert "The prompt bar works from any tab." in launch_text
+    assert "The prompt composer works from any tab." in launch_text
 
 
 def test_launch_card_omits_project_cl_hint_without_targets() -> None:
@@ -153,10 +153,10 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     )
     launch_text = _section_plain(sections, "#agent-onboarding-launch")
 
-    assert "open the prompt bar" in launch_text
+    assert "open the prompt composer" in launch_text
     assert "pre-filled with your last VCS macro" in launch_text
     assert "launch against a specific project or PR instead." not in launch_text
-    assert "The prompt bar works from any tab." in launch_text
+    assert "The prompt composer works from any tab." in launch_text
 
 
 def test_agent_onboarding_omits_modal_footer() -> None:

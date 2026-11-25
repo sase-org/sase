@@ -132,7 +132,7 @@ def _open_continue_prompt(
     if not callable(show):
         notify = getattr(app, "notify", None)
         if callable(notify):
-            notify("The prompt bar is unavailable", severity="warning")
+            notify("The prompt composer is unavailable", severity="warning")
         return
     show(
         initial_text=stranded_continue_prompt(

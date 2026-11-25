@@ -32,7 +32,7 @@ database to manage. Each shard row stores `text`, `timestamp`, `last_used`, `can
 and an optional `origin`: `typed` for prompts a human submitted, `generated` for
 machine-driven launches. Prompt history is a write policy, not a label: only human
 submissions are recorded, once per submission, through a human entry point - the TUI
-prompt bar (including cancelled drafts and failed submits), `sase run` or
+prompt composer (including cancelled drafts and failed submits), `sase run` or
 `sase prompt run` from a terminal, the mobile gateway, or Telegram. A machine-originated
 launch (agents and LaunchApproval, routine/job launches, bead work, plan/epic approval,
 restarts, monitor commands, gate commands, member-agent relaunches, mentor-apply
@@ -127,7 +127,7 @@ Stash, Trash, and the stash archive are three different stores.
 
 | Reason        | When the copy is written                                                                                                                                                                                        |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `popped`      | An unpinned Stash row was loaded into the prompt bar and removed from Stash. Loading a pinned row leaves it in Stash, so that load is not archived.                                                             |
+| `popped`      | An unpinned Stash row was loaded into the prompt composer and removed from Stash. Loading a pinned row leaves it in Stash, so that load is not archived.                                                        |
 | `purged`      | A Trash row was permanently deleted.                                                                                                                                                                            |
 | `evicted`     | Trash dropped the row to stay within its limit. A discard while the limit is `0` is archived as `evicted` and never appears in Trash.                                                                           |
 | `overwritten` | A Stash row's text, frontmatter, or cursor was replaced. `gS` does this when it updates a pinned draft. The row stays in Stash; the archive keeps the previous version. Changing only the pin does not archive. |
@@ -143,8 +143,8 @@ sase prompt stash-archive restore <ID>           # append the newest copy back t
 
 Bare `sase prompt stash-archive` is `list`. `show` prints one draft. `restore` appends
 one or more drafts back onto Stash. It does not launch an agent and it does not open the
-prompt bar. Load the returned row from Stash with `@` or the Prompts overlay. `@` loads
-a row immediately only when it is the sole unpinned draft; otherwise `@` opens the
+prompt composer. Load the returned row from Stash with `@` or the Prompts overlay. `@`
+loads a row immediately only when it is the sole unpinned draft; otherwise `@` opens the
 overlay.
 
 `show` and `restore` take a full draft id or a prefix that matches exactly one archived
@@ -267,7 +267,7 @@ The table shows the prompt ID, last-used time, status, character count,
 project/macro/directive hint chips, and a one-line preview — never the full text.
 
 Inside [sase's TUI](tui/index.md), the same history is one keystroke away: press
-`Ctrl+K` in the prompt bar (or `,.` from any tab) to open the
+`Ctrl+K` in the prompt composer (or `,.` from any tab) to open the
 [Prompts overlay](tui/prompts-overlay.md#prompt-history-modal). Its filter accepts a
 leading `project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by
 the current prompt's workspace reference.
@@ -403,9 +403,9 @@ sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/macros/bob/
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never
 overwrites an existing macro file unless you pass `--force`.
 
-SASE's TUI prompt bar also saves drafts with `gX` or `Ctrl+G X`; the save panel starts
-in macro mode, and `Ctrl+X` switches to snippet mode. A stack saves its non-empty panes
-as one `---`-separated macro; snippet mode saves only the active pane. See
+SASE's TUI prompt composer also saves drafts with `gX` or `Ctrl+G X`; the save panel
+starts in macro mode, and `Ctrl+X` switches to snippet mode. A stack saves its non-empty
+panes as one `---`-separated macro; snippet mode saves only the active pane. See
 [Prompt Stacks](tui/prompt-stacks.md#prompt-stacks-1) and
 [Creating Macros](tui/snippets.md#creating-macros) for the other keybindings and save
 locations.

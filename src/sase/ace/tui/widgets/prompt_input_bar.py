@@ -1,4 +1,4 @@
-"""Prompt input bar widget for agent workflow in sase's TUI."""
+"""Prompt composer widget for sase's TUI (glossary: Prompt Composer)."""
 
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ class PromptInputBar(
     PromptInputBarStackRenderingMixin,
     Static,
 ):
-    """Prompt input bar for agent workflow, positioned at bottom of screen."""
+    """Prompt composer (`PromptInputBar`) at the bottom of the TUI."""
 
     Submitted = _Submitted
     Cancelled = _Cancelled

@@ -1,16 +1,19 @@
 ---
-title: Prompt input
-description: Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
+title: Prompt Composer
+description: Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt composer.
 ---
 
-# Prompt input
+# Prompt Composer
 
 This page lists insert-mode keys, alt-brace syntax, macro editing, search, and
-launch-target picking for the sase TUI prompt widget.
+launch-target picking for the sase TUI prompt composer.
 
-## Prompt Input Widget
+<a id="prompt-input-widget"></a>
 
-The prompt input is a multiline TextArea widget with vim-style INSERT, NORMAL, VISUAL,
+## Prompt Composer
+
+The [prompt composer](../glossary.md#prompt-composer) is a multiline TextArea widget
+with vim-style INSERT, NORMAL, VISUAL,
 and V-LINE modes. The widget provides markdown syntax highlighting for prompt content
 (headings, bold, italic, code blocks, lists, etc.). The first dash of an unindented or
 space-indented `- ` bullet, and the digits plus delimiter of an unindented or
@@ -43,8 +46,8 @@ steps to split and follow independent tasks, see
 Every mounted pane advertises its cursor position as `Ln <line>, Col <column>`, both
 1-based and counted in document columns (the character index within the logical line,
 not the soft-wrapped screen column). The active pane's readout sits flush right on the
-bar's bottom border, next to the mode hints; each parked pane's readout sits on the
-right end of its own `─── ▍ agent N ───` separator rule. The digits are painted the
+prompt composer's bottom border, next to the mode hints; each parked pane's readout
+sits on the right end of its own `─── ▍ agent N ───` separator rule. The digits are painted the
 color of that pane's own vim-mode cursor -- gold for NORMAL, cyan for INSERT, magenta
 for VISUAL / V-LINE -- so the readout and the cursor it describes always match. On a
 narrow terminal the active-pane readout always wins over the mode hints (which truncate
@@ -64,8 +67,8 @@ in the prompt stack but none in the active pane, the panel says
 has a local match.
 
 After a search is accepted, the count moves to a compact two-tone pill on the prompt
-bar's bottom border, just left of the `Ln, Col` readout. The query chip is graphite and
-uses the accent color for the search sigil; the count chip is solid warning gold, the
+composer's bottom border, just left of the `Ln, Col` readout. The query chip is graphite
+and uses the accent color for the search sigil; the count chip is solid warning gold, the
 same color as the current-match highlight, with the current ordinal in bold. The chip
 ink is chosen for maximum contrast from the theme's own foreground and background while
 avoiding colors that 256-color terminals with base16 palettes repaint. The sigil records
@@ -105,14 +108,14 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                                                                                                                                                                                                          |
 | `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                                                                                                                                                                                                             |
 | `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                                                                                                                                                                    |
-| `Ctrl+G d`                   | Edit the macro definition under the cursor in the prompt bar                                                                                                                                                                                                                                                                    |
+| `Ctrl+G d`                   | Edit the macro definition under the cursor in the prompt composer                                                                                                                                                                                                                                                                    |
 | `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                                                                                                                                                                                                        |
 | `Ctrl+G w`                   | Write a bound macro definition; unbound drafts fall through to save-as                                                                                                                                                                                                                                                          |
 | `Ctrl+G =`                   | Show/focus the macro frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                                                      |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                                                  |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                                                        |
 | `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open, retarget, or edit an existing mini-macro pane                                                                                                                                                                                                                                                                             |
-| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt bar](snippets.md#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                                      |
+| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt composer](snippets.md#authoring-a-snippet-from-the-prompt-composer))                                                                                                                                                                                      |
 | `Ctrl+G X`                   | Save as reusable macro/snippet; macro mode converts raw `<tags>`                                                                                                                                                                                                                                                                |
 | `Ctrl+G L`                   | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                                                                                                                                                              |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                                                                                                                                                   |
@@ -138,7 +141,7 @@ selection literally), for contractions or possessives, and for repeated quotes/b
 needed to type Markdown fences or code spans.
 
 When `(` is typed immediately after a macro or supported directive argument delimiter,
-the prompt input normalizes the shorthand in one keyboard edit. A single colon is
+the prompt composer normalizes the shorthand in one keyboard edit. A single colon is
 removed (`#review:` -> `#review()`), while `::` followed only by ASCII spaces is moved
 after a complete pair (`#review:: body` -> `#review():: body`) with the caret inside the
 parentheses. Typing `(` immediately after a closed macro argument list continues the
@@ -245,7 +248,7 @@ yank feedback, and the cursor retain their higher-priority treatments.
 
 ### Raw Placeholder Inputs
 
-Raw `<placeholder>` tags in sase's TUI prompt bar act like ad hoc prompt inputs. When
+Raw `<placeholder>` tags in sase's TUI prompt composer act like ad hoc prompt inputs. When
 you submit a prompt containing one or more highlighted raw tags, sase's TUI opens the
 **Prompt Inputs** panel before launch. The panel lists each unique tag once, shows a
 one-line context snippet and an occurrence count, and collects values on the same page
@@ -292,7 +295,7 @@ also states that source proof is checked on submit; an invalid one shows `Target
 with the reason. It stays hidden for ordinary local launches, unless the pane carries an
 invalid `%auto` spelling: that shows an `Auto error` segment with the same message the
 launch path raises, and Enter does not submit until the spelling is fixed. On
-submission, the prompt bar closes immediately and source proof runs off the UI thread as
+submission, the prompt composer closes immediately and source proof runs off the UI thread as
 the first pending launch stage. A failed proof restores the prompt with
 `source blocked: <reason>` in its context line (or saves it to the stash if another
 prompt or modal now owns the screen).
@@ -311,24 +314,24 @@ source requirements and remote operation model.
 Moved to [Prompt stacks](prompt-stacks.md#prompt-stacks-1).
 ### Editing an Existing Macro from the TUI
 
-Loading a definition into the prompt bar for editing puts the bar into a **targeting**
-state instead of a plain draft: the bar tracks the exact source file your edits will
-write to, and everything below applies whenever the bar shows a target. Every surface
+Loading a definition into the prompt composer for editing puts the composer into a **targeting**
+state instead of a plain draft: the composer tracks the exact source file your edits will
+write to, and everything below applies whenever the composer shows a target. Every surface
 that loads an editable definition enters this state the same way:
 
 - The Config Macros child's `Enter` (see [Editing Macros](snippets.md#editing-macros)).
 - The Select Macro `#` picker's `Ctrl+O` ("edit here"), alongside its existing `Ctrl+E`
   (open in `$EDITOR`) and `Ctrl+I` (inline-expand) keys.
-- The jump panel (`Ctrl+]`, `gd`) and `gd` under the cursor in the prompt bar.
-- Returning from a whole-bar `$EDITOR` round trip (`Ctrl+G g`) preserves whatever target
-  the bar already had — your edits stay bound to the same file.
+- The jump panel (`Ctrl+]`, `gd`) and `gd` under the cursor in the prompt composer.
+- Returning from an `$EDITOR` round trip for the full prompt composer (`Ctrl+G g`)
+  preserves whatever target the composer already had — your edits stay bound to the same file.
 
-A read-only source (legacy, plugin, built-in) loads without a target: the bar shows a
-persistent read-only marker instead of binding, and `gw` falls through to the save-as
+A read-only source (legacy, plugin, built-in) loads without a target: the prompt composer
+shows a persistent read-only marker instead of binding, and `gw` falls through to the save-as
 flow rather than clobbering the original.
 
-**Visual state.** A targeted bar's border switches from a solid to a **double** rule so
-the state reads at a glance in any theme: `$secondary` when clean, `$warning` when dirty
+**Visual state.** A targeted prompt composer's border switches from a solid to a **double**
+rule so the state reads at a glance in any theme: `$secondary` when clean, `$warning` when dirty
 or when the source changed on disk underneath you, and a dim `$foreground` when
 read-only. The border title shows a `✎ <reference>` chip using the canonical reference
 you'd actually type (`#foo`, `#memory/foo`, `/skill-name`) — not the file stem —
@@ -345,8 +348,8 @@ pane, `w` saves to the targeted reference (its subtitle names the destination wh
 dirty, or says there's nothing to save when clean), and `X` forks the definition to a
 new location. Set `ace.prompt_submission.confirm_on_enter: false` to make plain `Enter`
 launch the active pane immediately; `gw` / `Ctrl+G w` performs the same save directly,
-and the bar's subtitle shows a `[^G w] save <reference>` hint whenever a target is
-active. If the source changed on disk since you loaded it, the save opens a conflict
+and the prompt composer's subtitle shows a `[^G w] save <reference>` hint whenever a
+target is active. If the source changed on disk since you loaded it, the save opens a conflict
 prompt offering overwrite, reload, or save-as instead of silently clobbering the
 external edit.
 
@@ -379,7 +382,7 @@ plain commit/push confirmation. With more than one, each row's key toggles it an
 Moved to [Prompt completion](prompt-completion.md#completion).
 ### Alt Brace Syntax (`%{...}`)
 
-The prompt input has dedicated highlighting and editing help for the `%{A | B}` alt
+The prompt composer has dedicated highlighting and editing help for the `%{A | B}` alt
 fan-out shorthand (see the
 [Alt Directive reference](../macros/directive-composition.md#alt-directive)). It
 distinguishes the alt delimiters from the branch separators so a fan-out is easy to read
@@ -396,7 +399,7 @@ The alt overlay layers on top of the existing Jinja and search highlighting rath
 replacing it, and it uses the same size guards, so highlighting stays responsive on
 large prompts.
 
-Editing help in sase's TUI prompt input mirrors the Jinja auto-pair behavior and only
+Editing help in sase's TUI prompt composer mirrors the Jinja auto-pair behavior and only
 fires for the `%{...}` shorthand. Any `%` directly before `{` opens an alternation,
 wherever it appears: at a word boundary, mid-word (`foo%{bar | baz}qux`), after
 punctuation, or nested inside another branch:

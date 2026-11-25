@@ -208,7 +208,7 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
    the matching ProjectSpec with that bare path and the default `~/projects/git/<name>/`
    primary checkout path.
 
-The missing-project shorthand is intended for first use from a macro or prompt bar:
+The missing-project shorthand is intended for first use from a macro or prompt composer:
 `#git:new_tool #!workflow` creates the bare-git project on demand.
 
 An existing ProjectSpec is never treated as a missing bare-git project merely because

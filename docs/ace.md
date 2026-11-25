@@ -351,7 +351,7 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 <a id="authoring-a-snippet-from-the-prompt-bar"></a>
 
-- [Authoring a snippet from the prompt bar](reference/tui/snippets.md#authoring-a-snippet-from-the-prompt-bar)
+- [Authoring a snippet from the prompt bar](reference/tui/snippets.md#authoring-a-snippet-from-the-prompt-composer)
 
 <a id="macro-picker"></a>
 
@@ -359,7 +359,7 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 <a id="prompt-input-widget"></a>
 
-- [Prompt input widget](reference/tui/prompt-input.md#prompt-input-widget)
+- [Prompt input widget](reference/tui/prompt-input.md#prompt-composer)
 
 <a id="cursor-readout"></a>
 

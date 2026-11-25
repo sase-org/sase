@@ -10,7 +10,7 @@ This page documents directives for review, follow-up, repetition, and prompt fan
 ## Editor Review Marker (` @`)
 
 The old `%edit` directive has been removed. To compose a prompt in `$EDITOR` (via
-`Ctrl+G`) and then review or tweak it in sase's TUI prompt bar instead of launching
+`Ctrl+G`) and then review or tweak it in sase's TUI prompt composer instead of launching
 immediately, end any line of the editor buffer with the exact suffix ` @` (a space
 followed by `@`):
 
@@ -19,13 +19,13 @@ Refactor the parser module to use dataclasses. @
 ```
 
 This is an editor-return syntax, not a runtime directive — it is only recognized in text
-handed back from the external editor. Typing ` @` directly in the prompt bar and
+handed back from the external editor. Typing ` @` directly in the prompt composer and
 submitting has no special behavior, and the marker carries no meaning in CLI, mobile, or
 workflow execution. Submitting `%edit` raises a `DirectiveError` pointing here rather than
 silently launching; `%e` is the `%effort` alias.
 
 When at least one line ends with ` @`, the marker is stripped from every matching line
-and the cleaned text is loaded back into the prompt input bar; the agent is not launched
+and the cleaned text is loaded back into the prompt composer; the agent is not launched
 until you press Enter there. The returned text loads with editor-file semantics: real
 multi-agent `---` segment separators (outside fenced blocks and leading YAML
 frontmatter) split sase's TUI prompt stack into one editable pane per agent segment, and

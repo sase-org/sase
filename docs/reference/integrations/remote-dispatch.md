@@ -267,7 +267,7 @@ matches).
   [Remote Attention](../automation/notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
-preflight failure restores the prompt to the prompt bar with a
+preflight failure restores the prompt to the prompt composer with a
 `source blocked: <reason>` notice (when a modal is open it stashes the prompt and warns
 instead). After preflight passes, sase's TUI shows a provisional `QUEUED` owner row
 before the background launch settles. A structured accepted response keeps it `QUEUED`,
@@ -280,8 +280,8 @@ fleet row arrives with the matching logical or exact locator.
 Those operations are journaled through `sase machine agent` and
 `sase machine attention`. On a capable remote row, the normal Agents keys route to the
 remote operation: `x` stops, `R` retries, and `F` forks (it opens a `Fork on <alias>`
-prompt bar for the instruction). Bounded content, attention answers, and launch-outcome
-checks are in the command palette; their `ace.keymaps.app` fields
+prompt composer for the instruction). Bounded content, attention answers, and
+launch-outcome checks are in the command palette; their `ace.keymaps.app` fields
 (`view_remote_agent_content`, `answer_remote_attention`,
 `check_dispatch_launch_outcome`, plus a dedicated `retry_remote_agent`) are unbound by
 default.

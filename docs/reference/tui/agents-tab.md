@@ -51,7 +51,7 @@ the all-tabs scope, and a marked cleanup that spans tabs adds an
 styling, ordering, and machine-mode behavior live under `ace.agent_tabs` (see
 `docs/reference/config/ace-prompts.md#aceagenttabs`).
 
-Launching from a named tab inherits it: the prompt bar shows a `tab: <name>` chip and
+Launching from a named tab inherits it: the prompt composer shows a `tab: <name>` chip and
 the submitted prompt gains `%tab:<name>` (opt out with `%tab:main` or
 `ace.agent_tabs.launch_from_view: false`). `gb` opens the Launch Tab picker to insert or
 replace `%tab`. A launch that lands on another tab toasts its destination

@@ -110,7 +110,7 @@ nav:
               - Agents tab LLM calls and tool runs: reference/tui/agents-deck-panels.md
               - Agent workflows: reference/tui/agent-workflows.md
           - Prompt:
-              - Prompt input: reference/tui/prompt-input.md
+              - Prompt Composer: reference/tui/prompt-input.md
               - Prompt modes: reference/tui/prompt-modes.md
               - Prompt stacks: reference/tui/prompt-stacks.md
               - Prompt completion: reference/tui/prompt-completion.md

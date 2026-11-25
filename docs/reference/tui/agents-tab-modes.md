@@ -241,14 +241,14 @@ pending re-focuses the restored prompt and does not walk back to an earlier laun
 Restarting sase's TUI mid-flight drops the pending kill: the launch completes, the row
 appears, and ordinary `,x` applies.
 
-Submitting a prompt returns immediately: `<enter>` removes the prompt bar on the next
+Submitting a prompt returns immediately: `<enter>` removes the prompt composer on the next
 repaint, even when the launch still has to wait, and the launch carries on as a pending
 launch. The launch shows as a `launch <name>` row in the proc indicator and the Procs
 tab from the moment you press `<enter>`; its message names what it is waiting for (for
 example "waiting for kill/dismiss cleanup" while a `,x` or `,X` cleanup settles), and
 the durable `sase run` row takes over when it is submitted. A launch that has not been
 submitted yet has nothing to kill, so `,X` on it simply cancels the launch and reopens
-its prompt in a bar (still marked for forced name reuse, so a re-submit stays behind the
+its prompt in the composer (still marked for forced name reuse, so a re-submit stays behind the
 same cleanup). A cancelled bulk-Patch launch restores its shared prompt; the Patch marks
 are not restored. Quitting sase's TUI while a launch is still pending stashes its prompt
 so `@` can restore it.
@@ -294,7 +294,7 @@ choices initially show `computing…`; unavailable choices show their refusal re
 | --- | --- |
 | **Escalate** or **Switch** | Continue with the displayed different model in the held workspace. |
 | **Continue** | Continue with the recorded concrete model in the held workspace. |
-| **Instruct** | Open the continuation prompt in the prompt bar, with the cursor at the guidance line. Hidden for monitors. |
+| **Instruct** | Open the continuation prompt in the prompt composer, with the cursor at the guidance line. Hidden for monitors. |
 | **Re-run command** | Start the recorded monitor command again in the held workspace. Monitor-only. |
 | **Restart** | Relaunch the original prompt in a fresh workspace after snapshot verification. Hidden for monitors. |
 | **Edit** | Open the original prompt for editing; submit runs snapshot-verified restart with the replacement prompt. Hidden for monitors. |
@@ -303,7 +303,7 @@ choices initially show `computing…`; unavailable choices show their refusal re
 | **Dismiss** | Verify the snapshot, dismiss the row, and release the workspace. |
 
 `j`/`k` select a row, `Enter` activates it, and `Esc` leaves recovery pending. Instruct
-and Edit release nothing when the prompt bar opens. Canceling leaves the agent hijacked
+and Edit release nothing when the prompt composer opens. Canceling leaves the agent hijacked
 and saves the draft through prompt history. Submitting uses a durable recovery operation
 that continues if the TUI closes. `x` on a hijacked row also uses snapshot-verified
 dismissal. Expired holds omit Continue, Escalate, Instruct, and Re-run command. A

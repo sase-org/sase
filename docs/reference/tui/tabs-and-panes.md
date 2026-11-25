@@ -12,7 +12,7 @@ and the Beads pane.
 
 sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-While a prompt input bar is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
+While a prompt composer is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
 expansion, tabstops, list indent) and never switch tabs.
 
 | Tab           | Description                                                                                                                                                                                                                                                                                                                                                                              |

@@ -26,7 +26,7 @@ History loads lazily on first activation so opening Stash performs no history di
 For a goal-based workflow to search and replay an old prompt, see
 [Find and replay an old prompt](../../guides/find-and-replay-prompt.md).
 
-Press `Ctrl+K` from the prompt input to open the overlay on the History tab. That
+Press `Ctrl+K` from the prompt composer to open the overlay on the History tab. That
 shortcut is available when the current prompt is a single logical line; that line's
 first active workspace reference (e.g. `+sase`) becomes an initial `project:<name>`
 filter scope once the project-identity snapshot resolves, with the remaining text
@@ -42,7 +42,7 @@ sase warns `No previously launched VCS macro` and opens nothing. `,>` opens Hist
 cancelled prompts visible, and `,Ctrl+G` skips the overlay and opens the newest history
 entry in `$EDITOR`. Both use that same prefix check and the same prefix replacement, so
 with no qualifying prefix they warn and open nothing. `Space` on a main tab is separate:
-it prefills the prompt input with that same non-home prefix, or opens a blank home
+it prefills the prompt composer with that same non-home prefix, or opens a blank home
 prompt when none is recorded. The History tab loads prompts previously launched from
 sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
 launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not
@@ -51,7 +51,7 @@ prompt. The same history is available from the shell through [`sase prompt`](../
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
-prefixes also feed the prompt-input MRU controls. In the prompt input, the MRU ring is
+prefixes also feed the prompt composer's MRU controls. In the composer, the MRU ring is
 ordered from most recent to oldest: `Ctrl+P` moves toward older launchable workspace
 prefixes, while `Ctrl+N` moves toward newer prefixes. Each edge has a no-prefix stop
 that removes the first launchable workspace tag from the prompt without touching the
@@ -77,8 +77,8 @@ the most recent entry and `Ctrl+N` starts at the oldest one.
 `Enter` submits directly only when the overlay was opened from a History entry point
 (`Ctrl+K`, `,.`, `,>`). When it was opened from a Stash entry point (`@`, `,@`,
 `Ctrl+G p`, or the `stash:` chip) and you switch to History, nothing launches: `Enter`
-and `Tab` load the prompt into the prompt bar as a draft, and `Ctrl+G` opens it in
-`$EDITOR` and then loads the edited text into the bar.
+and `Tab` load the prompt into the prompt composer as a draft, and `Ctrl+G` opens it in
+`$EDITOR` and then loads the edited text into the composer.
 
 ### Filtering
 
@@ -123,7 +123,7 @@ single-file store.
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt stacks](prompt-stacks.md) — multi-agent panes, stash, and trash.
 - [Find and replay a prompt](../../guides/find-and-replay-prompt.md) — History workflow.
 - [TUI migration notes](../upgrading/tui.md) — prompt-history store.

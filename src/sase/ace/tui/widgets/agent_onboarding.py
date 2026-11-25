@@ -242,7 +242,7 @@ class AgentOnboarding(VerticalScroll):
         append_section_heading(text, "Start from the prompt", accent=_AGENTS_ACCENT)
         append_keycap(text, key_display_name(app.start_agent_from_patch))
         text.append(
-            "open the prompt bar (pre-filled with your last VCS macro, if "
+            "open the prompt composer (pre-filled with your last VCS macro, if "
             "any; `Ctrl+U` clears it) and describe a task; this launches an "
             "agent in your home workspace."
         )
@@ -251,7 +251,7 @@ class AgentOnboarding(VerticalScroll):
             append_keycap(text, key_display_name(app.start_custom_agent))
             text.append("launch against a specific project or PR instead.")
             text.append("\n")
-        text.append("The prompt bar works from any tab.", style="dim")
+        text.append("The prompt composer works from any tab.", style="dim")
         text.append("\n")
         text.append(
             "Words K proves misspelled stay underlined in every prompt after that.",

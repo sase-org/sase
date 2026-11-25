@@ -196,7 +196,7 @@ head, without a launch. Click the status-row `project: +<name>` chip to open the
 launch picker, which is the surface that actually records a launch.
 
 Because setting the current project and launching an agent both promote the same MRU
-entry, making a project current also moves it to the head of the prompt bar's `<ctrl+p>`
+entry, making a project current also moves it to the head of the prompt composer's `<ctrl+p>`
 VCS-prefix cycle — the same coupling a launch already produces.
 
 The chip is the project half of the launch-context cluster at the far right of every

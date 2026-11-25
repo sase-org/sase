@@ -27,7 +27,7 @@ def admin_center_opener_help_label() -> str:
 
 
 PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
-    "Prompt Input",
+    "Prompt Composer",
     [
         ("{{ }} / {% %}", "Jinja highlighting"),
         ("jinja chip", "Parse and unknown-var status"),

@@ -41,10 +41,10 @@ surface because they are supplied by workflow execution rather than typed by the
 | `[` / `]` | Switch to the previous / next Config child                                 |
 | `Ctrl+D`  | Scroll preview panel down                                                  |
 | `Ctrl+U`  | Scroll preview panel up / clear input                                      |
-| `Enter`   | Target the highlighted macro: load it into the home prompt bar for editing |
+| `Enter`   | Target the highlighted macro: load it into the home prompt composer for editing |
 | `E`       | Open the highlighted definition in `$EDITOR`                               |
 | `Ctrl+O`  | Add a new macro                                                            |
-| `Ctrl+I`  | Inline-expand the highlighted macro into the home prompt bar               |
+| `Ctrl+I`  | Inline-expand the highlighted macro into the home prompt composer               |
 | `Esc`     | Close SASE Admin Center                                                    |
 
 The filter input starts hidden. Press `/` to reveal it, then type to narrow the list in
@@ -56,13 +56,13 @@ over the non-header rows.
 
 ### Editing Macros
 
-Press `Enter` on any macro to load its definition into the home prompt bar and target it
+Press `Enter` on any macro to load its definition into the home prompt composer and target it
 for editing — see
 [Editing an Existing Macro from the TUI](prompt-input.md#editing-an-existing-macro-from-the-tui) for
 the full targeting loop, including the visual chip states, the target-aware `Enter` save
 menu, and the chezmoi-aware write path. Project, home, and config sources are editable
-and bind the bar to their source file. Read-only sources (legacy, plugin, and built-in)
-load without a target: the bar shows a persistent read-only marker instead, and `gw`
+and bind the composer to their source file. Read-only sources (legacy, plugin, and built-in)
+load without a target: the composer shows a persistent read-only marker instead, and `gw`
 falls through to the save-as flow so your edits land in a new, editable copy rather than
 being silently discarded. Press `E` to open an editable definition directly in `$EDITOR`
 instead; after saving, the browser offers the applicable follow-up actions (commit/push,
@@ -87,7 +87,7 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ## Snippets {#snippets-1}
 
-The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
+The prompt composer supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
 to template strings. Inspect or edit the same catalog from the shell with
 [`sase snippet`](../macros/fields.md#snippet-cli) (`list`, `show`, `add`,
@@ -104,7 +104,7 @@ ace:
 
 ### Usage
 
-1. Type a trigger word (e.g., `fix`) in the prompt input.
+1. Type a trigger word (e.g., `fix`) in the prompt composer.
 2. Press `Tab`. If the word before the cursor matches a snippet, it is replaced with the
    template text.
 3. If the template contains tabstop markers (`$1`, `$2`, ...), the cursor jumps to `$1`
@@ -207,7 +207,7 @@ You can also create a snippet on the fly from the prompt save panel, opened with
 config file should store the new `ace.snippets` entry. In snippet mode, rows are grouped
 by source and sorted alphabetically by trigger; snippet completions elsewhere are listed
 in trigger order, too, for stable display. As soon as sase's TUI reports the snippet as
-created or saved, it is available to every prompt input already open in the current TUI;
+created or saved, it is available to every prompt composer already open in the current TUI;
 no prompt remount or restart is needed. When
 [`ace.snippet_config_path`](../config/ace-prompts.md#acesnippetconfigpath) is
 configured, this panel's row list always offers it, pre-selected, as a synthetic
@@ -322,10 +322,12 @@ disabled, rows that would still lose after save are badged `⚠ shadowed by …`
 default is badged `★ override`. `⇧Tab` from that name step returns to the override
 picker, not the original one.
 
-### Authoring a snippet from the prompt bar
+<a id="authoring-a-snippet-from-the-prompt-bar"></a>
+
+### Authoring a snippet from the prompt composer
 
 `gt` (NORMAL), `Ctrl+G t`, or `Ctrl+G Ctrl+T` (INSERT or NORMAL) opens a dedicated
-snippet pane at the bottom of the prompt input stack, a faster loop than the general
+snippet pane at the bottom of the prompt stack, a faster loop than the general
 save panel above when you already know you're authoring a trigger:
 
 1. **Choose where.** `gt` first shows the [location picker](#save-location-picker): one
@@ -357,7 +359,7 @@ save panel above when you already know you're authoring a trigger:
    overwrite reports `✓ No changes` and closes without writing; a destination that
    changed on disk since the pane opened warns and offers `r` to reload the current
    definition instead of overwriting blindly. `Enter` writes the file, publishes the new
-   template to every open prompt input in the session immediately (no restart needed),
+   template to every open prompt composer in the session immediately (no restart needed),
    and closes the pane only once the write succeeds — a failed write leaves the draft in
    place to retry.
 5. **Follow-ups.** A successful save runs the same post-write chooser as the general
@@ -385,7 +387,7 @@ access to macro references rather than expanding static templates.
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets, repos, and spellcheck.
 - [Macros](../macros/index.md) — reusable prompts and directives.
 - [TUI migration notes](../upgrading/tui.md) — compatibility macro sources.

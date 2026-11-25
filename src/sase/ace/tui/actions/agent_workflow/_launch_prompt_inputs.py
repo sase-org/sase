@@ -138,7 +138,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         def _after(values: object) -> None:
             if not prompt_session_is_live(self, owner_session_id):
                 self.notify(  # type: ignore[attr-defined]
-                    "Launch cancelled; the prompt bar was closed while collecting inputs.",
+                    "Launch cancelled; the prompt composer was closed while collecting inputs.",
                     severity="warning",
                 )
                 return

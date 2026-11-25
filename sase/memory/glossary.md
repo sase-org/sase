@@ -30,12 +30,13 @@ Macro Invocation (smack, macro reference, macro ref); Macro Memory (memory file,
 memory); Macro Part; Macro Swarm; Macro Workflow; Memory Strand; Memory Web; Named Proc;
 Nav Item (navigation item); Nav Section (navigation section); Node Panel; Oneshot
 Service Proc (oneshot, background command); Patch; Proc; Project Tag (macro project
-tag); Prompt Stash (stash); Raw Prompt; Receipt; Reference Memory (reference memory);
-Required Plugin (required plugin); Routine (Lumberjack); Sase Agent (agent); Sase Agent
-Session (agent session); Sase Gate (gate); Sase Monitor (monitor, monitor turn); Sase
-Node (node); Sase Project; Sase Repo; Sase Scheduler (scheduler, AXE); Sase Service
-(service host); Sase Turn (turn); Sase Workspace (workspace); Service Proc; Stash Trash;
-Stitch; Strand Keyword; Task Type (task type); Tool Catalog; Tool Run; Triage Verdict;
-Usage Window (usage-window)
+tag); Prompt Composer (composer, prompt bar, prompt input widget); Prompt Stash (stash);
+Raw Prompt; Receipt; Reference Memory (reference memory); Required Plugin (required
+plugin); Routine (Lumberjack); Sase Agent (agent); Sase Agent Session (agent session);
+Sase Gate (gate); Sase Monitor (monitor, monitor turn); Sase Node (node); Sase Project;
+Sase Repo; Sase Scheduler (scheduler, AXE); Sase Service (service host); Sase Turn
+(turn); Sase Workspace (workspace); Service Proc; Stash Trash; Stitch; Strand Keyword;
+Task Type (task type); Tool Catalog; Tool Run; Triage Verdict; Usage Window
+(usage-window)
 
 <!-- /sase:strands -->

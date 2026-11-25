@@ -86,7 +86,7 @@ TUI and `sase macro show` color argument keys and values by type and underline u
 repeated, or mistyped keywords; the macro LSP reports the same argument spans as
 [semantic tokens](../integrations/editor.md#semantic-token-legend). See
 [sase's TUI completion](../tui/prompt-completion.md#completion) and the
-[Prompt Input Widget](../tui/prompt-input.md#prompt-input-widget).
+[Prompt Composer](../tui/prompt-input.md#prompt-composer).
 
 Compact input signatures use the shared type label: closed sets of up to four values
 show their canonical values, larger sets show the named type and count, and domain
@@ -158,7 +158,7 @@ sase; qualified names belong to plugins.
 
 The same catalog drives every surface: the runtime binder,
 [`sase macro types`](../cli/macro.md#sase-macro-types) and `sase macro show`, the
-[TUI prompt bar](../tui/prompt-completion.md#completion), and the [macro LSP](../integrations/editor.md#lsp-features).
+[TUI prompt composer](../tui/prompt-completion.md#completion), and the [macro LSP](../integrations/editor.md#lsp-features).
 Completing, validating, and explaining a value follows one rule.
 
 ```yaml
@@ -209,7 +209,7 @@ explain output, argument help, and editor documentation can use them as human-fa
 help text.
 
 sase's TUI can synthesize required `text` inputs from raw `<placeholder>` tags when
-saving a prompt-bar draft as a new global or frontmatter-local macro. See
+saving a prompt composer draft as a new global or frontmatter-local macro. See
 [Raw Prompt Placeholders](templating.md#raw-prompt-placeholders) for the launch-time collection,
 save-time conversion, and literal-zone rules.
 

@@ -1977,14 +1977,14 @@
         },
         "snippets": {
           "type": "object",
-          "description": "Snippet expansions for the prompt input (trigger string to expansion text)",
+          "description": "Snippet expansions for the prompt composer (trigger string to expansion text)",
           "additionalProperties": {
             "type": "string"
           }
         },
         "snippet_config_path": {
           "type": "string",
-          "description": "Config file that receives new ace.snippets entries written from the prompt bar. Empty string uses the user's sase.yml (the chezmoi source when chezmoi is enabled). A relative path resolves against ~/.config/sase/. The suffix must be .yml or .yaml, and the file must be writable; an unusable configured value falls back to the default and reports why.",
+          "description": "Config file that receives new ace.snippets entries written from the prompt composer. Empty string uses the user's sase.yml (the chezmoi source when chezmoi is enabled). A relative path resolves against ~/.config/sase/. The suffix must be .yml or .yaml, and the file must be writable; an unusable configured value falls back to the default and reports why.",
           "default": ""
         },
         "tribes": {
@@ -2389,7 +2389,7 @@
         },
         "prompt_completion": {
           "type": "object",
-          "description": "Live completion settings for sase's TUI prompt input",
+          "description": "Live completion settings for sase's TUI prompt composer",
           "additionalProperties": false,
           "properties": {
             "auto": {
@@ -2509,12 +2509,12 @@
         },
         "prompt_spellcheck": {
           "type": "object",
-          "description": "Sticky misspelling highlight settings for sase's TUI prompt input",
+          "description": "Sticky misspelling highlight settings for sase's TUI prompt composer",
           "additionalProperties": false,
           "properties": {
             "highlight": {
               "type": "boolean",
-              "description": "Whether words K has proven misspelled are underlined in every prompt input; K still records misspellings when false",
+              "description": "Whether words K has proven misspelled are underlined in every prompt composer; K still records misspellings when false",
               "default": true
             },
             "max_remembered_words": {
@@ -2527,7 +2527,7 @@
         },
         "prompt_submission": {
           "type": "object",
-          "description": "Prompt submission confirmation settings for sase's TUI prompt input",
+          "description": "Prompt submission confirmation settings for sase's TUI prompt composer",
           "additionalProperties": false,
           "properties": {
             "confirm_on_enter": {
@@ -2633,7 +2633,7 @@
         },
         "prompt_inputs": {
           "type": "object",
-          "description": "Prompt input collection settings for sase's TUI prompt input",
+          "description": "Prompt input collection settings for sase's TUI prompt composer",
           "additionalProperties": false,
           "properties": {
             "collect_raw_placeholders": {

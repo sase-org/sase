@@ -16,13 +16,14 @@ Remove details that belong only to one task, and make changing values easy to id
 ## 1. Load the prompt you want to reuse
 
 Open the prompt in SASE's TUI. For a prompt that has already run, find it in History and
-load it into the prompt bar as a draft. For an unsent draft, keep it in the prompt bar.
-See [Find and replay an old prompt](find-and-replay-prompt.md) for the History steps.
+load it into the prompt composer as a draft. For an unsent draft, keep it in the prompt
+composer. See [Find and replay an old prompt](find-and-replay-prompt.md) for the History
+steps.
 
 ## 2. Save it as a macro
 
-In the prompt bar, use `Ctrl+G X` to open the save panel. Choose a project location when
-the prompt belongs to one repository, or a home location when you want it across
+In the prompt composer, use `Ctrl+G X` to open the save panel. Choose a project location
+when the prompt belongs to one repository, or a home location when you want it across
 projects. Give it a short name that describes what it does and save it.
 
 ## 3. Use the macro in a prompt

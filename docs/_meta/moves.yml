@@ -118,9 +118,9 @@ moves:
       capitalized-aliases: reference/tui/snippets.md#capitalized-aliases
       save-location-picker: reference/tui/snippets.md#save-location-picker
       existing-definition-finder: reference/tui/snippets.md#existing-definition-finder
-      authoring-a-snippet-from-the-prompt-bar: reference/tui/snippets.md#authoring-a-snippet-from-the-prompt-bar
+      authoring-a-snippet-from-the-prompt-bar: reference/tui/snippets.md#authoring-a-snippet-from-the-prompt-composer
       macro-picker: reference/tui/snippets.md#macro-picker
-      prompt-input-widget: reference/tui/prompt-input.md#prompt-input-widget
+      prompt-input-widget: reference/tui/prompt-input.md#prompt-composer
       cursor-readout: reference/tui/prompt-input.md#cursor-readout
       prompt-search: reference/tui/prompt-input.md#prompt-search
       insert-mode-default: reference/tui/prompt-input.md#insert-mode-default

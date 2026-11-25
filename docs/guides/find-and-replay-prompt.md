@@ -15,16 +15,16 @@ workspace target before you replay it so the new run goes to the right place.
 
 ## 1. Open prompt history
 
-In SASE's TUI, press `Ctrl+K` in the prompt bar or `,.` from a main tab to open History.
-Search for a distinctive phrase from the prompt. Use the project filter when several
-projects have similar prompts. Press `Ctrl+J` to load older history when the prompt is
-not in the current page.
+In SASE's TUI, press `Ctrl+K` in the prompt composer or `,.` from a main tab to open
+History. Search for a distinctive phrase from the prompt. Use the project filter when
+several projects have similar prompts. Press `Ctrl+J` to load older history when the
+prompt is not in the current page.
 
 ## 2. Inspect the prompt before launching
 
-Select a history row to read its full prompt. Press `Tab` to load it into the prompt bar
-as a draft, then update its workspace target or task details if they have changed. Press
-`Enter` and confirm the launch action when the prompt is ready.
+Select a history row to read its full prompt. Press `Tab` to load it into the prompt
+composer as a draft, then update its workspace target or task details if they have
+changed. Press `Enter` and confirm the launch action when the prompt is ready.
 
 Pressing `Enter` on a history row submits it directly. Load it with `Tab` first when you
 want to review or edit it before it runs.

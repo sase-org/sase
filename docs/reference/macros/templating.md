@@ -71,7 +71,7 @@ Availability: conditional names render only when their precondition holds — `n
 names need truthy `skill` frontmatter in macro scope. A prompt that declares its own
 `input:` frontmatter renders before any agent run exists, so the run-time names above
 (`wait`, `patch_name`, `workspace_num`, `cl_name`, `n`, `N`, `agents`, `wait_chats`) are
-unavailable there. Typing `{{` in the prompt input or an editor with the macro LSP
+unavailable there. Typing `{{` in the prompt composer or an editor with the macro LSP
 offers exactly the names that render in the current scope; see
 [Editor LSP](cli-and-editor.md#editor-lsp).
 

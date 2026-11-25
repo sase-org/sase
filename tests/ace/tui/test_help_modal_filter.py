@@ -57,12 +57,12 @@ async def test_typing_live_filters_columns_and_status() -> None:
         modal = _modal(page)
         modal.action_focus_filter()
 
-        await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
+        await page.press("c", "o", "m", "p", "o", "s", "e", "r")
+        await page.wait_for(lambda _s: "Prompt Composer" in _combined_columns(modal))
 
         combined = _combined_columns(modal)
-        assert "Beads Pane" in combined
-        assert "Prompt Input" in combined
+        assert "Prompt Composer" in combined
+        assert "Prompt Composer" in combined
         assert "Patches Pane" not in combined
         status = _static_plain(modal, "#help-filter-status")
         assert status.strip() != ""
@@ -107,8 +107,8 @@ async def test_enter_applies_filter_and_focuses_results() -> None:
         await page.expect_modal("HelpModal")
         modal = _modal(page)
         modal.action_focus_filter()
-        await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
+        await page.press("c", "o", "m", "p", "o", "s", "e", "r")
+        await page.wait_for(lambda _s: "Prompt Composer" in _combined_columns(modal))
         before = _combined_columns(modal)
 
         await page.press("enter")
@@ -222,8 +222,8 @@ async def test_filter_then_clear_restores_byte_identical_columns() -> None:
         before_right = _static_plain(modal, "#help-right-column")
 
         modal.action_focus_filter()
-        await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
+        await page.press("c", "o", "m", "p", "o", "s", "e", "r")
+        await page.wait_for(lambda _s: "Prompt Composer" in _combined_columns(modal))
 
         await page.press("escape")
         await page.wait_for(lambda _s: modal._filter_query == "")

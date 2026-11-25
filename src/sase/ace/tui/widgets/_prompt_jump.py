@@ -283,11 +283,11 @@ class PromptJumpMixin(_MixinBase):
             return
         bar = self._find_prompt_bar()
         if bar is None:
-            self.notify("No prompt input bar is available", severity="warning")
+            self.notify("No prompt composer is available", severity="warning")
             return
         load = getattr(bar, "stash_all_and_load_macro_markdown", None)
         if not callable(load):
-            self.notify("Prompt input bar cannot load this target", severity="error")
+            self.notify("The prompt composer cannot load this target", severity="error")
             return
         from sase.ace.tui.widgets.prompt_stack import (
             MacroBinding,

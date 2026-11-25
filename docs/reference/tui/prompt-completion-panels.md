@@ -6,7 +6,7 @@ description: Glossary, memory, snippets, repo-name, and spellcheck completion pa
 # Prompt completion panels
 
 This page lists the glossary, memory, snippets, repo-name, and spellcheck completion
-panels in the sase TUI prompt widget.
+panels in the sase TUI prompt composer.
 
 ## Glossary terms
 
@@ -435,7 +435,7 @@ the rest of prompt preview. Run `sase doctor -D` to see the exact optional-tool 
 and installation hint.
 
 Every word `K` proves misspelled is remembered durably and gets a red underline in every
-prompt input from that moment on, in every `sase tui` session -- no live spell-checking
+prompt composer from that moment on, in every `sase tui` session -- no live spell-checking
 runs on every keystroke; only what `K` has already checked is ever squiggled. This is
 distinct from the bold blue glossary underline, the bold lavender repo-name
 underline, and the status-colored bead-ID underline, which mark a definable
@@ -459,7 +459,7 @@ words are stored at `sase_home()/prompt_misspellings.json`; see
 disable the highlight or change how many words are retained.
 
 sase's TUI also computes a non-disruptive live suggestion after a short debounce while
-the prompt input is in INSERT mode. The suggestion appears in the prompt bar subtitle as
+the prompt composer is in INSERT mode. The suggestion appears in the composer subtitle as
 `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits the prompt as
 typed, so live suggestions cannot accidentally replace text on send.
 
@@ -524,7 +524,7 @@ The same hint panel appears while typing narrow, known argument forms such as `#
 `#name(arg=`. The hint is advisory; the backend macro parser still owns expansion
 semantics when the prompt is submitted. Detection intentionally stays conservative, so
 prose shorthand, URLs, unknown macro names, `#name+`, and completed colon text such as
-`#name: value` do not keep the prompt-bar hint open.
+`#name: value` do not keep the composer hint open.
 
 ## Related
 

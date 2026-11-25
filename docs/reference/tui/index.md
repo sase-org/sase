@@ -35,7 +35,7 @@ for navigating, managing, and operating on Patches, agents, and machine services
 
 ## Prompt and launch
 
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, macros.
+- [Prompt Composer](prompt-input.md) — insert mode, alt-brace, macros.
 - [Prompt modes](prompt-modes.md) — NORMAL and Visual keys.
 - [Prompt stacks](prompt-stacks.md) — panes, stash, trash.
 - [Prompt completion](prompt-completion.md) — tokens and next-word prediction.

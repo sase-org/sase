@@ -262,10 +262,10 @@
 - [Procs tab](reference/tui/procs-tab.md) — The Procs tab layout, status icons, monitors, durable procs, filtering, and keys.
 - [Projects tab](reference/tui/projects-tab.md) — The Projects tab, adding and initializing projects, and the current-project indicator.
 - [Prompt completion panels](reference/tui/prompt-completion-panels.md) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
-- [Prompt completion](reference/tui/prompt-completion.md) — Token completion in the sase TUI prompt widget, including next-word prediction.
-- [Prompt input](reference/tui/prompt-input.md) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
-- [Prompt modes](reference/tui/prompt-modes.md) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
-- [Prompt stacks](reference/tui/prompt-stacks.md) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
+- [Prompt completion](reference/tui/prompt-completion.md) — Token completion in the sase TUI prompt composer, including next-word prediction.
+- [Prompt Composer](reference/tui/prompt-input.md) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt composer.
+- [Prompt modes](reference/tui/prompt-modes.md) — NORMAL and Visual mode keys for the sase TUI prompt composer.
+- [Prompt stacks](reference/tui/prompt-stacks.md) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt composer.
 - [Prompts overlay](reference/tui/prompts-overlay.md) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
 - [Query system](reference/tui/query-system.md) — Editing, saving, and recalling queries in the sase TUI.
 - [Services tab](reference/tui/services-tab.md) — Services tab sidebar, description panel, job results, and control keys.

@@ -405,7 +405,7 @@ from that preserved position.
   the first-paint text because the follow stays off. A change to either file schedules
   an update, and a status check of both files about once a second is the backstop. While
   the follow is idle, later updates are at least 0.3 seconds apart; the first update can
-  be immediate. The follow waits while you are navigating or the prompt bar is open, and
+  be immediate. The follow waits while you are navigating or the prompt composer is open, and
   retries every 0.25 seconds. It stops for this row when you leave the Agents tab, when
   the detail view is pinned to one prior attempt number, or while hint mode is showing.
   Changing the selection cancels this follow; the newly selected row starts its own when

@@ -28,7 +28,7 @@ global latest agent.
 
 ### Frontmatter Panel (sase's TUI)
 
-In the `sase tui` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter
+In the `sase tui` prompt composer, ad hoc prompt frontmatter has a structured **Frontmatter
 Panel** above the prompt stack, with the same field set a macro `.md` file supports
 (`name`, `description`, `tags`, `input`, `macros`, `skill`, `snippet`). Open or focus it
 with the prompt NORMAL-mode `g=` keymap; in the panel's rows mode, `g=` runs the

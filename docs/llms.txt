@@ -264,10 +264,10 @@
 - [Procs tab](https://sase.sh/reference/tui/procs-tab/) — The Procs tab layout, status icons, monitors, durable procs, filtering, and keys.
 - [Projects tab](https://sase.sh/reference/tui/projects-tab/) — The Projects tab, adding and initializing projects, and the current-project indicator.
 - [Prompt completion panels](https://sase.sh/reference/tui/prompt-completion-panels/) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
-- [Prompt completion](https://sase.sh/reference/tui/prompt-completion/) — Token completion in the sase TUI prompt widget, including next-word prediction.
-- [Prompt input](https://sase.sh/reference/tui/prompt-input/) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
-- [Prompt modes](https://sase.sh/reference/tui/prompt-modes/) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
-- [Prompt stacks](https://sase.sh/reference/tui/prompt-stacks/) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
+- [Prompt completion](https://sase.sh/reference/tui/prompt-completion/) — Token completion in the sase TUI prompt composer, including next-word prediction.
+- [Prompt Composer](https://sase.sh/reference/tui/prompt-input/) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt composer.
+- [Prompt modes](https://sase.sh/reference/tui/prompt-modes/) — NORMAL and Visual mode keys for the sase TUI prompt composer.
+- [Prompt stacks](https://sase.sh/reference/tui/prompt-stacks/) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt composer.
 - [Prompts overlay](https://sase.sh/reference/tui/prompts-overlay/) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
 - [Query system](https://sase.sh/reference/tui/query-system/) — Editing, saving, and recalling queries in the sase TUI.
 - [Services tab](https://sase.sh/reference/tui/services-tab/) — Services tab sidebar, description panel, job results, and control keys.
