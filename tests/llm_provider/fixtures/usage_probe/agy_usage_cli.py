@@ -190,6 +190,29 @@ def main() -> int:
         envelope["conversation_id"] = "conv-123"
         print(json.dumps(envelope), flush=True)
         return 0
+    if mode == "unstarted_epoch":
+        envelope = _success_envelope()
+        command = envelope["command"]
+        assert isinstance(command, dict)
+        data = command["data"]
+        assert isinstance(data, dict)
+        groups = data["groups"]
+        assert isinstance(groups, list)
+        buckets = groups[1]["buckets"]
+        assert isinstance(buckets, list)
+        for bucket in buckets:
+            assert isinstance(bucket, dict)
+            bucket.pop("description", None)
+            bucket["remaining_fraction"] = 1
+            bucket["reset_time"] = "1970-01-01T00:00:00Z"
+        envelope["response"] = (
+            "Gemini Models\tWeekly Limit Remaining\t96%\t2026-09-27T20:14:34Z\n"
+            "Gemini Models\tFive Hour Limit Remaining\t87%\t2026-09-21T23:31:12Z\n"
+            "Claude and GPT models\tWeekly Limit Remaining\t100%\t1970-01-01T00:00:00Z\n"
+            "Claude and GPT models\tFive Hour Limit Remaining\t100%\t1970-01-01T00:00:00Z\n"
+        )
+        print(json.dumps(envelope), flush=True)
+        return 0
     if mode == "omitted_zero":
         envelope = _success_envelope()
         command = envelope["command"]

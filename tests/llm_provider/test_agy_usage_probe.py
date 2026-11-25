@@ -272,6 +272,42 @@ def test_agy_usage_probe_collects_four_windows(tmp_path: Path) -> None:
     assert usage_entry["cwd"] == str(Path(log_file).parent)
 
 
+def test_agy_usage_probe_unstarted_epoch_reset_collects_windows(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_agy(tmp_path)
+    result, _, _ = _run_agy_probe(fake, tmp_path, mode="unstarted_epoch")
+    assert result["outcome"] == "ok"
+    assert result["completeness"] == "complete"
+    by_key = {window["key"]: window for window in result["windows"]}
+    assert sorted(by_key) == ["3p-5h", "3p-weekly", "gemini-5h", "gemini-weekly"]
+
+    weekly = by_key["gemini-weekly"]
+    assert weekly["used_percent"] == pytest.approx(3.8758575916290307)
+    assert weekly["resets_at"] == pytest.approx(_epoch("2026-09-27T20:14:34Z"))
+    assert weekly["period_start"] == pytest.approx(
+        _epoch("2026-09-27T20:14:34Z") - 604800.0
+    )
+    assert weekly["duration_seconds"] == pytest.approx(604800.0)
+
+    five_hour = by_key["gemini-5h"]
+    assert five_hour["used_percent"] == pytest.approx(13.350301980972285)
+    assert five_hour["resets_at"] == pytest.approx(_epoch("2026-09-21T23:31:12Z"))
+    assert five_hour["duration_seconds"] == pytest.approx(18000.0)
+
+    weekly_3p = by_key["3p-weekly"]
+    assert weekly_3p["used_percent"] == pytest.approx(0.0)
+    assert weekly_3p["resets_at"] is None
+    assert weekly_3p["period_start"] is None
+    assert weekly_3p["duration_seconds"] == pytest.approx(604800.0)
+
+    five_3p = by_key["3p-5h"]
+    assert five_3p["used_percent"] == pytest.approx(0.0)
+    assert five_3p["resets_at"] is None
+    assert five_3p["period_start"] is None
+    assert five_3p["duration_seconds"] == pytest.approx(18000.0)
+
+
 def test_agy_usage_probe_old_version_never_spawns_usage(tmp_path: Path) -> None:
     fake = _make_fake_agy(tmp_path)
     result, entries, _ = _run_agy_probe(fake, tmp_path, version="1.0.10")
