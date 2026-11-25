@@ -424,7 +424,8 @@ rendering. [Memory Web](glossary.md#memory-web) and
 
 ## Memory Webs Render In Their Own Section {#webs-render-in-their-own-section}
 
-_Status: accepted · Decided: 2026-08-30._
+_Status: superseded-in-part · Decided: 2026-08-30 · Superseded by:
+[Rosters Load On Demand](#rosters-load-on-demand)._
 
 _Also known as: web kind decides placement, tier-free web descriptors._
 
@@ -529,6 +530,23 @@ consecutive weeks, plus a hermeticity proof — measured through `sase tool rece
 never asserted from a single audit.
 
 [Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/receipts-prove-before-they-skip.md)
+
+## Rosters Load On Demand {#rosters-load-on-demand}
+
+_Status: accepted · Decided: 2026-11-25._
+
+_Also known as: rosters-load-on-demand, on-demand memory web rosters._
+
+A web descriptor can replace its generated roster with an audited read pointer and
+declare when agents must read that roster.
+
+**Claim.** A memory web may set `roster_loading: on_demand` to replace its generated
+roster with a pointer to `sase memory read roster:<web> -r "<why>"`. The web declares
+the situations that require the roster in `roster_read_when:`. The on-disk descriptor
+still carries its complete roster, and the authored descriptor body still renders in the
+Memory Webs section. A roster read is audited and can be batched with strand reads.
+
+[Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/rosters-load-on-demand.md)
 
 ## Size Aliases Descend The Effort Ladder {#size-alias-effort-ladder}
 

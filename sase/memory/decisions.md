@@ -6,6 +6,13 @@ description:
 roster: list
 roster_label: DECISIONS
 strand_noun: decision
+roster_loading: on_demand
+roster_read_when:
+  - before writing or revising a SASE plan; cite each governing decision as
+    `decisions:<keyword>`
+  - when performing research, to find decisions related to the question before
+    recommending anything
+  - before changing behavior a decision may govern when no plan already cites it
 ---
 
 # Decisions
@@ -96,8 +103,9 @@ costs, and the condition that would reopen it.
       `memory-links-are-authored`]_ A keyed memory collection is a flat descriptor note
       plus a sibling strand directory, addressed web:keyword.
 21. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`)
-    - A memory web's placement in generated agent instructions follows from its kind,
-      not from a `type:` declaration on its descriptor.
+    - _[partly superseded by `decisions:rosters-load-on-demand`]_ A memory web's
+      placement in generated agent instructions follows from its kind, not from a
+      `type:` declaration on its descriptor.
 22. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`)
     - Only the host-launched root agent submits final declarations and runs turn-ending
       operations; native helpers and forks return their results to their parent.
@@ -115,21 +123,24 @@ costs, and the condition that would reopen it.
     - Verdict receipts are proof for host completion, never execution skip or reuse;
       reuse waits for measured content-equivalent repeat opportunity plus a hermeticity
       proof.
-27. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
+27. **Rosters Load On Demand** (`rosters-load-on-demand`)
+    - A web descriptor can replace its generated roster with an audited read pointer and
+      declare when agents must read that roster.
+28. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
     - Built-in size aliases run a model at xhigh on its first appearance from @xlarge
       down and one rung lower on each reappearance; every alias should span more than
       one provider.
-28. **The Committed AGENTS.md Stays A Readable Projection** (`readable-agents-md`)
+29. **The Committed AGENTS.md Stays A Readable Projection** (`readable-agents-md`)
     - The repo commits the full runtime AGENTS.md projection plus a CLAUDE.md copy,
       checked by CI; SASE runs still get per-invocation bundles, and agy, Qwen, and
       OpenCode stay on native AGENTS.md discovery.
-29. **The Rust Core Is Required** (`rust-core-required`)
+30. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-30. **Triage Annotates; It Never Changes an Exit Code**
+31. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-31. **Verification Is Two-Speed** (`two-speed-verification`)
+32. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.

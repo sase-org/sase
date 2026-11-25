@@ -5,9 +5,14 @@ summary:
   A memory web's placement in generated agent instructions follows from its kind, not
   from a `type:` declaration on its descriptor.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-08-30
+  superseded_by: decisions:rosters-load-on-demand
 ---
+
+> **Superseded in part** by [[decisions:rosters-load-on-demand]]: its claim that every
+> web descriptor always renders its full roster in generated instructions is retired.
+> The descriptor body still renders in the Memory Webs section.
 
 **Claim.** A memory web descriptor does not declare `type:` or `parent:`;
 `sase memory init` ignores both if present and strips them on convergence. A web's kind
