@@ -56,8 +56,8 @@ def _compile_uncached(
     """Compose bundle text and sections without touching the cache.
 
     Also returns the :class:`~sase.instructions.compaction.CompactableWeb`
-    entries for every ``roster: list`` web, so a capped compile can re-render
-    their rosters without rediscovering memory.
+    entries for every always-loaded ``roster: list`` web, so a capped compile
+    can re-render their rosters without rediscovering memory.
     """
     from sase.instructions.compaction import CompactableWeb
     from sase.instructions.sections_units import web_section_id
@@ -190,7 +190,7 @@ def _compile_uncached(
                 web=web,
             )
             for web in web_plan.webs
-            if web.roster == "list"
+            if web.roster == "list" and web.roster_loading == "always"
         )
         excluded = retired_note_relative_paths(
             root, include_project_memory=include_project_memory

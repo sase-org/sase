@@ -172,3 +172,97 @@ def test_memory_web_blocks_invalid_webs_before_writing(
 
     assert exit_code == 1
     assert any("must not declare type" in blocker for blocker in plan.blockers)
+
+
+def _on_demand_runbooks(project_root: Path) -> Path:
+    descriptor = project_root / "sase" / "memory" / "runbooks.md"
+    write(
+        descriptor,
+        "---\n"
+        "web: true\n"
+        "roster: list\n"
+        "roster_label: RECORDS\n"
+        "strand_noun: record\n"
+        "description: Runbook catalog.\n"
+        "roster_loading: on_demand\n"
+        "roster_read_when:\n"
+        "  - before writing a plan\n"
+        "---\n\n"
+        "# Runbooks\n\n"
+        "Authored preamble.\n",
+    )
+    write(
+        project_root / "sase" / "memory" / "runbooks" / "alpha.md",
+        "---\nkeyword: Alpha Record\nsummary: First record.\n---\n\n"
+        "Hidden strand body.\n",
+    )
+    write(
+        project_root / "sase" / "memory" / "runbooks" / "beta.md",
+        "---\nkeyword: Beta Record\nsummary: Second record.\n---\n\n"
+        "Another hidden body.\n",
+    )
+    return descriptor
+
+
+def test_on_demand_web_projects_pointer_and_keeps_on_disk_roster(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _setup_roots(tmp_path, monkeypatch)
+    write(project_root / "sase.yml", "is_sase_managed: true\n")
+    descriptor = _on_demand_runbooks(project_root)
+
+    plan = plan_memory()
+    action_by_path = {action.path: action for action in plan.actions}
+    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
+    updated_descriptor = str(action_by_path[descriptor].new_content)
+
+    assert "Authored preamble." in agents
+    assert "**Roster on demand.**" in agents
+    assert "`sase memory read roster:runbooks" in agents
+    assert "before writing a plan" in agents
+    assert "1. **Alpha Record**" not in agents
+    assert "Hidden strand body." not in agents
+    assert START_MARKER not in agents
+    assert "1. **Alpha Record**" in updated_descriptor
+    assert START_MARKER in updated_descriptor
+    assert "**Roster on demand.**" not in updated_descriptor
+
+    assert run_memory() == 0
+    on_disk = descriptor.read_text(encoding="utf-8")
+    agents_file = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "1. **Alpha Record**" in on_disk
+    assert "**Roster on demand.**" in agents_file
+    assert "1. **Alpha Record**" not in agents_file
+    assert run_memory(check=True) == 0
+    assert plan_memory().actions == ()
+
+
+def test_explicit_always_matches_absent_roster_loading_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _setup_roots(tmp_path, monkeypatch)
+    write(project_root / "sase.yml", "is_sase_managed: true\n")
+    descriptor = project_root / "sase" / "memory" / "terms.md"
+    write(descriptor, _descriptor())
+    write(project_root / "sase" / "memory" / "terms" / "alpha.md", _strand())
+    absent_agents = str(
+        {action.path: action for action in plan_memory().actions}[
+            project_root / "AGENTS.md"
+        ].new_content
+    )
+
+    write(
+        descriptor,
+        _descriptor().replace("web: true\n", "web: true\nroster_loading: always\n"),
+    )
+    explicit_agents = str(
+        {action.path: action for action in plan_memory().actions}[
+            project_root / "AGENTS.md"
+        ].new_content
+    )
+
+    assert absent_agents == explicit_agents
+    assert "**TERMS:** Alpha Term (alpha)" in absent_agents
+    assert "**Roster on demand.**" not in absent_agents

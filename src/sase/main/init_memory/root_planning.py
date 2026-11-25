@@ -26,9 +26,8 @@ from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 from sase.memory.web import (
     MemoryWeb,
     discover_memory_webs,
-    render_web_body_with_roster,
     render_web_descriptor_with_roster,
-    strip_managed_roster_markers,
+    render_web_projection_body,
     validate_memory_webs,
 )
 
@@ -291,7 +290,7 @@ def memory_web_root_plan(
     web_note_bodies: dict[str, GeneratedShortMemoryNote] = {}
     blockers: list[str] = []
     for web in discovery.webs:
-        body, body_error = render_web_body_with_roster(web)
+        body, body_error = render_web_projection_body(web)
         content, content_error = render_web_descriptor_with_roster(web)
         error = body_error or content_error
         if error is not None or body is None or content is None:
@@ -299,7 +298,7 @@ def memory_web_root_plan(
             continue
         note_overlay[web.path] = content
         web_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
-            body=strip_managed_roster_markers(body),
+            body=body,
             priority=web.priority,
         )
         if content != web.raw_text:

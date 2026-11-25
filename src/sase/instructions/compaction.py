@@ -4,11 +4,16 @@ When a provider's root slot declares ``max_bytes`` and the delivered text
 (the bundle plus its trailing marker line) would exceed it, the compiler
 applies a deterministic ladder and stops at the first step that fits:
 
-1. ``superseded_summaries``: superseded entries in ``roster: list`` memory
-   webs render as one line (number, title, slug, supersession marker) with
-   no summary.
-2. ``list_rosters``: whole ``roster: list`` rosters render one line per entry
-   (number, title, slug), largest web first, one web at a time.
+1. ``superseded_summaries``: superseded entries in always-loaded
+   ``roster: list`` memory webs render as one line (number, title, slug,
+   supersession marker) with no summary.
+2. ``list_rosters``: whole always-loaded ``roster: list`` rosters render one
+   line per entry (number, title, slug), largest web first, one web at a
+   time.
+
+On-demand webs are omitted from the ladder: their instruction projection
+already replaces the roster with a generated pointer, so there is nothing
+left to compact.
 
 When neither step fits, the most-compacted bundle is returned and delivery
 falls back for ``oversize`` exactly as before. A bundle that already fits
@@ -25,11 +30,7 @@ from typing import Any
 from sase.core.instruction_manifest import INSTRUCTION_MANIFEST_COMPACTION_STEPS
 from sase.instructions.sections_base import SectionBuilder, normalize_section_text
 from sase.memory.web.models import MemoryWeb
-from sase.memory.web.roster import (
-    RosterCompaction,
-    render_web_body_with_roster,
-    strip_managed_roster_markers,
-)
+from sase.memory.web.roster import RosterCompaction, render_web_projection_body
 
 #: Ladder step that drops the summaries of superseded list-roster entries.
 STEP_SUPERSEDED_SUMMARIES = INSTRUCTION_MANIFEST_COMPACTION_STEPS[0]
@@ -50,7 +51,7 @@ _PLACEHOLDER_INVOCATION_ID = "00000000-0000-4000-8000-000000000000"
 
 @dataclass(frozen=True)
 class CompactableWeb:
-    """One included ``roster: list`` web section the ladder may re-render."""
+    """One included always-loaded ``roster: list`` web the ladder may re-render."""
 
     section_id: str
     relative_path: str
@@ -90,12 +91,10 @@ def _web_section_text(
     """Return the normalized section text for *item* in one roster style."""
     from sase.amd.inline_memory import inline_memory_section
 
-    body, error = render_web_body_with_roster(item.web, compaction=compaction)
+    body, error = render_web_projection_body(item.web, compaction=compaction)
     if error is not None or body is None:
         return None
-    block = inline_memory_section(
-        item.relative_path, strip_managed_roster_markers(body)
-    )
+    block = inline_memory_section(item.relative_path, body)
     return normalize_section_text(block.strip("\n"))
 
 
@@ -132,7 +131,11 @@ def compact_sections(
     candidates: list[tuple[CompactableWeb, SectionBuilder]] = []
     for item in webs:
         section = by_id.get(item.section_id)
-        if section is None or item.web.roster != "list":
+        if (
+            section is None
+            or item.web.roster != "list"
+            or item.web.roster_loading != "always"
+        ):
             continue
         # Never compact a section whose default re-render does not reproduce
         # its compiled bytes: the projection must start from identical text.

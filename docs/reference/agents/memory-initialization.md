@@ -60,12 +60,14 @@ chezmoi source counterpart). Template variables and validation rules are listed 
 descriptor, exactly like any other `sase/memory/<web>.md` file, with the project's terms
 authored as sibling strand files under `sase/memory/glossary/`. Memory initialization
 always inlines its descriptor body into the `## Memory Webs` section of `AGENTS.md` and
-the provider instruction files, plus the descriptor's inline `**GLOSSARY TERMS:**`
-roster naming every strand keyword and alias, semicolon-separated. Strand bodies never
-inline into `AGENTS.md`; agents fetch a definition on demand with
+the provider instruction files. For an always-loaded roster (the default, including
+`glossary`), that projection also includes the descriptor's inline `**GLOSSARY TERMS:**`
+roster naming every strand keyword and alias, semicolon-separated. A web that sets
+`roster_loading: on_demand` keeps that full roster on disk and projects a generated
+pointer in its place; see [Memory Webs](../memory/memory.md#memory-webs). Strand bodies
+never inline into `AGENTS.md`; agents fetch a definition on demand with
 `sase memory read glossary:<keyword> -r "<why>"`, passing every keyword needed in one
-command. See [Memory Webs](../memory/memory.md#memory-webs) for the full read, browse,
-and edit workflow.
+command.
 
 For a SASE-managed project, `sase memory init` inlines each core note into
 `## Core Memory` and numbers every heading in the generated document, renders each
@@ -274,11 +276,13 @@ compatibility alias for this command. Generated repository memory requires agent
 `/sase_repo` before reading or modifying any repo outside their own workspace checkout.
 The rule covers linked repos, sidecars, different SASE projects, and unlinked GitHub
 repos even when no linked repositories are configured. The same run also refreshes each
-memory web's inline strand roster — for example the `glossary` web's
+memory web's on-disk strand roster — for example the `glossary` web's
 `**GLOSSARY TERMS:**` line in `sase/memory/glossary.md` — from its current strand files;
 `sase memory init --check` reports drift if a web's rendered roster or its Memory Webs
-inlining is stale. Unlike the generated notes above, `sase/memory/glossary.md` and every
-other web descriptor are user-owned content: memory init rewrites only the roster it
-renders, never the rest of the descriptor body.
+inlining is stale. Instruction projections use that same on-disk roster for
+always-loaded webs and a generated pointer for on-demand webs. Unlike the generated
+notes above, `sase/memory/glossary.md` and every other web descriptor are user-owned
+content: memory init rewrites only the roster it renders, never the rest of the
+descriptor body.
 
 <a id="cli-options-23"></a> Moved to [sase memory](../cli/memory.md).

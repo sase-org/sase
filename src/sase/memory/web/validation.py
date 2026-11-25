@@ -26,14 +26,14 @@ from .models import (
     MemoryWebValidationReport,
     ScopedMemoryWeb,
 )
-from .roster import roster_region_error
+from .roster import roster_region_error, strip_managed_roster_markers
 from .scope import merge_memory_web_scopes
 from .supersession import coerce_superseded_by_targets, supersession_status
 
 if TYPE_CHECKING:
     from sase.memory.link_resolve import UnresolvedMemoryLinkTarget
 
-_STATIC_RESERVED_WEB_NAMES = frozenset({"assets", "README"})
+_STATIC_RESERVED_WEB_NAMES = frozenset({"assets", "README", "roster"})
 
 
 def reserved_memory_web_names() -> frozenset[str]:
@@ -50,6 +50,7 @@ def validate_memory_webs(
     """Validate one provider discovery result."""
 
     blockers: list[str] = [issue.message for issue in discovery.issues]
+    warnings: list[str] = list(_unresolved_web_link_warnings(discovery))
     resolved_reserved = (
         reserved_memory_web_names() if reserved_names is None else reserved_names
     )
@@ -70,10 +71,12 @@ def validate_memory_webs(
         blockers.extend(_strand_summary_blockers(web))
         blockers.extend(_local_label_collision_blockers(web))
         blockers.extend(_glossary_validation_blockers(web))
+        blockers.extend(_roster_loading_blockers(web))
+        warnings.extend(_roster_loading_warnings(web))
 
     return MemoryWebValidationReport(
         blockers=tuple(dict.fromkeys(blockers)),
-        warnings=_unresolved_web_link_warnings(discovery),
+        warnings=tuple(dict.fromkeys(warnings)),
     )
 
 
@@ -85,6 +88,39 @@ def _strand_summary_blockers(web: MemoryWeb) -> tuple[str, ...]:
         for strand in web.strands
         if not strand.summary
     )
+
+
+def _roster_loading_blockers(web: MemoryWeb) -> tuple[str, ...]:
+    if web.roster_loading != "on_demand":
+        return ()
+    blockers: list[str] = []
+    if not web.description:
+        blockers.append(f"{web.path}: on-demand memory web requires a description")
+    if not strip_managed_roster_markers(web.body).strip():
+        blockers.append(
+            f"{web.path}: on-demand memory web body is empty outside the "
+            "managed roster region"
+        )
+    return tuple(blockers)
+
+
+def _roster_loading_warnings(web: MemoryWeb) -> tuple[str, ...]:
+    warnings: list[str] = []
+    if web.roster_loading == "on_demand" and not web.roster_read_when:
+        warnings.append(
+            f"{web.path}: on-demand roster has no roster_read_when; agents "
+            "will not know when to read it"
+        )
+    if web.roster_loading == "always" and web.roster_read_when:
+        warnings.append(
+            f"{web.path}: roster_read_when has no effect when roster_loading is always"
+        )
+    if web.roster_loading == "on_demand" and web.roster == "inline":
+        warnings.append(
+            f"{web.path}: roster: inline with roster_loading: on_demand; the "
+            "pointer can be larger than the inline roster it replaces"
+        )
+    return tuple(warnings)
 
 
 def _labels_for_collision(strand: MemoryStrand) -> tuple[tuple[str, str], ...]:

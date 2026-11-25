@@ -241,13 +241,25 @@ A web lives as one flat descriptor note plus a sibling strand directory: the des
 files are its strands. The bundled `glossary` web ships this way:
 `sase/memory/glossary.md` is the descriptor, and each term is a strand file under
 `sase/memory/glossary/`. `sase memory init` always inlines a web's descriptor body into
-its Memory Webs subsection, plus — for a web that opts into an inline roster, as
-`glossary` does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every
-strand keyword and alias. The descriptor note is listed by `sase memory list` and is not
-a `#memory/<stem>` macro catalog entry because it declares no flat-note `type:`.
-`sase memory read glossary.md` also fails because `read` rejects an always-loaded memory
-web descriptor the same way it rejects core notes as already-loaded context; read its
-strand bodies with `glossary:<keyword>` selectors instead.
+its Memory Webs subsection. For an always-loaded roster (the default), that subsection
+also carries the managed roster — for a web that opts into an inline roster, as
+`glossary` does, a single semicolon-separated `**GLOSSARY TERMS:**` line naming every
+strand keyword and alias. The on-disk descriptor always keeps that full managed region.
+The descriptor note is listed by `sase memory list` and is not a `#memory/<stem>` macro
+catalog entry because it declares no flat-note `type:`. `sase memory read glossary.md`
+also fails because `read` rejects an always-loaded memory web descriptor the same way it
+rejects core notes as already-loaded context; read its strand bodies with
+`glossary:<keyword>` selectors instead.
+
+A descriptor may set `roster_loading: always` (the default) or `on_demand`,
+independently of `roster: inline | list`. An on-demand web also declares
+`roster_read_when:` as a list of the situations in which agents MUST read the roster.
+Instruction projections — committed `AGENTS.md` and per-invocation bundles — then
+replace the managed roster region with a generated pointer that names
+`sase memory read roster:<web>` and lists those triggers. The pointer uses the web's
+`roster_label`, `strand_noun`, and slug; no code special-cases a particular web. The
+on-disk descriptor is unchanged. An older sase that does not know the new keys still
+reads the descriptor as `always`.
 
 ### Inspecting webs
 
@@ -260,9 +272,9 @@ sase memory web show glossary -b -f json
 ```
 
 `sase memory web list` prints every discovered web: slug, scope (`project`/`home`),
-strand count, and description. The table and `json` formats omit a rendering type. Its
-one-line `--help` description mentions a core/reference rendering field; that help text
-is stale. `-f/--format` selects `table` (the default), `names`, or `json`.
+strand count, roster (`list`, `inline`, or `list · on demand`), and description. JSON
+output adds `roster` and `roster_loading` beside the existing keys. `-f/--format`
+selects `table` (the default), `names`, or `json`.
 
 `sase memory web show WEB [PATTERN]` prints one web's filterable strand _index_ —
 keyword, slug, aliases, mention-reference count, and a one-line summary — never a

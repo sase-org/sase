@@ -24,10 +24,17 @@ from sase.memory.notes import (
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-from .models import MemoryStrand, MemoryWeb, WebRosterStyle, WebSource
+from .models import (
+    MemoryStrand,
+    MemoryWeb,
+    WebRosterLoading,
+    WebRosterStyle,
+    WebSource,
+)
 
 _SLUG_WORD_RE = re.compile(r"[-_\s]+")
 _VALID_ROSTERS: frozenset[str] = frozenset({"inline", "list"})
+_VALID_ROSTER_LOADINGS: frozenset[str] = frozenset({"always", "on_demand"})
 _VALID_CLOSURES: frozenset[str] = frozenset({"none", "mentions"})
 _LINK_REFERENCE_ERROR = "link_reference must be explicit, implicit, or none"
 _LINK_RENDERING_ERROR = "link_rendering must be reference or inline"
@@ -241,6 +248,20 @@ def _aliases(value: Any, *, path: Path) -> tuple[tuple[str, ...], str | None]:
     return tuple(aliases), None
 
 
+def _roster_read_when(value: Any, *, path: Path) -> tuple[tuple[str, ...], str | None]:
+    if value is None:
+        return (), None
+    if not isinstance(value, list):
+        return (), f"{path}: roster_read_when must be a list of non-empty strings"
+    triggers: list[str] = []
+    for item in value:
+        trigger = _normalized_scalar(item)
+        if trigger is None:
+            return (), f"{path}: roster_read_when must be a list of non-empty strings"
+        triggers.append(trigger)
+    return tuple(triggers), None
+
+
 def _parse_link_rendering(
     frontmatter: Mapping[str, Any],
     *,
@@ -330,6 +351,19 @@ def parse_web_descriptor(
     if roster not in _VALID_ROSTERS:
         return None, f"{path}: roster must be inline or list"
 
+    if "roster_loading" in parsed.frontmatter:
+        roster_loading = _normalized_scalar(parsed.frontmatter.get("roster_loading"))
+        if roster_loading not in _VALID_ROSTER_LOADINGS:
+            return None, f"{path}: roster_loading must be always or on_demand"
+    else:
+        roster_loading = "always"
+
+    roster_read_when, roster_read_when_error = _roster_read_when(
+        parsed.frontmatter.get("roster_read_when"), path=path
+    )
+    if roster_read_when_error is not None:
+        return None, roster_read_when_error
+
     link_reference_result, link_reference_error = _parse_descriptor_link_reference(
         parsed.frontmatter, path=path
     )
@@ -378,6 +412,8 @@ def parse_web_descriptor(
             raw_text=text,
             body_start=parsed.body_start,
             frontmatter=dict(parsed.frontmatter),
+            roster_loading=cast(WebRosterLoading, roster_loading),
+            roster_read_when=roster_read_when,
             priority=priority,
             source=source,
             link_reference=link_reference,

@@ -119,9 +119,12 @@ marker line: 32 KiB for Codex and 120 KiB for Grok. Claude and Muse have no cap.
 bundle would exceed its provider's cap, SASE compacts it at compile time and stops at
 the first step that fits:
 
-1. Superseded entries in `roster: list` memory webs drop their summaries and keep their
-   number, title, slug, and supersession marker.
-2. Whole `roster: list` rosters drop entry summaries, largest web first.
+1. Superseded entries in always-loaded `roster: list` memory webs drop their summaries
+   and keep their number, title, slug, and supersession marker.
+2. Whole always-loaded `roster: list` rosters drop entry summaries, largest web first.
+
+An on-demand web already omits its roster as standing authored content — a generated
+pointer, not a compaction step — so the ladder never touches it.
 
 A compacted web ends with a note pointing to `sase memory read <web>:<keyword>` for the
 omitted summaries. Compaction changes only the delivered bundle: memory files stay as

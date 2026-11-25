@@ -26,12 +26,13 @@ def reference_note(body: str, *, description: str = "A reference note.") -> str:
     )
 
 
-def web_descriptor(title: str, description: str) -> str:
+def web_descriptor(title: str, description: str, extra: str = "") -> str:
     """Return a minimal memory web descriptor body."""
     return (
         "---\nweb: true\n"
         f"description: {description}\n"
         "roster: list\n"
+        f"{extra}"
         "---\n"
         f"# {title}\n\nDescriptor body.\n"
     )

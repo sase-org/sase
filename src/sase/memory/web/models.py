@@ -15,6 +15,7 @@ from sase.memory.notes import (
 )
 
 WebRosterStyle = Literal["inline", "list"]
+WebRosterLoading = Literal["always", "on_demand"]
 WebScope = Literal["project", "home"]
 WebSource = Literal["file", "generated"]
 
@@ -59,6 +60,8 @@ class MemoryWeb:
     raw_text: str
     body_start: int
     frontmatter: dict[str, Any]
+    roster_loading: WebRosterLoading = "always"
+    roster_read_when: tuple[str, ...] = ()
     priority: int = DEFAULT_MEMORY_PRIORITY
     strands: tuple[MemoryStrand, ...] = ()
     source: WebSource = "file"
@@ -124,6 +127,7 @@ __all__ = [
     "MemoryWebDiscoveryIssue",
     "MemoryWebValidationReport",
     "ScopedMemoryWeb",
+    "WebRosterLoading",
     "WebRosterStyle",
     "WebScope",
     "WebSource",

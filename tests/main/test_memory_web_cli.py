@@ -74,10 +74,50 @@ def test_web_list_json_reports_discovered_webs(
                 "web": "glossary",
                 "scope": "project",
                 "strand_count": 2,
+                "roster": "inline",
+                "roster_loading": "always",
                 "description": "Test web.",
             }
         ]
     }
+
+
+def test_web_list_table_reports_on_demand_roster(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    write(
+        tmp_path / "sase" / "memory" / "runbooks.md",
+        "---\nweb: true\nroster: list\nroster_loading: on_demand\n"
+        "description: Runbook catalog.\n---\n\nPreamble.\n",
+    )
+    write(
+        tmp_path / "sase" / "memory" / "runbooks" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: First record.\n---\nBody.\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_command(create_parser().parse_args(["memory", "web", "list"]))
+    assert exc.value.code == 0
+
+    out = capsys.readouterr().out
+    assert "Roster" in out
+    assert "list · on demand" in out
+    assert "Runbook catalog." in out
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_command(
+            create_parser().parse_args(["memory", "web", "list", "-f", "json"])
+        )
+    assert exc.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    (entry,) = payload["webs"]
+    assert entry["roster"] == "list"
+    assert entry["roster_loading"] == "on_demand"
 
 
 def test_web_show_json_lists_strand_index(

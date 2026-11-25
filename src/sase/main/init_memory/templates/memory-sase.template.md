@@ -6,7 +6,7 @@ SASE memory is this project's durable agent context: Markdown notes under `sase/
 
 - **Core memory** (`type: core`) is inlined into your agent instructions (this project's `AGENTS.md` and each SASE agent's per-invocation bundle), so it is always in your context and is paid for on every turn.
 - **Reference memory** (`type: reference`) is not inlined. Only its one-line description is listed in your agent instructions; read the body on demand with your `/sase_memory_read` skill, never by opening the file directly.
-- **Memory webs** are keyed collections: a flat descriptor note (`sase/memory/<web>.md`) plus a sibling directory of strand files (`sase/memory/<web>/<slug>.md`). A web's descriptor is always inlined into your agent instructions; a strand body never is — read strands on demand with your `/sase_memory_read` skill (`sase memory read <web>:<keyword>`, for example `glossary:stitch`).
+- **Memory webs** are keyed collections: a flat descriptor note (`sase/memory/<web>.md`) plus a sibling directory of strand files (`sase/memory/<web>/<slug>.md`). A web's descriptor is always inlined into your agent instructions; its roster is too unless the web loads its roster on demand (read with `sase memory read roster:<web>`); a strand body never is — read strands on demand with your `/sase_memory_read` skill (`sase memory read <web>:<keyword>`, for example `glossary:stitch`).
 
 Memory files are not ordinary files: before you create, edit, or delete any of them — or propose a plan that would — use your `/sase_memory_write` skill.
 

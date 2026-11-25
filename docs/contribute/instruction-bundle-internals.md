@@ -107,10 +107,14 @@ marker line). The boundary passes an `explicit` root slot's cap to
 unchanged. When the delivered text would exceed the cap, `sase.instructions.compaction`
 runs a deterministic ladder and stops at the first step that fits:
 
-1. `superseded_summaries`: superseded entries in `roster: list` webs render as one line
-   (number, title, slug, and supersession marker) with no summary.
-2. `list_rosters`: whole `roster: list` rosters render one line per entry, largest web
-   first, one web at a time.
+1. `superseded_summaries`: superseded entries in always-loaded `roster: list` webs
+   render as one line (number, title, slug, and supersession marker) with no summary.
+2. `list_rosters`: whole always-loaded `roster: list` rosters render one line per entry,
+   largest web first, one web at a time.
+
+On-demand webs are not candidates: their projection already replaces the roster with a
+generated pointer, and that omission is authored content rather than a compaction step.
+The ladder still runs on any remaining always-loaded list webs.
 
 A step replaces a section only with strictly fewer bytes, and each compacted web ends
 with one line pointing to `sase memory read <web>:<keyword>`. Compaction is a

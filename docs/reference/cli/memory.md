@@ -199,7 +199,7 @@ Subcommands:
 usage: sase memory web list [-h] [-f {json,names,table}] [-p REF]
 ```
 
-List discovered memory webs: name, rendering (core/reference), scope, and strand count.
+List discovered memory webs: name, scope, strand count, roster, and description.
 
 Options:
 

@@ -78,9 +78,13 @@ def _seed_web(
     superseded: int = 0,
     repeats: int = 8,
     superseded_repeats: int = 8,
+    extra: str = "",
 ) -> None:
     memory = project_root / "sase" / "memory"
-    write(memory / f"{slug}.md", web_descriptor(slug.title(), f"{slug} web."))
+    write(
+        memory / f"{slug}.md",
+        web_descriptor(slug.title(), f"{slug} web.", extra=extra),
+    )
     for index in range(accepted):
         write(
             memory / slug / f"keep-{index:02d}.md",
@@ -180,6 +184,41 @@ def test_whole_list_rosters_compact_largest_first(tmp_path: Path) -> None:
     )
     assert "**Keep decisions 01** (`keep-01`)\n" in compiled.text
     assert "Entry summaries omitted to fit the provider budget" in compiled.text
+
+
+def test_on_demand_list_web_is_skipped_while_always_list_web_compacts(
+    tmp_path: Path,
+) -> None:
+    project_root, home_root = make_roots(tmp_path)
+    _seed_web(project_root, "policies", accepted=50, superseded=2, repeats=7)
+    _seed_web(
+        project_root,
+        "runbooks",
+        accepted=20,
+        repeats=7,
+        extra=(
+            "roster_loading: on_demand\nroster_read_when:\n  - before writing a plan\n"
+        ),
+    )
+    uncapped = _compile(project_root, home_root, max_bytes=None)
+    assert delivered_bytes(uncapped.text) > CODEX_CAP
+
+    compiled = _compile(project_root, home_root, max_bytes=CODEX_CAP)
+
+    assert compiled.compaction is not None
+    assert compiled.compaction["step"] == STEP_LIST_ROSTERS
+    assert _section(compiled, "proj.web.policies")["compaction"]["step"] == (
+        STEP_LIST_ROSTERS
+    )
+    assert "compaction" not in _section(compiled, "proj.web.runbooks")
+    assert (
+        _section(compiled, "proj.web.runbooks")["sha256"]
+        == (_section(uncapped, "proj.web.runbooks")["sha256"])
+    )
+    assert "**Roster on demand.**" in compiled.text
+    assert "`sase memory read roster:runbooks" in compiled.text
+    assert "**Keep runbooks 01**" not in compiled.text
+    assert "before writing a plan" in compiled.text
 
 
 def test_oversize_core_note_still_exceeds_cap(tmp_path: Path) -> None:

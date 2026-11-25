@@ -226,14 +226,88 @@ def render_web_descriptor_with_roster(web: MemoryWeb) -> tuple[str | None, str |
     return replace_web_body_with_canonical_frontmatter(web, body), None
 
 
+def _counted_strand_noun(noun: str, count: int) -> str:
+    if count == 1:
+        return noun
+    if noun.endswith("s"):
+        return noun
+    return f"{noun}s"
+
+
+def render_on_demand_roster_pointer(web: MemoryWeb) -> str:
+    """Return the generated on-demand roster pointer for *web*.
+
+    The pointer never names a specific web slug in code; it uses *web*'s
+    ``slug``, ``roster_label``, ``strand_noun``, and ``roster_read_when``.
+    """
+
+    count = len(ordered_web_strands(web))
+    noun = _counted_strand_noun(web.strand_noun, count)
+    verb = "is" if count == 1 else "are"
+    command = f'`sase memory read roster:{web.slug} -r "<why>"`'
+    strand_command = f'`sase memory read {web.slug}:<keyword> -r "<why>"`'
+    lead = f"**Roster on demand.** This web's {count} {noun} {verb} not listed here."
+    if web.roster_read_when:
+        instruction = f"You MUST read the {web.roster_label} roster with {command}:"
+        bullets = "\n".join(f"- {trigger}" for trigger in web.roster_read_when)
+        body = f"{lead} {instruction}\n\n{bullets}"
+    else:
+        instruction = (
+            f"Read the {web.roster_label} roster with {command} when you need one."
+        )
+        body = f"{lead} {instruction}"
+    footer = f"Read one {web.strand_noun} with {strand_command}."
+    return wrap_markdown(f"{body}\n\n{footer}", width=markdown_print_width())
+
+
+def render_web_projection_body(
+    web: MemoryWeb, *, compaction: RosterCompaction | None = None
+) -> tuple[str | None, str | None]:
+    """Return the instruction-projection body for *web*.
+
+    For ``always`` webs this is exactly
+    ``strip_managed_roster_markers(render_web_body_with_roster(...))``.
+    For ``on_demand`` webs the managed roster region is replaced by
+    :func:`render_on_demand_roster_pointer`; the pointer is appended where
+    the roster would go when the markers are absent. Descriptor writers
+    still use :func:`render_web_descriptor_with_roster`, so the on-disk
+    region stays full.
+    """
+
+    if web.roster_loading != "on_demand":
+        body, error = render_web_body_with_roster(web, compaction=compaction)
+        if error is not None or body is None:
+            return None, error
+        return strip_managed_roster_markers(body), None
+
+    marker_error = roster_region_error(web.body)
+    if marker_error is not None:
+        return None, marker_error
+
+    pointer = render_on_demand_roster_pointer(web)
+    start = web.body.find(START_MARKER)
+    if start < 0:
+        base = web.body.rstrip()
+        separator = "\n\n" if base else ""
+        return f"{base}{separator}{pointer}\n", None
+
+    end = web.body.find(END_MARKER, start)
+    if end < 0:
+        return None, "memory web strand roster markers are unbalanced"
+    end += len(END_MARKER)
+    return f"{web.body[:start]}{pointer}{web.body[end:]}", None
+
+
 __all__ = [
     "END_MARKER",
     "START_MARKER",
     "RosterCompaction",
     "render_managed_roster_region",
+    "render_on_demand_roster_pointer",
     "render_strand_roster",
     "render_web_body_with_roster",
     "render_web_descriptor_with_roster",
+    "render_web_projection_body",
     "roster_region_error",
     "strip_managed_roster_markers",
 ]

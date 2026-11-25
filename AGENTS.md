@@ -26,8 +26,9 @@ note's `type:` frontmatter decide how it reaches you.
   `/sase_memory_read` skill, never by opening the file directly.
 - **Memory webs** are keyed collections: a flat descriptor note (`sase/memory/<web>.md`)
   plus a sibling directory of strand files (`sase/memory/<web>/<slug>.md`). A web's
-  descriptor is always inlined into your agent instructions; a strand body never is —
-  read strands on demand with your `/sase_memory_read` skill
+  descriptor is always inlined into your agent instructions; its roster is too unless
+  the web loads its roster on demand (read with `sase memory read roster:<web>`); a
+  strand body never is — read strands on demand with your `/sase_memory_read` skill
   (`sase memory read <web>:<keyword>`, for example `glossary:stitch`).
 
 Memory files are not ordinary files: before you create, edit, or delete any of them — or
@@ -155,9 +156,11 @@ memory files directly.
 
 ## 3. Memory Webs
 
-Each memory web below is a keyed collection. Its descriptor is always loaded, but a
-strand's body is not: read strands on demand with your `/sase_memory_read` skill, for
-example `sase memory read glossary:stitch -r "<why>"`.
+Each memory web below is a keyed collection. Its descriptor is always loaded with its
+roster unless the descriptor says the roster loads on demand; read those with
+`sase memory read roster:<web>`. A strand's body is not: read strands on demand with
+your `/sase_memory_read` skill, for example
+`sase memory read glossary:stitch -r "<why>"`.
 
 ### 3.1 Decisions (decisions)
 

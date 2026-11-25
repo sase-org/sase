@@ -41,9 +41,10 @@ _LONG_MEMORY_INTRO = (
 _LONG_MEMORY_INTRO_FIRST_SENTENCE = _LONG_MEMORY_INTRO.split(".", 1)[0] + "."
 _WEB_MEMORY_INTRO = (
     "Each memory web below is a keyed collection. Its descriptor is always "
-    "loaded, but a strand's body is not: read strands on demand with your "
-    "`/sase_memory_read` skill, for example `sase memory read glossary:stitch "
-    '-r "<why>"`.'
+    "loaded with its roster unless the descriptor says the roster loads on "
+    "demand; read those with `sase memory read roster:<web>`. A strand's body "
+    "is not: read strands on demand with your `/sase_memory_read` skill, for "
+    'example `sase memory read glossary:stitch -r "<why>"`.'
 )
 _WEB_MEMORY_INTRO_FIRST_SENTENCE = _WEB_MEMORY_INTRO.split(".", 1)[0] + "."
 _LONG_MEMORY_BLOCK_DESCRIPTION_RE = re.compile(

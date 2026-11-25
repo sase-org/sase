@@ -108,8 +108,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Type: `core`
 - Parent: `AGENTS.md`
 - Description: No description set.
-- Lines: 87
-- Approx. tokens: 1193
+- Lines: 88
+- Approx. tokens: 1220
 
 ### `sase/memory/decisions.md`
 
@@ -293,8 +293,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 17
 - Web descriptor notes: 3
-- Total lines: 1729
-- Total approx. tokens: 24227
+- Total lines: 1730
+- Total approx. tokens: 24254
 
 ## Commands
 

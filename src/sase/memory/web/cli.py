@@ -20,7 +20,7 @@ from rich.text import Text
 from sase.memory.cli_common import MemoryCliProjectError, resolve_memory_cli_project
 from sase.memory.web.closure import resolve_strand_closure
 from sase.memory.web.lookup import normalize_memory_web_reference
-from sase.memory.web.models import MemoryStrand, ScopedMemoryWeb
+from sase.memory.web.models import MemoryStrand, MemoryWeb, ScopedMemoryWeb
 from sase.memory.web.read_context import discover_scoped_memory_webs
 
 _Format = Literal["json", "names", "table"]
@@ -144,6 +144,12 @@ def _web_scope(
     return "project"
 
 
+def _roster_display(web: MemoryWeb) -> str:
+    if web.roster_loading == "on_demand":
+        return f"{web.roster} · on demand"
+    return web.roster
+
+
 def _web_summary_json(
     scoped: ScopedMemoryWeb, *, project_root: Path, home_root: Path
 ) -> dict[str, object]:
@@ -151,6 +157,8 @@ def _web_summary_json(
         "web": scoped.slug,
         "scope": _web_scope(scoped, project_root=project_root, home_root=home_root),
         "strand_count": len(scoped.strands),
+        "roster": scoped.web.roster,
+        "roster_loading": scoped.web.roster_loading,
         "description": scoped.web.description,
     }
 
@@ -165,12 +173,14 @@ def _list_table(
     table.add_column("Web")
     table.add_column("Scope", no_wrap=True)
     table.add_column("Strands", justify="right", no_wrap=True)
+    table.add_column("Roster", no_wrap=True)
     table.add_column("Description")
     for scoped in scoped_webs:
         table.add_row(
             scoped.slug,
             _web_scope(scoped, project_root=project_root, home_root=home_root),
             str(len(scoped.strands)),
+            _roster_display(scoped.web),
             scoped.web.description or "",
         )
     return Group(table)

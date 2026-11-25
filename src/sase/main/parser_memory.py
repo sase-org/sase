@@ -370,8 +370,8 @@ def _register_memory_web_parser(
         help="List memory webs for a project",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List discovered memory webs: name, rendering (core/reference), "
-            "scope, and strand count."
+            "List discovered memory webs: name, scope, strand count, roster, "
+            "and description."
         ),
         epilog=("examples:\n  sase memory web list\n  sase memory web list -f json"),
     )
