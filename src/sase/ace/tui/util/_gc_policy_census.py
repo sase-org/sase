@@ -307,9 +307,9 @@ def known_cache_census() -> list[dict[str, Any]]:
             "lru",
         ),
         (
-            "sase.ace.tui.models.agent_stranded",
+            "sase.ace.tui.models._agent_stranded_cache",
             "_STRANDED_REPORT_CACHE",
-            "src/sase/ace/tui/models/agent_stranded.py",
+            "src/sase/ace/tui/models/_agent_stranded_cache.py",
             "stranded",
         ),
         (

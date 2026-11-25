@@ -1,11 +1,12 @@
 """Deterministic stranded Beads inventory shared by unit and PNG tests."""
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models import agent_stranded
 from sase.bead.model import Status
 from sase.bead.stranded import StrandedReport
 from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
@@ -50,8 +51,8 @@ def stranded_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         titles={},
         generated_at=NOW,
     )
-    cache = agent_stranded._StrandedReportCache(max_entries=8)
-    monkeypatch.setattr(agent_stranded, "_STRANDED_REPORT_CACHE", cache)
+    cache = stranded_cache._StrandedReportCache(max_entries=8)
+    monkeypatch.setattr(stranded_cache, "_STRANDED_REPORT_CACHE", cache)
     cache.set("alpha", report, "fixture")
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.beads_stranded.time", lambda: NOW

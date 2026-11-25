@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 import pytest
 
 from sase.ace.tui.actions.agents import _stranded_toasts
@@ -12,10 +14,10 @@ from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdi
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_state():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     _stranded_toasts._SEEN_LEAVES.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     _stranded_toasts._SEEN_LEAVES.clear()
 
 
@@ -47,7 +49,7 @@ def _set_report(
         stranded_ids=tuple(v.bead_id for v in verdicts if v.state == "stranded"),
         blocked_ids=tuple(v.bead_id for v in verdicts if v.state == "blocked"),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(
             report=report,

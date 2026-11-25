@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from dataclasses import replace
 
 import pytest
@@ -30,9 +32,9 @@ _GEN = "20260918010101"
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache() -> None:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _seed_stranded(bead_id: str = "sase-demo.1") -> None:
@@ -47,7 +49,7 @@ def _seed_stranded(bead_id: str = "sase-demo.1") -> None:
         verdicts=(verdict,),
         stranded_ids=(bead_id,),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(report=report, titles={}, generated_at=1.0),
         "test",
@@ -190,7 +192,7 @@ def test_ancestor_clan_enter_targets_the_epic_id() -> None:
         stranded_ids=("sase-nested.1",),
         blocked_ids=("sase-demo",),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(report=report, titles={}, generated_at=1.0),
         "test",

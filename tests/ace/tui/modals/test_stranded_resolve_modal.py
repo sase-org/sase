@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from datetime import datetime, timezone, UTC
 
 import pytest
@@ -28,9 +30,9 @@ class _TestApp(App[None]):
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache() -> None:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _seed(*, last_turn: str | None = "sase-demo.1--3") -> None:
@@ -44,7 +46,7 @@ def _seed(*, last_turn: str | None = "sase-demo.1--3") -> None:
         blocks=("sase-demo",),
     )
     report = StrandedWorkReport(verdicts=(verdict,), stranded_ids=("sase-demo.1",))
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(
             report=report,

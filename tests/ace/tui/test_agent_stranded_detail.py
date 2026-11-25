@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from datetime import datetime
 
 from sase.ace.tui.actions.agents import _stranded_toasts
@@ -20,9 +22,9 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _verdict(bead_id: str, state: str, **fields: object) -> StrandedWorkVerdict:
@@ -43,7 +45,7 @@ def _set_report(*verdicts: StrandedWorkVerdict) -> None:
         stranded_ids=tuple(v.bead_id for v in verdicts if v.state == "stranded"),
         blocked_ids=tuple(v.bead_id for v in verdicts if v.state == "blocked"),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=3601.0), "test"
     )
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,9 +24,9 @@ from tests.ace.tui._artifacts_beads_stranded_helpers import stranded_snapshot
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache() -> None:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _seed() -> None:
@@ -36,7 +38,7 @@ def _seed() -> None:
         last_turn="sase-demo.1--3",
     )
     report = StrandedWorkReport(verdicts=(verdict,), stranded_ids=("sase-demo.1",))
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(report=report, titles={}, generated_at=1.0),
         "test",

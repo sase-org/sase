@@ -7,6 +7,8 @@ module.
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 import asyncio
 from collections.abc import Iterator
 from datetime import datetime
@@ -34,11 +36,11 @@ __all__ = [
 def clear_bead_display_cache() -> Iterator[None]:
     _BEAD_DISPLAY_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.clear()
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
     _BEAD_DISPLAY_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.clear()
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 class FakeApp(AgentBeadWarmupMixin):

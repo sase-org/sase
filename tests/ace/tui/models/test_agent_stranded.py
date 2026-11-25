@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+from sase.ace.tui.models import _agent_stranded_view as stranded_view
+from sase.ace.tui.models import _agent_stranded_surface as stranded_surface
+
 from datetime import datetime
 
 import pytest
@@ -15,9 +19,9 @@ from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdi
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _snapshot(*verdicts: StrandedWorkVerdict) -> StrandedReport:
@@ -57,7 +61,7 @@ def test_warm_reports_reuse_ttl_and_invalidate_on_store_fingerprint(
     loads: list[str] = []
 
     monkeypatch.setattr(
-        agent_stranded, "_project_fingerprint", lambda _project: fingerprints[0]
+        stranded_cache, "_project_fingerprint", lambda _project: fingerprints[0]
     )
 
     def load(project_key: str) -> StrandedReport:
@@ -81,10 +85,10 @@ def test_stranded_report_ttl_expires_after_60_seconds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [100.0]
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", _snapshot(), "store")
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", _snapshot(), "store")
 
-    assert agent_stranded._CACHE_TTL_SECONDS == 60.0
+    assert stranded_cache._CACHE_TTL_SECONDS == 60.0
     assert agent_stranded.should_resolve_stranded_report("demo") is False
     now[0] += 59.999
     assert agent_stranded.should_resolve_stranded_report("demo") is False
@@ -97,9 +101,9 @@ def test_forced_warmup_has_30_second_floor_and_resolve_bypasses_it(
 ) -> None:
     now = [100.0]
     loads: list[str] = []
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        agent_stranded, "_project_fingerprint", lambda _project: "store"
+        stranded_cache, "_project_fingerprint", lambda _project: "store"
     )
 
     def load(project_key: str) -> StrandedReport:
@@ -126,15 +130,15 @@ def test_forced_warmup_has_30_second_floor_and_resolve_bypasses_it(
 
 def test_verdict_index_is_built_once_per_stored_report() -> None:
     first = _snapshot(_verdict("sase-demo.1", "stranded"))
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", first, "store-1")
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", first, "store-1")
 
-    index = agent_stranded._verdict_index("demo")
-    assert index is agent_stranded._verdict_index("demo")
+    index = stranded_view.verdict_index_for_project("demo")
+    assert index is stranded_view.verdict_index_for_project("demo")
     assert index["sase-demo.1"].state == "stranded"
 
     second = _snapshot(_verdict("sase-demo.2", "blocked"))
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", second, "store-2")
-    refreshed_index = agent_stranded._verdict_index("demo")
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", second, "store-2")
+    refreshed_index = stranded_view.verdict_index_for_project("demo")
     assert refreshed_index is not index
     assert tuple(refreshed_index) == ("sase-demo.2",)
 
@@ -164,7 +168,7 @@ def test_stranded_count_is_memoized_and_new_report_invalidates_it() -> None:
         titles={},
         generated_at=1.0,
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", first_snapshot, "store-1")
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", first_snapshot, "store-1")
 
     assert agent_stranded.stranded_count_for_agents((agent,)) == 1
     assert agent_stranded.stranded_count_for_agents((agent,)) == 1
@@ -176,7 +180,7 @@ def test_stranded_count_is_memoized_and_new_report_invalidates_it() -> None:
         titles={},
         generated_at=2.0,
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", second_snapshot, "store-2")
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", second_snapshot, "store-2")
 
     assert agent_stranded.stranded_count_for_agents((agent,)) == 2
     assert second_report.reads == 1
@@ -203,7 +207,7 @@ def test_agent_view_resolves_phase_task_and_waiter_states() -> None:
         agent_name="sase-demo.land",
         waiting_for_beads=["sase-demo.1"],
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict("sase-demo.1", "stranded"),
@@ -212,8 +216,8 @@ def test_agent_view_resolves_phase_task_and_waiter_states() -> None:
         "store",
     )
 
-    assert agent_stranded._agent_bead_id_for_stranded(phase) == "sase-demo.1"
-    assert agent_stranded._stranded_verdict_for_agent(phase).state == "stranded"  # type: ignore[union-attr]
+    assert stranded_view._agent_bead_id_for_stranded(phase) == "sase-demo.1"
+    assert stranded_view._stranded_verdict_for_agent(phase).state == "stranded"  # type: ignore[union-attr]
     assert agent_stranded.agent_stranded_view(waiter).waiting_on == (
         ("sase-demo.1", "stranded"),
     )
@@ -239,7 +243,7 @@ def test_stranded_leaf_verdict_filters_blocked_missing_and_cold_cache() -> None:
     stranded = owner("sase-demo.1")
     blocked = owner("sase-demo.2")
     missing = owner("sase-demo.3")
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict("sase-demo.1", "stranded"),
@@ -251,7 +255,7 @@ def test_stranded_leaf_verdict_filters_blocked_missing_and_cold_cache() -> None:
     assert agent_stranded.stranded_leaf_verdict(stranded).state == "stranded"  # type: ignore[union-attr]
     assert agent_stranded.stranded_leaf_verdict(blocked) is None
     assert agent_stranded.stranded_leaf_verdict(missing) is None
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     assert agent_stranded.stranded_leaf_verdict(stranded) is None
 
 
@@ -274,7 +278,7 @@ def _clan_container(*, name: str, members: list[Agent] | None = None) -> Agent:
 
 def test_ancestor_clan_counts_report_leaves_without_loaded_members() -> None:
     container = _clan_container(name="sase-demo")
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict(
@@ -314,7 +318,7 @@ def test_direct_phase_leaf_uses_leaf_style_and_counts_stranded_epic() -> None:
         agent_clan_generation="g1",
     )
     container = _clan_container(name="sase-demo", members=[leaf])
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict(
@@ -348,7 +352,7 @@ def test_blocked_member_is_included_in_wave_fold_keys() -> None:
         agent_clan_generation="g1",
     )
     container = _clan_container(name="sase-demo", members=[blocked])
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(_verdict("sase-demo.2", "blocked")),
         "store",
@@ -373,7 +377,7 @@ def test_waiting_for_agent_name_resolves_against_verdict_index() -> None:
         agent_name="sase-demo.land",
         waiting_for=["sase-demo.1"],
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(_verdict("sase-demo.1", "stranded", blocked_by=())),
         "store",
@@ -415,7 +419,7 @@ def test_surfaced_leaves_union_owner_waiter_and_clan_leaves() -> None:
     member.agent_clan_generation = "g1"
     container = _clan_container(name="sase-demo", members=[member])
     blocked_owner = _owner_agent("sase-demo.3")
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict("sase-demo.1", "stranded"),
@@ -453,7 +457,7 @@ def test_surfaced_leaves_excludes_blocked_wait_targets() -> None:
         agent_name="sase-demo.land",
         waiting_for_beads=["sase-demo.1"],
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(_verdict("sase-demo.1", "blocked")),
         "store",
@@ -465,7 +469,7 @@ def test_surfaced_leaves_excludes_blocked_wait_targets() -> None:
 
 def test_surfaced_count_memo_hits_and_invalidates_on_report_replacement() -> None:
     roster = (_owner_agent("sase-demo.1"),)
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(_verdict("sase-demo.1", "stranded")),
         "store-1",
@@ -474,7 +478,7 @@ def test_surfaced_count_memo_hits_and_invalidates_on_report_replacement() -> Non
     assert agent_stranded.surfaced_stranded_count(roster) == 1
     assert agent_stranded.surfaced_stranded_count(roster) == 1
 
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(
             _verdict("sase-demo.1", "stranded"),
@@ -498,7 +502,7 @@ def test_surfaced_count_memo_keys_on_generation_and_roster_identity(
     app = SimpleNamespace(
         _agents_roster_generation=0, _agents_tribe_assignment_generation=0
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         _snapshot(_verdict("sase-demo.1", "stranded")),
         "store-1",
@@ -511,7 +515,7 @@ def test_surfaced_count_memo_keys_on_generation_and_roster_identity(
         calls += 1
         return real_leaves(agent)
 
-    monkeypatch.setattr(agent_stranded, "surfaced_stranded_leaves", counting)
+    monkeypatch.setattr(stranded_surface, "surfaced_stranded_leaves", counting)
     roster = [_owner_agent("sase-demo.1")]
 
     assert agent_stranded.surfaced_stranded_count(roster, app) == 1
@@ -531,7 +535,7 @@ def test_surfaced_count_memo_keys_on_generation_and_roster_identity(
 
 def test_surfaced_count_is_zero_when_no_row_flags_the_backlog() -> None:
     leaves = tuple(_verdict(f"sase-old.{n}", "stranded") for n in range(1, 141))
-    agent_stranded._STRANDED_REPORT_CACHE.set("demo", _snapshot(*leaves), "store")
+    stranded_cache._STRANDED_REPORT_CACHE.set("demo", _snapshot(*leaves), "store")
     unrelated = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="unrelated",

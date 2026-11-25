@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 import os
 import time
 from dataclasses import replace
@@ -48,9 +50,9 @@ _OLD_STARTED = "2023-01-01T00:00:00Z"
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _dir(tmp_path: Path, name: str) -> Path:
@@ -425,9 +427,9 @@ def test_collection_failure_does_not_install_empty_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [100.0]
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        agent_stranded, "_project_fingerprint", lambda _project: "store"
+        stranded_cache, "_project_fingerprint", lambda _project: "store"
     )
     first = _report()
     loads: list[str] = []
@@ -464,9 +466,9 @@ def test_ttl_liveness_check_is_not_a_heavy_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [100.0]
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        agent_stranded, "_project_fingerprint", lambda _project: "store"
+        stranded_cache, "_project_fingerprint", lambda _project: "store"
     )
     snapshot = _report()
     loads = 0
@@ -498,9 +500,9 @@ def test_forced_immediate_refresh_runs_during_cached_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [100.0]
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        agent_stranded, "_project_fingerprint", lambda _project: "store"
+        stranded_cache, "_project_fingerprint", lambda _project: "store"
     )
     loads: list[str] = []
 

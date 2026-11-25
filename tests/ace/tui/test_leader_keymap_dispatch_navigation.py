@@ -5,6 +5,8 @@ Split from ``test_leader_keymap_dispatch``; see that module for the facade.
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from tests.ace.tui._leader_keymap_helpers import FakeApp
 
 
@@ -169,7 +171,7 @@ def test_leader_j_triple_miss_names_stranded_backlog() -> None:
     app.jump_stranded_result = False
     app._agents = [SimpleNamespace(project_file="/tmp/demo/demo.sase")]
     try:
-        agent_stranded._STRANDED_REPORT_CACHE.set(
+        stranded_cache._STRANDED_REPORT_CACHE.set(
             "demo",
             StrandedReport(
                 report=StrandedWorkReport(
@@ -198,7 +200,7 @@ def test_leader_j_triple_miss_names_stranded_backlog() -> None:
 
         handled = app._handle_leader_key("j")
     finally:
-        agent_stranded._STRANDED_REPORT_CACHE.clear()
+        stranded_cache._STRANDED_REPORT_CACHE.clear()
 
     assert handled is True
     assert app.jump_unread_count == 1

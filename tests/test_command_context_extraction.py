@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from dataclasses import replace
@@ -23,11 +25,9 @@ from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, LumberjackItem
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    from sase.ace.tui.models import agent_stranded
-
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def test_stranded_agent_count_uses_cached_leaf_verdicts_only() -> None:
@@ -62,7 +62,7 @@ def test_stranded_agent_count_uses_cached_leaf_verdicts_only() -> None:
         stranded_ids=("sase-demo.1",),
         blocked_ids=("sase-demo.2",),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=1.0), "test"
     )
 

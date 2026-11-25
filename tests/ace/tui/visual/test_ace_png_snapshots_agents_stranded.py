@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -38,7 +40,7 @@ _NOW = datetime(2026, 10, 1, 12, 0)
 
 
 def _clear_row_overlay_caches() -> None:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.clear()
     _BEAD_DISPLAY_CACHE.clear()
 
@@ -258,7 +260,7 @@ async def test_agents_stranded_rows_and_clan_png_snapshot(
             "_schedule_bead_confirmation_warmup",
             lambda **_: None,
         )
-        agent_stranded._STRANDED_REPORT_CACHE.set("visual", _report(), "visual-store")
+        stranded_cache._STRANDED_REPORT_CACHE.set("visual", _report(), "visual-store")
         page.app._refresh_agents_display(list_changed=True)
         await wait_for_visual_idle(page)
         await page.press("l")
@@ -295,7 +297,7 @@ async def test_agents_stranded_nested_chain_png_snapshot(
             "_schedule_bead_confirmation_warmup",
             lambda **_: None,
         )
-        agent_stranded._STRANDED_REPORT_CACHE.set(
+        stranded_cache._STRANDED_REPORT_CACHE.set(
             "visual", _nested_chain_report(), "visual-store"
         )
         page.app._refresh_agents_display(list_changed=True)
@@ -368,7 +370,7 @@ async def test_agents_stranded_detail_png_snapshots(
         monkeypatch.setattr(
             page.app, "_schedule_bead_confirmation_warmup", lambda **_: None
         )
-        agent_stranded._STRANDED_REPORT_CACHE.set("visual", _report(), "visual-store")
+        stranded_cache._STRANDED_REPORT_CACHE.set("visual", _report(), "visual-store")
         selected_agent = next(
             agent for agent in _agents() if agent.agent_name == agent_name
         )
@@ -464,7 +466,7 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
             ),
             description="startup bead warmup settled",
         )
-        agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
+        stranded_cache._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
         app._apply_bead_warmup_results(
             AgentBeadWarmupResults(
                 bead_display_results={},

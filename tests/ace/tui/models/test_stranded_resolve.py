@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from datetime import UTC, datetime
 
 import pytest
@@ -23,9 +25,9 @@ NOW = ENDED.timestamp() + 31 * 3600
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache() -> None:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _seed(*verdicts: StrandedWorkVerdict, titles: dict[str, str] | None = None) -> None:
@@ -34,7 +36,7 @@ def _seed(*verdicts: StrandedWorkVerdict, titles: dict[str, str] | None = None) 
         stranded_ids=tuple(v.bead_id for v in verdicts if v.state == "stranded"),
         blocked_ids=tuple(v.bead_id for v in verdicts if v.state == "blocked"),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(report=report, titles=titles or {}, generated_at=NOW),
         "test",

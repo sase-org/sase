@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 import asyncio
 from dataclasses import replace
 from pathlib import Path
@@ -50,7 +52,7 @@ def test_stranded_rows_count_tasks_and_style_ancestors(tmp_path: Path, monkeypat
         replace(value, project=None), loading=False, load_error=None
     ).plain
     assert "⚐ 2 stranded" in status
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     assert (
         "stranded"
         not in build_beads_status(value, loading=False, load_error=None).plain
@@ -85,7 +87,7 @@ def test_epic_breadcrumb_for_deep_leaf_and_bold_for_stranded_epic(
     if direct:
         verdicts[0] = replace(verdicts[0], state="stranded")
     report = replace(report, report=replace(report.report, verdicts=tuple(verdicts)))
-    agent_stranded._STRANDED_REPORT_CACHE.set("alpha", report, "fixture")
+    stranded_cache._STRANDED_REPORT_CACHE.set("alpha", report, "fixture")
     assert epic_stranded_style("alpha", "alpha-1") == (
         STRANDED_LEAF_STYLE if direct else STRANDED_BREADCRUMB_STYLE
     )
@@ -136,7 +138,7 @@ async def test_deferred_warmup_off_thread_and_unchanged_report_skips_render(
     pane._schedule_stranded_refresh()
     await asyncio.gather(*pane._beads_stranded_refresh_tasks)
     rendered.assert_called_once_with()
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     pane._schedule_stranded_refresh()
     await asyncio.gather(*pane._beads_stranded_refresh_tasks)
     assert rendered.call_count == 2

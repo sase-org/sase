@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache_module
+
+
 import importlib
 import logging
 import sys
@@ -279,7 +282,6 @@ def test_known_cache_census_reports_current_bounded_owners(
     artifact_reads = importlib.import_module("sase.ace.tui.artifact_reads")
     memory_reads = importlib.import_module("sase.ace.tui.memory_reads")
     bead_touches = importlib.import_module("sase.ace.tui._bead_touches_loader")
-    agent_stranded = importlib.import_module("sase.ace.tui.models.agent_stranded")
     projected_record = importlib.import_module(
         "sase.ace.tui.models._projected_record_detail"
     )
@@ -344,10 +346,10 @@ def test_known_cache_census_reports_current_bounded_owners(
                 verdict_index={"bead-1": object(), "bead-2": object()},
             )
         },
-        _max_entries=agent_stranded._CACHE_MAX_ENTRIES,
+        _max_entries=stranded_cache_module._CACHE_MAX_ENTRIES,
         _lock=threading.RLock(),
     )
-    monkeypatch.setattr(agent_stranded, "_STRANDED_REPORT_CACHE", stranded_cache)
+    monkeypatch.setattr(stranded_cache_module, "_STRANDED_REPORT_CACHE", stranded_cache)
 
     class _HydratedRow:
         record_shape = "full"
@@ -393,10 +395,10 @@ def test_known_cache_census_reports_current_bounded_owners(
         assert row["max_rows_per_entry"] == 50
         assert row["max_retained_rows"] == 128 * 50
 
-    stranded = rows["sase.ace.tui.models.agent_stranded._STRANDED_REPORT_CACHE"]
+    stranded = rows["sase.ace.tui.models._agent_stranded_cache._STRANDED_REPORT_CACHE"]
     assert stranded["status"] == "present"
     assert stranded["entries"] == 1
-    assert stranded["max_entries"] == agent_stranded._CACHE_MAX_ENTRIES
+    assert stranded["max_entries"] == stranded_cache_module._CACHE_MAX_ENTRIES
     assert stranded["candidate_verdict_total"] == 2
     assert stranded["title_total"] == 3
     assert stranded["verdict_index_total"] == 2

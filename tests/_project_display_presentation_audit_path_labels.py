@@ -145,7 +145,7 @@ _PATH_LABEL_EXEMPTIONS = (
         "Wait-bead joins key on canonical identity.",
     ),
     _PathLabelExemption(
-        "src/sase/ace/tui/models/agent_stranded.py",
+        "src/sase/ace/tui/models/_agent_stranded_cache.py",
         "_stranded_project_key_for_project_file",
         "Path(project_file).parent.name",
         "Stranded report cache uses the canonical project identity as an internal key.",

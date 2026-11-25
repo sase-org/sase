@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from datetime import datetime
 from pathlib import Path
 
@@ -93,7 +95,7 @@ def test_stranded_agent_header_includes_callout() -> None:
         since=1.0,
     )
     report = StrandedWorkReport(verdicts=(verdict,), stranded_ids=(verdict.bead_id,))
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=3601.0), "test"
     )
 
@@ -158,7 +160,7 @@ def test_blocked_agent_header_uses_blocked_sentence_tail() -> None:
         verdicts=(verdict,),
         blocked_ids=(verdict.bead_id,),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=3601.0), "test"
     )
 

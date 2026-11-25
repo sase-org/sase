@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,9 +26,9 @@ _NOW = 1_700_000_000.0
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _dir(tmp_path: Path, name: str) -> Path:
@@ -105,8 +107,8 @@ def test_degraded_load_does_not_replace_complete_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = [100.0]
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: now[0])
-    monkeypatch.setattr(agent_stranded, "_project_fingerprint", lambda _p: "store")
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: now[0])
+    monkeypatch.setattr(stranded_cache, "_project_fingerprint", lambda _p: "store")
     complete = _report()
     degraded = _degraded_report()
     refreshed = _report()
@@ -141,8 +143,8 @@ def test_degraded_load_does_not_replace_complete_generation(
 def test_cold_degraded_load_installs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: 100.0)
-    monkeypatch.setattr(agent_stranded, "_project_fingerprint", lambda _p: "store")
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(stranded_cache, "_project_fingerprint", lambda _p: "store")
     degraded = _degraded_report()
     monkeypatch.setattr(stranded_module, "load_stranded_report", lambda _p: degraded)
     agent_stranded.warm_stranded_work_reports(
@@ -156,8 +158,8 @@ def test_cold_degraded_load_installs(
 def test_degraded_over_degraded_installs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(agent_stranded, "monotonic", lambda: 100.0)
-    monkeypatch.setattr(agent_stranded, "_project_fingerprint", lambda _p: "store")
+    monkeypatch.setattr(stranded_cache, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(stranded_cache, "_project_fingerprint", lambda _p: "store")
     first = _degraded_report()
     monkeypatch.setattr(stranded_module, "load_stranded_report", lambda _p: first)
     agent_stranded.warm_stranded_work_reports(

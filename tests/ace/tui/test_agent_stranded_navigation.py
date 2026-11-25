@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from dataclasses import replace
 from datetime import datetime
 
@@ -22,9 +24,9 @@ from ._agent_unread_navigation_helpers import (
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache():
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _owner(bead_id: str, *, stop_time: datetime | None = None):
@@ -42,7 +44,7 @@ def _seed(*verdicts: StrandedWorkVerdict) -> None:
         stranded_ids=tuple(v.bead_id for v in verdicts if v.state == "stranded"),
         blocked_ids=tuple(v.bead_id for v in verdicts if v.state == "blocked"),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=1.0), "test"
     )
 
@@ -149,7 +151,7 @@ def test_blocked_and_missing_verdicts_are_skipped_and_cold_cache_misses() -> Non
     assert app._agents[app.current_idx] is running
     assert app.notifications == ["No unread completed, stopped, or stranded agents"]
 
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     app.notifications.clear()
     assert app._handle_leader_key("comma") is True
     assert app.notifications == ["No unread completed, stopped, or stranded agents"]
@@ -201,7 +203,7 @@ def test_stranded_jump_lands_on_clan_container_for_rowless_leaf() -> None:
         stranded_ids=("sase-demo.9",),
         blocked_ids=("sase-demo",),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo", StrandedReport(report=report, titles={}, generated_at=1.0), "test"
     )
     origin_idx = next(

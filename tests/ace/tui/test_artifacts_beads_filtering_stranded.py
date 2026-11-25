@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from pathlib import Path
 
 from tests.ace.tui._artifacts_beads_filtering_test_helpers import matched_bead_ids
@@ -9,14 +11,13 @@ from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
 def _seed_alpha_stranded(*, leaf_id: str = "alpha-1.2") -> None:
-    from sase.ace.tui.models import agent_stranded
     from sase.bead.stranded import StrandedReport
     from sase.core.stranded_work_facade import (
         StrandedWorkReport,
         StrandedWorkVerdict,
     )
 
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "alpha",
         StrandedReport(
             report=StrandedWorkReport(
@@ -42,7 +43,6 @@ def _seed_alpha_stranded(*, leaf_id: str = "alpha-1.2") -> None:
 def test_status_stranded_filter_matches_cached_stranded_leaves(
     tmp_path: Path,
 ) -> None:
-    from sase.ace.tui.models import agent_stranded
 
     try:
         _seed_alpha_stranded()
@@ -50,13 +50,12 @@ def test_status_stranded_filter_matches_cached_stranded_leaves(
         assert "alpha-1.2" not in matched_bead_ids(tmp_path, "-status:stranded")
         assert matched_bead_ids(tmp_path, "status:stranded -status:open") == []
     finally:
-        agent_stranded._STRANDED_REPORT_CACHE.clear()
+        stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def test_status_stranded_index_key_follows_report_replacement(
     tmp_path: Path,
 ) -> None:
-    from sase.ace.tui.models import agent_stranded
     from sase.ace.tui.widgets.artifacts.beads_filtering import (
         beads_filter_source_key,
         build_bead_filter_index,
@@ -75,4 +74,4 @@ def test_status_stranded_index_key_follows_report_replacement(
         assert "stranded" not in second.by_option_id["phase:alpha-1.2"].status_labels
         assert "stranded" in second.by_option_id["phase:alpha-1.1"].status_labels
     finally:
-        agent_stranded._STRANDED_REPORT_CACHE.clear()
+        stranded_cache._STRANDED_REPORT_CACHE.clear()

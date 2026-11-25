@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+
 from collections.abc import Iterator
 from datetime import datetime
 
@@ -25,9 +27,9 @@ from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdi
 
 @pytest.fixture(autouse=True)
 def _clear_stranded_cache() -> Iterator[None]:
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
     yield
-    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    stranded_cache._STRANDED_REPORT_CACHE.clear()
 
 
 def _agent(
@@ -70,7 +72,7 @@ def _set_report(*verdicts: StrandedWorkVerdict) -> None:
             verdict.bead_id for verdict in verdicts if verdict.state == "blocked"
         ),
     )
-    agent_stranded._STRANDED_REPORT_CACHE.set(
+    stranded_cache._STRANDED_REPORT_CACHE.set(
         "demo",
         StrandedReport(report=report, titles={}, generated_at=1.0),
         "test",
