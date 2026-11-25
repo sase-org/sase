@@ -241,6 +241,10 @@ stranded backlog as a worklist.
 A live waiter blocked on a stranded bead raises one `wait_checks` notification for that
 bead, shared by all waiters currently blocked on it.
 
+ACE toasts each stranding incident once; a burst of more than three newly stranded beads
+collapses into one summary toast. While the collector cannot read sessions (`unknown`),
+ACE keeps showing the last complete report.
+
 ## Related
 
 - [Beads](beads.md)

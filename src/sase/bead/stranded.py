@@ -13,6 +13,7 @@ from time import time
 
 from sase.bead.stranded_facts import collect_stranded_work_snapshot
 from sase.core.stranded_work_facade import (
+    STRANDED_UNKNOWN_RECORDS_UNAVAILABLE,
     STRANDED_WORK_WIRE_SCHEMA_VERSION,
     StrandedWorkReport,
     reduce_stranded_work,
@@ -29,6 +30,9 @@ class StrandedReport:
     treat that empty report as a successful unchanged generation.
     ``stable_rebuild`` is true when bead/session projections were rematerialized
     rather than reused from a Rust-certified store identity.
+    ``records_unavailable`` counts verdicts whose session records could not be
+    read (``unknown``/``records_unavailable``); such a report is degraded and
+    must never replace a complete generation in the warm cache.
     """
 
     report: StrandedWorkReport
@@ -36,6 +40,12 @@ class StrandedReport:
     generated_at: float
     collection_failed: bool = False
     stable_rebuild: bool = True
+    records_unavailable: int = 0
+
+    @property
+    def degraded(self) -> bool:
+        """Return whether session-record gaps make this report degraded."""
+        return self.records_unavailable > 0
 
 
 def load_stranded_report(project: str, *, now: float | None = None) -> StrandedReport:
@@ -58,12 +68,19 @@ def load_stranded_report(project: str, *, now: float | None = None) -> StrandedR
             exc_info=True,
         )
         return empty
+    records_unavailable = sum(
+        1
+        for verdict in report.verdicts
+        if verdict.state == "unknown"
+        and verdict.reason == STRANDED_UNKNOWN_RECORDS_UNAVAILABLE
+    )
     return StrandedReport(
         report=report,
         titles=titles,
         generated_at=moment,
         collection_failed=False,
         stable_rebuild=rebuilt,
+        records_unavailable=records_unavailable,
     )
 
 

@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 
 STRANDED_WORK_WIRE_SCHEMA_VERSION = 2
 
+# Mirrors ``STRANDED_UNKNOWN_RECORDS_UNAVAILABLE`` in sase-core's
+# ``crates/sase_core/src/stranded_work/wire.rs``.
+STRANDED_UNKNOWN_RECORDS_UNAVAILABLE = "records_unavailable"
+
 _REDUCE_BINDING: Any = None
 
 
@@ -142,6 +146,7 @@ def reduce_stranded_work(facts: Mapping[str, Any]) -> StrandedWorkReport:
 
 
 __all__ = [
+    "STRANDED_UNKNOWN_RECORDS_UNAVAILABLE",
     "STRANDED_WORK_WIRE_SCHEMA_VERSION",
     "StrandedWorkReport",
     "StrandedWorkVerdict",
