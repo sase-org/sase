@@ -167,6 +167,25 @@ def test_batch_read_yields_aggregate_chip() -> None:
     assert pins == [("gotchas.md", 25), ("dispatch.md", 12)]
 
 
+def test_roster_read_uses_descriptor_blob_for_version_chip() -> None:
+    event = _event(
+        selectors=("roster:decisions",),
+        canonical_path="roster:decisions",
+        resolved_path="",
+        blob_oid=None,
+        included_blob_oids=(("decisions.md", BLOB_A),),
+        kind="web",
+    )
+    history = _History({BLOB_A: _result(25, now_matches=True)})
+
+    chip, pins = resolve_event_chips(event, history=history, service=_Service())
+
+    assert chip is not None
+    assert chip.text == "≡ now"
+    assert pins == [("decisions.md", 25)]
+    assert history.calls == [("decisions.md", BLOB_A)]
+
+
 def test_read_without_blob_yields_no_chip() -> None:
     history = _History({})
     chip, pins = resolve_event_chips(

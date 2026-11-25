@@ -105,6 +105,8 @@ def _build_web_or_strand_badges(
             badges.append("AUDIT FAILED")
     elif node.web is not None:
         badges.append("WEB")
+        if node.web.roster_loading == "on_demand":
+            badges.append("ON DEMAND")
         badges.append("EXPANDED" if node.expanded else "COLLAPSED")
     if not badges:
         return None
@@ -122,9 +124,31 @@ def _build_web_property_grid(
     strand_word = web.strand_noun if len(web.strands) == 1 else f"{web.strand_noun}s"
     rows: list[tuple[str, str | RenderableType]] = [
         ("Strands", f"{len(web.strands)} {strand_word}"),
-        ("Roster", web.roster),
+        (
+            "Roster",
+            f"{web.roster} · on demand"
+            if web.roster_loading == "on_demand"
+            else web.roster,
+        ),
         ("Links", f"{web.link_reference} · {web.link_rendering}"),
     ]
+    if web.roster_loading == "on_demand":
+        if web.roster_read_when:
+            rows.append(
+                (
+                    "Read when",
+                    Text("\n".join(f"• {trigger}" for trigger in web.roster_read_when)),
+                )
+            )
+        roster_read = snapshot.read_summaries.get(f"roster:{web.slug}")
+        if roster_read is not None:
+            rows.append(
+                (
+                    "Last roster read",
+                    f"{roster_read.last_agent} · {roster_read.last_reason} · "
+                    f"{format_relative_time(roster_read.last_read_at)}",
+                )
+            )
     _append_file_rows(snapshot, node.note, rows)
     rows.append(("Source", memory_note_source_path(snapshot.scope, node.note)))
     return build_property_grid(rows, accent=accent)

@@ -170,6 +170,8 @@ def _build_web_row_text(
     if snippet:
         text.append("  ")
         text.append(snippet, style="dim")
+    if web.roster_loading == "on_demand":
+        text.append("  · on demand", style="dim")
     return text
 
 

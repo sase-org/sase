@@ -147,6 +147,31 @@ def test_pathless_strand_event_maps_to_deferred_report() -> None:
     assert "◇ [1] decisions:corpus-before-mechanism" in text.plain
 
 
+def test_pathless_roster_event_maps_to_deferred_report() -> None:
+    event = make_memory_read_event(
+        canonical_path="roster:decisions",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="roster-read",
+        resolved_path="",
+        kind="web",
+        selectors=("roster:decisions",),
+        resolved_targets=("roster:decisions",),
+        depth=0,
+    )
+    state = make_hint_state()
+    text = Text()
+
+    append_agent_memory_reads_section(
+        text, events=(make_memory_read_display(event, "planner"),), hint_state=state
+    )
+
+    report_path = memory_read_report_path(event)
+    assert state.hint_mappings == {1: report_path}
+    assert list(state.memory_reports) == [report_path]
+    assert state.memory_reports[report_path].event is event
+    assert "◇ [1] roster:decisions" in text.plain
+
+
 def test_pathless_batch_event_displays_original_selectors() -> None:
     event = make_memory_read_event(
         canonical_path="decisions:corpus-before-mechanism",

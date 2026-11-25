@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from rich.console import Console
 
 from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
@@ -18,6 +19,8 @@ from sase.ace.tui.modals.memory_panel_rendering import (
     note_rail_width,
 )
 from sase.ace.tui.modals.memory_panel_rendering_card import _build_note_property_grid
+from sase.ace.tui.modals.memory_panel_web_rendering import build_rail_node_card_meta
+from sase.memory.read_log import MemoryReadPathSummary
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     memory_note,
     memory_web_with_mentioning_strands,
@@ -188,6 +191,75 @@ def test_web_row_text_uses_web_marker_without_invalid_warning() -> None:
     assert text.startswith("▸ ◆ ")
     assert "⚠" not in text
     assert "glossary" in text
+
+
+def test_on_demand_web_row_has_dim_suffix() -> None:
+    web = replace(
+        memory_web_with_mentioning_strands(),
+        roster_loading="on_demand",
+    )
+    row = MemoryRailNode(note=memory_note("glossary", note_type=None), depth=0, web=web)
+
+    text = build_note_row_text(row, generated_paths=frozenset())
+
+    assert text.plain.endswith("· on demand")
+    assert any(str(span.style) == "dim" for span in text.spans)
+
+
+def test_on_demand_web_card_shows_roster_triggers_and_last_read() -> None:
+    ref = scope_ref("sase", "sase")
+    web = replace(
+        memory_web_with_mentioning_strands(),
+        roster_loading="on_demand",
+        roster_read_when=("before planning", "when researching"),
+    )
+    note = memory_note("glossary", note_type=None)
+    summary = MemoryReadPathSummary(
+        canonical_path="roster:glossary",
+        read_count=1,
+        distinct_agent_count=1,
+        last_read_at="2026-11-25T15:00:00+00:00",
+        last_agent="planner",
+        last_reason="need the governing terms",
+    )
+    snapshot = scope_snapshot(
+        ref,
+        (note,),
+        webs=(web,),
+        read_summaries={"roster:glossary": summary},
+    )
+    node = MemoryRailNode(note=note, depth=0, web=web)
+    console = Console(width=160, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(build_rail_node_card_meta(snapshot, node, accent="#87D7FF"))
+    text = capture.get()
+
+    assert "WEB" in text
+    assert "ON DEMAND" in text
+    assert "Roster" in text and "inline · on demand" in text
+    assert "Read when" in text
+    assert "• before planning" in text
+    assert "• when researching" in text
+    assert "Last roster read" in text
+    assert "planner · need the governing terms" in text
+
+
+def test_always_web_card_keeps_original_roster_row() -> None:
+    ref = scope_ref("sase", "sase")
+    web = memory_web_with_mentioning_strands()
+    note = memory_note("glossary", note_type=None)
+    snapshot = scope_snapshot(ref, (note,), webs=(web,))
+    node = MemoryRailNode(note=note, depth=0, web=web)
+    console = Console(width=160, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(build_rail_node_card_meta(snapshot, node, accent="#87D7FF"))
+    text = capture.get()
+
+    assert "WEB" in text
+    assert "ON DEMAND" not in text
+    assert "Roster" in text and "inline" in text
+    assert "Read when" not in text
+    assert "Last roster read" not in text
 
 
 def test_note_row_text_includes_description_snippet() -> None:
