@@ -21,6 +21,7 @@ from sase.memory.selector import (
     ResolvedMemorySelectorBatch,
     resolve_memory_selector_batch,
 )
+from sase.memory.selector_models import WebSelector, classify_selector
 from sase.memory.selector_render import (
     memory_selector_batch_file_paths,
     memory_selector_batch_markdown,
@@ -246,10 +247,24 @@ def _reproduced_command(event: MemoryReadEvent, selectors: tuple[str, ...]) -> s
     if event.project:
         parts.extend(["-p", event.project])
     parts.extend(selectors)
+    if _has_bare_web_selector(selectors):
+        parts.append("-a")
     if event.depth is not None:
         parts.extend(["-d", str(event.depth)])
     parts.extend(["--format", "markdown"])
     return " ".join(shlex.quote(part) for part in parts)
+
+
+def _has_bare_web_selector(selectors: tuple[str, ...]) -> bool:
+    """Return whether any selector is a bare web name needing ``-a`` to replay."""
+    for raw in selectors:
+        try:
+            classified = classify_selector(raw)
+        except MemoryReadError:
+            continue
+        if isinstance(classified, WebSelector):
+            return True
+    return False
 
 
 def _title_selectors(selectors: tuple[str, ...]) -> str:

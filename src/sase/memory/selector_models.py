@@ -26,6 +26,10 @@ class MemorySelectorError(MemoryReadError):
     """Raised when a memory selector in a read/show batch cannot be resolved."""
 
 
+#: The reserved ``roster:`` selector prefix for audited on-demand roster reads.
+ROSTER_SELECTOR_PREFIX = "roster"
+
+
 @dataclass(frozen=True, slots=True)
 class NoteSelector:
     raw: str
@@ -43,6 +47,14 @@ class StrandSelector:
     raw: str
     web_slug: str
     keyword: str
+
+
+@dataclass(frozen=True, slots=True)
+class RosterSelector:
+    """One audited ``roster:<web>`` catalog read selector."""
+
+    raw: str
+    web_slug: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +115,17 @@ class MemoryWebReadSection:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryWebRosterSection:
+    """One audited ``roster:<web>`` catalog read in a resolved batch.
+
+    Unlike :class:`MemoryWebReadSection`, a roster section carries no strand
+    bodies — only the merged web the roster renders from.
+    """
+
+    web: MemoryWeb
+
+
+@dataclass(frozen=True, slots=True)
 class ResolvedMemorySelectorBatch:
     """A fully resolved, not-yet-rendered ``memory read``/``show`` batch."""
 
@@ -115,18 +138,23 @@ class ResolvedMemorySelectorBatch:
     has_web_selector: bool
     has_strand_selector: bool
     render_units: tuple[MemorySelectorBatchUnit, ...] = ()
+    rosters: tuple[MemoryWebRosterSection, ...] = ()
 
     @property
     def kind(self) -> MemorySelectorKind:
-        if self.has_web_selector:
+        if self.has_web_selector or self.has_roster_selector:
             return "web"
         if self.has_strand_selector:
             return "strand"
         return "note"
 
     @property
+    def has_roster_selector(self) -> bool:
+        return bool(self.rosters)
+
+    @property
     def is_single_note(self) -> bool:
-        return len(self.notes) == 1 and not self.web_sections
+        return len(self.notes) == 1 and not self.web_sections and not self.rosters
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,8 +177,10 @@ def _selector_error(message: str, reason: str) -> MemorySelectorError:
     return exc
 
 
-def classify_selector(raw: str) -> NoteSelector | WebSelector | StrandSelector:
-    """Classify one user-supplied flat-note, web, or strand selector."""
+def classify_selector(
+    raw: str,
+) -> NoteSelector | WebSelector | StrandSelector | RosterSelector:
+    """Classify one user-supplied flat-note, web, strand, or roster selector."""
     stripped = raw.strip()
     if not stripped:
         raise _selector_error("memory selector must not be empty", "invalid_syntax")
@@ -158,6 +188,12 @@ def classify_selector(raw: str) -> NoteSelector | WebSelector | StrandSelector:
         web_part, _, keyword_part = stripped.partition(":")
         web_part = web_part.strip()
         keyword_part = keyword_part.strip()
+        if web_part == ROSTER_SELECTOR_PREFIX:
+            if not keyword_part:
+                raise _selector_error(
+                    f"invalid memory selector: {raw!r}", "invalid_syntax"
+                )
+            return RosterSelector(raw=raw, web_slug=keyword_part)
         if not web_part or not keyword_part:
             raise _selector_error(f"invalid memory selector: {raw!r}", "invalid_syntax")
         return StrandSelector(raw=raw, web_slug=web_part, keyword=keyword_part)

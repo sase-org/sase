@@ -163,9 +163,16 @@ def _validate_memory_read_candidate(
     )
     if note.is_web_descriptor:
         slug = Path(note.relative_path).stem
+        if note.frontmatter.get("roster_loading") == "on_demand":
+            raise _candidate_error(
+                f"{note.relative_path} loads its roster on demand; read the roster "
+                f'with `sase memory read roster:{slug} -r "<why>"` or one strand '
+                f'with `sase memory read {slug}:<keyword> -r "<why>"`',
+                "note_kind",
+            )
         raise _candidate_error(
             f"{note.relative_path} is an always-loaded memory web descriptor; "
-            f"read its strands with `sase memory read {slug}:<keyword>`",
+            f'read its strands with `sase memory read {slug}:<keyword> -r "<why>"`',
             "note_kind",
         )
     if note.type == "core":

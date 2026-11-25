@@ -1,4 +1,4 @@
-{"count": 3724, "rev": "ec057d525965", "schema": "sase.footprint.catalog/1"}
+{"count": 3726, "rev": "90b325134484", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -1146,11 +1146,13 @@
 {"area": "cli.memory", "id": "cli:memory.log#json", "kind": "option", "label": "Option --json of cli:memory.log", "ns": "cli", "parent": "cli:memory.log", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.log#path", "kind": "option", "label": "Option --path of cli:memory.log", "ns": "cli", "parent": "cli:memory.log", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.read", "kind": "command", "label": "Read and audit one or more memory selectors", "ns": "cli", "parent": null, "src": "sase/main/parser_memory.py:register_memory_parser"}
+{"area": "cli.memory", "id": "cli:memory.read#all_strands", "kind": "option", "label": "Option --all_strands of cli:memory.read", "ns": "cli", "parent": "cli:memory.read", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.read#depth", "kind": "option", "label": "Option --depth of cli:memory.read", "ns": "cli", "parent": "cli:memory.read", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.read#format", "kind": "option", "label": "Option --format of cli:memory.read", "ns": "cli", "parent": "cli:memory.read", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.read#project", "kind": "option", "label": "Option --project of cli:memory.read", "ns": "cli", "parent": "cli:memory.read", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.read#reason", "kind": "option", "label": "Option --reason of cli:memory.read", "ns": "cli", "parent": "cli:memory.read", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.show", "kind": "command", "label": "Print one or more memory selectors without recording a read", "ns": "cli", "parent": null, "src": "sase/main/parser_memory.py:register_memory_parser"}
+{"area": "cli.memory", "id": "cli:memory.show#all_strands", "kind": "option", "label": "Option --all_strands of cli:memory.show", "ns": "cli", "parent": "cli:memory.show", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.show#depth", "kind": "option", "label": "Option --depth of cli:memory.show", "ns": "cli", "parent": "cli:memory.show", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.show#format", "kind": "option", "label": "Option --format of cli:memory.show", "ns": "cli", "parent": "cli:memory.show", "src": "sase/main/parser_memory.py:register_memory_parser"}
 {"area": "cli.memory", "id": "cli:memory.show#project", "kind": "option", "label": "Option --project of cli:memory.show", "ns": "cli", "parent": "cli:memory.show", "src": "sase/main/parser_memory.py:register_memory_parser"}

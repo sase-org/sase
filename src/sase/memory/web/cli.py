@@ -201,8 +201,11 @@ def _reference_slugs(scoped: ScopedMemoryWeb, strand: MemoryStrand) -> tuple[str
 def _web_show_table(
     scoped: ScopedMemoryWeb, strands: tuple[MemoryStrand, ...]
 ) -> Table:
+    title = f"MEMORY WEB  {scoped.slug}"
+    if scoped.web.roster_loading == "on_demand":
+        title += " · roster on demand"
     table = Table(
-        title=Text(f"MEMORY WEB  {scoped.slug}", style="bold cyan"),
+        title=Text(title, style="bold cyan"),
         caption=f"{len(strands)} {scoped.web.strand_noun}"
         f"{'s' if len(strands) != 1 else ''}",
         show_header=True,

@@ -282,25 +282,61 @@ strand's body. `PATTERN` is an optional case-insensitive substring match against
 keywords and aliases; `-b/--bodies` extends the match into strand bodies. `-f/--format`
 selects `table` (the default), `names`, or `json`. Both subcommands accept
 `-p/--project REF` the same way `sase repo`, `sase workspace`, and `sase memory` infer a
-project from the current directory when `-p` is omitted.
+project from the current directory when `-p` is omitted. An on-demand web's table title
+notes `roster on demand`. For the audited catalog read behind the index, use
+`sase memory read roster:<web> -r "<why>"` (see [Reading strands](#reading-strands)).
 
 ### Reading strands
 
-`sase memory read` and `sase memory show` accept three selector shapes in one variadic
+`sase memory read` and `sase memory show` accept four selector shapes in one variadic
 batch, and the whole batch resolves before anything is printed or logged:
 
 - a flat note name, e.g. `generated_skills.md`
 - a bare web name, e.g. `glossary`, which reads every strand in that web
 - a `web:keyword` strand reference, e.g. `glossary:stitch`, resolved by canonical
   keyword, alias, or an unambiguous prefix
+- a `roster:<web>` catalog read, e.g. `roster:glossary`, which reads the web's titles
+  and summaries with no bodies
 
 ```bash
 sase memory read glossary:stitch -r "Need the stitch/patch vocabulary"
 sase memory read glossary:stitch glossary:patch "Agent Hood" -r "Need the patch/stitch/hood vocabulary"
 sase memory read glossary -r "Need the whole glossary"
+sase memory read roster:glossary -r "Need the glossary catalog"
+sase memory read roster:glossary glossary:stitch -r "Need the catalog plus one term"
 sase memory show glossary:stitch
 sase memory show glossary:stitch -d 0 -f markdown
+sase memory show roster:glossary
 ```
+
+A `roster:<web>` read prints one `MEMORY ROSTER` section: a count-and-description line,
+the web's managed roster exactly as `sase memory web show` indexes it (summaries and
+supersession markers included), and a footer naming the `web:<keyword>` read for one
+entry. Strand bodies never appear, and no `## Linked References` section is emitted. It
+works for `always` webs too, prints through the same Markdown, rich (a `MEMORY ROSTER`
+grid with a `count · always|on demand` chip, the dim description, the roster as
+Markdown, and the dim footer), and JSON shapes (`read`/`show -f json` carry a top-level
+`rosters` list with `web`, `label`, `strand_noun`, `count`, `roster`, `roster_loading`,
+`read_when`, per-entry `number`/`keyword`/`slug`/`summary`/ `supersession`, and the
+exact roster `markdown`), and records one audited event before printing like any other
+read.
+
+A bare web selector for a web whose roster loads on demand is refused before anything is
+printed or logged — a bare read of such a web would print every strand body by accident:
+
+```text
+sase memory read: decisions loads its roster on demand, so a bare `decisions` read would print all 31 decision bodies.
+  roster:     sase memory read roster:decisions -r "<why>"
+  one entry:  sase memory read decisions:<keyword> -r "<why>"
+  every body: add -a/--all-strands
+```
+
+Pass `-a/--all-strands` to let a bare web selector print every strand body anyway. The
+guard lives only in the `read`/`show` CLI path: plan memory decisions, TUI re-reports of
+a historical bare read, and the Memory panel's strand preview keep resolving bare webs
+without it. A historical bare read still reproduces because the generated memory-read
+report adds `-a` to its `sase memory show` command whenever a selector is a bare web
+name.
 
 `web:keyword` is an explicit read-time addressing alias, not a runtime trigger: nothing
 scans a prompt for glossary phrases at read time, and nothing auto-injects context. Pass

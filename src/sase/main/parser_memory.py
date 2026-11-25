@@ -92,21 +92,25 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "Resolve one or more memory selectors from project sase/memory/, "
             "falling back to ~/sase/memory/ when the project file is absent. "
             "A selector is a flat note name (generated_skills.md), a bare "
-            "memory-web name (glossary, every strand), or a web:keyword "
-            "strand reference (glossary:stitch). The whole batch is resolved "
-            "before anything is printed or logged, so one unknown selector "
-            "fails the entire request. Leading YAML frontmatter is stripped "
-            "from notes, child notes are listed when present, and each read "
-            "appends one attributable audit log row. Identical to "
-            "`sase memory show` except that it requires a reason and records "
-            "an audited read before printing."
+            "memory-web name (glossary, every strand), a web:keyword "
+            "strand reference (glossary:stitch), or a roster:<web> catalog "
+            "read (roster:glossary, titles and summaries, no bodies). The "
+            "whole batch is resolved before anything is printed or logged, "
+            "so one unknown selector fails the entire request. Leading YAML "
+            "frontmatter is stripped from notes, child notes are listed when "
+            "present, and each read appends one attributable audit log row. "
+            "Identical to `sase memory show` except that it requires a "
+            "reason and records an audited read before printing. A bare web "
+            "selector for a web whose roster loads on demand is refused "
+            "unless -a/--all-strands is passed."
         ),
         epilog=(
             "examples:\n"
             "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"\n'
             '  sase memory read glossary:stitch -r "Need the stitch/patch vocabulary"\n'
-            '  sase memory read glossary cli_rules.md -r "Need everything"'
+            '  sase memory read glossary cli_rules.md -r "Need everything"\n'
+            '  sase memory read roster:glossary -r "Need the glossary catalog"'
         ),
     )
     _add_memory_view_arguments(read_parser, require_reason=True)
@@ -129,7 +133,8 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory show generated_skills.md\n"
             "  sase memory show sase_beads.md -f rich\n"
             "  sase memory show glossary:stitch -f json\n"
-            "  sase memory show glossary -d 0"
+            "  sase memory show glossary -d 0\n"
+            "  sase memory show roster:glossary"
         ),
     )
     _add_memory_view_arguments(show_parser)
@@ -301,8 +306,18 @@ def _add_memory_view_arguments(
         nargs="+",
         help=(
             "One or more selectors: a flat note name (generated_skills.md), "
-            "a bare memory-web name (glossary), or a web:keyword strand "
-            "reference (glossary:stitch)"
+            "a bare memory-web name (glossary), a web:keyword strand "
+            "reference (glossary:stitch), or a roster:<web> catalog read "
+            "(roster:glossary)"
+        ),
+    )
+    parser.add_argument(
+        "-a",
+        "--all-strands",
+        action="store_true",
+        help=(
+            "Let a bare web selector print every strand body, even for a web "
+            "whose roster loads on demand"
         ),
     )
     parser.add_argument(
@@ -392,7 +407,8 @@ def _register_memory_web_parser(
             "Print one web's strand index: keyword, slug, aliases, "
             "mention-reference count, and summary, optionally filtered by "
             "PATTERN. This is the index; `sase memory show <web>:<keyword>` "
-            "is the content read."
+            "is the content read. For the audited catalog read, use "
+            '`sase memory read roster:<web> -r "<why>"`.'
         ),
         epilog=(
             "examples:\n"

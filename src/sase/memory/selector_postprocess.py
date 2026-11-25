@@ -14,7 +14,7 @@ from sase.memory.render import ResolvedMemoryNote
 class MemorySelectorBatchUnit:
     """One top-level unit in the order a selector batch should print."""
 
-    kind: Literal["note", "web"]
+    kind: Literal["note", "web", "roster"]
     key: str
 
 
@@ -111,14 +111,21 @@ def _suppress_note_rendered_targets(
     )
 
 
+class _RosterLike(Protocol):
+    @property
+    def web(self) -> _WebLike: ...
+
+
 def select_memory_selector_render_units(
     candidates: Sequence[MemorySelectorBatchUnit],
     notes: tuple[ResolvedMemoryNote, ...],
     sections: tuple[_SectionLike, ...],
+    rosters: tuple[_RosterLike, ...] = (),
 ) -> tuple[MemorySelectorBatchUnit, ...]:
     """Return top-level render units in first requested selector order."""
     note_keys = {note.content.path.canonical_path for note in notes}
     web_keys = {section.web.slug for section in sections}
+    roster_keys = {roster.web.slug for roster in rosters}
     seen: set[tuple[str, str]] = set()
     units: list[MemorySelectorBatchUnit] = []
 
@@ -134,11 +141,15 @@ def select_memory_selector_render_units(
             add(unit)
         elif unit.kind == "web" and unit.key in web_keys:
             add(unit)
+        elif unit.kind == "roster" and unit.key in roster_keys:
+            add(unit)
 
     for note in notes:
         add(MemorySelectorBatchUnit("note", note.content.path.canonical_path))
     for section in sections:
         add(MemorySelectorBatchUnit("web", section.web.slug))
+    for roster in rosters:
+        add(MemorySelectorBatchUnit("roster", roster.web.slug))
     return tuple(units)
 
 

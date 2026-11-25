@@ -7,6 +7,7 @@ and strand closure handling lives in :mod:`sase.memory.selector_web`.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.cli_common import MemoryCliProjectError, resolve_memory_cli_project
@@ -15,10 +16,12 @@ from sase.memory.selector_models import (
     MemorySelectorKind,
     MemoryWebReadNode,
     MemoryWebReadSection,
+    MemoryWebRosterSection,
     ResolvedMemorySelectorBatch,
     MemorySelectorError,
     NoteInlineContext,
     NoteSelector,
+    RosterSelector,
     StrandSelector,
     WebSelector,
     classify_selector,
@@ -37,8 +40,12 @@ from sase.memory.selector_postprocess import (
     select_memory_selector_render_units,
     suppress_rendered_targets,
 )
-from sase.memory.selector_web import apply_note_strand_roots, resolve_web_sections
-from sase.memory.web import ScopedMemoryWeb, discover_scoped_memory_webs
+from sase.memory.selector_web import (
+    apply_note_strand_roots,
+    resolve_roster_sections,
+    resolve_web_sections,
+)
+from sase.memory.web import MemoryWeb, ScopedMemoryWeb, discover_scoped_memory_webs
 
 
 def resolve_memory_selector_batch(
@@ -48,8 +55,19 @@ def resolve_memory_selector_batch(
     project_ref: str | None = None,
     project_root: Path | None = None,
     home_root: Path | None = None,
+    refuse_on_demand_bare_webs: bool | Literal["read", "show"] = False,
 ) -> ResolvedMemorySelectorBatch:
-    """Resolve every selector before emitting output or writing an audit event."""
+    """Resolve every selector before emitting output or writing an audit event.
+
+    When *refuse_on_demand_bare_webs* is truthy, a bare web selector naming
+    a web whose roster loads on demand fails the whole batch with an
+    ``on_demand_web`` error before anything prints. Pass ``True`` for the
+    ``read`` wording or ``"show"`` for the ``show`` wording; ``False``
+    (the default) stays permissive so historical bare reads, plan memory
+    decisions, and Memory panel previews keep resolving. The ``read``/``show``
+    CLI path passes this flag (``-a/--all-strands`` bypasses it by not
+    passing it).
+    """
     if not selectors:
         _empty = MemorySelectorError("at least one memory selector is required")
         try:
@@ -82,6 +100,13 @@ def resolve_memory_selector_batch(
     link_notes, scoped_webs = _discover_link_universe(
         resolved_project_root, resolved_home_root
     )
+    if refuse_on_demand_bare_webs:
+        command = (
+            refuse_on_demand_bare_webs
+            if refuse_on_demand_bare_webs in ("read", "show")
+            else "read"
+        )
+        _refuse_on_demand_bare_web(classified, scoped_webs, command=command)
 
     note_items = [item for item in classified if isinstance(item, NoteSelector)]
     requested_keys = requested_note_keys(
@@ -113,6 +138,7 @@ def resolve_memory_selector_batch(
         rendered_keys.update(note_tree_keys(note))
     notes = tuple(resolved_notes)
 
+    roster_sections = resolve_roster_sections(classified, scoped_webs=scoped_webs)
     web_sections, extra_notes = resolve_web_sections(
         classified,
         project_root=resolved_project_root,
@@ -164,7 +190,9 @@ def resolve_memory_selector_batch(
             ),
             notes,
             web_sections,
+            roster_sections,
         ),
+        rosters=roster_sections,
     )
 
 
@@ -185,23 +213,73 @@ def _discover_link_universe(
     return tuple(by_path.values()), discover_scoped_memory_webs(project_root, home_root)
 
 
+def _refuse_on_demand_bare_web(
+    classified: list[NoteSelector | WebSelector | StrandSelector | RosterSelector],
+    scoped_webs: tuple[ScopedMemoryWeb, ...],
+    *,
+    command: Literal["read", "show"],
+) -> None:
+    """Raise ``on_demand_web`` for a bare read of an on-demand roster web."""
+    by_slug = {scoped.slug: scoped for scoped in scoped_webs}
+    for item in classified:
+        if not isinstance(item, WebSelector):
+            continue
+        scoped = by_slug.get(item.web_slug)
+        if scoped is None or scoped.web.roster_loading != "on_demand":
+            continue
+        raise _on_demand_bare_web_error(
+            scoped.web, strand_count=len(scoped.strands), command=command
+        )
+
+
+def _on_demand_bare_web_error(
+    web: MemoryWeb, *, strand_count: int, command: Literal["read", "show"]
+) -> MemorySelectorError:
+    """Build the CLI-only bare-web guard error for one on-demand web."""
+    bodies = "body" if strand_count == 1 else "bodies"
+    if command == "show":
+        roster_hint = f"sase memory show roster:{web.slug}"
+        one_hint = f"sase memory show {web.slug}:<keyword>"
+    else:
+        roster_hint = f'sase memory read roster:{web.slug} -r "<why>"'
+        one_hint = f'sase memory read {web.slug}:<keyword> -r "<why>"'
+    message = (
+        f"{web.slug} loads its roster on demand, so a bare `{web.slug}` read "
+        f"would print all {strand_count} {web.strand_noun} {bodies}.\n"
+        f"  {'roster:':<11} {roster_hint}\n"
+        f"  {'one entry:':<11} {one_hint}\n"
+        f"  {'every body:':<11} add -a/--all-strands"
+    )
+    exc = MemorySelectorError(message)
+    try:
+        exc.reason = "on_demand_web"  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return exc
+
+
 def _render_unit_candidates(
-    classified: list[NoteSelector | WebSelector | StrandSelector],
+    classified: list[NoteSelector | WebSelector | StrandSelector | RosterSelector],
     *,
     project_root: Path,
     home_root: Path,
 ) -> tuple[MemorySelectorBatchUnit, ...]:
-    return tuple(
-        MemorySelectorBatchUnit(
-            "note",
-            note_selector_canonical_path(
-                item, project_root=project_root, home_root=home_root
-            ),
-        )
-        if isinstance(item, NoteSelector)
-        else MemorySelectorBatchUnit("web", item.web_slug)
-        for item in classified
-    )
+    units: list[MemorySelectorBatchUnit] = []
+    for item in classified:
+        if isinstance(item, NoteSelector):
+            units.append(
+                MemorySelectorBatchUnit(
+                    "note",
+                    note_selector_canonical_path(
+                        item, project_root=project_root, home_root=home_root
+                    ),
+                )
+            )
+        elif isinstance(item, RosterSelector):
+            units.append(MemorySelectorBatchUnit("roster", item.web_slug))
+        else:
+            units.append(MemorySelectorBatchUnit("web", item.web_slug))
+    return tuple(units)
 
 
 __all__ = [
@@ -209,6 +287,8 @@ __all__ = [
     "MemorySelectorBatchUnit",
     "MemoryWebReadNode",
     "MemoryWebReadSection",
+    "MemoryWebRosterSection",
     "ResolvedMemorySelectorBatch",
+    "RosterSelector",
     "resolve_memory_selector_batch",
 ]

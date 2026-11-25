@@ -22,6 +22,7 @@ from sase.memory.read_log import (
     require_agent_identity,
 )
 from sase.memory.selector import ResolvedMemorySelectorBatch
+from sase.memory.web.roster import render_strand_roster
 
 
 def handle_memory_read_command(
@@ -65,6 +66,9 @@ def build_memory_read_event_for_view(
         len(node.strand.body.encode("utf-8"))
         for section in view.web_sections
         for node in section.nodes
+    )
+    byte_count += sum(
+        len(render_strand_roster(roster.web).encode("utf-8")) for roster in view.rosters
     )
     frontmatter_stripped = any(
         note.content.frontmatter_stripped for note in notes_with_inline
@@ -114,6 +118,8 @@ def _batch_targets(
             else:
                 append_unique(included, target)
             scope_origin.append((target, node.scope))
+    for roster in view.rosters:
+        append_unique(resolved, f"roster:{roster.web.slug}")
     return tuple(resolved), tuple(included), tuple(scope_origin)
 
 
@@ -153,6 +159,13 @@ def _batch_blob_oids(
                 append_pair(target, node.strand.body.encode("utf-8"))
             except Exception:  # noqa: BLE001 - see above.
                 continue
+    for roster in view.rosters:
+        if roster.web.source != "file":
+            continue
+        try:
+            append_pair(f"{roster.web.slug}.md", roster.web.raw_text.encode("utf-8"))
+        except Exception:  # noqa: BLE001 - see above.
+            continue
     return tuple(pairs)
 
 

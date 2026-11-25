@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from rich.console import Console, Group, RenderableType
+from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
@@ -38,8 +39,11 @@ from sase.memory.selector import (
     MemorySelectorBatchUnit,
     MemoryWebReadNode,
     MemoryWebReadSection,
+    MemoryWebRosterSection,
     ResolvedMemorySelectorBatch,
 )
+from sase.memory.web.lookup import ordered_web_strands
+from sase.memory.web.roster import render_strand_roster
 from sase.memory.web.supersession import StrandSupersession, parse_strand_supersession
 
 _ACCENT = SECTION_COLOR
@@ -70,6 +74,8 @@ def render_memory_selector_batch(
     for item in _render_items(batch):
         if isinstance(item, ResolvedMemoryNote):
             render_memory_note(item, output_format="rich", console=target)
+        elif isinstance(item, MemoryWebRosterSection):
+            target.print(_roster_section_renderable(item))
         else:
             target.print(_web_section_renderable(item))
 
@@ -84,6 +90,7 @@ def _batch_json_payload(batch: ResolvedMemorySelectorBatch) -> dict[str, object]
         "depth": batch.depth,
         "notes": [_note_json(note) for note in batch.notes],
         "webs": [_web_section_json(section) for section in batch.web_sections],
+        "rosters": [_roster_json(roster) for roster in batch.rosters],
     }
 
 
@@ -109,6 +116,31 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
 
 def _child_json(child: MemoryNote) -> dict[str, str | None]:
     return {"path": child.relative_path, "description": child.description}
+
+
+def _roster_json(section: MemoryWebRosterSection) -> dict[str, object]:
+    web = section.web
+    strands = ordered_web_strands(web)
+    return {
+        "web": web.slug,
+        "label": web.roster_label,
+        "strand_noun": web.strand_noun,
+        "count": len(strands),
+        "roster": web.roster,
+        "roster_loading": web.roster_loading,
+        "read_when": list(web.roster_read_when),
+        "entries": [
+            {
+                "number": number,
+                "keyword": strand.keyword,
+                "slug": strand.slug,
+                "summary": strand.summary,
+                "supersession": _supersession_json(parse_strand_supersession(strand)),
+            }
+            for number, strand in enumerate(strands, start=1)
+        ],
+        "markdown": render_strand_roster(web),
+    }
 
 
 def _web_section_json(section: MemoryWebReadSection) -> dict[str, object]:
@@ -169,6 +201,8 @@ def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     for item in _render_items(batch):
         if isinstance(item, ResolvedMemoryNote):
             pieces.append(_note_section_markdown(item))
+        elif isinstance(item, MemoryWebRosterSection):
+            pieces.append(_roster_section_markdown(item))
         else:
             pieces.append(_web_section_markdown(item))
     return "\n".join(piece.rstrip("\n") for piece in pieces) + "\n"
@@ -176,16 +210,22 @@ def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
 
 def _render_items(
     batch: ResolvedMemorySelectorBatch,
-) -> tuple[ResolvedMemoryNote | MemoryWebReadSection, ...]:
+) -> tuple[ResolvedMemoryNote | MemoryWebReadSection | MemoryWebRosterSection, ...]:
     notes = {note.content.path.canonical_path: note for note in batch.notes}
     sections = {section.web.slug: section for section in batch.web_sections}
+    rosters = {roster.web.slug: roster for roster in batch.rosters}
     units = batch.render_units or _legacy_render_units(batch)
-    items: list[ResolvedMemoryNote | MemoryWebReadSection] = []
+    items: list[ResolvedMemoryNote | MemoryWebReadSection | MemoryWebRosterSection] = []
     for unit in units:
         if unit.kind == "note":
             note = notes.get(unit.key)
             if note is not None:
                 items.append(note)
+            continue
+        if unit.kind == "roster":
+            roster = rosters.get(unit.key)
+            if roster is not None:
+                items.append(roster)
             continue
         section = sections.get(unit.key)
         if section is not None:
@@ -205,10 +245,14 @@ def _legacy_render_units(
             MemorySelectorBatchUnit("web", section.web.slug)
             for section in batch.web_sections
         ),
+        *(
+            MemorySelectorBatchUnit("roster", roster.web.slug)
+            for roster in batch.rosters
+        ),
     )
 
 
-def _markdown_section_header(kind: Literal["FILE", "WEB"], name: str) -> str:
+def _markdown_section_header(kind: Literal["FILE", "WEB", "ROSTER"], name: str) -> str:
     """Return a combined-batch Markdown section header.
 
     Combined Markdown is the only path that labels sections. Each header
@@ -221,6 +265,43 @@ def _markdown_section_header(kind: Literal["FILE", "WEB"], name: str) -> str:
 def _note_section_markdown(note: ResolvedMemoryNote) -> str:
     header = _markdown_section_header("FILE", note.content.path.canonical_path)
     return "\n".join([header, memory_note_markdown(note)])
+
+
+def _roster_section_markdown(section: MemoryWebRosterSection) -> str:
+    """Return the Markdown ``sase memory show`` prints for a roster section."""
+    pieces = [_markdown_section_header("ROSTER", section.web.slug)]
+    pieces.append(_roster_intro_line(section) + "\n")
+    roster = render_strand_roster(section.web)
+    if roster.strip():
+        pieces.append(roster + "\n")
+    pieces.append(_roster_footer_line(section) + "\n")
+    return "\n".join(pieces)
+
+
+def _counted_roster_noun(noun: str, count: int) -> str:
+    """Return the singular/plural strand noun for a roster count line."""
+    if count == 1:
+        return noun
+    if noun.endswith("s"):
+        return noun
+    return f"{noun}s"
+
+
+def _roster_intro_line(section: MemoryWebRosterSection) -> str:
+    web = section.web
+    count = len(web.strands)
+    noun = _counted_roster_noun(web.strand_noun, count)
+    if web.description:
+        return f"*{count} {noun} — {web.description}*"
+    return f"*{count} {noun}*"
+
+
+def _roster_footer_line(section: MemoryWebRosterSection) -> str:
+    web = section.web
+    return (
+        f"Read one {web.strand_noun} with "
+        f'`sase memory read {web.slug}:<keyword> -r "<why>"`.'
+    )
 
 
 def _web_section_markdown(section: MemoryWebReadSection) -> str:
@@ -263,6 +344,43 @@ def _provenance_label(node: MemoryWebReadNode) -> str:
 
 
 # --- rich -----------------------------------------------------------------
+
+
+def _roster_section_renderable(section: MemoryWebRosterSection) -> Group:
+    web = section.web
+    count = len(web.strands)
+    noun = _counted_roster_noun(web.strand_noun, count)
+    loading = "on demand" if web.roster_loading == "on_demand" else "always"
+    blocks: list[RenderableType] = [_roster_header(section, count, noun, loading)]
+    blocks.append(Text(""))
+    if web.description:
+        blocks.append(Text(web.description, style="dim"))
+        blocks.append(Text(""))
+    roster = render_strand_roster(web)
+    if roster.strip():
+        blocks.append(Markdown(roster))
+        blocks.append(Text(""))
+    blocks.append(Text(_roster_footer_line(section), style="dim"))
+    return Group(*blocks)
+
+
+def _roster_header(
+    section: MemoryWebRosterSection, count: int, noun: str, loading: str
+) -> RenderableType:
+    grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
+    grid.add_column(ratio=1, overflow="fold")
+    grid.add_column(justify="right", no_wrap=True)
+
+    left = Text()
+    left.append("MEMORY ROSTER", style=f"bold {_ACCENT}")
+    left.append("  ")
+    left.append(section.web.slug, style=f"bold {PATH_COLOR}")
+
+    grid.add_row(
+        left,
+        Text(f"{count} {noun} · {loading}", style="dim"),
+    )
+    return grid
 
 
 def _web_section_renderable(section: MemoryWebReadSection) -> Group:
@@ -380,12 +498,14 @@ def _supersession_markdown(supersession: StrandSupersession) -> str:
 def memory_selector_batch_file_paths(
     batch: ResolvedMemorySelectorBatch,
 ) -> tuple[Path, ...]:
-    """Return the requested note and strand files of *batch* in printed order."""
+    """Return the requested note, strand, and roster files of *batch* in order."""
     paths: list[Path] = []
     for item in _render_items(batch):
         if isinstance(item, ResolvedMemoryNote):
             if item.render_origin == "requested":
                 paths.append(item.content.path.resolved_path)
+        elif isinstance(item, MemoryWebRosterSection):
+            paths.append(item.web.path)
         else:
             for node in item.nodes:
                 if node.origin == "requested":

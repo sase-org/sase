@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
-from typing import cast
+from typing import Literal, cast
 
 from rich.console import Console
 
@@ -19,13 +19,28 @@ from sase.memory.selector_render import render_memory_selector_batch
 
 
 def resolve_memory_view(args: argparse.Namespace) -> ResolvedMemorySelectorBatch:
-    """Resolve the selector batch shared by ``show`` and ``read``."""
+    """Resolve the selector batch shared by ``show`` and ``read``.
+
+    A bare web selector naming a web whose roster loads on demand is refused
+    here with an ``on_demand_web`` error unless ``-a/--all-strands`` was
+    passed. ``read`` argument namespaces carry ``reason``; ``show`` ones do
+    not, which selects the guard's hint wording.
+    """
     home_root = Path.home()
+    if bool(getattr(args, "all_strands", False)):
+        return resolve_memory_selector_batch(
+            list(args.selectors),
+            depth=getattr(args, "depth", None),
+            project_ref=getattr(args, "project", None),
+            home_root=home_root,
+        )
+    command: Literal["read", "show"] = "read" if hasattr(args, "reason") else "show"
     return resolve_memory_selector_batch(
         list(args.selectors),
         depth=getattr(args, "depth", None),
         project_ref=getattr(args, "project", None),
         home_root=home_root,
+        refuse_on_demand_bare_webs=command,
     )
 
 

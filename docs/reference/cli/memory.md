@@ -124,16 +124,17 @@ Options:
 ## `sase memory read`
 
 ```text
-usage: sase memory read [-h] selector [selector ...] [-d N]
+usage: sase memory read [-h] selector [selector ...] [-a] [-d N]
                         [-f {json,markdown,rich}] [-p REF] -r REASON
 ```
 
-Resolve one or more memory selectors from project sase/memory/, falling back to ~/sase/memory/ when the project file is absent. A selector is a flat note name (generated_skills.md), a bare memory-web name (glossary, every strand), or a web:keyword strand reference (glossary:stitch). The whole batch is resolved before anything is printed or logged, so one unknown selector fails the entire request. Leading YAML frontmatter is stripped from notes, child notes are listed when present, and each read appends one attributable audit log row. Identical to `sase memory show` except that it requires a reason and records an audited read before printing.
+Resolve one or more memory selectors from project sase/memory/, falling back to ~/sase/memory/ when the project file is absent. A selector is a flat note name (generated_skills.md), a bare memory-web name (glossary, every strand), a web:keyword strand reference (glossary:stitch), or a roster:<web> catalog read (roster:glossary, titles and summaries, no bodies). The whole batch is resolved before anything is printed or logged, so one unknown selector fails the entire request. Leading YAML frontmatter is stripped from notes, child notes are listed when present, and each read appends one attributable audit log row. Identical to `sase memory show` except that it requires a reason and records an audited read before printing. A bare web selector for a web whose roster loads on demand is refused unless -a/--all-strands is passed.
 
 Options:
 
 | Option                         | Description                                                                                                                                 | Default    |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `-a`, `--all-strands`          | Let a bare web selector print every strand body, even for a web whose roster loads on demand                                                | `false`    |
 | `-d N`, `--depth N`            | Cap link/mention closure recursion depth (default: unlimited); -d 0 prints only the requested selectors and lists every link as a reference | —          |
 | `-f FORMAT`, `--format FORMAT` | Output format (default: markdown) (choices: `json`, `markdown`, `rich`)                                                                     | `markdown` |
 | `-h`, `--help`                 | show this help message and exit                                                                                                             | —          |
@@ -142,14 +143,14 @@ Options:
 
 Arguments:
 
-| Argument    | Description                                                                                                                                           |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `selectors` | One or more selectors: a flat note name (generated_skills.md), a bare memory-web name (glossary), or a web:keyword strand reference (glossary:stitch) |
+| Argument    | Description                                                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `selectors` | One or more selectors: a flat note name (generated_skills.md), a bare memory-web name (glossary), a web:keyword strand reference (glossary:stitch), or a roster:<web> catalog read (roster:glossary) |
 
 ## `sase memory show`
 
 ```text
-usage: sase memory show [-h] selector [selector ...] [-d N]
+usage: sase memory show [-h] selector [selector ...] [-a] [-d N]
                         [-f {json,markdown,rich}] [-p REF]
 ```
 
@@ -159,6 +160,7 @@ Options:
 
 | Option                         | Description                                                                                                                                 | Default    |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `-a`, `--all-strands`          | Let a bare web selector print every strand body, even for a web whose roster loads on demand                                                | `false`    |
 | `-d N`, `--depth N`            | Cap link/mention closure recursion depth (default: unlimited); -d 0 prints only the requested selectors and lists every link as a reference | —          |
 | `-f FORMAT`, `--format FORMAT` | Output format (default: markdown) (choices: `json`, `markdown`, `rich`)                                                                     | `markdown` |
 | `-h`, `--help`                 | show this help message and exit                                                                                                             | —          |
@@ -166,9 +168,9 @@ Options:
 
 Arguments:
 
-| Argument    | Description                                                                                                                                           |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `selectors` | One or more selectors: a flat note name (generated_skills.md), a bare memory-web name (glossary), or a web:keyword strand reference (glossary:stitch) |
+| Argument    | Description                                                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `selectors` | One or more selectors: a flat note name (generated_skills.md), a bare memory-web name (glossary), a web:keyword strand reference (glossary:stitch), or a roster:<web> catalog read (roster:glossary) |
 
 ## `sase memory web`
 
@@ -216,7 +218,7 @@ usage: sase memory web show [-h] WEB [PATTERN] [-b] [-f {json,names,table}]
                             [-p REF]
 ```
 
-Print one web's strand index: keyword, slug, aliases, mention-reference count, and summary, optionally filtered by PATTERN. This is the index; `sase memory show <web>:<keyword>` is the content read.
+Print one web's strand index: keyword, slug, aliases, mention-reference count, and summary, optionally filtered by PATTERN. This is the index; `sase memory show <web>:<keyword>` is the content read. For the audited catalog read, use `sase memory read roster:<web> -r "<why>"`.
 
 Options:
 

@@ -178,7 +178,8 @@ def test_build_report_renders_bare_web_multi_target_output(tmp_path: Path) -> No
     report = _build_memory_read_report(_spec(event))
 
     assert (
-        "sase memory show -p demo-memory-report decisions --format markdown" in report
+        "sase memory show -p demo-memory-report decisions -a --format markdown"
+        in report
     )
     assert "---------- MEMORY WEB: decisions" in report
     assert "# Corpus Before Mechanism" in report

@@ -19,10 +19,12 @@ from sase.memory.render import ResolvedMemoryNote
 from sase.memory.selector_models import (
     MemorySelectorError,
     MemoryWebReadLink,
+    MemoryWebRosterSection,
     NoteInlineContext,
     NoteSelector,
     PendingNoteStrandRoot,
     ResolvedStrandLink,
+    RosterSelector,
     StrandSelector,
     WebSelector,
     MemoryWebReadNode,
@@ -49,8 +51,46 @@ from sase.memory.web.resolution import GlossaryClosureNode
 _EXTRA_ROOT_DEPTH = 0
 
 
+def resolve_roster_sections(
+    classified: list[NoteSelector | WebSelector | StrandSelector | RosterSelector],
+    *,
+    scoped_webs: tuple[ScopedMemoryWeb, ...],
+) -> tuple[MemoryWebRosterSection, ...]:
+    """Resolve ``roster:<web>`` selectors against the merged web scope.
+
+    Duplicate roster selectors collapse to one section. An unknown web fails
+    the whole batch closed, like an unknown strand web.
+    """
+    roster_items = [item for item in classified if isinstance(item, RosterSelector)]
+    if not roster_items:
+        return ()
+
+    def _roster_error(message: str, reason: str) -> MemorySelectorError:
+        exc = MemorySelectorError(message)
+        try:
+            exc.reason = reason  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return exc
+
+    by_slug = {scoped.slug: scoped for scoped in scoped_webs}
+    seen: set[str] = set()
+    sections: list[MemoryWebRosterSection] = []
+    for item in roster_items:
+        scoped = by_slug.get(item.web_slug)
+        if scoped is None:
+            raise _roster_error(f"unknown memory web: {item.web_slug}", "unknown_web")
+        if item.web_slug in seen:
+            continue
+        seen.add(item.web_slug)
+        sections.append(
+            MemoryWebRosterSection(web=replace(scoped.web, strands=scoped.strands))
+        )
+    return tuple(sections)
+
+
 def resolve_web_sections(
-    classified: list[NoteSelector | WebSelector | StrandSelector],
+    classified: list[NoteSelector | WebSelector | StrandSelector | RosterSelector],
     *,
     project_root: Path,
     home_root: Path,
