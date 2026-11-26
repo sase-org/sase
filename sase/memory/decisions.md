@@ -21,9 +21,8 @@ A decision record is not a design doc or a subsystem overview — those go stale
 code changes underneath them. A record is immutable once accepted: if the project
 changes course, a new record is written and the old one is marked superseded with a
 `metadata.status` plus `superseded_by` mark and a `[[...]]` back-link, never edited in
-place. Read one on demand with `sase memory read decisions:<keyword> -r "<why>"`; each
-record states the claim, why it was chosen over the credible alternatives, what it
-costs, and the condition that would reopen it.
+place. Each record states the claim, why it was chosen over the credible alternatives,
+what it costs, and the condition that would reopen it.
 
 <!-- sase:strands -->
 
@@ -103,9 +102,9 @@ costs, and the condition that would reopen it.
       `memory-links-are-authored`]_ A keyed memory collection is a flat descriptor note
       plus a sibling strand directory, addressed web:keyword.
 21. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`)
-    - _[partly superseded by `decisions:rosters-load-on-demand`]_ A memory web's
-      placement in generated agent instructions follows from its kind, not from a
-      `type:` declaration on its descriptor.
+    - _[partly superseded by `rosters-load-on-demand`]_ A memory web's placement in
+      generated agent instructions follows from its kind, not from a `type:` declaration
+      on its descriptor.
 22. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`)
     - Only the host-launched root agent submits final declarations and runs turn-ending
       operations; native helpers and forks return their results to their parent.

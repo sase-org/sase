@@ -39,6 +39,24 @@ def roster_region_error(body: str) -> str | None:
     return None
 
 
+def body_without_managed_roster_region(body: str) -> str:
+    """Return *body* with the whole marker-delimited region removed.
+
+    Markers and everything between them are removed. When no markers are
+    present the body is returned unchanged. Slicing mirrors
+    :func:`render_web_projection_body`.
+    """
+
+    start = body.find(START_MARKER)
+    if start < 0:
+        return body
+    end = body.find(END_MARKER, start)
+    if end < 0:
+        return body
+    end += len(END_MARKER)
+    return body[:start] + body[end:]
+
+
 def strip_managed_roster_markers(body: str) -> str:
     """Return *body* with roster marker lines and their preceding blanks removed.
 
@@ -302,6 +320,7 @@ __all__ = [
     "END_MARKER",
     "START_MARKER",
     "RosterCompaction",
+    "body_without_managed_roster_region",
     "render_managed_roster_region",
     "render_on_demand_roster_pointer",
     "render_strand_roster",

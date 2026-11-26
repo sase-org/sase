@@ -25042,7 +25042,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4034fd54741931a0",
+            "description_digest": "cbf3c50f1b9e8cdd",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -25059,6 +25059,22 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "all_strands",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all-strands"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -25156,7 +25172,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4f38a03aeb95eb1a",
+            "description_digest": "f70e6c5aa135f741",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -25173,6 +25189,22 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "all_strands",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all-strands"
                 ],
                 "takes_value": false,
                 "value_hint": null

@@ -54,6 +54,7 @@ from .read_context import discover_scoped_memory_webs
 from .roster import (
     END_MARKER,
     START_MARKER,
+    body_without_managed_roster_region,
     render_managed_roster_region,
     render_on_demand_roster_pointer,
     render_strand_roster,
@@ -106,6 +107,7 @@ __all__ = [
     "WebScope",
     "WebSource",
     "WebStrandOrigin",
+    "body_without_managed_roster_region",
     "create_memory_strand",
     "cross_scope_keyword_warnings",
     "delete_memory_strand",

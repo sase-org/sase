@@ -26,7 +26,7 @@ from .models import (
     MemoryWebValidationReport,
     ScopedMemoryWeb,
 )
-from .roster import roster_region_error, strip_managed_roster_markers
+from .roster import body_without_managed_roster_region, roster_region_error
 from .scope import merge_memory_web_scopes
 from .supersession import coerce_superseded_by_targets, supersession_status
 
@@ -96,7 +96,7 @@ def _roster_loading_blockers(web: MemoryWeb) -> tuple[str, ...]:
     blockers: list[str] = []
     if not web.description:
         blockers.append(f"{web.path}: on-demand memory web requires a description")
-    if not strip_managed_roster_markers(web.body).strip():
+    if not body_without_managed_roster_region(web.body).strip():
         blockers.append(
             f"{web.path}: on-demand memory web body is empty outside the "
             "managed roster region"

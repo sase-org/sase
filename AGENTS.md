@@ -168,9 +168,8 @@ A decision record is not a design doc or a subsystem overview — those go stale
 code changes underneath them. A record is immutable once accepted: if the project
 changes course, a new record is written and the old one is marked superseded with a
 `metadata.status` plus `superseded_by` mark and a `[[...]]` back-link, never edited in
-place. Read one on demand with `sase memory read decisions:<keyword> -r "<why>"`; each
-record states the claim, why it was chosen over the credible alternatives, what it
-costs, and the condition that would reopen it.
+place. Each record states the claim, why it was chosen over the credible alternatives,
+what it costs, and the condition that would reopen it.
 
 **Roster on demand.** This web's 32 decisions are not listed here. You MUST read the
 DECISIONS roster with `sase memory read roster:decisions -r "<why>"`:

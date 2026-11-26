@@ -7,12 +7,13 @@ summary:
 metadata:
   status: superseded-in-part
   decided: 2026-08-30
-  superseded_by: decisions:rosters-load-on-demand
+  superseded_by: decisions/rosters-load-on-demand
 ---
 
-> **Superseded in part** by [[decisions:rosters-load-on-demand]]: its claim that every
-> web descriptor always renders its full roster in generated instructions is retired.
-> The descriptor body still renders in the Memory Webs section.
+> _Superseded in part:_ the Cost sentence "there is no longer a way to make one
+> read-on-demand" is retired for rosters: a web may now load its roster on demand
+> ([[decisions/rosters-load-on-demand]]). The descriptor body itself still always
+> renders in the Memory Webs section.
 
 **Claim.** A memory web descriptor does not declare `type:` or `parent:`;
 `sase memory init` ignores both if present and strips them on convergence. A web's kind

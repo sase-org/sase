@@ -199,6 +199,37 @@ def test_validation_blocks_on_demand_empty_authored_body(tmp_path: Path) -> None
     )
 
 
+def test_validation_blocks_on_demand_populated_region_only(tmp_path: Path) -> None:
+    _seed(
+        tmp_path,
+        extra="roster_loading: on_demand\n",
+        body=f"{START_MARKER}\n1. **Record 0** (`record-0`) - Summary 0.\n{END_MARKER}\n",
+        strand_count=1,
+    )
+
+    report = validate_memory_webs(discover_memory_webs(tmp_path))
+
+    assert any(
+        "empty outside the managed roster region" in blocker
+        for blocker in report.blockers
+    )
+
+
+def test_validation_allows_on_demand_preamble_with_region(tmp_path: Path) -> None:
+    _seed(
+        tmp_path,
+        extra="roster_loading: on_demand\n",
+        strand_count=1,
+    )
+
+    report = validate_memory_webs(discover_memory_webs(tmp_path))
+
+    assert not any(
+        "empty outside the managed roster region" in blocker
+        for blocker in report.blockers
+    )
+
+
 def test_validation_warns_on_demand_without_read_when(tmp_path: Path) -> None:
     _seed(tmp_path, extra="roster_loading: on_demand\n", strand_count=1)
 

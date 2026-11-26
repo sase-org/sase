@@ -106,7 +106,10 @@ The note card also shows a badge row (`CORE · always loaded` /
 grid: type, parent, child count, size (lines and approximate tokens), last modified,
 last audited read, and the on-disk source path. A web row instead shows `WEB` plus
 `EXPANDED`/`COLLAPSED`, and its property grid names strand count and scope -- a web
-descriptor declares no `type:`, so there is no rendering-type row.
+descriptor declares no `type:`, so there is no rendering-type row. An on-demand web
+adds an `ON DEMAND` badge, its `Roster` row reads `<style> · on demand` with `Read
+when` trigger rows below it and, after an agent reads `roster:<web>`, a `Last roster
+read` row (agent · reason · age); the rail row trails with `· on demand`.
 
 The card head is pinned: the title row plus the path line with the pager's state pill
 (`NOW`, `uncommitted`, `UNTRACKED`, `NO VCS`), then a reserved two-row time strip (one
