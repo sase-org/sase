@@ -102,6 +102,15 @@ class LifecycleMixin:
 
         cancel_archive_controller(self)
         cancel_pump_free_tasks(self)
+        from .agents._archive_view import invalidate_agents_detail_ownership
+
+        invalidate_agents_detail_ownership(self)
+        from ..models._projected_record_detail import (
+            release_projected_agent_detail,
+        )
+
+        for agent in tuple(getattr(self, "_agents", ()) or ()):
+            release_projected_agent_detail(agent)
         shutdown_hijack = getattr(self, "_shutdown_hijack_decision_executor", None)
         if callable(shutdown_hijack):
             shutdown_hijack()

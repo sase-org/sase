@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,6 +25,14 @@ from sase.core.rust import require_rust_binding
 
 
 _COMMANDS = "commit_hooks:\n  before: echo hi\n"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_warned_signatures() -> Iterator[None]:
+    """Do not carry warn-once state from one trust test to the next."""
+    enforcement_flag_on._warned_signatures.clear()
+    yield
+    enforcement_flag_on._warned_signatures.clear()
 
 
 def _canonical_checkout(root: Path, extra: str = "") -> Path:
@@ -53,7 +62,6 @@ def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(core, "CONFIG_DIR", config_dir)
     clear_config_cache()
-    enforcement_flag_on._warned_signatures.clear()
 
 
 def _no_projects(monkeypatch: pytest.MonkeyPatch) -> None:

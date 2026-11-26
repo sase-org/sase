@@ -9,6 +9,7 @@ execute project scripts beyond tmp sentinels.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,14 @@ from sase.config.core import (
     load_merged_config,
     load_merged_config_for_local_path,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_warned_signatures() -> Iterator[None]:
+    """Do not carry warn-once state from one trust test to the next."""
+    enforcement_flag_on._warned_signatures.clear()
+    yield
+    enforcement_flag_on._warned_signatures.clear()
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -53,7 +62,6 @@ def _repo(
     monkeypatch.setattr(core, "CONFIG_DIR", config_dir)
     monkeypatch.chdir(root)
     clear_config_cache()
-    enforcement_flag_on._warned_signatures.clear()
     return root, local_path
 
 

@@ -39,7 +39,7 @@ from ._archive_view_state import (
 log = logging.getLogger(__name__)
 
 
-def _invalidate_agents_detail_ownership(owner: Any) -> int:
+def invalidate_agents_detail_ownership(owner: Any) -> int:
     """Invalidate earlier detail work. Returns the new generation.
 
     Lifecycle teardown primitive: every view switch funnels through here so
@@ -144,7 +144,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     _cancel_open_filter_session(owner)
     state.parked_inbox = capture_parked_inbox(owner)
     state.active_view = AGENTS_VIEW_ARCHIVE
-    _invalidate_agents_detail_ownership(owner)
+    invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
@@ -197,7 +197,7 @@ def open_agents_archive_view_with_query(
         loaded_pages={},
         restored_keys=frozenset(),
     )
-    _invalidate_agents_detail_ownership(owner)
+    invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
@@ -230,7 +230,7 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     state.parked_inbox = None
     state.active_view = AGENTS_VIEW_INBOX
     state.archive.restored_keys = frozenset()
-    _invalidate_agents_detail_ownership(owner)
+    invalidate_agents_detail_ownership(owner)
     _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_RETURNED,

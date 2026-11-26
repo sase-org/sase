@@ -149,8 +149,15 @@ def note_projected_detail_retained(agent: Agent) -> None:
     """
 
     generation = id(agent)
+
+    def forget_dead_owner(reference: weakref.ref[Any]) -> None:
+        """Remove this generation as soon as its Agent becomes unreachable."""
+        with _detail_owner_lock:
+            if _detail_owner.get(generation) is reference:
+                _detail_owner.pop(generation, None)
+
     with _detail_owner_lock:
-        _detail_owner[generation] = weakref.ref(agent)
+        _detail_owner[generation] = weakref.ref(agent, forget_dead_owner)
         _detail_owner.move_to_end(generation)
         for known, known_ref in list(_detail_owner.items()):
             if known_ref() is None:
@@ -160,6 +167,15 @@ def note_projected_detail_retained(agent: Agent) -> None:
             oldest = oldest_ref()
             if oldest is not None:
                 _release_projected_agent_detail(oldest)
+
+
+def release_projected_agent_detail(agent: Agent) -> bool:
+    """Release a registered Agent's projected detail during owner teardown."""
+    with _detail_owner_lock:
+        known = _detail_owner.get(id(agent))
+        if known is None or known() is not agent:
+            return False
+        return _release_projected_agent_detail(agent)
 
 
 def _release_projected_agent_detail(agent: Agent) -> bool:

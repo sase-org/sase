@@ -10,6 +10,11 @@ import pytest
 
 from sase.ace import dismissed_agents_bundles
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
+from sase.ace.tui.models import _projected_record_detail as detail_record
+from tests.ace.tui.models._projected_detail_retention_support import (
+    list_agent,
+    stamp,
+)
 from sase.ace.tui.models._loaders import (
     _done_loaders,
     _json_cache,
@@ -123,6 +128,31 @@ def test_lifecycle_on_unmount_shuts_down_loader_executor(monkeypatch) -> None:
         "restore-decoration",
         "restore-signal",
     ]
+
+
+def test_lifecycle_on_unmount_releases_projected_detail_owners(monkeypatch) -> None:
+    calls: list[str] = []
+    app = _lifecycle_app(calls)
+    agent = list_agent(
+        stamp(20260617120000, 0),
+        "/tmp/projects/lifecycle/artifacts/ace-run/20260617120000",
+        cl_name="lifecycle-release",
+    )
+    agent.record_shape = "full"
+    detail_record.note_projected_detail_retained(agent)
+    generation = id(agent)
+    app._agents = [agent]
+
+    monkeypatch.setattr(
+        _json_cache,
+        "shutdown_loader_executor",
+        lambda: calls.append("loader"),
+    )
+
+    app.on_unmount()
+
+    assert generation not in detail_record._detail_owner
+    assert agent.record_shape == "list"
 
 
 class _CancelOnIterationExecutor:

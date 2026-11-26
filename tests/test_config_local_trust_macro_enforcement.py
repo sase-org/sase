@@ -8,6 +8,7 @@ steps. Tests use temporary config/state and sentinel commands.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,6 +25,14 @@ from sase.macro.processor import process_macro_references
 from sase.macro.workflow_executor import WorkflowExecutor
 from sase.macro.workflow_loader import get_all_workflows
 from sase.macro.workflow_models import WorkflowExecutionError
+
+
+@pytest.fixture(autouse=True)
+def _isolate_warned_signatures() -> Iterator[None]:
+    """Do not carry warn-once state from one trust test to the next."""
+    enforcement_flag_on._warned_signatures.clear()
+    yield
+    enforcement_flag_on._warned_signatures.clear()
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -55,7 +64,6 @@ def _repo(
     monkeypatch.setattr("sase.macro.loader.detect_project", lambda: None)
     monkeypatch.setattr("sase.macro.workflow_loader.detect_project", lambda: None)
     clear_config_cache()
-    enforcement_flag_on._warned_signatures.clear()
     return root, local_path
 
 

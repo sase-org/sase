@@ -8,12 +8,14 @@ between ticks) and the coalesced skip record with simulated clocks.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.axe import _state_chops
 from sase.axe.chop_policy import ChopPreflight
 from sase.axe.chop_runner_policy import record_preflight_outcome
 from sase.axe.config import AxeConfig, LumberjackConfig, load_axe_config
@@ -35,6 +37,16 @@ from sase.core.time import get_timezone
 pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 
 _REASON = "watched paths unchanged and within max_quiet"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_skip_streaks() -> Iterator[None]:
+    """Keep the in-memory skip coalescer scoped to each test."""
+    with _state_chops._SKIP_STREAKS_LOCK:
+        _state_chops._SKIP_STREAKS.clear()
+    yield
+    with _state_chops._SKIP_STREAKS_LOCK:
+        _state_chops._SKIP_STREAKS.clear()
 
 
 def _routine(name: str, interval: int) -> Lumberjack:

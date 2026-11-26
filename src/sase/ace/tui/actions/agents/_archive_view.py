@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from ._archive_view_lifecycle import (
     close_agents_archive_view,
+    invalidate_agents_detail_ownership,
     mark_archive_row_restored,
     open_agents_archive_view,
     open_agents_archive_view_with_query,
@@ -41,6 +42,7 @@ __all__ = [
     "agents_inbox_detail_allowed",
     "cancel_inbox_detail_debounce",
     "close_agents_archive_view",
+    "invalidate_agents_detail_ownership",
     "flush_pending_archive_list_scroll",
     "get_agents_tab_selection",
     "init_agents_archive_view_state",

@@ -214,12 +214,14 @@ def test_orphaned_hydrated_agents_stay_collectible(
     assert agent.record_shape == "full"
 
     ref = weakref.ref(agent)
+    generation = id(agent)
     del agent
     gc.collect()
     assert ref() is None
+    assert generation not in detail_record._detail_owner
 
-    # A replacement roster's note prunes the dead registration instead of
-    # growing the owner or restoring an orphaned generation.
+    # A replacement roster still prunes any dead registration from earlier
+    # versions of the weakref owner before growing or restoring it.
     timestamp2 = stamp(20260521090000, 1)
     artifact_dir2 = f"/tmp/projects/retention-proj/artifacts/ace-run/{timestamp2}"
     records = {artifact_dir2: full_record(artifact_dir2, timestamp2)}
