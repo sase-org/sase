@@ -39,7 +39,20 @@ async def _open_beads(
     return pane
 
 
-async def _set_query(page: AcePage, pane: ArtifactsBeadsPane, query: str) -> None:
+async def _set_query(
+    page: AcePage,
+    pane: ArtifactsBeadsPane,
+    query: str,
+    *,
+    settle: bool = True,
+) -> None:
+    """Submit a beads query and wait for its rows to settle.
+
+    Following a link while the query worker is still evaluating can select
+    from stale pre-query rows (fast path, no reveal rewrite) or clobber a
+    reveal rewrite when the late evaluation lands. Tests that intentionally
+    exercise the pending-worker path pass ``settle=False``.
+    """
     bar = pane.query_one(BeadFilterBar)
     display = bar.query_one("#bead-filter-display", Static)
     await page.press("/")
@@ -47,6 +60,8 @@ async def _set_query(page: AcePage, pane: ArtifactsBeadsPane, query: str) -> Non
     bar.post_message(BeadFilterBar.Submitted(query))
     await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
     await page.wait_for(lambda _state: query in display.render().plain)
+    if settle:
+        await page.wait_for(lambda _state: not pane._query_session._workers)
 
 
 async def test_phase_context_rewrite_selects_and_restores(
@@ -131,7 +146,7 @@ async def test_kind_mismatch_stays_pending_until_query_worker_settles(
         monkeypatch.setattr(
             query_session, "evaluate_artifact_query_many", blocked_evaluate
         )
-        await _set_query(page, pane, "id:alpha-open x")
+        await _set_query(page, pane, "id:alpha-open x", settle=False)
         await page.wait_for(lambda _state: started.is_set())
 
         app = page.app

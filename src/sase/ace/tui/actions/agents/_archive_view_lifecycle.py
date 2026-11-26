@@ -92,9 +92,20 @@ def _sync_archive_chrome(owner: Any) -> None:
 
 
 def _focus_archive_section_after_refresh(owner: Any) -> None:
-    """Move widget focus into the section selected by the Archive state."""
+    """Move widget focus into the section selected by the Archive state.
+
+    The Archive column mounts lazily on open, so the refresh that runs the
+    deferred callback can precede the mount under load. When the target is
+    not mounted yet but a column mount is in flight, re-defer to a later
+    refresh instead of dropping focus. Every path terminates: the mount
+    completes, the view changes, or the app closes.
+    """
 
     def focus_section() -> None:
+        from textual.css.query import NoMatches
+
+        from ._archive_column import column_widget
+
         state = agents_archive_view_state(owner)
         if (
             state.active_view != AGENTS_VIEW_ARCHIVE
@@ -108,6 +119,20 @@ def _focus_archive_section_after_refresh(owner: Any) -> None:
         )
         try:
             owner.query_one(widget_id).focus()
+        except NoMatches:
+            if column_widget(owner) is None:
+                # Lightweight owner with no archive column: keep the
+                # historical best-effort give-up.
+                log.debug("could not focus the active Archive section", exc_info=True)
+                return
+            # Mount still in flight: try again after a later refresh.
+            again = getattr(owner, "call_after_refresh", None)
+            if not callable(again):
+                return
+            try:
+                again(focus_section)
+            except Exception:
+                log.debug("could not reschedule Archive section focus", exc_info=True)
         except Exception:
             # Focus is a best-effort UI handoff; Archive state remains the
             # source of truth when a lightweight owner has no mounted widget.

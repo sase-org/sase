@@ -260,22 +260,94 @@ def _unfinished_startup_workers(app: object) -> tuple[Any, ...]:
     return tuple(pending)
 
 
+_PROMPT_INVENTORY_INFLIGHT_FLAGS = (
+    "_finalizer_inflight",
+    "_machine_inflight",
+    "_wait_bead_inflight",
+    "_prompt_path_inflight",
+)
+
+
+def _prompt_inventory_widgets(app: object) -> list[Any]:
+    """Mounted widgets that schedule prompt-inventory workers."""
+    screen = getattr(app, "screen", None)
+    walk = getattr(screen, "walk_children", None)
+    if not callable(walk):
+        return []
+    try:
+        widgets = list(walk())
+    except Exception:  # noqa: BLE001 - mid-mount traversal must not break the drain.
+        return []
+    return [w for w in widgets if hasattr(w, "_finalizer_inflight")]
+
+
+def _undelivered_startup_results(app: object) -> tuple[Any, ...]:
+    """Prompt-inventory worker results scheduled but not yet applied.
+
+    ``worker.wait()`` resolves when the thread task finishes, but a
+    ``FinalizerInventoryWorkerResult`` only becomes collectible after its
+    ``StateChanged`` event reaches the scheduling widget: the handler that
+    clears the widget's inflight flag is the same one that applies the
+    result. Under load that delivery lags worker completion into the
+    SAVEALL window, so wait for the flags, not just the workers.
+    """
+    pending: list[Any] = []
+    for widget in _prompt_inventory_widgets(app):
+        for flag in _PROMPT_INVENTORY_INFLIGHT_FLAGS:
+            try:
+                value = getattr(widget, flag, None)
+            except Exception:  # noqa: BLE001 - widget state must not break the drain.
+                value = None
+            if value:
+                pending.append(widget)
+                break
+    return tuple(pending)
+
+
+def _finalizer_inventory_applied(app: object) -> bool:
+    """Whether startup finalizer inventory reached a prompt widget.
+
+    Prompt widgets mount asynchronously after page entry, so the drain can
+    observe zero prompt workers while the mount (and its finalizer worker)
+    is still queued. AceApp exposes no ``finalizer_inventory`` here, so a
+    mount always schedules the worker: applied inventory proves the whole
+    schedule-then-deliver chain settled before SAVEALL sampling.
+    """
+    if callable(getattr(app, "finalizer_inventory", None)):
+        return True
+    for widget in _prompt_inventory_widgets(app):
+        try:
+            inventory = getattr(widget, "_finalizer_inventory", None)
+        except Exception:  # noqa: BLE001 - widget state must not break the drain.
+            continue
+        if inventory is not None:
+            return True
+    return False
+
+
 async def _await_startup_workers(page: AcePage, *, timeout: float = 8.0) -> None:
     """Drain one-shot owner workers that exist before SAVEALL sampling.
 
     Prompt mount starts a ``prompt-finalizers`` thread worker when AceApp
-    exposes no ``finalizer_inventory``. If that worker finishes inside the
-    measured window, its ``FinalizerInventoryWorkerResult`` is counted as
-    per-refresh garbage. Wait it out (and any other already-running one-shot
-    worker) so app teardown cycles are not mistaken for producer residue.
+    exposes no ``finalizer_inventory``. The mount lands after page entry
+    and the result's delivery lags worker completion, so wait for the
+    applied inventory (not just no running worker) plus any other
+    already-running one-shot worker, so app startup residue is not
+    mistaken for per-tick garbage.
     """
     app = page.app
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         pending = _unfinished_startup_workers(app)
-        if not pending:
+        undelivered = _undelivered_startup_results(app)
+        settled = not pending and not undelivered and _finalizer_inventory_applied(app)
+        if settled:
             await page.pause()
-            if not _unfinished_startup_workers(app):
+            if (
+                not _unfinished_startup_workers(app)
+                and not _undelivered_startup_results(app)
+                and _finalizer_inventory_applied(app)
+            ):
                 return
             continue
         waits = []
@@ -286,9 +358,11 @@ async def _await_startup_workers(page: AcePage, *, timeout: float = 8.0) -> None
         if waits:
             await asyncio.gather(*waits, return_exceptions=True)
         await page.pause()
-    leftover = _unfinished_startup_workers(app)
+    leftover = _unfinished_startup_workers(app) + _undelivered_startup_results(app)
     names = [getattr(worker, "name", worker) for worker in leftover]
-    assert not leftover, f"startup workers still running: {names!r}"
+    assert not leftover and _finalizer_inventory_applied(app), (
+        f"startup workers still running: {names!r}"
+    )
 
 
 class _DummyWatcher:

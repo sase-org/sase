@@ -157,6 +157,14 @@ async def test_archive_replaces_the_inbox_column_and_keys_navigate_it(
         assert app.query_one("#archive-column", ArchiveColumn).display
         assert not app.query_one("#agent-list-container").display
         archive_list = app.query_one("#archive-list", ArchiveList)
+        await page.wait_for(
+            lambda _s: app.focused is archive_list,
+            timeout_message=lambda: (
+                "archive focus never landed"
+                f" focused={type(app.focused).__name__ if app.focused is not None else None}"
+                f" active_view={app._agents_archive_view.active_view!r}"
+            ),
+        )
         assert app.focused is archive_list
         keys = archive_list.item_keys
         assert _prompt(archive_list, "banner:day:2026-10-10").startswith("▾ Today")

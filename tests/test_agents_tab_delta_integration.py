@@ -223,29 +223,41 @@ def test_copy_counts_stay_bounded_as_roster_grows() -> None:
 
 @pytest.mark.parametrize("count", [1, 6, 8])
 def test_scoped_prep_is_materially_cheaper(count: int) -> None:
+    """Scoped prep shares live rows; the full path copies the roster.
+
+    Wall-clock ratios flake under shard load (one slow sample inverts
+    them), so measure the host-independent quantity the scoped path
+    avoids instead: new Agent objects. The scoped closure copies only the
+    affected rows, bounded like test_copy_counts_stay_bounded_as_roster_grows,
+    while the full pipeline copies the whole roster. A scoped regression
+    that falls back to the full path copies everything and fails both bounds.
+    """
     live = realistic_roster()
     fast_snapshot = _mixed_snapshot(live)
     fallback_snapshot = _mixed_snapshot(live, query_matches=False)
-    incoming = scalar_deltas(live, count)
-    prepare_loaded_agents_worker_boundary(
+    live_ids = {id(agent) for agent in live}
+    scoped_boundary = prepare_loaded_agents_worker_boundary(
         scalar_deltas(live, count), [], set(), False, fast_snapshot
     )
-    prepare_loaded_agents_worker_boundary(
+    scoped_new = sum(
+        1 for agent in scoped_boundary.prep.filtered_agents if id(agent) not in live_ids
+    )
+    full_boundary = prepare_loaded_agents_worker_boundary(
         scalar_deltas(live, count), [], set(), False, fallback_snapshot
     )
-    started = time.perf_counter()
-    prepare_loaded_agents_worker_boundary(
-        scalar_deltas(live, count), [], set(), False, fast_snapshot
+    full_new = sum(
+        1 for agent in full_boundary.prep.filtered_agents if id(agent) not in live_ids
     )
-    scoped_ms = (time.perf_counter() - started) * 1000
-    started = time.perf_counter()
-    prepare_loaded_agents_worker_boundary(incoming, [], set(), False, fallback_snapshot)
-    full_ms = (time.perf_counter() - started) * 1000
     print(
-        f"delta-integration cost: n={len(live)} delta={count} "
-        f"scoped={scoped_ms:.1f}ms full={full_ms:.1f}ms"
+        f"delta-integration copies: n={len(live)} delta={count} "
+        f"scoped_new={scoped_new} full_new={full_new}"
     )
-    assert scoped_ms < full_ms * 0.85 or scoped_ms < 80.0
+    assert scoped_boundary.prep.filtered_agents
+    assert len(scoped_boundary.prep.filtered_agents) == len(
+        full_boundary.prep.filtered_agents
+    )
+    assert scoped_new <= 80
+    assert scoped_new * 4 < full_new
 
 
 def test_unrelated_live_rows_are_mutation_sentinels() -> None:
