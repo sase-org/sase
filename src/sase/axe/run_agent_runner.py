@@ -479,12 +479,14 @@ def _defer_start_across_code_swap() -> None:
     defer_launch_for_code_swap([sys.executable, *sys.argv])
 
 
-def _runner_lookup_retry_logger() -> Callable[[LookupRetryEvent], None]:
+def _runner_lookup_retry_logger(
+    *, monotonic: Callable[[], float] = time.monotonic
+) -> Callable[[LookupRetryEvent], None]:
     """Build a rate-limited stderr reporter for runner lookup retries."""
-    last_progress_log: float | None = None
+    last_progress_log_at: float | None = None
 
     def report(event: LookupRetryEvent) -> None:
-        nonlocal last_progress_log
+        nonlocal last_progress_log_at
         if event.recovered:
             line = f"Lookup {event.lookup} recovered after {event.seconds_waited:.1f}s"
         elif event.gave_up:
@@ -492,11 +494,13 @@ def _runner_lookup_retry_logger() -> Callable[[LookupRetryEvent], None]:
                 f"Lookup {event.lookup} still busy after "
                 f"{event.seconds_waited:.1f}s; giving up"
             )
-        elif (
-            last_progress_log is None
-            or event.seconds_waited - last_progress_log
-            >= _LOOKUP_RETRY_LOG_INTERVAL_SECONDS
-        ):
+        else:
+            now = monotonic()
+            if event.attempt != 1 and (
+                last_progress_log_at is not None
+                and now - last_progress_log_at < _LOOKUP_RETRY_LOG_INTERVAL_SECONDS
+            ):
+                return
             line = (
                 f"Lookup {event.lookup} busy; attempt {event.attempt}, "
                 f"waited {event.seconds_waited:.1f}s, retrying in "
@@ -505,9 +509,7 @@ def _runner_lookup_retry_logger() -> Callable[[LookupRetryEvent], None]:
             if event.last_diagnostic:
                 detail = " ".join(event.last_diagnostic.split())[:160]
                 line += f" ({detail})"
-            last_progress_log = event.seconds_waited
-        else:
-            return
+            last_progress_log_at = now
         print(line, file=sys.stderr, flush=True)
 
     return report

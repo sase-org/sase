@@ -92,7 +92,10 @@ def test_runner_retry_logger_has_stable_rate_limited_lines(
 ) -> None:
     output = StringIO()
     monkeypatch.setattr(run_agent_runner.sys, "stderr", output)
-    log = run_agent_runner._runner_lookup_retry_logger()
+    clock_values = iter((0.0, 9.9, 10.0))
+    log = run_agent_runner._runner_lookup_retry_logger(
+        monotonic=lambda: next(clock_values)
+    )
 
     log(LookupRetryEvent("agent artifact index", 1, 0, 0.25, "database\nis locked"))
     log(LookupRetryEvent("agent artifact index", 2, 9.9, 0.5, "database is locked"))
@@ -103,4 +106,67 @@ def test_runner_retry_logger_has_stable_rate_limited_lines(
         "Lookup agent artifact index busy; attempt 1, waited 0.0s, retrying in 0.25s (database is locked)",
         "Lookup agent artifact index busy; attempt 3, waited 10.0s, retrying in 1.00s (database is locked)",
         "Lookup agent artifact index recovered after 10.2s",
+    ]
+
+
+@pytest.mark.parametrize("terminal", ["recovered", "gave_up"])
+@pytest.mark.parametrize("same_label", [True, False])
+def test_runner_retry_logger_always_logs_each_lookup_first_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    terminal: str,
+    same_label: bool,
+) -> None:
+    output = StringIO()
+    monkeypatch.setattr(run_agent_runner.sys, "stderr", output)
+    clock_values = iter((0.0, 0.1, 0.2))
+    log = run_agent_runner._runner_lookup_retry_logger(
+        monotonic=lambda: next(clock_values)
+    )
+    next_lookup = "agent artifact index" if same_label else "dismissed-bundle index"
+
+    log(LookupRetryEvent("agent artifact index", 1, 0, 0.25, "database is locked"))
+    if terminal == "recovered":
+        log(LookupRetryEvent("agent artifact index", 2, 0.25, 0, None, recovered=True))
+    else:
+        log(
+            LookupRetryEvent(
+                "agent artifact index", 2, 60, 0, "database is locked", gave_up=True
+            )
+        )
+    log(LookupRetryEvent(next_lookup, 1, 0, 0.25, "database is locked"))
+
+    lines = output.getvalue().splitlines()
+    assert len(lines) == 3
+    assert lines[0].startswith("Lookup agent artifact index busy; attempt 1,")
+    expected_terminal = (
+        "Lookup agent artifact index recovered after "
+        if terminal == "recovered"
+        else "Lookup agent artifact index still busy after "
+    )
+    assert lines[1].startswith(expected_terminal)
+    assert lines[2].startswith(f"Lookup {next_lookup} busy; attempt 1,")
+
+
+def test_runner_retry_logger_interleaving_does_not_silence_new_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = StringIO()
+    monkeypatch.setattr(run_agent_runner.sys, "stderr", output)
+    now = 0.0
+    log = run_agent_runner._runner_lookup_retry_logger(monotonic=lambda: now)
+
+    log(LookupRetryEvent("agent artifact index", 1, 0, 0.25, None))
+    now = 10.0
+    log(LookupRetryEvent("agent artifact index", 2, 10, 0.5, None))
+    now = 10.1
+    log(LookupRetryEvent("dismissed-bundle index", 1, 0, 0.25, None))
+    now = 10.2
+    log(LookupRetryEvent("dismissed-bundle index", 2, 10.2, 0.5, None))
+    log(LookupRetryEvent("dismissed-bundle index", 3, 10.3, 0, None, gave_up=True))
+
+    assert output.getvalue().splitlines() == [
+        "Lookup agent artifact index busy; attempt 1, waited 0.0s, retrying in 0.25s",
+        "Lookup agent artifact index busy; attempt 2, waited 10.0s, retrying in 0.50s",
+        "Lookup dismissed-bundle index busy; attempt 1, waited 0.0s, retrying in 0.25s",
+        "Lookup dismissed-bundle index still busy after 10.3s; giving up",
     ]
