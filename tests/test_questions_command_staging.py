@@ -15,6 +15,7 @@ from sase.agent.staged_handoff import (
     STAGING_RESERVATION_FILENAME,
 )
 from sase.main.questions_command_handler import handle_questions_command
+from tests._rust_extension_module_helpers import override_rust_extension_bindings
 
 _QUESTIONS = json.dumps(
     [{"question": "Pick one", "options": [{"label": "A"}, {"label": "B"}]}]
@@ -54,6 +55,74 @@ def test_questions_stage_without_kill(
     assert output.startswith("Staged")
     assert "Nothing starts until this turn ends" in output
     assert "`/sase_final`" in output
+
+
+def test_questions_stage_canonical_copy_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = _prepare(tmp_path, monkeypatch)
+
+    def normalize(value: list[object]) -> list[dict[str, str]]:
+        result = []
+        for item in value:
+            if isinstance(item, str):
+                result.append({"text": item.rstrip("\n")})
+            else:
+                assert isinstance(item, dict)
+                canonical = {"text": item["text"].rstrip("\n")}
+                if item.get("label") is not None:
+                    canonical["label"] = item["label"].strip()
+                result.append(canonical)
+        return result
+
+    override_rust_extension_bindings(monkeypatch, normalize_question_copy=normalize)
+    payload = [
+        {
+            "question": "Where should the setting point?",
+            "copy": [
+                "/Users/bryan/.cargo\n",
+                {"label": "Chrome", "text": "chrome://settings"},
+            ],
+        }
+    ]
+    with pytest.raises(SystemExit) as staged_exit:
+        handle_questions_command(json.dumps(payload))
+
+    assert staged_exit.value.code == 0
+    record = json.loads(
+        (artifacts / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert record["payload"]["questions"][0]["copy"] == [
+        {"text": "/Users/bryan/.cargo"},
+        {"text": "chrome://settings", "label": "Chrome"},
+    ]
+
+
+def test_invalid_copy_refuses_staging_with_question_relative_location(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifacts = _prepare(tmp_path, monkeypatch)
+
+    def normalize(_value: object) -> None:
+        raise ValueError(
+            "invalid_question_copy: copy[3].text: contains control character U+001B"
+        )
+
+    override_rust_extension_bindings(monkeypatch, normalize_question_copy=normalize)
+    payload = json.dumps([{"question": "Where?", "copy": ["bad"]}])
+    with pytest.raises(SystemExit) as exit_info:
+        handle_questions_command(payload)
+
+    assert exit_info.value.code == 1
+    assert not (artifacts / STAGED_HANDOFF_FILENAME).exists()
+    assert not (artifacts / STAGING_RESERVATION_FILENAME).exists()
+    assert (
+        "Error: Invalid questions schema: question[0].copy[3].text:"
+        in capsys.readouterr().err
+    )
 
 
 def test_invalid_json_releases_reservation(

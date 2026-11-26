@@ -15,7 +15,13 @@ from sase.user_question_actions import (
     UserQuestionActionContext,
     UserQuestionActionError,
     execute_user_question_response,
+    resolve_user_question_request,
+    validate_user_questions,
     user_question_gate_spec,
+)
+from tests._rust_extension_module_helpers import (
+    install_fake_rust_extension,
+    override_rust_extension_bindings,
 )
 
 
@@ -123,6 +129,149 @@ def test_question_gate_executes_complete_form_and_marks_handled(
     assert envelope["options"][0]["command"]["argv"] == ["commands/submit"]
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
     assert entry["state"] == "already_handled"
+
+
+def test_copy_metadata_is_canonical_in_gate_and_resolved_request(
+    question_gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def normalize(value: list[object]) -> list[dict[str, str]]:
+        result: list[dict[str, str]] = []
+        for item in value:
+            if isinstance(item, str):
+                result.append({"text": item.rstrip("\n")})
+            else:
+                assert isinstance(item, dict)
+                canonical = {"text": item["text"].rstrip("\n")}
+                if item.get("label") is not None:
+                    canonical["label"] = item["label"].strip()
+                result.append(canonical)
+        return result
+
+    override_rust_extension_bindings(monkeypatch, normalize_question_copy=normalize)
+    questions: list[dict[str, Any]] = [
+        {
+            "question": "Which setting should I open?",
+            "options": [{"label": "Chrome"}],
+            "copy": [
+                "/Users/bryan/.cargo\n",
+                {"label": " Browser ", "text": "chrome://settings"},
+            ],
+        }
+    ]
+    spec = user_question_gate_spec(
+        questions,
+        session_id="copy-contract-session",
+        auto_policy_snapshot=None,
+    )
+    canonical = [
+        {
+            "question": "Which setting should I open?",
+            "options": [{"label": "Chrome"}],
+            "copy": [
+                {"text": "/Users/bryan/.cargo"},
+                {"text": "chrome://settings", "label": "Browser"},
+            ],
+        }
+    ]
+    assert spec["payload"]["questions"] == canonical
+
+    gate = create_gate(spec)
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert envelope["payload"]["questions"] == canonical
+    notification = load_notifications()[0]
+    resolved = resolve_user_question_request(_context(notification))
+    assert resolved.questions == canonical
+
+
+def test_question_gate_creation_rejects_invalid_copy_with_payload_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def normalize(_value: object) -> None:
+        raise ValueError("invalid_question_copy: copy[2].text: must be nonempty")
+
+    override_rust_extension_bindings(monkeypatch, normalize_question_copy=normalize)
+    with pytest.raises(UserQuestionActionError) as exc_info:
+        user_question_gate_spec(
+            [{"question": "Which path?", "copy": ["x"]}],
+            session_id="invalid-copy-session",
+            auto_policy_snapshot=None,
+        )
+
+    assert exc_info.value.code == "invalid_question_copy"
+    assert exc_info.value.target == "payload.questions[0].copy[2].text"
+
+
+def test_gate_validation_rejects_noncanonical_copy_metadata(
+    question_gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def normalize(value: list[object]) -> list[dict[str, str]]:
+        return [
+            {"text": item.rstrip("\n")} if isinstance(item, str) else item
+            for item in value
+        ]
+
+    override_rust_extension_bindings(monkeypatch, normalize_question_copy=normalize)
+    spec = user_question_gate_spec(
+        [{"question": "Which path?", "copy": ["/Users/bryan/.cargo"]}],
+        session_id="noncanonical-copy-session",
+        auto_policy_snapshot=None,
+    )
+    spec["payload"]["questions"][0]["copy"][0] = "/Users/bryan/.cargo"
+
+    from sase.notification_gates.models import GateError
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_question_copy"
+    assert exc_info.value.target == "payload.questions[0].copy"
+
+
+def test_legacy_question_read_keeps_damaged_copy_for_tolerant_display(
+    question_gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.question_copy_facade import display_question_copy_items
+
+    root = question_gate_home / "legacy"
+    root.mkdir()
+    (root / "question_request.json").write_text(
+        json.dumps(
+            {
+                "questions": [
+                    {
+                        "question": "Which paths?",
+                        "options": [],
+                        "copy": ["/Users/bryan/.cargo", {"text": "bad\u001bvalue"}],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen: list[object] = []
+
+    def display(value: object) -> dict[str, object]:
+        seen.append(value)
+        return {"items": [{"text": "/Users/bryan/.cargo"}], "unavailable": 1}
+
+    install_fake_rust_extension(monkeypatch, display_question_copy=display)
+    request = resolve_user_question_request(
+        UserQuestionActionContext(
+            notification_id=None,
+            host_action_data={"response_dir": str(root)},
+        )
+    )
+    questions = validate_user_questions(request.questions)
+    assert questions[0]["copy"] == ["/Users/bryan/.cargo", {"text": "bad\u001bvalue"}]
+
+    display_result = display_question_copy_items(questions[0])
+
+    assert seen == [questions[0]["copy"]]
+    assert tuple(item.text for item in display_result.items) == ("/Users/bryan/.cargo",)
+    assert display_result.unavailable == 1
 
 
 def test_gate_answer_operation_request_accepts_normalized_question_input(

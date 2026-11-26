@@ -24,6 +24,7 @@ from sase.notification_gates.service import create_gate
 from sase.question_gate_turn.create import _question_gate_turn_spec
 
 from tests.monitor._fixtures import make_starter_agent, write_project_file
+from tests._rust_extension_module_helpers import override_rust_extension_bindings
 
 _SETTLE_TIMEOUT = 2.0
 
@@ -56,6 +57,7 @@ def _create_round(
         {
             "question": f"Question {round_index}?",
             "options": [{"label": "Yes"}, {"label": "No"}],
+            "copy": [f"/out-of-prose/value-{round_index}"],
         }
     ]
     request = _question_gate_turn_spec(
@@ -118,6 +120,13 @@ def _create_round(
 def test_answered_followup_prompt_has_live_fork_and_no_leaked_markers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    override_rust_extension_bindings(
+        monkeypatch,
+        normalize_question_copy=lambda value: [
+            {"text": item.rstrip("\n")} if isinstance(item, str) else item
+            for item in value
+        ],
+    )
     write_project_file("proj")
     creator_timestamp = "20260812120000"
     creator_dir = make_starter_agent(
@@ -177,6 +186,9 @@ def test_answered_followup_prompt_has_live_fork_and_no_leaked_markers(
     assert "%macros_enabled:true" in prompt
     assert "% macros_enabled:false" not in prompt
     assert "% macros_enabled:true" not in prompt
+    assert "/out-of-prose/value-1" not in prompt
+    assert "/out-of-prose/value-2" not in prompt
+    assert "Copyable items" not in prompt
     assert "## Results" in prompt
     assert (
         "Question 2?" in prompt.split("## Results")[1].split("## Your next action")[0]

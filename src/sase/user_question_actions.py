@@ -88,6 +88,18 @@ def user_question_gate_spec(
     The single source of truth for the question gate turn's request.
     """
     normalized_questions = validate_user_questions(questions)
+    from sase.core.question_copy_facade import (
+        QuestionCopyValidationError,
+        normalize_questions_copy,
+    )
+
+    try:
+        normalized_questions = normalize_questions_copy(normalized_questions)
+    except QuestionCopyValidationError as exc:
+        target = exc.target.replace("question[", "payload.questions[", 1)
+        raise UserQuestionActionError(
+            "invalid_question_copy", target, exc.message
+        ) from exc
     response_schema = question_response_schema(normalized_questions)
     summary = "; ".join(
         str(question.get("question") or "?") for question in normalized_questions[:3]

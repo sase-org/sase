@@ -164,6 +164,8 @@ REQUIRED_BINDINGS = (
     "decide_gate_decision_acceptance",
     "decide_gate_lifecycle",
     "project_question_round",
+    "normalize_question_copy",
+    "display_question_copy",
     "plan_agent_publication_batches",
     "prompt_archive_inventory",
     "prompt_archive_inventory_wire_schema_version",
@@ -1152,6 +1154,39 @@ def _validate_question_round_contract(module: ModuleType) -> bool:
             "project_question_round(pending) returned stale "
             f"status: {outcome.get('status')!r}"
         )
+        return False
+    return True
+
+
+def _validate_question_copy_contract(module: ModuleType) -> bool:
+    try:
+        normalized = module.normalize_question_copy(
+            ["/Users/bryan/.cargo\n", {"label": "URL", "text": "chrome://settings"}]
+        )
+        display = module.display_question_copy(
+            ["valid", {"text": "invalid", "name": "unknown"}]
+        )
+    except Exception as exc:
+        _error(f"question-copy bindings probe failed: {exc}")
+        return False
+    expected = [
+        {"text": "/Users/bryan/.cargo"},
+        {"text": "chrome://settings", "label": "URL"},
+    ]
+    if normalized != expected:
+        _error(f"normalize_question_copy() returned stale result: {normalized!r}")
+        return False
+    if display != {"items": [{"text": "valid"}], "unavailable": 1}:
+        _error(f"display_question_copy() returned stale result: {display!r}")
+        return False
+    try:
+        module.normalize_question_copy([{"text": "bad\u001bvalue"}])
+    except ValueError as exc:
+        if not str(exc).startswith("invalid_question_copy:"):
+            _error(f"normalize_question_copy() returned an unstable error: {exc}")
+            return False
+    else:
+        _error("normalize_question_copy() accepted an unsafe control character")
         return False
     return True
 
@@ -3889,6 +3924,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_gate_decision_lifecycle_contract(module):
         return 1
     if not _validate_question_round_contract(module):
+        return 1
+    if not _validate_question_copy_contract(module):
         return 1
     if not _validate_finalizer_contract(module):
         return 1

@@ -25,6 +25,7 @@ the parent is patched and teardown restores both together.
 
 from __future__ import annotations
 
+import importlib
 import sys
 import types
 from typing import Any
@@ -60,6 +61,17 @@ def install_fake_rust_extension(
     for name, value in bindings.items():
         setattr(fake, name, value)
     return patch_rust_extension(monkeypatch, fake)
+
+
+def override_rust_extension_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    **bindings: Any,
+) -> types.ModuleType:
+    """Override selected bindings without hiding the other compiled exports."""
+    module = importlib.import_module(RUST_EXTENSION_MODULE_NAME)
+    for name, value in bindings.items():
+        monkeypatch.setattr(module, name, value, raising=False)
+    return module
 
 
 def evict_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:

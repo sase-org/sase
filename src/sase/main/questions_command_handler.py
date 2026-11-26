@@ -14,7 +14,7 @@ _STAGED_MESSAGE = (
 )
 
 
-def _validate_questions(questions: list[dict]) -> None:  # type: ignore[type-arg]
+def _validate_questions(questions: list[dict]) -> list[dict]:  # type: ignore[type-arg]
     """Validate questions JSON schema.
 
     Raises ValueError with a descriptive message on invalid input.
@@ -39,6 +39,10 @@ def _validate_questions(questions: list[dict]) -> None:  # type: ignore[type-arg
                     )
         if "multiSelect" in q and not isinstance(q["multiSelect"], bool):
             raise ValueError(f"question[{i}].multiSelect must be a boolean")
+
+    from sase.core.question_copy_facade import normalize_questions_copy
+
+    return normalize_questions_copy(questions)
 
 
 def handle_questions_command(questions_json: str) -> NoReturn:
@@ -98,7 +102,7 @@ def _handle_questions_after_guard(
         sys.exit(1)
 
     try:
-        _validate_questions(questions)
+        questions = _validate_questions(questions)
     except ValueError as e:
         print(f"Error: Invalid questions schema: {e}", file=sys.stderr)
         sys.exit(1)

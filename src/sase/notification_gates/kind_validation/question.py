@@ -22,6 +22,10 @@ def validate_question_spec(spec: GateSpec) -> None:
         question_response_schema,
         validate_user_questions,
     )
+    from sase.core.question_copy_facade import (
+        QuestionCopyValidationError,
+        normalize_questions_copy,
+    )
 
     if spec.continuation_mode != QUESTION_CONTINUATION_MODE:
         raise GateError(
@@ -33,6 +37,21 @@ def validate_question_spec(spec: GateSpec) -> None:
         questions = validate_user_questions(spec.payload.get("questions"))
     except UserQuestionActionError as exc:
         raise GateError(exc.code, exc.target, str(exc)) from exc
+    try:
+        canonical_questions = normalize_questions_copy(questions)
+    except QuestionCopyValidationError as exc:
+        target = exc.target.replace("question[", "payload.questions[", 1)
+        raise GateError("invalid_question_copy", target, exc.message) from exc
+    for index, (question, canonical) in enumerate(
+        zip(questions, canonical_questions, strict=True)
+    ):
+        if question.get("copy") != canonical.get("copy"):
+            target = f"payload.questions[{index}].copy"
+            raise GateError(
+                "invalid_question_copy",
+                target,
+                "copy metadata must already be canonical",
+            )
     _validate_question_payload(spec)
     _validate_question_options(spec, question_response_schema(questions))
 
