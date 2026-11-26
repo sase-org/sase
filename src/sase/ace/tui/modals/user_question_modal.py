@@ -206,6 +206,12 @@ class UserQuestionModal(
                             id="user-question-text",
                             markup=False,
                         )
+                        yield Static(
+                            "",
+                            id="user-question-also-copyable",
+                            markup=False,
+                            classes="hidden",
+                        )
                     yield _WrappingSelectionList(
                         *self._build_selections(self._questions[0]),
                         id="user-question-options",
@@ -229,6 +235,7 @@ class UserQuestionModal(
             self.dismiss(UserQuestionResult())
             return
 
+        self._refresh_question_pane_cues()
         self.query_one("#user-question-other-input", SingleLineVimTextArea).add_class(
             "hidden"
         )
@@ -378,9 +385,8 @@ class UserQuestionModal(
         header = self.query_one("#user-question-header", Static)
         header.update(self._build_question_header(idx))
 
-        # Update full question text
-        text = self.query_one("#user-question-text", Static)
-        text.update(q.get("question", ""))
+        # Update full question text, pane cues, and border subtitle.
+        self._refresh_question_pane_cues()
 
         # Scroll question text to top
         text_scroll = self.query_one("#user-question-text-scroll", VerticalScroll)

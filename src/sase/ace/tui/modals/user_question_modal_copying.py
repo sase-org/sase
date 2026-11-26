@@ -17,6 +17,13 @@ from .question_copy_items import (
     build_question_copy_context,
     toast_label_for_target,
 )
+from .question_pane_cues import (
+    build_also_copyable_text,
+    build_copy_border_subtitle,
+    build_question_prose_text,
+    missing_copy_items,
+    pane_keys_for_items,
+)
 from .question_copy_modal import QuestionCopyModal
 
 if TYPE_CHECKING:
@@ -76,8 +83,59 @@ class UserQuestionCopyingMixin(_MixinBase):
         if key is None:
             local = self._question_copied_texts()
             local.update(texts)
+        else:
+            self._question_copied_texts().update(texts)
+        self._refresh_question_pane_cues()
+
+    def _refresh_question_pane_cues(self) -> None:
+        """Rebuild the prose underlines, also-copyable block, and subtitle.
+
+        Every widget lookup is guarded so progress callbacks on a dismissed
+        modal stay silent no-ops.
+        """
+        try:
+            questions = self._questions
+            idx = self._current_idx
+        except AttributeError:
             return
-        self._question_copied_texts().update(texts)
+        if not 0 <= idx < len(questions):
+            return
+        question = questions[idx]
+        question_text = question.get("question", "") or ""
+        try:
+            display = display_question_copy_items(question)
+        except Exception:
+            return
+        copied = self._question_copied_texts()
+        try:
+            from textual.containers import VerticalScroll
+            from textual.widgets import Static
+
+            prose = build_question_prose_text(
+                question_text, display.items, frozenset(copied)
+            )
+            self.query_one("#user-question-text", Static).update(prose)  # type: ignore[attr-defined]
+            keys = pane_keys_for_items(len(display.items))
+            missing = tuple(
+                (key, item)
+                for key, item in zip(keys, display.items, strict=True)
+                if item.text not in question_text
+            )
+            also = self.query_one("#user-question-also-copyable", Static)  # type: ignore[attr-defined]
+            if missing:
+                also.update(build_also_copyable_text(missing))
+                also.remove_class("hidden")
+            else:
+                also.update("")
+                also.add_class("hidden")
+            total = len(display.items)
+            copied_count = sum(1 for item in display.items if item.text in copied)
+            scroll = self.query_one("#user-question-text-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll.border_subtitle = build_copy_border_subtitle(
+                total, copied_count, display.unavailable
+            )
+        except Exception:
+            return
 
     def _highlighted_question_option(self) -> tuple[str | None, str | None, bool]:
         """Return ``(label, description, is_other)`` for the highlighted option."""
