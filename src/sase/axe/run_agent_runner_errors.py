@@ -2,7 +2,7 @@
 
 import sys
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,7 +16,11 @@ from sase.axe.runner_failure_facts import (
 )
 from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
 from sase.axe.source_skew import code_swap_explanation
-from sase.llm_provider.retry_config import find_retry_config_for_error
+from sase.core.index_lookup_errors import IndexLookupUnavailable
+from sase.llm_provider.retry_config import (
+    find_retry_config_for_error,
+    is_host_finalizer_failure,
+)
 
 
 @dataclass(frozen=True)
@@ -61,7 +65,36 @@ def record_runner_error(
     traceback.print_exc()
     summary = error_summary or f"{type(exc).__qualname__}: {exc}"
     traceback_str = traceback.format_exc()
-    if find_retry_config_for_error(summary) is not None:
+    lookup_failure = next(
+        (
+            node
+            for node in _walk_exception_chain(exc)
+            if isinstance(node, IndexLookupUnavailable)
+        ),
+        None,
+    )
+    if lookup_failure is not None and lookup_failure.transient:
+        detail = (
+            f" Diagnostic: {lookup_failure.diagnostic}"
+            if lookup_failure.diagnostic
+            else ""
+        )
+        print(
+            "This host lookup failure is transient: the agent index stayed busy."
+            f"{detail} Retrying the agent is safe once the index is idle.",
+            file=sys.stderr,
+        )
+    elif lookup_failure is not None:
+        print(
+            f"Agent index lookup is unavailable (availability={lookup_failure.availability}). "
+            "Run `sase agent index status` and follow its `repair_command` "
+            "(`sase agent index gc` or `sase agent index rebuild`).",
+            file=sys.stderr,
+        )
+    elif (
+        not is_host_finalizer_failure(exc)
+        and find_retry_config_for_error(summary) is not None
+    ):
         print(
             "This runner failure is retryable; retry/relaunch the agent to use "
             "a fresh process.",
@@ -111,3 +144,13 @@ def record_runner_error(
             skew_suspect=True,
         )
     return summary, traceback_str
+
+
+def _walk_exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    """Yield linked exceptions once, following cause before context."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__

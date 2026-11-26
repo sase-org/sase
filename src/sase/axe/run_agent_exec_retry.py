@@ -19,6 +19,7 @@ from sase.axe.runner_workspace import (
     prepare_workspace,
     prepare_workspace_with_reclone,
 )
+from sase.core.index_lookup_errors import IndexLookupUnavailable
 from sase.llm_provider.provider_disable import get_active_provider_disable
 from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
@@ -26,7 +27,7 @@ from sase.llm_provider.retry_config import (
     RetryState,
     find_retry_config_for_error,
     get_wait_time,
-    is_host_finalizer_failure,
+    is_host_owned_failure,
     is_retryable_error,
     truncate_error_snippet,
 )
@@ -43,6 +44,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _RetryAction = Literal["continue", "break", "raise"]
+
+
+def _has_index_lookup_failure(exc: BaseException) -> bool:
+    """Return whether any linked exception is a typed index lookup failure."""
+    seen: set[int] = set()
+    pending = [exc]
+    while pending:
+        node = pending.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        if isinstance(node, IndexLookupUnavailable):
+            return True
+        if node.__cause__ is not None:
+            pending.append(node.__cause__)
+        if node.__context__ is not None:
+            pending.append(node.__context__)
+    return False
 
 
 def _reenter_recreated_retry_workspace(ctx: AgentExecContext) -> None:
@@ -336,7 +355,7 @@ def handle_workflow_error(
         status="failed",
     )
 
-    # Host finalizer and commit-publish failures never retry the agent turn.
+    # Host finalizer, commit-publish, and index lookup failures never retry the agent turn.
     # Their text embeds host-owned stderr (git push, `sase stitch create`)
     # that collides with generic provider patterns ("Internal server
     # error", "rate limit"). The finalizer's own durable retry
@@ -344,7 +363,13 @@ def handle_workflow_error(
     # before usage-limit handling so finalizer stderr also cannot trigger a
     # provider disable, and it snapshots nothing: there is no retry wait
     # and no attempt snapshot for a failure that must surface immediately.
-    if is_host_finalizer_failure(exc):
+    if is_host_owned_failure(exc):
+        if _has_index_lookup_failure(exc):
+            logger.info(
+                "host lookup failure; skipping provider retry: %s",
+                truncate_error_snippet(error_str),
+            )
+            return "raise"
         logger.info(
             "host finalizer failure; skipping provider retry: %s",
             truncate_error_snippet(error_str),

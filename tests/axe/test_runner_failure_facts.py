@@ -507,6 +507,73 @@ def _error_context(tmp_path: Path) -> RunnerErrorContext:
     )
 
 
+def _record_runner_error_output(
+    tmp_path: Path, exc: BaseException, capsys: pytest.CaptureFixture[str]
+) -> str:
+    kills = SimpleNamespace(labels=MagicMock(return_value=MagicMock()))
+    record_runner_error(
+        exc,
+        context=_error_context(tmp_path),
+        write_error_done_marker=MagicMock(),
+        agent_kills=kills,
+        message_prefix="Error running agent",
+    )
+    return capsys.readouterr().err
+
+
+def test_runner_error_uses_typed_transient_lookup_hint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+    error = AgentNamedLookupUnavailable(
+        availability="busy",
+        source="artifact_index",
+        diagnostic="database is locked",
+    )
+    output = _record_runner_error_output(tmp_path, error, capsys)
+    assert "transient" in output
+    assert "database is locked" in output
+    assert "safe once the index is idle" in output
+    assert "This runner failure is retryable" not in output
+
+
+@pytest.mark.parametrize("availability", ["corrupt", "stale_schema", "missing"])
+def test_runner_error_recommends_index_repair_for_nontransient_lookup(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], availability: str
+) -> None:
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+    error = AgentNamedLookupUnavailable(
+        availability=availability,
+        source="artifact_index",
+        diagnostic="index cannot answer",
+    )
+    output = _record_runner_error_output(tmp_path, error, capsys)
+    assert f"availability={availability}" in output
+    assert "sase agent index status" in output
+    assert "sase agent index gc" in output
+    assert "sase agent index rebuild" in output
+    assert "This runner failure is retryable" not in output
+
+
+def test_runner_error_does_not_show_provider_hint_for_other_host_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    error = RuntimeError("sase stitch create failed: remote Internal Server Error")
+    output = _record_runner_error_output(tmp_path, error, capsys)
+    assert "This runner failure is retryable" not in output
+
+
+def test_runner_error_keeps_provider_hint_for_provider_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = _record_runner_error_output(
+        tmp_path, RuntimeError("UNAVAILABLE: provider RPC failed"), capsys
+    )
+    assert "This runner failure is retryable" in output
+
+
 def test_raised_failure_writes_facts_to_done_json(tmp_path: Path) -> None:
     lifecycle_mod.mark_lifecycle_phase(None, "waiting")
     kills = SimpleNamespace(labels=MagicMock(return_value=MagicMock()))

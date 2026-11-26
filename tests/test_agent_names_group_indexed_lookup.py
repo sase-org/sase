@@ -340,8 +340,12 @@ def test_incomplete_group_lookup_refuses_hijack_resolution(
         "sase.core.agent_artifact_lookup.lookup_agent_artifacts", incomplete_lookup
     )
     with patch.object(Path, "home", return_value=tmp_path):
-        with pytest.raises(AgentArtifactGroupLookupUnavailable):
+        with pytest.raises(AgentArtifactGroupLookupUnavailable) as exc_info:
             find_agent_session("lane")
+        assert exc_info.value.availability == "busy"
+        assert exc_info.value.source == "fallback"
+        assert exc_info.value.diagnostic == "fallback budget exceeded"
+        assert exc_info.value.transient is True
 
         subject, decision = resolve_and_decide(
             "lane",

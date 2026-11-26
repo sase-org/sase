@@ -279,3 +279,32 @@ def test_fallback_branch_snapshots_with_primary_model_marker(tmp_path: Path) -> 
     # The attempt that triggered fallback ran on the PRIMARY model, so
     # used_fallback at snapshot time is False.
     assert meta["used_fallback"] is False
+
+
+def test_host_lookup_failure_skips_provider_retry_classification(
+    tmp_path: Path,
+) -> None:
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+    ctx = _make_ctx(tmp_path)
+    state = _make_state(ctx)
+    tracker = RetryTracker(retry_cfg=_retry_cfg())
+    lookup_error = AgentNamedLookupUnavailable(
+        availability="busy",
+        source="artifact_index",
+        diagnostic="database is locked",
+    )
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_retry.find_retry_config_for_error",
+            side_effect=AssertionError("provider retry configs must not be consulted"),
+        ),
+        patch(
+            "sase.axe.run_agent_exec_retry.handle_possible_usage_limit"
+        ) as usage_limit,
+    ):
+        action = handle_workflow_error(lookup_error, tracker, ctx, state)
+
+    assert action == "raise"
+    usage_limit.assert_not_called()

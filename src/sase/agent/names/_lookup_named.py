@@ -15,9 +15,10 @@ from sase.agent.names._lookup_artifacts import (
     iter_ace_run_artifact_dirs,
     projects_root,
 )
+from sase.core.index_lookup_errors import IndexLookupUnavailable
 
 
-class AgentNamedLookupUnavailable(RuntimeError):
+class AgentNamedLookupUnavailable(IndexLookupUnavailable):
     """A bounded named lookup could not prove a winner or a miss."""
 
     def __init__(
@@ -28,14 +29,16 @@ class AgentNamedLookupUnavailable(RuntimeError):
         diagnostic: str | None,
         truncated: bool = False,
     ) -> None:
-        self.availability = availability
-        self.source = source
-        self.diagnostic = diagnostic
-        self.truncated = truncated
         detail = [f"availability={availability}", f"source={source}"]
         if diagnostic:
             detail.append(diagnostic)
-        super().__init__("agent name lookup is incomplete (" + "; ".join(detail) + ")")
+        super().__init__(
+            "agent name lookup is incomplete (" + "; ".join(detail) + ")",
+            availability=availability,
+            source=source,
+            diagnostic=diagnostic,
+            truncated=truncated,
+        )
 
 
 def find_named_agent(

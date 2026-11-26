@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.config import load_merged_config
+from sase.core.index_lookup_errors import IndexLookupUnavailable
 
 RETRY_STATE_FILENAME = "retry_state.json"
 
@@ -160,6 +161,19 @@ def is_host_finalizer_failure(exc: BaseException) -> bool:
                 return True
         lowered = str(exc).lower()
         return any(marker in lowered for marker in _HOST_FINALIZER_TEXT_MARKERS)
+    except Exception:
+        return False
+
+
+def is_host_owned_failure(exc: BaseException) -> bool:
+    """Return whether a failure belongs to host lookup or finalizer work."""
+    if is_host_finalizer_failure(exc):
+        return True
+    try:
+        return any(
+            isinstance(node, IndexLookupUnavailable)
+            for node in _walk_exception_chain(exc)
+        )
     except Exception:
         return False
 

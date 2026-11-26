@@ -11,6 +11,7 @@ from sase.llm_provider.retry_config import (
     find_retry_config_for_error,
     get_retry_config,
     is_host_finalizer_failure,
+    is_host_owned_failure,
 )
 
 # Provider name guaranteed to have no built-in or user config — used to
@@ -314,3 +315,30 @@ class TestIsHostFinalizerFailure:
 
     def test_plain_error_does_not_match(self) -> None:
         assert is_host_finalizer_failure(RuntimeError("boom")) is False
+
+
+class TestIsHostOwnedFailure:
+    @staticmethod
+    def _lookup_error() -> Exception:
+        from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+        return AgentNamedLookupUnavailable(
+            availability="busy",
+            source="artifact_index",
+            diagnostic="database is locked",
+        )
+
+    def test_direct_and_chained_lookup_errors_are_host_owned(self) -> None:
+        root = self._lookup_error()
+        assert is_host_owned_failure(root)
+        cause_outer = RuntimeError("outer")
+        cause_outer.__cause__ = root
+        assert is_host_owned_failure(cause_outer)
+        context_outer = RuntimeError("outer")
+        context_outer.__context__ = root
+        assert is_host_owned_failure(context_outer)
+
+    def test_provider_unavailable_text_still_matches_provider_patterns(self) -> None:
+        error = RuntimeError("UNAVAILABLE: provider RPC temporarily failed")
+        assert not is_host_owned_failure(error)
+        assert find_retry_config_for_error(str(error)) is not None

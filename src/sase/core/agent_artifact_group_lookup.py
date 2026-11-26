@@ -13,16 +13,16 @@ from sase.core.agent_artifact_lookup_wire import (
     agent_artifact_lookup_result_to_dict,
 )
 from sase.core.rust import require_rust_binding
+from sase.core.index_lookup_errors import IndexLookupUnavailable
 
 
-class AgentArtifactGroupLookupUnavailable(RuntimeError):
+class AgentArtifactGroupLookupUnavailable(IndexLookupUnavailable):
     """A bounded lookup could not establish complete group membership."""
 
     def __init__(
         self,
         result: AgentArtifactGroupSelectionResultWire,
     ) -> None:
-        self.result = result
         details = [
             f"availability={result.availability}",
             f"source={result.source}",
@@ -30,8 +30,13 @@ class AgentArtifactGroupLookupUnavailable(RuntimeError):
         if result.diagnostic:
             details.append(result.diagnostic)
         super().__init__(
-            "agent group lookup is incomplete (" + "; ".join(details) + ")"
+            "agent group lookup is incomplete (" + "; ".join(details) + ")",
+            availability=result.availability,
+            source=result.source,
+            diagnostic=result.diagnostic,
+            truncated=False,
         )
+        self.result = result
 
 
 def select_agent_artifact_group(
