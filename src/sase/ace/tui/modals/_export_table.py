@@ -141,6 +141,7 @@ _LAZY_EXPORTS = {
     "ConfirmStopMonitorModal": (".confirm_kill_modal", "ConfirmStopMonitorModal"),
     "CopyAsContext": (".copy_as_types", "CopyAsContext"),
     "CopyAsModal": (".copy_as_modal", "CopyAsModal"),
+    "QuestionCopyModal": (".question_copy_modal", "QuestionCopyModal"),
     "CopyAsRow": (".copy_as_types", "CopyAsRow"),
     "CopyAsSection": (".copy_as_types", "CopyAsSection"),
     "CustomApprovalEditPrompt": (

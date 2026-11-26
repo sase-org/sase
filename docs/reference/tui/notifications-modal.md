@@ -143,6 +143,30 @@ Agent completion and failure toasts include the `%id`-set agent name with an `@`
 when present (e.g., `CLAUDE(opus) @sase-q.land completed: ace(run)-...`); anonymous
 agents (no `agent_name`) keep the prior format.
 
+### User-question copy panel
+
+Inside the user-question response modal, `y` opens the copy panel instead of copying
+the whole ballot. The panel lists every agent-declared snippet under `SNIPPETS` and the
+question-level rows under `QUESTION`; each row copies its exact bytes, never a guessed
+or truncated value. Copied snippets gain a `✓`, and the subtitle counts progress (kept
+per question bundle for the life of the TUI process), so repeated `y` then `Enter`
+walks a multi-paste workflow in order.
+
+| Key                           | Copies                                                     |
+| ----------------------------- | ---------------------------------------------------------- |
+| `1`–`9`, `0`, then `b`…`z`*   | one declared snippet, exactly                              |
+| `a` (2 or more snippets)      | all snippets, one per line                                 |
+| `t`                           | the question text                                          |
+| `o`                           | the highlighted option (disabled on `Other…` or no options)|
+| `y`                           | questions and answers Markdown, plus copyable items        |
+| `Enter` / click               | the highlighted row                                      |
+| `j`/`k`, `↑`/`↓`              | move                                                     |
+| `q` / `Esc`                   | close; nothing is copied and the form is untouched         |
+
+\* Snippet keys skip `a j k o q t y`. Pressing `y` while typing an `Other` answer, a
+global note, or while the app's `%` copy mode is active types or forwards `y` instead
+of opening the panel.
+
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.

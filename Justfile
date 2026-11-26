@@ -566,7 +566,10 @@ _lint-patch-stitch-terminology: _setup
 # behavior and wires any explicit deselection hooks the soak requires.
 # sase-1tz.2.1.2 (digest_render) consumes the axe error-signature grouping
 # surface exported by sase-1tz.2.1.1, so those --epic-symbol rows are dropped.
-# sase-1vd.3 consumes the question-copy display API in the question panel.
+# sase-1vd.3 (copy-panel) landed the production consumer of the question-copy
+# display API: the question panel annotates QuestionCopyDisplay, types snapshots
+# with QuestionCopyItem, and calls display_question_copy_items from the copying
+# mixin and the qa_markdown TUI flag, so those rows were dropped after landing.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -575,9 +578,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1vd.3(QuestionCopyDisplay)" \
-        --epic-symbol "sase-1vd.3(QuestionCopyItem)" \
-        --epic-symbol "sase-1vd.3(display_question_copy_items)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

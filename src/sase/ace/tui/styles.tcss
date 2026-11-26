@@ -11048,6 +11048,82 @@ CopyAsModal.-narrow #copy-as-footer {
     margin-top: 0;
 }
 
+/* ===== Question Copy Panel Styling ===== */
+
+QuestionCopyModal {
+    align: center middle;
+}
+
+QuestionCopyModal > #copy-as-container {
+    width: 100;
+    max-width: 92%;
+    height: auto;
+    max-height: 86%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+QuestionCopyModal #copy-as-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: $accent;
+}
+
+QuestionCopyModal #copy-as-subtitle {
+    height: 1;
+    margin-bottom: 1;
+    text-align: center;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+QuestionCopyModal #copy-as-list {
+    height: auto;
+    max-height: 24;
+    border: solid $secondary;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+    scrollbar-gutter: stable;
+}
+
+QuestionCopyModal #copy-as-preview {
+    height: auto;
+    max-height: 8;
+    margin-top: 1;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+QuestionCopyModal #copy-as-footer {
+    height: 1;
+    margin-top: 1;
+    text-align: center;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+QuestionCopyModal.-narrow > #copy-as-container {
+    width: 94%;
+    max-height: 92%;
+    padding: 1;
+}
+
+QuestionCopyModal.-narrow #copy-as-list {
+    max-height: 14;
+}
+
+QuestionCopyModal.-narrow #copy-as-preview {
+    max-height: 5;
+}
+
+QuestionCopyModal.-narrow #copy-as-footer {
+    margin-top: 0;
+}
+
 /* ===== Project Select Modal (@) Styling ===== */
 
 ProjectSelectModal {

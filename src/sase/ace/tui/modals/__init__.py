@@ -140,6 +140,7 @@ __all__ = [
     "CopyAsModal",
     "CopyAsRow",
     "CopyAsSection",
+    "QuestionCopyModal",
     "CommitViewModal",
     "CustomModelInputModal",
     "DisabledProviderLaunchDecision",

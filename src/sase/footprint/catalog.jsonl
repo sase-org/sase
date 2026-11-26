@@ -1,4 +1,4 @@
-{"count": 3726, "rev": "90b325134484", "schema": "sase.footprint.catalog/1"}
+{"count": 3727, "rev": "3927d5c141ae", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3663,6 +3663,7 @@
 {"area": "modals", "id": "view:modal.property_picker", "kind": "modal", "label": "Property picker dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/property_picker_modal.py:PropertyPickerModal"}
 {"area": "modals", "id": "view:modal.provider_routing", "kind": "modal", "label": "Provider routing dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_provider_modal.py:ProviderRoutingModal"}
 {"area": "modals", "id": "view:modal.provider_usage", "kind": "modal", "label": "Provider usage dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_usage_modal.py:ProviderUsageModal"}
+{"area": "modals", "id": "view:modal.question_copy", "kind": "modal", "label": "Question copy dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/question_copy_modal.py:QuestionCopyModal"}
 {"area": "modals", "id": "view:modal.quit_options", "kind": "modal", "label": "Quit options dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/quit_options_modal.py:QuitOptionsModal"}
 {"area": "modals", "id": "view:modal.recursive_file_finder", "kind": "modal", "label": "Recursive file finder dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/recursive_finder_modal.py:RecursiveFileFinderModal"}
 {"area": "modals", "id": "view:modal.refresh_panel", "kind": "modal", "label": "Refresh panel dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/refresh_panel_modal.py:RefreshPanelModal"}

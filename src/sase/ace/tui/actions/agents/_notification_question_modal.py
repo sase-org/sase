@@ -184,7 +184,11 @@ def _open_user_question_modal(
         )
 
     app.push_screen(  # type: ignore[attr-defined]
-        UserQuestionModal(questions, debug_context=debug_context),
+        UserQuestionModal(
+            questions,
+            debug_context=debug_context,
+            copy_bundle_key=str(response_path),
+        ),
         on_dismiss,
     )
     return True

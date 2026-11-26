@@ -139,19 +139,55 @@ def schedule_copy_delivery(
     copied_label: CopiedLabel,
     task_name: str,
     on_failure: CopyFailurePolicy = "modal",
+    ordered: bool = False,
 ) -> asyncio.Task[CopyDeliveryOutcome] | None:
-    """Schedule one copy outside Textual's pump, tracked by the owning app."""
-    return spawn_pump_free_task(
-        _app_for(owner),
-        deliver_copy(
+    """Schedule one copy outside Textual's pump, tracked by the owning app.
+
+    When ``ordered`` is true, this delivery waits for the previous ordered
+    delivery on the same app to settle before running, so rapid successive
+    copies land in the order they were chosen and a slow earlier transport
+    never overwrites a later choice.
+    """
+    if not ordered:
+        return spawn_pump_free_task(
+            _app_for(owner),
+            deliver_copy(
+                owner,
+                value,
+                copied_label=copied_label,
+                on_failure=on_failure,
+            ),
+            name=task_name,
+            registry_attr="_pump_free_clipboard_tasks",
+        )
+    app = _app_for(owner)
+    previous = getattr(app, "_ordered_copy_chain", None)
+
+    async def _ordered_delivery() -> CopyDeliveryOutcome:
+        if previous is not None:
+            try:
+                await asyncio.shield(previous)
+            except (asyncio.CancelledError, Exception):
+                pass
+        return await deliver_copy(
             owner,
             value,
             copied_label=copied_label,
             on_failure=on_failure,
-        ),
+        )
+
+    task = spawn_pump_free_task(
+        app,
+        _ordered_delivery(),
         name=task_name,
         registry_attr="_pump_free_clipboard_tasks",
     )
+    if task is not None:
+        try:
+            app._ordered_copy_chain = task  # type: ignore[attr-defined]
+        except Exception:
+            log.debug("Unable to record ordered copy chain", exc_info=True)
+    return task
 
 
 __all__ = [

@@ -25,8 +25,8 @@ from textual.widgets.option_list import Option
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.debug import GateDebugContext
 
-from ..actions.clipboard import schedule_copy_delivery
 from .base import CopyModeForwardingMixin
+from .user_question_modal_copying import UserQuestionCopyingMixin
 
 
 class _WrappingSelectionList(SelectionList[str]):
@@ -122,7 +122,9 @@ class UserQuestionResult:
 
 
 class UserQuestionModal(
-    CopyModeForwardingMixin, ModalScreen[UserQuestionResult | None]
+    CopyModeForwardingMixin,
+    UserQuestionCopyingMixin,
+    ModalScreen[UserQuestionResult | None],
 ):
     """Modal for answering Claude Code's AskUserQuestion prompts.
 
@@ -139,7 +141,7 @@ class UserQuestionModal(
         ("n", "next_question", "Next"),
         ("p", "prev_question", "Previous"),
         ("g", "global_note", "Global note"),
-        ("y", "copy_questions", "Copy"),
+        ("y", "open_copy_panel", "Copy…"),
         ("S", "submit_all", "Submit"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
@@ -150,11 +152,15 @@ class UserQuestionModal(
         questions: list[dict],
         *,
         debug_context: GateDebugContext | None = None,
+        copy_bundle_key: str | None = None,
     ) -> None:
         """Initialize the user question modal.
 
         Args:
             questions: Raw question dicts from question_request.json.
+            copy_bundle_key: Stable progress-map key for copy checkmarks
+                (the question bundle's response path). Modals opened
+                without one keep instance-local copy progress.
         """
         super().__init__()
         self._questions = questions
@@ -164,6 +170,8 @@ class UserQuestionModal(
         self._global_note: str | None = None
         self._input_mode: str | None = None  # None | "other" | "global"
         self._debug_context = debug_context
+        self._copy_bundle_key = copy_bundle_key
+        self._local_copied_texts: set[str] = set()
 
     def compose(self) -> ComposeResult:
         """Compose the two-pane modal layout."""
@@ -303,7 +311,7 @@ class UserQuestionModal(
             parts.append("[cyan]n[/cyan]/[cyan]p[/cyan]=Next/Prev")
         parts.append("[bold green]Enter/S[/bold green]=Submit all")
         parts.append("[yellow]g[/yellow]=Global note")
-        parts.append("[cyan]y[/cyan]=Copy")
+        parts.append("[cyan]y[/cyan]=Copy…")
         parts.append("[cyan]d[/cyan]=Debug")
         parts.append("[dim]q[/dim]=Cancel")
         parts.append("Ctrl+D/U=Scroll")
@@ -427,7 +435,7 @@ class UserQuestionModal(
             global_note=self._global_note,
         )
 
-    def _build_qa_markdown(self) -> str:
+    def _build_qa_markdown(self, include_copy_items: bool = False) -> str:
         """Build a markdown representation of all questions and answers."""
         from sase.main.qa_markdown import build_qa_markdown
 
@@ -442,6 +450,7 @@ class UserQuestionModal(
             questions=self._questions,
             answers=answers,
             global_note=self._global_note,
+            include_copy_items=include_copy_items,
         )
 
     # ------------------------------------------------------------------
@@ -502,17 +511,8 @@ class UserQuestionModal(
         global_input._update_vim_mode_display()
 
     def action_copy_questions(self) -> None:
-        """Copy all questions and current answers as markdown to clipboard."""
-        if self._input_mode:
-            return
-        self._save_current_answer()
-        content = self._build_qa_markdown()
-        schedule_copy_delivery(
-            self,
-            content,
-            copied_label="questions & answers",
-            task_name="sase-copy-user-questions",
-        )
+        """Legacy direct-copy entry; now opens the copy panel instead."""
+        self.action_open_copy_panel()
 
     def action_scroll_down(self) -> None:
         """Scroll the options list down."""

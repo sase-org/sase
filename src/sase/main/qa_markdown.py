@@ -33,11 +33,63 @@ class QARound:
     global_note: str | None = None
 
 
+def _copy_code_span(value: str) -> str:
+    """Render one single-line value verbatim as a Markdown code span."""
+    run = 0
+    best = 0
+    for char in value:
+        if char == "`":
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    delim = "`" * (best + 1)
+    return f"{delim} {value} {delim}"
+
+
+def _copy_fenced_block(value: str) -> list[str]:
+    """Render one multi-line value verbatim as a fenced block."""
+    run = 0
+    best = 0
+    for char in value:
+        if char == "`":
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    fence = "`" * max(3, best + 1)
+    return [fence, value, fence]
+
+
+def _render_copyable_items(lines: list[str], q: dict[str, Any]) -> None:
+    """Append the ``**Copyable items:**`` list for one question, if any."""
+    from sase.core.question_copy_facade import display_question_copy_items
+
+    display = display_question_copy_items(q)
+    if not display.items:
+        return
+    lines.append("")
+    lines.append("**Copyable items:**")
+    lines.append("")
+    for item in display.items:
+        if "\n" in item.text:
+            lines.append(f"- {item.label}" if item.label else "-")
+            lines.extend(
+                f"  {fence_line}" for fence_line in _copy_fenced_block(item.text)
+            )
+        elif item.label:
+            lines.append(f"- {item.label}: {_copy_code_span(item.text)}")
+        else:
+            lines.append(f"- {_copy_code_span(item.text)}")
+
+
 def _render_question(
     lines: list[str],
     q: dict[str, Any],
     answer: dict[str, Any] | None,
     number: int,
+    *,
+    include_copy_items: bool = False,
 ) -> None:
     header = q.get("header", "")
     if header:
@@ -101,6 +153,9 @@ def _render_question(
         for label in selected_labels:
             lines.append(f"- [x] **{label}**")
 
+    if include_copy_items:
+        _render_copyable_items(lines, q)
+
     if q.get("multiSelect"):
         lines.append("")
         lines.append("*Multi-select*")
@@ -108,7 +163,9 @@ def _render_question(
     lines.append("")
 
 
-def build_merged_qa_markdown(rounds: list[QARound]) -> str:
+def build_merged_qa_markdown(
+    rounds: list[QARound], *, include_copy_items: bool = False
+) -> str:
     """Render one or more Q&A rounds as a single markdown section.
 
     Emits exactly one ``### Questions and Answers`` header. Questions
@@ -129,7 +186,9 @@ def build_merged_qa_markdown(rounds: list[QARound]) -> str:
         for idx, q in enumerate(r.questions):
             counter += 1
             answer = r.answers[idx] if idx < len(r.answers) else None
-            _render_question(lines, q, answer, counter)
+            _render_question(
+                lines, q, answer, counter, include_copy_items=include_copy_items
+            )
 
     last_note: str | None = None
     for r in rounds:
@@ -149,6 +208,8 @@ def build_qa_markdown(
     questions: list[dict[str, Any]],
     answers: list[dict[str, Any]],
     global_note: str | None,
+    *,
+    include_copy_items: bool = False,
 ) -> str:
     """Render questions + answers as a markdown Q&A section.
 
@@ -165,8 +226,12 @@ def build_qa_markdown(
             ``custom_feedback`` for the "Other" line. Index-aligned with
             ``questions``; missing entries render as un-checked.
         global_note: Optional global note appended at the end.
+        include_copy_items: When true, append a ``**Copyable items:**``
+            list to each question with display items. Only the TUI passes
+            this flag; successor prompts never do.
     """
 
     return build_merged_qa_markdown(
-        [QARound(questions=questions, answers=answers, global_note=global_note)]
+        [QARound(questions=questions, answers=answers, global_note=global_note)],
+        include_copy_items=include_copy_items,
     )
