@@ -160,7 +160,7 @@ def test_cwd_nested_inside_a_different_workspace_records_its_number_without_tran
         _stop_and_wait(record)
 
 
-def test_unmanaged_cwd_still_degrades_to_workspace_zero_with_raw_cwd(
+def test_scratch_cwd_keeps_numbered_lane_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
@@ -189,7 +189,7 @@ def test_unmanaged_cwd_still_degrades_to_workspace_zero_with_raw_cwd(
     record = start_monitor(
         StartMonitorRequest(
             command="sleep 30",
-            reason="verify unmanaged cwd still degrades to workspace 0",
+            reason="verify scratch cwd keeps the starter workspace",
             timeout_seconds=30.0,
             cwd=str(unmanaged_cwd),
             project_name="proj",
@@ -201,7 +201,51 @@ def test_unmanaged_cwd_still_degrades_to_workspace_zero_with_raw_cwd(
 
     try:
         meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["workspace_num"] == 10
+        assert meta["workspace_dir"] == lane_workspace_dir
+        assert meta["monitor_cwd"] == str(unmanaged_cwd)
+    finally:
+        _stop_and_wait(record)
+
+
+def test_scratch_cwd_from_workspace_zero_records_primary_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    scratch_cwd = tmp_path / "unrelated"
+    scratch_cwd.mkdir()
+    write_project_file("proj", workspace_dir=str(primary))
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_session="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="sleep 30",
+            reason="verify workspace zero scratch cwd",
+            timeout_seconds=30.0,
+            cwd=str(scratch_cwd),
+            project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
+            lane="acme",
+        )
+    )
+
+    try:
+        meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
         assert meta["workspace_num"] == 0
-        assert meta["workspace_dir"] == str(unmanaged_cwd)
+        assert meta["workspace_dir"] == str(primary)
+        assert meta["monitor_cwd"] == str(scratch_cwd)
     finally:
         _stop_and_wait(record)

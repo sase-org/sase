@@ -160,7 +160,11 @@ when it is inside a repo opened with `sase repo open`, else the agent's workspac
 checkout that contains it, and an ordinary follow-up starts at that checkout's root.
 When the directory is inside the caller's own workspace, the caller's claim moves to the
 monitor; inside a different managed workspace, the monitor takes a fresh claim and the
-caller keeps its own. A directory outside every managed checkout uses workspace `0`.
+caller keeps its own. For a directory outside every managed checkout, a starter in a
+numbered workspace keeps that workspace and transfers its claim to the monitor; the
+monitor still runs in the requested scratch directory, while its follow-up returns to
+the starter's workspace. A starter in workspace `0` records the primary checkout as its
+workspace, while the monitor still runs in the requested scratch directory.
 
 Before it creates the monitor member or binds a completion intent, `sase monitor start`
 checks the target workspace's claims. If another live process holds that workspace, the
@@ -632,12 +636,14 @@ The launch is not coupled to a workspace-claim handoff that can fail: if the mon
 own workspace claim can no longer be transferred to the follow-up (for example, a stale
 sweep already released it), the follow-up still launches — first against a fresh claim
 on the same workspace, then against workspace `0` if that workspace has since been taken
-by another agent. Either fallback is recorded as a **degraded** launch, and the
-follow-up prompt says plainly which happened, because a follow-up in a different
-workspace than the monitor ran in cannot assume the command's artifacts are present.
-Only when a follow-up genuinely cannot be launched at all is it dropped — and even then
-the composed prompt is persisted as a durable artifact so the instruction can be
-replayed by hand instead of surviving only as an error string. See
+by another agent. For scratch-directory monitors, the recorded workspace is the
+starter's numbered checkout or the primary checkout for workspace `0`; the scratch
+directory remains the command's cwd. Either fallback is recorded as a **degraded**
+launch, and the follow-up prompt says plainly which happened, because a follow-up in a
+different workspace than the monitor ran in cannot assume the command's artifacts are
+present. Only when a follow-up genuinely cannot be launched at all is it dropped — and
+even then the composed prompt is persisted as a durable artifact so the instruction can
+be replayed by hand instead of surviving only as an error string. See
 [Visibility](monitor-operations.md#visibility) below for how a dropped or degraded
 follow-up is surfaced.
 

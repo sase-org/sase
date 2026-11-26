@@ -188,6 +188,98 @@ def test_launch_followup_agent_falls_back_to_primary_when_meta_pairing_is_unreso
     assert str(primary) in captured["prompt"]
 
 
+def test_scratch_monitor_from_workspace_zero_follows_up_in_primary_without_degradation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    scratch_cwd = tmp_path / "scratch"
+    scratch_cwd.mkdir()
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["workspace_num"] = 0
+    meta["workspace_dir"] = str(primary)
+    meta["monitor_cwd"] = str(scratch_cwd)
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result(workspace_num=0, workspace_dir=str(primary))
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(
+        shells_followup_module,
+        "_workspace_dir_for_num",
+        lambda project_name, workspace_num: str(primary),
+    )
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is None
+    assert captured["workspace_dir"] == str(primary)
+    assert captured["workspace_num"] == 0
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert "monitor_followup_degraded_reason" not in on_disk
+
+
+def test_scratch_monitor_from_numbered_workspace_follows_up_in_that_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    monkeypatch.setattr(
+        workspace_store_module, "_list_git_remote_urls", lambda primary_dir: []
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 3)
+    scratch_cwd = tmp_path / "scratch"
+    scratch_cwd.mkdir()
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["workspace_num"] = 3
+    meta["workspace_dir"] = workspace_dir
+    meta["monitor_cwd"] = str(scratch_cwd)
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result(workspace_num=3, workspace_dir=workspace_dir)
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is None
+    assert captured["workspace_dir"] == workspace_dir
+    assert captured["workspace_num"] == 3
+
+
 def test_launch_followup_agent_falls_back_to_fresh_claim_after_transfer_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

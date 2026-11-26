@@ -357,17 +357,20 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
         "acme",
         model="claude-sonnet-5",
         workspace_dir=workspace_dir,
+        workspace_num=10,
         pid=111111,
         cl_name="acme",
     )
     patch_project_records(monkeypatch, [starter_dir])
+    scratch_cwd = tmp_path / "monitor-scratch"
+    scratch_cwd.mkdir()
 
     record = start_monitor(
         StartMonitorRequest(
             command="sleep 120",
             reason="verify claim invariant replay",
             timeout_seconds=120.0,
-            cwd=workspace_dir,
+            cwd=str(scratch_cwd),
             project_name="proj",
             start_status="MONITORING",
             stop_status="MONITORED",
@@ -387,6 +390,12 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
         assert [
             (claim.workspace_num, claim.pid, claim.workflow) for claim in claims
         ] == [(10, supervisor_pid, MONITOR_WORKSPACE_CLAIM_WORKFLOW)]
+        monitor_meta = json.loads(
+            (Path(record.artifacts_dir) / "agent_meta.json").read_text()
+        )
+        assert monitor_meta["workspace_num"] == 10
+        assert monitor_meta["workspace_dir"] == workspace_dir
+        assert monitor_meta["monitor_cwd"] == str(scratch_cwd)
 
         monkeypatch.setattr(
             "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
@@ -446,9 +455,6 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
         )
         monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
 
-        monitor_meta = json.loads(
-            (Path(record.artifacts_dir) / "agent_meta.json").read_text()
-        )
         capture = OutputCapture()
         result = followup_module.launch_followup_agent(
             record.artifacts_dir,
@@ -563,6 +569,7 @@ def test_start_monitor_epic_launch_from_non_numbered_cwd_uses_workspace_zero(
 
     meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
     assert meta["workspace_num"] == 0
-    assert meta["workspace_dir"] == str(outside)
+    assert meta["workspace_dir"] == str(primary)
+    assert meta["monitor_cwd"] == str(outside)
     wait_for_done(record.artifacts_dir)
     assert get_claimed_workspaces(project_file) == []

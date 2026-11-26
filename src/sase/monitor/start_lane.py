@@ -128,8 +128,15 @@ def resolve_lane_start(
         transfer_from_pid = request.transfer_claim_from_pid
     elif (
         request.inherit_lane_workspace_claim
-        and cwd_matches_lane
         and resolved_workspace_num != 0
+        and (
+            cwd_matches_lane
+            or (
+                lane_workspace_num == resolved_workspace_num
+                and lane_workspace_dir
+                and _same_path(member_workspace_dir, lane_workspace_dir)
+            )
+        )
         and runner_pid is not None
     ):
         transfer_from_pid = runner_pid
@@ -177,6 +184,14 @@ def _resolve_monitor_workspace(
     owner = _lookup_workspace_owner_for_dir(project_file, cwd)
     if owner is not None:
         return owner
+
+    if lane_workspace_num is not None and lane_workspace_num > 0 and lane_workspace_dir:
+        return lane_workspace_num, lane_workspace_dir
+
+    if lane_workspace_num == 0:
+        primary_workspace_dir = lane_workspace_dir or parse_workspace_dir(project_file)
+        if primary_workspace_dir:
+            return 0, primary_workspace_dir
 
     if cwd_matches_lane and lane_workspace_num is not None:
         return lane_workspace_num, cwd
