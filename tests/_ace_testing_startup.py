@@ -183,6 +183,79 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
     }
 
 
+async def test_ace_page_real_startup_update_status_is_hermetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real startup never reaches the host or network update-status source."""
+    compute_calls: list[dict[str, object]] = []
+    run_calls: list[dict[str, object]] = []
+
+    def _forbidden_compute(*args: object, **kwargs: object) -> object:
+        compute_calls.append({"args": args, "kwargs": kwargs})
+        raise AssertionError("compute_update_status must not run under AcePage")
+
+    def _forbidden_run(*args: object, **kwargs: object) -> object:
+        run_calls.append({"args": args, "kwargs": kwargs})
+        raise AssertionError("run_command must not run under AcePage")
+
+    monkeypatch.setattr(
+        "sase.updates.status.compute_update_status",
+        _forbidden_compute,
+    )
+    monkeypatch.setattr(
+        "sase.agent_clis.runner.run_command",
+        _forbidden_run,
+    )
+
+    async with AcePage(startup_policy="real") as page:
+        deadline = asyncio.get_running_loop().time() + 30.0
+        while True:
+            app = page.app
+            timer_set = getattr(app, "_automatic_update_check_timer", None) is not None
+            in_flight = bool(getattr(app, "_automatic_update_check_in_flight", False))
+            if timer_set and not in_flight:
+                break
+            if asyncio.get_running_loop().time() >= deadline:
+                raise AssertionError(
+                    "real-startup update check never finished; "
+                    f"timer_set={timer_set!r} in_flight={in_flight!r}"
+                )
+            await page.pause()
+
+    assert compute_calls == []
+    assert run_calls == []
+
+
+async def test_ace_page_real_startup_preserves_caller_update_status_fake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied update-status fake wins over real-startup isolation."""
+    from sase.ace.tui.actions import update_toast
+
+    calls: list[dict[str, object]] = []
+
+    def _recording_fake(*_args: object, **kwargs: object) -> None:
+        calls.append(dict(kwargs))
+        return None
+
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        _recording_fake,
+    )
+
+    async with AcePage(startup_policy="real") as page:
+        deadline = asyncio.get_running_loop().time() + 30.0
+        while not calls:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise AssertionError(
+                    "caller update-status fake was never called under real startup"
+                )
+            await page.pause()
+
+    assert len(calls) >= 1
+
+
 async def test_ace_page_restores_fast_startup_overrides_after_success() -> None:
     originals = (
         AceApp._run_mount_notification_state_loads,

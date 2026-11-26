@@ -12,7 +12,7 @@ from sase.ace.tui.tab_order import SERVICES_TAB
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from textual.worker import WorkerCancelled
 
-from ._startup import _install_fast_startup_overrides
+from ._startup import _install_fast_startup_overrides, _install_real_startup_isolation
 from ._stylesheet_cache import (
     FastStylesheetSeed,
     finish_fast_stylesheet_boot,
@@ -22,6 +22,9 @@ from . import settle as settle_helpers
 from .fixtures import DEFAULT_PATCHES
 from .wait import DEFAULT_WAIT_TIMEOUT, _poll_until
 
+# Startup policy for AcePage: "fast" skips nonessential services; "real" runs
+# every production startup boundary but never reaches the host or network
+# update-status source unless the test supplies one.
 AceStartupPolicy = Literal["fast", "real"]
 
 _SENTINEL = object()
@@ -228,7 +231,12 @@ def _resolve_key(data: dict[str, Any], key: str) -> Any:
 
 
 class AcePage:
-    """Async context manager wrapping AceApp + Pilot for fluent TUI testing."""
+    """Async context manager wrapping AceApp + Pilot for fluent TUI testing.
+
+    The ``real`` startup policy runs every production startup boundary but
+    never reaches the host or network update-status source unless the test
+    supplies one.
+    """
 
     def __init__(
         self,
@@ -296,6 +304,8 @@ class AcePage:
             )
             if self._startup_policy == "fast":
                 _install_fast_startup_overrides(stack)
+            elif self._startup_policy == "real":
+                _install_real_startup_isolation(stack)
 
             self._app = AceApp(
                 query=self._query,

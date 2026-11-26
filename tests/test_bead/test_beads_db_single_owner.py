@@ -4,19 +4,22 @@ Covers a new store, a legacy JSONL-only store, and a legacy store with a real
 preexisting WAL mirror, each prepared in a separate completed subprocess where
 applicable. Reopens across Rust mutations, asserts canonical data, preserves
 the preexisting mirror inode and bytes, exercises real ``sync()`` in a
-disposable git repository, and uses a coordinated subprocess writer to prove
-real mutations keep unique child IDs, retained updates, and lock exclusion.
-Never mocks Rust mutations; stdlib SQLite opens of ``beads.db`` fail
-deterministically.
+disposable git repository, and uses coordinated subprocess writers behind a
+ready/go barrier to prove real mutations keep unique child IDs, retained
+updates, and lock exclusion. A stalled worker dumps its stacks to its stderr
+file before the parent's hang-detector bound. Never mocks Rust mutations;
+stdlib SQLite opens of ``beads.db`` fail deterministically.
 """
 
 from __future__ import annotations
 
 import json
-import multiprocessing
+import os
+import selectors
 import sqlite3
 import subprocess
 import sys
+import time
 import unittest.mock as _mock
 from pathlib import Path
 
@@ -26,8 +29,48 @@ from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 
 _PROCESS_TIMEOUT_SECONDS = 120.0
+_WORKER_STALL_DUMP_SECONDS = 90.0
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+_WORKER_SCRIPT = "\n".join(
+    [
+        "import faulthandler, sys",
+        "faulthandler.dump_traceback_later(float(sys.argv[4]), exit=True)",
+        "import json",
+        "import traceback",
+        "from pathlib import Path",
+        "from sase.bead.model import IssueType",
+        "from sase.bead.project import BeadProject",
+        "def main():",
+        "    try:",
+        "        with BeadProject(Path(sys.argv[1])) as project:",
+        "            sys.stdout.write(f'READY {sys.argv[3]}\\n')",
+        "            sys.stdout.flush()",
+        "            for line in sys.stdin:",
+        "                if line.strip() == 'GO':",
+        "                    break",
+        "            else:",
+        "                raise RuntimeError('stdin closed before GO')",
+        "            child = project.create(",
+        "                f'Concurrent child {sys.argv[3]}',",
+        "                IssueType.PHASE,",
+        "                parent_id=sys.argv[2],",
+        "            )",
+        "            project.update(child.id, description=f'worker {sys.argv[3]}')",
+        "            sys.stdout.write(",
+        "                json.dumps(",
+        "                    {'worker': int(sys.argv[3]), 'child_id': child.id}",
+        "                ) + '\\n'",
+        "            )",
+        "            sys.stdout.flush()",
+        "            faulthandler.cancel_dump_traceback_later()",
+        "    except BaseException:",
+        "        traceback.print_exc()",
+        "        sys.exit(1)",
+        "main()",
+    ]
+)
 
 
 def _guarded_sqlite_connect(
@@ -143,27 +186,26 @@ def _assert_sync_excludes_beads_db(repo_root: Path) -> None:
     assert not any("beads.db" in name for name in staged), staged
 
 
-def _child_creator(
-    project_dir: str,
-    epic_id: str,
-    worker_index: int,
-    ready_queue: object,
-    result_queue: object,
-) -> None:
-    result: dict[str, object] = {"ok": True, "worker": worker_index, "error": ""}
+def _read_stderr_file(path: Path) -> str:
     try:
-        with BeadProject(Path(project_dir)) as project:
-            ready_queue.put(worker_index)  # type: ignore[attr-defined]
-            child = project.create(
-                f"Concurrent child {worker_index}",
-                IssueType.PHASE,
-                parent_id=epic_id,
-            )
-            project.update(child.id, description=f"worker {worker_index}")
-            result["child_id"] = child.id
-    except BaseException as exc:  # noqa: BLE001
-        result.update(ok=False, error=f"{type(exc).__name__}: {exc}")
-    result_queue.put(result)  # type: ignore[attr-defined]
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"<unreadable stderr file {path}: {exc}>"
+
+
+def _format_worker_diagnostics(
+    workers: int,
+    returncodes: dict[int, int | None],
+    stdout_text: dict[int, str],
+    stderr_paths: dict[int, Path],
+) -> str:
+    lines = []
+    for idx in range(workers):
+        lines.append(f"worker {idx}: returncode={returncodes.get(idx)!r}")
+        lines.append(f"worker {idx} stdout: {stdout_text.get(idx, '')!r}")
+        lines.append(f"worker {idx} stderr file: {stderr_paths[idx]}")
+        lines.append(_read_stderr_file(stderr_paths[idx]))
+    return "\n".join(lines)
 
 
 def test_new_store_never_opens_beads_db(tmp_path: Path) -> None:
@@ -315,29 +357,223 @@ def test_coordinated_writers_keep_unique_child_ids(tmp_path: Path) -> None:
         epic = project.create("Epic", IssueType.PLAN)
         epic_id = epic.id
 
-    ctx = multiprocessing.get_context("spawn")
-    ready_queue = ctx.Queue()
-    result_queue = ctx.Queue()
     workers = 4
-    procs = [
-        ctx.Process(
-            target=_child_creator,
-            args=(str(tmp_path), epic_id, idx, ready_queue, result_queue),
-        )
-        for idx in range(workers)
-    ]
+    stderr_paths = {
+        idx: tmp_path / f"worker-{idx}.stderr.log" for idx in range(workers)
+    }
+    procs: dict[int, subprocess.Popen[bytes]] = {}
+    stderr_files: dict[int, object] = {}
     try:
-        for proc in procs:
-            proc.start()
-        ready = {ready_queue.get(timeout=_PROCESS_TIMEOUT_SECONDS) for _ in procs}
-        assert ready == set(range(workers))
-        results = [result_queue.get(timeout=_PROCESS_TIMEOUT_SECONDS) for _ in procs]
+        for idx in range(workers):
+            stderr_handle = open(stderr_paths[idx], "wb")
+            stderr_files[idx] = stderr_handle
+            procs[idx] = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    _WORKER_SCRIPT,
+                    str(tmp_path),
+                    epic_id,
+                    str(idx),
+                    str(_WORKER_STALL_DUMP_SECONDS),
+                ],
+                cwd=REPO_ROOT,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr_handle,
+            )
+        deadline = time.monotonic() + _PROCESS_TIMEOUT_SECONDS
+        buffers: dict[int, bytearray] = {idx: bytearray() for idx in range(workers)}
+        ready: set[int] = set()
+        eof: set[int] = set()
+        selector = selectors.DefaultSelector()
+        try:
+            for idx, proc in procs.items():
+                assert proc.stdout is not None
+                selector.register(proc.stdout, selectors.EVENT_READ, data=idx)
+            while len(ready) < workers:
+                if len(ready) + len(eof) >= workers:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if not selector.get_map():
+                    break
+                events = selector.select(timeout=remaining)
+                if not events:
+                    break
+                for key, _mask in events:
+                    idx = key.data
+                    assert isinstance(idx, int)
+                    if idx in ready or idx in eof:
+                        continue
+                    assert procs[idx].stdout is not None
+                    chunk = os.read(procs[idx].stdout.fileno(), 65536)
+                    if chunk == b"":
+                        selector.unregister(key.fileobj)
+                        eof.add(idx)
+                        continue
+                    buffers[idx].extend(chunk)
+                    if b"\n" in buffers[idx]:
+                        line, _sep, _rest = bytes(buffers[idx]).partition(b"\n")
+                        if line.strip() == f"READY {idx}".encode():
+                            ready.add(idx)
+                            selector.unregister(key.fileobj)
+            if len(ready) < workers:
+                returncodes: dict[int, int | None] = {}
+                for idx, proc in procs.items():
+                    if idx not in ready:
+                        try:
+                            proc.kill()
+                        except OSError:
+                            pass
+                for idx, proc in procs.items():
+                    try:
+                        returncodes[idx] = proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        returncodes[idx] = proc.poll()
+                stdout_text = {
+                    idx: bytes(buffers[idx]).decode("utf-8", errors="replace")
+                    for idx in range(workers)
+                }
+                raise AssertionError(
+                    "coordinated writers never reached READY barrier "
+                    f"({sorted(ready)!r} of {workers}); "
+                    + _format_worker_diagnostics(
+                        workers, returncodes, stdout_text, stderr_paths
+                    )
+                )
+        finally:
+            selector.close()
+        for idx, proc in procs.items():
+            assert proc.stdin is not None
+            try:
+                proc.stdin.write(b"GO\n")
+            except BrokenPipeError:
+                pass
+        for idx, proc in procs.items():
+            assert proc.stdin is not None
+            try:
+                proc.stdin.close()
+            except BrokenPipeError:
+                pass
+        results: list[dict[str, object]] = []
+        failures: list[str] = []
+        for idx in range(workers):
+            proc = procs[idx]
+            timeout = max(0.0, deadline - time.monotonic())
+            try:
+                stdout_data, _stderr_data = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                failures.append(
+                    f"worker {idx} timed out waiting for result; "
+                    + _format_worker_diagnostics(
+                        workers,
+                        {i: procs[i].poll() for i in range(workers)},
+                        {
+                            i: bytes(buffers[i]).decode("utf-8", errors="replace")
+                            for i in range(workers)
+                        },
+                        stderr_paths,
+                    )
+                )
+                continue
+            if proc.returncode != 0:
+                failures.append(
+                    f"worker {idx} exited {proc.returncode}; "
+                    + _format_worker_diagnostics(
+                        workers,
+                        {i: procs[i].returncode for i in range(workers)},
+                        {
+                            i: (
+                                bytes(buffers[i]).decode("utf-8", errors="replace")
+                                if i != idx
+                                else (
+                                    bytes(buffers[i]).decode("utf-8", errors="replace")
+                                    + stdout_data.decode("utf-8", errors="replace")
+                                )
+                            )
+                            for i in range(workers)
+                        },
+                        stderr_paths,
+                    )
+                )
+                continue
+            try:
+                payload = json.loads(
+                    stdout_data.decode("utf-8").strip().splitlines()[-1]
+                )
+            except (IndexError, ValueError, UnicodeDecodeError) as exc:
+                failures.append(
+                    f"worker {idx} produced invalid JSON ({exc}); "
+                    + _format_worker_diagnostics(
+                        workers,
+                        {i: procs[i].returncode for i in range(workers)},
+                        {
+                            i: (
+                                bytes(buffers[i]).decode("utf-8", errors="replace")
+                                if i != idx
+                                else (
+                                    bytes(buffers[i]).decode("utf-8", errors="replace")
+                                    + stdout_data.decode("utf-8", errors="replace")
+                                )
+                            )
+                            for i in range(workers)
+                        },
+                        stderr_paths,
+                    )
+                )
+                continue
+            if (
+                not isinstance(payload, dict)
+                or payload.get("worker") != idx
+                or not isinstance(payload.get("child_id"), str)
+            ):
+                failures.append(
+                    f"worker {idx} produced unexpected payload {payload!r}; "
+                    + _format_worker_diagnostics(
+                        workers,
+                        {i: procs[i].returncode for i in range(workers)},
+                        {
+                            i: (
+                                bytes(buffers[i]).decode("utf-8", errors="replace")
+                                if i != idx
+                                else (
+                                    bytes(buffers[i]).decode("utf-8", errors="replace")
+                                    + stdout_data.decode("utf-8", errors="replace")
+                                )
+                            )
+                            for i in range(workers)
+                        },
+                        stderr_paths,
+                    )
+                )
+                continue
+            results.append(payload)  # type: ignore[arg-type]
+        if failures or len(results) != workers:
+            raise AssertionError(
+                "coordinated writers failed: "
+                + "; ".join(failures)
+                + ("" if failures else f" (got {len(results)} of {workers} results)")
+            )
     finally:
-        for proc in procs:
-            proc.join(timeout=_PROCESS_TIMEOUT_SECONDS)
-            if proc.is_alive():
-                proc.terminate()
-    assert [r for r in results if not r["ok"]] == []
+        for proc in procs.values():
+            if proc.poll() is None:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+        for proc in procs.values():
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        for handle in stderr_files.values():
+            try:
+                handle.close()  # type: ignore[attr-defined]
+            except OSError:
+                pass
+    assert [r for r in results if not r.get("child_id")] == []
     child_ids = sorted(str(r["child_id"]) for r in results)
     assert len(set(child_ids)) == workers
     assert child_ids == sorted(f"{epic_id}.{n}" for n in range(1, workers + 1))

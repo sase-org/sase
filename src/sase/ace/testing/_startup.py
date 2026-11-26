@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import sase.notifications as _notifications
 from sase.ace.tui import AceApp
+from sase.ace.tui.actions import update_toast as _update_toast
 from sase.ace.tui.actions.agents import _loading as _agent_loading
 from sase.ace.tui.actions.lifecycle import NotificationStartupState
 from sase.ace.tui.actions import artifacts as _artifacts_actions
@@ -68,6 +69,7 @@ _ORIGINAL_COLLECT_ARTIFACTS_PROJECT_CHOICES = (
 _ORIGINAL_SCHEDULE_ARTIFACTS_DISCOVERY = (
     _ArtifactsPublicationMixin._schedule_artifacts_provider_discovery
 )
+_ORIGINAL_GET_CACHED_UPDATE_STATUS = _update_toast.get_cached_update_status
 
 
 def _plan_test_descriptor() -> Any:
@@ -285,6 +287,29 @@ def _patch_method_if_unchanged(
     """Patch an AceApp method unless a caller already supplied a fixture."""
     if getattr(AceApp, name) is original:
         stack.enter_context(patch.object(AceApp, name, replacement))
+
+
+def _inert_get_cached_update_status(*_args: Any, **_kwargs: Any) -> None:
+    """Inert update-status source for real-policy AcePage mounts."""
+    return None
+
+
+def _install_real_startup_isolation(stack: AsyncExitStack) -> None:
+    """Pin the update-status source for real-policy AcePage mounts.
+
+    The real policy still runs every production startup boundary, including
+    ``_schedule_startup_update_toast_check`` and its thread worker, but the
+    status source never reaches the host or network unless the caller
+    supplied their own fake before entering ``AcePage``.
+    """
+    if _update_toast.get_cached_update_status is _ORIGINAL_GET_CACHED_UPDATE_STATUS:
+        stack.enter_context(
+            patch.object(
+                _update_toast,
+                "get_cached_update_status",
+                _inert_get_cached_update_status,
+            )
+        )
 
 
 def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
