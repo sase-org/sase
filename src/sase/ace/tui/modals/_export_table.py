@@ -142,6 +142,7 @@ _LAZY_EXPORTS = {
     "CopyAsContext": (".copy_as_types", "CopyAsContext"),
     "CopyAsModal": (".copy_as_modal", "CopyAsModal"),
     "CopyAsRow": (".copy_as_types", "CopyAsRow"),
+    "CopyAsSection": (".copy_as_types", "CopyAsSection"),
     "CustomApprovalEditPrompt": (
         ".approve_options_modal",
         "CustomApprovalEditPrompt",

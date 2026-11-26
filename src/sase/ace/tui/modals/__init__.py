@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .config_transaction import (
         ConfigTransactionConflict as ConfigTransactionConflict,
     )
+    from .copy_as_types import CopyAsSection as CopyAsSection
     from .input_item_modal import InputItemModal as InputItemModal
     from .local_macro_name_modal import LocalMacroNameModal as LocalMacroNameModal
     from .memory_panel import MemoryPanel as MemoryPanel
@@ -138,6 +139,7 @@ __all__ = [
     "CopyAsContext",
     "CopyAsModal",
     "CopyAsRow",
+    "CopyAsSection",
     "CommitViewModal",
     "CustomModelInputModal",
     "DisabledProviderLaunchDecision",

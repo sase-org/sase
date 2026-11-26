@@ -11013,6 +11013,14 @@ CopyAsModal #copy-as-list {
     scrollbar-gutter: stable;
 }
 
+CopyAsModal #copy-as-preview {
+    height: auto;
+    max-height: 8;
+    margin-top: 1;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
 CopyAsModal #copy-as-footer {
     height: 1;
     margin-top: 1;
@@ -11030,6 +11038,10 @@ CopyAsModal.-narrow > #copy-as-container {
 
 CopyAsModal.-narrow #copy-as-list {
     max-height: 14;
+}
+
+CopyAsModal.-narrow #copy-as-preview {
+    max-height: 5;
 }
 
 CopyAsModal.-narrow #copy-as-footer {

@@ -11,6 +11,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
 from sase.ace.tui.modals.artifact_files_modal import ArtifactFileSelectionModal
 from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
+from sase.ace.tui.modals.copy_as_types import (
+    CopyAsContext,
+    CopyAsRow,
+    CopyAsSection,
+)
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.core.artifact_file_types import ArtifactFile
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
@@ -170,6 +175,141 @@ async def test_copy_as_over_preview_panel_png_snapshot(
             page,
             "copy_as_over_preview_panel_dark_120x40",
             title="ACE Copy as palette — stacked over preview panel",
+        )
+
+
+def _sectioned_preview_context() -> CopyAsContext:
+    """Synthetic sectioned context exercising the generalized palette."""
+
+    def snippet(
+        key: str,
+        label: str,
+        value: str,
+        *,
+        copied: bool = False,
+        badge: str | None = None,
+        preview: str | None = None,
+    ) -> CopyAsRow:
+        return CopyAsRow(
+            key=key,
+            key_display=key,
+            target=f"snippet-{key}",
+            label=label,
+            section="snippets",
+            marker="✓" if copied else None,
+            badge=badge,
+            value=value,
+            preview=preview if preview is not None else value,
+        )
+
+    rows = (
+        snippet("1", ".sase", "/Users/bbugyi/.sase", copied=True),
+        snippet(
+            "2",
+            "App Support/sase",
+            "/Users/bbugyi/Library/Application Support/sase",
+            copied=True,
+        ),
+        snippet("3", "/Users/bbugyi/.cargo", "/Users/bbugyi/.cargo", copied=True),
+        snippet("4", "/Users/bbugyi/.rustup", "/Users/bbugyi/.rustup"),
+        snippet(
+            "5",
+            "bob-cli/target",
+            "/Users/bbugyi/projects/github/bobs-org/bob-cli/target",
+        ),
+        snippet(
+            "6",
+            "sase-core/target",
+            "/Users/bbugyi/projects/github/sase-org/sase-core/target",
+        ),
+        snippet(
+            "7",
+            "mac-capture/.build",
+            badge="+1 line",
+            preview="launchctl kickstart …",
+            value="launchctl kickstart -k gui/501/com.apple.Spotlight\n"
+            "# re-run after granting Full Disk Access",
+        ),
+        snippet(
+            "8",
+            "Chrome Memory Saver",
+            "chrome://settings/performance",
+        ),
+        CopyAsRow(
+            key="t",
+            key_display="t",
+            target="question-text",
+            label="Question text",
+            section="question",
+            value="Mac busy-process fixes are measured and recorded",
+            preview="Mac busy-process fixes are measured…",
+        ),
+        CopyAsRow(
+            key="o",
+            key_display="o",
+            target="highlighted-option",
+            label="Highlighted option",
+            section="question",
+            value="Done, both",
+            preview="Done, both",
+        ),
+        CopyAsRow(
+            key="y",
+            key_display="y",
+            target="questions-answers",
+            label="Questions & answers",
+            section="question",
+            value="Markdown · 1 question · current picks",
+            preview="Markdown · 1 question",
+        ),
+    )
+    return CopyAsContext(
+        group="question",
+        subtitle="Q1/1 · Mac GUI · 3 of 8 snippets copied",
+        unknown_context="question",
+        rows=rows,
+        title="Copy from question",
+        sections=(
+            CopyAsSection(id="snippets", title="Snippets", dim=True),
+            CopyAsSection(id="question", title="Question", dim=True),
+        ),
+        footer="1–8 copy · ⏎ highlighted · j/k move · esc close",
+        unknown_key_message="Use 1–8, t, o, y — nothing else copies",
+        initial_row_key="4",
+        label_width=20,
+        preview_pane=True,
+    )
+
+
+async def test_copy_as_sectioned_preview_dark_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    result = _patch_commits(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.actions.clipboard._core.build_copy_as_context",
+            lambda _app: _sectioned_preview_context(),
+        )
+        await page.press("%")
+        await page.expect_modal("CopyAsModal")
+        await wait_for_svg_contains(page, "Copy from question")
+        await wait_for_svg_contains(page, "3 of 8 snippets copied")
+        await wait_for_svg_contains(page, "/Users/bbugyi/.rustup")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "copy_as_sectioned_preview_dark_120x40",
+            title="ACE Copy as palette — sectioned with preview pane",
         )
 
 
