@@ -26,7 +26,8 @@ def _spotlight_questions() -> list[dict[str, object]]:
                 "Mac busy-process fixes are measured and recorded. Spotlight: "
                 "System Settings → Spotlight → Search Privacy → + → paste each "
                 "folder. Chrome: open chrome://settings/performance. "
-                "What did you do?"
+                "Run `launchctl kickstart -k gui/501/com.apple/Spotlight`, "
+                "then read plan:202611/mac_busy_process_fixes.md. What did you do?"
             ),
             "options": [
                 {

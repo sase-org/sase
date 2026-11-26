@@ -152,6 +152,10 @@ or truncated value. Copied snippets gain a `✓`, and the subtitle counts progre
 per question bundle for the life of the TUI process), so repeated `y` then `Enter`
 walks a multi-paste workflow in order.
 
+The dim `FOUND IN TEXT` section offers up to five safe candidates from code spans,
+fenced code, scheme URLs, and valid SASE artifact refs; it never guesses bare paths and
+does not add these detected values to the `yy` export.
+
 | Key                           | Copies                                                     |
 | ----------------------------- | ---------------------------------------------------------- |
 | `1`–`9`, `0`, then `b`…`z`*   | one declared snippet, exactly                              |

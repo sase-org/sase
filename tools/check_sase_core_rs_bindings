@@ -96,6 +96,7 @@ REQUIRED_BINDINGS = (
     "provider_routing_context_wire_schema_version",
     "normalize_question_copy",
     "display_question_copy",
+    "detect_question_copy_candidates",
 )
 
 

@@ -166,6 +166,7 @@ REQUIRED_BINDINGS = (
     "project_question_round",
     "normalize_question_copy",
     "display_question_copy",
+    "detect_question_copy_candidates",
     "plan_agent_publication_batches",
     "prompt_archive_inventory",
     "prompt_archive_inventory_wire_schema_version",
@@ -1166,6 +1167,9 @@ def _validate_question_copy_contract(module: ModuleType) -> bool:
         display = module.display_question_copy(
             ["valid", {"text": "invalid", "name": "unknown"}]
         )
+        candidates = module.detect_question_copy_candidates(
+            "Run `--help` and see plan:202611/example.md.", []
+        )
     except Exception as exc:
         _error(f"question-copy bindings probe failed: {exc}")
         return False
@@ -1178,6 +1182,15 @@ def _validate_question_copy_contract(module: ModuleType) -> bool:
         return False
     if display != {"items": [{"text": "valid"}], "unavailable": 1}:
         _error(f"display_question_copy() returned stale result: {display!r}")
+        return False
+    if candidates != [
+        {"text": "--help", "kind": "code"},
+        {"text": "plan:202611/example.md", "kind": "ref"},
+    ]:
+        _error(
+            "detect_question_copy_candidates() returned stale result: "
+            f"{candidates!r}"
+        )
         return False
     try:
         module.normalize_question_copy([{"text": "bad\u001bvalue"}])

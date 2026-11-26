@@ -105,3 +105,26 @@ def test_display_question_copy_items_treats_missing_copy_as_empty(
         question_copy_facade.QuestionCopyDisplay(items=(), unavailable=0)
     )
     assert seen == [None]
+
+
+def test_detect_question_copy_candidates_returns_typed_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[str, list[str]]] = []
+
+    def detect(question_text: str, declared: list[str]) -> list[dict[str, str]]:
+        seen.append((question_text, declared))
+        return [
+            {"text": "--verbose", "kind": "code"},
+            {"text": "plan:202611/example.md", "kind": "ref"},
+        ]
+
+    install_fake_rust_extension(monkeypatch, detect_question_copy_candidates=detect)
+    candidates = question_copy_facade.detect_question_copy_candidates(
+        "Run `--verbose`; see plan:202611/example.md.", ("declared",)
+    )
+    assert seen == [("Run `--verbose`; see plan:202611/example.md.", ["declared"])]
+    assert candidates == (
+        question_copy_facade.QuestionCopyCandidate("--verbose", "code"),
+        question_copy_facade.QuestionCopyCandidate("plan:202611/example.md", "ref"),
+    )

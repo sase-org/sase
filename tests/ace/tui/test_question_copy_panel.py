@@ -25,6 +25,7 @@ from sase.ace.tui.modals.question_copy_items import (
 from sase.ace.tui.modals.question_copy_modal import QuestionCopyModal
 from sase.ace.tui.modals.user_question_modal import UserQuestionModal
 from sase.core.question_copy_facade import QuestionCopyItem
+from sase.core.question_copy_facade import QuestionCopyCandidate
 from sase.main.qa_markdown import build_qa_markdown
 
 
@@ -44,6 +45,7 @@ def _snapshot(
     header: str = "Mac GUI",
     question_text: str = "What did you do?",
     qa_value: str = "QA",
+    detected: tuple[QuestionCopyCandidate, ...] = (),
 ) -> QuestionCopySnapshot:
     return QuestionCopySnapshot(
         question_index=0,
@@ -58,6 +60,7 @@ def _snapshot(
         unavailable=unavailable,
         copied_texts=copied,
         qa_value=qa_value,
+        detected_items=detected,
     )
 
 
@@ -74,6 +77,46 @@ def test_key_map_covers_20_declared_plus_5_detected() -> None:
     assert len(keys) == 25
     assert len(set(keys)) == 25
     assert not (set(keys) & RESERVED_PANEL_KEYS)
+    assert _allocate_snippet_keys(31)[-2:] == ("", "")
+
+
+def test_copy_footer_names_digit_and_letter_key_groups_without_reserved_keys() -> None:
+    detected = tuple(
+        QuestionCopyCandidate(f"--value-{index}", "code") for index in range(2)
+    )
+    context = build_question_copy_context(_snapshot(_items(8), detected=detected))
+    assert context.footer is not None
+    assert context.footer.startswith("1–9, 0 copy")
+    assert "j" not in context.footer.split(" · ", maxsplit=1)[0]
+
+
+def test_found_in_text_rows_follow_declared_rows_and_never_get_initial_focus() -> None:
+    declared = QuestionCopyItem("/tmp/declared")
+    detected = (
+        QuestionCopyCandidate("launchctl --restart service", "code"),
+        QuestionCopyCandidate("chrome://settings/performance", "url"),
+        QuestionCopyCandidate("plan:202611/example.md", "ref"),
+    )
+    context = build_question_copy_context(
+        _snapshot(
+            (declared,),
+            copied=frozenset({declared.text, detected[1].text}),
+            detected=detected,
+        )
+    )
+    found_rows = [row for row in context.rows if row.target.startswith("detected:")]
+    assert [row.key for row in found_rows] == ["2", "3", "4"]
+    assert [row.badge for row in found_rows] == ["code", "url", "ref"]
+    assert found_rows[1].value == "chrome://settings/performance"
+    assert found_rows[1].marker == "✓"
+    assert context.initial_row_key == "y"
+    assert [section.id for section in context.sections] == [
+        "snippets",
+        "found-in-text",
+        "question",
+    ]
+    qa_row = next(row for row in context.rows if row.target == "qa")
+    assert "launchctl --restart service" not in qa_row.value
 
 
 def test_truncate_middle_keeps_root_and_tail() -> None:
@@ -430,6 +473,32 @@ async def test_failed_delivery_sets_no_checkmark(
         await pilot.pause()
         await pilot.pause()
         assert modal._question_copied_texts() == set()
+
+
+async def test_detected_copy_delivery_marks_its_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda _content: True,
+    )
+    candidate = QuestionCopyCandidate("--restart service", "code")
+    app = _QuestionApp(_spotlight_questions())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, UserQuestionModal)
+        snapshot = _snapshot(detected=(candidate,))
+        row = next(
+            row
+            for row in build_question_copy_context(snapshot).rows
+            if row.target == f"detected:{candidate.text}"
+        )
+        assert row.value == candidate.text
+        modal._dispatch_question_copy_row(row, snapshot)
+        await pilot.pause()
+        await pilot.pause()
+        assert candidate.text in modal._question_copied_texts()
 
 
 async def test_ordered_delivery_seam_keeps_chosen_order(

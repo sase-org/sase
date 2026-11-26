@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.core.question_copy_facade import (
     QuestionCopyDisplay,
+    detect_question_copy_candidates,
     display_question_copy_items,
 )
 
@@ -171,13 +172,17 @@ class UserQuestionCopyingMixin(_MixinBase):
         """Capture everything the copy panel needs for the current question."""
         question = self._questions[self._current_idx]
         display: QuestionCopyDisplay = display_question_copy_items(question)
+        question_text = question.get("question", "") or ""
+        detected = detect_question_copy_candidates(
+            question_text, tuple(item.text for item in display.items)
+        )
         label, desc, is_other = self._highlighted_question_option()
         qa_value = self._build_qa_markdown(include_copy_items=True)
         return QuestionCopySnapshot(
             question_index=self._current_idx,
             total_questions=len(self._questions),
             header=question.get("header", "") or "",
-            question_text=question.get("question", "") or "",
+            question_text=question_text,
             highlighted_label=label,
             highlighted_description=desc,
             highlighted_is_other=is_other,
@@ -186,6 +191,7 @@ class UserQuestionCopyingMixin(_MixinBase):
             unavailable=display.unavailable,
             copied_texts=frozenset(self._question_copied_texts()),
             qa_value=qa_value,
+            detected_items=detected,
         )
 
     def action_open_copy_panel(self) -> None:
@@ -233,6 +239,8 @@ class UserQuestionCopyingMixin(_MixinBase):
 
         if row.target.startswith("snippet:"):
             marked = {row.target[len("snippet:") :]}
+        elif row.target.startswith("detected:"):
+            marked = {row.target[len("detected:") :]}
         elif row.target == "all":
             marked = {item.text for item in snapshot.items}
         else:

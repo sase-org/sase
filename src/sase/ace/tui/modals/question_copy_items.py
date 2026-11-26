@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.core.question_copy_facade import QuestionCopyItem
+from sase.core.question_copy_facade import (
+    QuestionCopyCandidate,
+    QuestionCopyItem,
+)
 
 from .copy_as_types import CopyAsContext, CopyAsRow, CopyAsSection
 
@@ -17,6 +20,7 @@ SNIPPET_KEY_POOL: tuple[str, ...] = tuple("1234567890") + tuple("bcdefghilmnprsu
 RESERVED_PANEL_KEYS: frozenset[str] = frozenset({"a", "j", "k", "o", "q", "t", "y"})
 
 SNIPPETS_SECTION_ID = "snippets"
+FOUND_IN_TEXT_SECTION_ID = "found-in-text"
 QUESTION_SECTION_ID = "question"
 
 _ROW_PREVIEW_MAX_CHARS = 48
@@ -29,10 +33,10 @@ assert len(SNIPPET_KEY_POOL) == 29
 
 
 def _allocate_snippet_keys(count: int) -> tuple[str, ...]:
-    """Return the first ``count`` stable snippet keys from the pool."""
+    """Return stable keys, leaving overflow rows reachable by navigation."""
     if count < 0:
         raise ValueError("count must be non-negative")
-    return SNIPPET_KEY_POOL[:count]
+    return SNIPPET_KEY_POOL[:count] + ("",) * max(0, count - len(SNIPPET_KEY_POOL))
 
 
 def _first_line_summary(value: str) -> tuple[str, int]:
@@ -90,6 +94,27 @@ def _row_preview_for_value(value: str) -> tuple[str, str | None]:
     return preview, badge
 
 
+def _copy_key_summary(keys: tuple[str, ...]) -> str:
+    """Summarize the stable key pool without implying reserved keys exist."""
+    if len(keys) <= 1:
+        return keys[0] if keys else ""
+    if len(keys) <= 9:
+        return f"{keys[0]}–{keys[-1]}"
+
+    parts = ["1–9", "0"]
+    letter_keys = keys[10:]
+    if letter_keys:
+        start = previous = letter_keys[0]
+        for key in letter_keys[1:]:
+            if ord(key) == ord(previous) + 1:
+                previous = key
+                continue
+            parts.append(start if start == previous else f"{start}–{previous}")
+            start = previous = key
+        parts.append(start if start == previous else f"{start}–{previous}")
+    return ", ".join(parts)
+
+
 def _snippet_toast_label(item: QuestionCopyItem) -> str:
     """Return the clipboard toast label for one snippet."""
     if item.label:
@@ -114,6 +139,7 @@ class QuestionCopySnapshot:
     unavailable: int
     copied_texts: frozenset[str]
     qa_value: str
+    detected_items: tuple[QuestionCopyCandidate, ...] = ()
 
 
 def _subtitle(snapshot: QuestionCopySnapshot) -> str:
@@ -129,21 +155,20 @@ def _subtitle(snapshot: QuestionCopySnapshot) -> str:
     return f"{position} · {tail}"
 
 
-def _footer(snippet_keys: tuple[str, ...], snippet_count: int) -> str:
+def _footer(item_keys: tuple[str, ...], declared_count: int) -> str:
     parts: list[str] = []
-    if snippet_count == 1:
-        parts.append("1 copy")
-    elif snippet_count:
-        parts.append(f"1–{snippet_keys[-1]} copy")
-    if snippet_count >= 2:
+    copy_keys = tuple(key for key in item_keys if key)
+    if copy_keys:
+        parts.append(f"{_copy_key_summary(copy_keys)} copy")
+    if declared_count >= 2:
         parts.append("a all")
     parts.extend(["⏎ highlighted", "j/k move", "esc close"])
     return " · ".join(parts)
 
 
-def _unknown_key_message(snippet_keys: tuple[str, ...], snippet_count: int) -> str:
-    keys = list(snippet_keys)
-    if snippet_count >= 2:
+def _unknown_key_message(item_keys: tuple[str, ...], declared_count: int) -> str:
+    keys = [key for key in item_keys if key]
+    if declared_count >= 2:
         keys.append("a")
     keys.extend(["t", "o", "y"])
     return f"Unknown copy key — use {', '.join(keys)}"
@@ -153,6 +178,10 @@ def build_question_copy_context(snapshot: QuestionCopySnapshot) -> CopyAsContext
     """Build the sectioned palette context for one question snapshot."""
     items = snapshot.items
     snippet_keys = _allocate_snippet_keys(len(items))
+    detected_keys = _allocate_snippet_keys(len(items) + len(snapshot.detected_items))[
+        len(items) :
+    ]
+    all_item_keys = snippet_keys + detected_keys
     total = len(items)
     copied = snapshot.copied_texts
 
@@ -185,6 +214,25 @@ def build_question_copy_context(snapshot: QuestionCopySnapshot) -> CopyAsContext
                 section=SNIPPETS_SECTION_ID,
                 preview="malformed copy metadata",
                 disabled_reason=f"{n} {noun} unavailable — malformed copy metadata",
+            )
+        )
+
+    for key, candidate in zip(detected_keys, snapshot.detected_items, strict=True):
+        first, remaining = _first_line_summary(candidate.text)
+        preview = _truncate_preview_text(first)
+        if remaining:
+            preview += f"  +{remaining} lines"
+        rows.append(
+            CopyAsRow(
+                key=key,
+                key_display=key or " ",
+                target=f"detected:{candidate.text}",
+                label="",
+                section=FOUND_IN_TEXT_SECTION_ID,
+                marker="✓" if candidate.text in copied else None,
+                badge=candidate.kind,
+                value=candidate.text,
+                preview=preview,
             )
         )
 
@@ -294,10 +342,15 @@ def build_question_copy_context(snapshot: QuestionCopySnapshot) -> CopyAsContext
         title="Copy from question",
         sections=(
             CopyAsSection(id=SNIPPETS_SECTION_ID, title="SNIPPETS", dim=True),
+            CopyAsSection(
+                id=FOUND_IN_TEXT_SECTION_ID,
+                title="FOUND IN TEXT",
+                dim=True,
+            ),
             CopyAsSection(id=QUESTION_SECTION_ID, title="QUESTION", dim=True),
         ),
-        footer=_footer(snippet_keys, total),
-        unknown_key_message=_unknown_key_message(snippet_keys, total),
+        footer=_footer(all_item_keys, total),
+        unknown_key_message=_unknown_key_message(all_item_keys, total),
         initial_row_key=initial,
         key_width=3,
         label_width=label_width or None,
@@ -336,6 +389,7 @@ def toast_label_for_target(
 
 
 __all__ = [
+    "FOUND_IN_TEXT_SECTION_ID",
     "QUESTION_SECTION_ID",
     "RESERVED_PANEL_KEYS",
     "SNIPPETS_SECTION_ID",

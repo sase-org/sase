@@ -25,6 +25,14 @@ class QuestionCopyDisplay:
     unavailable: int
 
 
+@dataclass(frozen=True)
+class QuestionCopyCandidate:
+    """One conservative item detected in question prose."""
+
+    text: str
+    kind: str
+
+
 class QuestionCopyValidationError(ValueError):
     """Strict copy-contract error with its question-relative location."""
 
@@ -91,6 +99,37 @@ def display_question_copy_items(
     return QuestionCopyDisplay(items=tuple(items), unavailable=unavailable)
 
 
+def detect_question_copy_candidates(
+    question_text: str,
+    declared_texts: tuple[str, ...],
+) -> tuple[QuestionCopyCandidate, ...]:
+    """Find safe, non-declared copy candidates in question prose."""
+    binding = require_rust_binding("detect_question_copy_candidates")
+    result = binding(question_text, list(declared_texts))
+    if not isinstance(result, list):
+        raise TypeError("detect_question_copy_candidates returned a non-list")
+
+    candidates: list[QuestionCopyCandidate] = []
+    for item in result:
+        if not isinstance(item, dict):
+            raise TypeError("detect_question_copy_candidates returned a malformed item")
+        text = item.get("text")
+        kind = item.get("kind")
+        if (
+            not isinstance(text, str)
+            or not isinstance(kind, str)
+            or kind
+            not in {
+                "code",
+                "url",
+                "ref",
+            }
+        ):
+            raise TypeError("detect_question_copy_candidates returned a malformed item")
+        candidates.append(QuestionCopyCandidate(text=text, kind=kind))
+    return tuple(candidates)
+
+
 def _question_copy_validation_error(
     question_index: int,
     error: ValueError,
@@ -108,9 +147,11 @@ def _question_copy_validation_error(
 
 
 __all__ = [
+    "QuestionCopyCandidate",
     "QuestionCopyDisplay",
     "QuestionCopyItem",
     "QuestionCopyValidationError",
+    "detect_question_copy_candidates",
     "display_question_copy_items",
     "normalize_questions_copy",
 ]
