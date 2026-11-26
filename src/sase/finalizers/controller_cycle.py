@@ -94,7 +94,12 @@ def execute_pending_entry(
                 options=options,
                 original_prompt=original_prompt,
             )
-        ledger = ledger_for_instance(ledgers, instance_id, instance.max_attempts)
+        ledger = ledger_for_instance(
+            ledgers,
+            instance_id,
+            instance.max_attempts,
+            artifacts_dir=artifacts_dir,
+        )
         execution = _run_budgeted_commit(
             instance,
             context,
@@ -143,7 +148,12 @@ def execute_pending_entry(
             raise RuntimeError(result_failure_message(execution.result))
         return invoke_result
 
-    ledger = ledger_for_instance(ledgers, instance_id, instance.max_attempts)
+    ledger = ledger_for_instance(
+        ledgers,
+        instance_id,
+        instance.max_attempts,
+        artifacts_dir=artifacts_dir,
+    )
 
     def _run_non_commit(
         bound_instance: Any = instance,

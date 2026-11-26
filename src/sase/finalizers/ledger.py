@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import json
+from pathlib import Path
+import re
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -170,15 +173,68 @@ def ledger_for_instance(
     ledgers: dict[str, InstanceLedger],
     instance_id: str,
     max_attempts: int,
+    *,
+    artifacts_dir: str | None = None,
 ) -> InstanceLedger:
     """Return the durable per-instance ledger, creating it on first use."""
 
     existing = ledgers.get(instance_id)
     if existing is not None:
         return existing
-    created = InstanceLedger(instance_id=instance_id, max_attempts=max(1, max_attempts))
+    created = InstanceLedger(
+        instance_id=instance_id,
+        max_attempts=max(1, max_attempts),
+        next_attempt=_next_attempt_from_disk(artifacts_dir, instance_id),
+    )
     ledgers[instance_id] = created
     return created
+
+
+_ATTEMPT_FILE_PREFIX = re.compile(r"^attempt-(\d+)(?:\.|$)")
+
+
+def _next_attempt_from_disk(artifacts_dir: str | None, instance_id: str) -> int:
+    """Continue attempt numbering above files and journal events on disk.
+
+    Controller phases have separate in-memory ledgers but share the same
+    immutable artifacts directory. The attempt budget remains phase-local;
+    only artifact IDs continue across phases.
+    """
+    if not artifacts_dir:
+        return 1
+
+    root = Path(artifacts_dir) / "finalizers"
+    seen: list[int] = []
+    instance_dir = root / instance_id
+    try:
+        for path in instance_dir.iterdir():
+            match = _ATTEMPT_FILE_PREFIX.match(path.name)
+            if match:
+                seen.append(int(match.group(1)))
+    except FileNotFoundError:
+        pass
+
+    journal_path = root / "progress.jsonl"
+    try:
+        lines = journal_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        lines = []
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(record, dict):
+            continue
+        if record.get("event") not in {"attempt_started", "attempt_finished"}:
+            continue
+        if record.get("instance_id") != instance_id:
+            continue
+        attempt = record.get("attempt")
+        if isinstance(attempt, int) and not isinstance(attempt, bool) and attempt >= 1:
+            seen.append(attempt)
+
+    return max(seen, default=0) + 1
 
 
 __all__ = [

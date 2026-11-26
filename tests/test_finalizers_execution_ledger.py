@@ -39,6 +39,7 @@ from sase.finalizers.executor import (
 from sase.finalizers.ledger import (
     InstanceLedger,
     is_retryable_result,
+    ledger_for_instance,
     run_budgeted_attempts,
 )
 from sase.finalizers.providers import FinalizerProviderRecord
@@ -284,6 +285,44 @@ def test_reactivation_does_not_exceed_host_attempt_budget() -> None:
     assert calls["n"] == 0
     assert result.status == "failed"
     assert result.attempts[-1].diagnostic_code == "attempt_budget_exhausted"
+
+
+def test_new_ledger_continues_artifact_attempt_numbers_without_changing_budget(
+    tmp_path: Path,
+) -> None:
+    finalizers_dir = tmp_path / "finalizers"
+    instance_dir = finalizers_dir / "commit"
+    instance_dir.mkdir(parents=True)
+    (instance_dir / "attempt-2.checkpoint-resume.stdout").touch()
+    journal = finalizers_dir / "progress.jsonl"
+    journal.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event": "attempt_started",
+                        "instance_id": "commit",
+                        "attempt": 4,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event": "attempt_finished",
+                        "instance_id": "other",
+                        "attempt": 9,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    ledger = ledger_for_instance({}, "commit", 1, artifacts_dir=str(tmp_path))
+
+    assert ledger.consume_before_execute() == 5
+    assert ledger.consumed == 1
+    assert ledger.remaining() == 0
 
 
 def test_commit_no_progress_failure_after_retryable_attempt_is_terminal(

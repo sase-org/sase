@@ -12,6 +12,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.agent.staged_handoff import (
     build_plan_staged_record,
     write_adoption_receipt,
@@ -248,6 +250,65 @@ def test_provider_failure_finalizes_staged(tmp_path: Path, monkeypatch) -> None:
     )
     assert recorded["schema_version"] == 1
     assert "provider down" in recorded["error"]
+
+
+def test_successful_provider_finalizer_failure_is_not_retried_as_provider_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A failed success-path finalizer leaves the staged handoff held."""
+    from sase.agent.staged_handoff import (
+        read_adoption_receipt,
+        read_provider_failure_record,
+        read_staged_handoff,
+        read_staged_handoff_response,
+        write_staged_handoff,
+    )
+    from sase.llm_provider import _invoke as invoke_mod
+    from sase.llm_provider.preprocessing import _PreprocessResult
+    from sase.llm_provider.types import InvokeResult
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = _record(tmp_path)
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="provider response")
+
+    monkeypatch.setattr(
+        "sase.llm_provider._invoke.preprocess_prompt",
+        lambda prompt, is_home_mode=False: _PreprocessResult(prompt="processed"),
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider._invoke.get_provider", lambda *args, **kwargs: provider
+    )
+    with (
+        patch("sase.llm_provider._invoke.postprocess_error") as postprocess_error,
+        patch(
+            "sase.finalizers.run_finalizers",
+            side_effect=RuntimeError("original finalizer failure"),
+        ) as run_finalizers,
+        pytest.raises(LLMInvocationError, match="original finalizer failure"),
+    ):
+        invoke_mod.invoke_agent(
+            "raw prompt",
+            agent_type="test",
+            suppress_output=True,
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+        )
+
+    run_finalizers.assert_called_once()
+    postprocess_error.assert_called_once()
+    assert read_provider_failure_record(str(artifacts)) is None
+    assert read_staged_handoff(str(artifacts)) is not None
+    assert read_adoption_receipt(str(artifacts)) is None
+    assert (
+        read_staged_handoff_response(
+            str(record["staged_id"]), artifacts_dir=str(artifacts)
+        )
+        == "provider response"
+    )
 
 
 def test_provider_error_after_stage_persists_partial_response(

@@ -254,6 +254,7 @@ def invoke_agent(
         from sase.finalizers.declaration import mint_finalizer_turn_nonce
 
         mint_finalizer_turn_nonce()
+    success_finalizers_started = False
     try:
         provider, query = prepare_provider_invocation(
             provider_lookup_name=provider_lookup_name,
@@ -310,6 +311,7 @@ def invoke_agent(
                     )
             from sase.finalizers import run_finalizers
 
+            success_finalizers_started = True
             invoke_result = run_finalizers(
                 provider=provider,
                 original_prompt=query,
@@ -360,19 +362,23 @@ def invoke_agent(
             provider=execution_provider_label, error_type="CalledProcessError"
         ).inc()
 
-        parts = [f"Error running LLM provider command (exit code {e.returncode})"]
-        if e.stderr:
-            parts.append(f"stderr: {e.stderr.strip()}")
-        if e.output:
-            parts.append(f"output: {e.output.strip()}")
-        error_content = "\n".join(parts)
+        if success_finalizers_started:
+            error_content = str(e)
+        else:
+            parts = [f"Error running LLM provider command (exit code {e.returncode})"]
+            if e.stderr:
+                parts.append(f"stderr: {e.stderr.strip()}")
+            if e.output:
+                parts.append(f"output: {e.output.strip()}")
+            error_content = "\n".join(parts)
 
-        handle_possible_usage_limit(
-            provider=execution_provider_label,
-            error_text=error_content,
-            model=context.metadata_model,
-            artifacts_dir=artifacts_dir,
-        )
+        if not success_finalizers_started:
+            handle_possible_usage_limit(
+                provider=execution_provider_label,
+                error_text=error_content,
+                model=context.metadata_model,
+                artifacts_dir=artifacts_dir,
+            )
 
         postprocess_error(
             prompt=query,
@@ -382,7 +388,7 @@ def invoke_agent(
             start_timestamp=start_timestamp,
         )
 
-        if "provider" in locals():
+        if "provider" in locals() and not success_finalizers_started:
             finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
@@ -409,12 +415,13 @@ def invoke_agent(
 
         error_content = str(e)
 
-        handle_possible_usage_limit(
-            provider=execution_provider_label,
-            error_text=error_content,
-            model=context.metadata_model,
-            artifacts_dir=artifacts_dir,
-        )
+        if not success_finalizers_started:
+            handle_possible_usage_limit(
+                provider=execution_provider_label,
+                error_text=error_content,
+                model=context.metadata_model,
+                artifacts_dir=artifacts_dir,
+            )
 
         postprocess_error(
             prompt=query,
@@ -424,7 +431,7 @@ def invoke_agent(
             start_timestamp=start_timestamp,
         )
 
-        if "provider" in locals():
+        if "provider" in locals() and not success_finalizers_started:
             finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
@@ -459,7 +466,7 @@ def invoke_agent(
             start_timestamp=start_timestamp,
         )
 
-        if "provider" in locals():
+        if "provider" in locals() and not success_finalizers_started:
             finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
