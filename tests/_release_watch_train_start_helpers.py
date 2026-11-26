@@ -54,7 +54,6 @@ def fresh_context(
     if release_exists:
         wire_assets = [
             {
-                "id": item["id"],
                 "name": item["name"],
                 "kind": "abandoned",
                 "generation": 0,

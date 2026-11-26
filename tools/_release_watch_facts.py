@@ -824,7 +824,7 @@ class ReleaseFactsReader:
         ):
             asset = _mapping(value, f"release {tag}.assets[{index}]")
             asset_name = _required_str(asset, "name", f"release {tag}.assets[{index}]")
-            asset_id = _integer(
+            _integer(
                 asset.get("id"), f"release {tag}.assets[{index}].id", minimum=1
             )
             match = _OBSERVATION_RE.fullmatch(asset_name)
@@ -840,7 +840,6 @@ class ReleaseFactsReader:
                     "name": asset_name,
                     "kind": kind,
                     "generation": generation,
-                    "id": asset_id,
                 }
             )
         assets.sort(key=lambda item: item["name"])
@@ -1517,7 +1516,7 @@ class ReleaseFactsReader:
         self,
         tag: str,
         tag_fact: dict[str, Any],
-        release_wire: dict[str, Any],
+        release_raw: dict[str, Any],
     ) -> bool:
         """Whether a fresh unsealed tag carries a valid burned observation.
 
@@ -1526,12 +1525,11 @@ class ReleaseFactsReader:
         asset whose content matches this train's identity.
         """
         candidate_id = f"unsealed:{tag}:{tag_fact['peeled_sha']}"
-        for asset in release_wire.get("assets", []):
-            if not isinstance(asset, dict):
-                continue
-            name = asset.get("name")
-            if not isinstance(name, str):
-                continue
+        for index, value in enumerate(
+            _list(release_raw.get("assets"), f"release {tag}.assets")
+        ):
+            asset = _mapping(value, f"release {tag}.assets[{index}]")
+            name = _required_str(asset, "name", f"release {tag}.assets[{index}]")
             match = _OBSERVATION_RE.fullmatch(name)
             if (
                 match is None
@@ -1542,7 +1540,7 @@ class ReleaseFactsReader:
             observation = self.github.asset_json(
                 _integer(
                     asset.get("id"),
-                    f"release {tag} abandoned asset id",
+                    f"release {tag}.assets[{index}].id",
                     minimum=1,
                 ),
                 source=f"release {tag} abandoned observation",
@@ -1845,8 +1843,8 @@ class ReleaseFactsReader:
                         "generation": 0,
                         "confirmed": False,
                         "abandoned": (
-                            self._fresh_train_abandoned(tag, tag_fact, release_wire)
-                            if fresh and release_wire is not None
+                            self._fresh_train_abandoned(tag, tag_fact, release_raw)
+                            if fresh and release_wire is not None and release_raw is not None
                             else False
                         ),
                         "pre_train_legacy": False,

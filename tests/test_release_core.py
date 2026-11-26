@@ -27,6 +27,7 @@ from tests._release_watch_facts_contract_cases import (
     test_github_transport_retries_transient_server_error_with_bounded_backoff,
     test_github_transport_uses_pagination_timeout_and_plain_environment,
     test_pypi_inventory_keeps_yanks_and_digest_identity,
+    test_release_wire_emits_exact_asset_shape,
     test_tag_sha_and_observation_generation_mismatches_fail_closed,
     test_train_reader_matches_and_rejects_conflicting_pypi_digests,
 )  # noqa: F401

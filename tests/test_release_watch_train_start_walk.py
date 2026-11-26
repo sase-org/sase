@@ -75,7 +75,6 @@ def _sealed_context(
         rows.append({"id": index, "name": Path(dist["asset"].split("/", 1)[1]).name})
     wires = [
         {
-            "id": row["id"],
             "name": row["name"],
             "kind": "manifest" if row["id"] == 1 else "other",
             "generation": 0,
@@ -86,7 +85,7 @@ def _sealed_context(
     if confirmation:
         name = "candidate-gen1-confirmation-run17-attempt1.json"
         rows.append({"id": 9, "name": name})
-        wires.append({"id": 9, "name": name, "kind": "confirmation", "generation": 1})
+        wires.append({"name": name, "kind": "confirmation", "generation": 1})
         payloads[9] = {
             "asset": name,
             "kind": "confirmation",

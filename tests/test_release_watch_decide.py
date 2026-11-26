@@ -137,6 +137,50 @@ def test_real_binding_round_trip_when_installed(tool: ModuleType) -> None:
     assert result["train_action"]["disposition"] != "executed"
 
 
+def test_real_binding_accepts_release_wire_assets_when_installed(
+    tool: ModuleType,
+) -> None:
+    sase_core_rs = pytest.importorskip("sase_core_rs")
+    if not hasattr(sase_core_rs, "release_steward_decide"):
+        pytest.skip("installed sase_core_rs predates release_steward_decide")
+    from tests._release_steward_fixtures import ready
+    from _release_watch_facts import ReleaseFactsReader
+
+    class _StubGithub:
+        def json(self, endpoint: str, params: dict[str, Any] | None = None) -> object:
+            raise AssertionError(f"unexpected GitHub endpoint: {endpoint}")
+
+        def asset_json(self, asset_id: int, *, source: str) -> object:
+            raise AssertionError(f"unexpected asset fetch: {asset_id}")
+
+    reader = ReleaseFactsReader(github=_StubGithub())  # type: ignore[arg-type]
+    raw_release = {
+        "tag_name": "v0.19.0",
+        "draft": True,
+        "name": "v0.19.0",
+        "html_url": "https://github.com/sase-org/sase/releases/tag/v0.19.0",
+        "created_at": "2026-11-12T20:42:00Z",
+        "assets": [
+            {"id": 1, "name": "candidate-manifest.json"},
+            {
+                "id": 2,
+                "name": "candidate-gen1-qualification-run17-attempt1.json",
+            },
+            {"id": 3, "name": "notes.txt"},
+        ],
+    }
+    release_wire, _created = reader._release_wire(raw_release)
+    assert all(
+        set(asset) == {"name", "kind", "generation"} for asset in release_wire["assets"]
+    )
+    request = releasable_request()
+    request["snapshot"]["releases"] = ready([release_wire])
+    result = tool.decide(request)
+    assert result["schema_version"] == 2
+    assert "primary" in result
+    assert result["process_exit"] == 0
+
+
 @pytest.mark.parametrize("version", [1, 2, 3])
 def test_validator_requires_current_steward_wire(version: int) -> None:
     from tests._validate_sase_core_rs_tool_helpers import load_validate_sase_core_rs

@@ -66,7 +66,6 @@ def _asset_rows(
         rows.append({"id": index, "name": name})
     wire = [
         {
-            "id": asset["id"],
             "name": asset["name"],
             "kind": "manifest" if asset["id"] == 1 else "other",
             "generation": 0,
@@ -106,7 +105,6 @@ def _train_context(
         asset_rows.extend(extra_assets)
         asset_wires.extend(
             {
-                "id": row["id"],
                 "name": row["name"],
                 "kind": "exercise",
                 "generation": 2,
@@ -145,6 +143,39 @@ def _train_context(
         _pypi(manifest, conflict=conflict),
         workflows,
     )
+
+
+def test_release_wire_emits_exact_asset_shape() -> None:
+    reader = ReleaseFactsReader(github=FakeGithub({}))
+    raw = {
+        "tag_name": TAG,
+        "draft": True,
+        "name": TAG,
+        "html_url": f"https://github.com/sase-org/sase/releases/tag/{TAG}",
+        "created_at": "2026-11-12T20:42:00Z",
+        "assets": [
+            {"id": 1, "name": "candidate-manifest.json"},
+            {
+                "id": 2,
+                "name": "candidate-gen1-qualification-run17-attempt1.json",
+            },
+            {"id": 3, "name": "notes.txt"},
+        ],
+    }
+    wire, _created = reader._release_wire(raw)
+    assert wire["tag"] == TAG
+    assert len(wire["assets"]) == 3
+    for asset in wire["assets"]:
+        assert set(asset) == {"name", "kind", "generation"}
+    by_name = {asset["name"]: asset for asset in wire["assets"]}
+    assert by_name["candidate-manifest.json"]["kind"] == "manifest"
+    assert by_name["candidate-gen1-qualification-run17-attempt1.json"]["kind"] == (
+        "qualification"
+    )
+    assert (
+        by_name["candidate-gen1-qualification-run17-attempt1.json"]["generation"] == 1
+    )
+    assert by_name["notes.txt"]["kind"] == "other"
 
 
 def test_select_core_smoke_prefers_exact_pr_check_over_prefixed_qualify_ci() -> None:
