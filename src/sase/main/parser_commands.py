@@ -524,7 +524,8 @@ def register_questions_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Ask the user questions (used by /sase_questions skill)",
     )
     questions_parser.add_argument(
-        "questions_json", help="JSON string containing questions"
+        "questions_json",
+        help="JSON string containing questions; see /sase_questions for the schema",
     )
 
 

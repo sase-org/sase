@@ -23,8 +23,8 @@ Options:
 
 Arguments:
 
-| Argument         | Description                      |
-| ---------------- | -------------------------------- |
-| `questions_json` | JSON string containing questions |
+| Argument         | Description                                                          |
+| ---------------- | -------------------------------------------------------------------- |
+| `questions_json` | JSON string containing questions; see /sase_questions for the schema |
 
 Related: [CLI command groups](index.md).

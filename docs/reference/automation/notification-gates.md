@@ -164,6 +164,28 @@ questions and plans. Historical HITL bundles remain readable and use their compa
 response-file path; every neutral bundle is resolved through the same hash-verified
 executor in sase's TUI and Telegram.
 
+### Copy items in user questions
+
+Each question may include an optional `copy` array for exact values the user needs to
+paste. An item can be a string or an object with `text` and an optional `label`:
+
+```json
+{
+  "question": "Open Chrome's performance settings, then report what you changed.",
+  "copy": [{ "label": "Chrome settings", "text": "chrome://settings/performance" }]
+}
+```
+
+Items stay in array order. Text is copied byte-for-byte after trailing newlines are
+removed. Creation accepts up to 20 unique items of at most 4 KiB each; control
+characters are rejected except newline and tab. Labels are trimmed, single-line, and at
+most 48 characters. Invalid values fail with an indexed error before the question is
+staged. Copy metadata is omitted from the agent's successor prompt and included in the
+user's Q&A export. See
+[the question copy panel](../tui/notifications-modal.md#user-question-copy-panel) for
+the TUI actions and [the `/sase_questions` skill](../cli/questions.md#sase-questions)
+for the authoring schema and examples.
+
 ### Fast decision acceptance
 
 Gate answers are split into fast decision acceptance and slower command execution.

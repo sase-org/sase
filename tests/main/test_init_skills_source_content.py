@@ -76,6 +76,27 @@ def test_sase_plan_skill_mentions_artifact_read_derivation() -> None:
     ) in flat
 
 
+def test_sase_questions_skill_documents_copy_schema_and_authoring_rules() -> None:
+    src = get_sase_package_skills_dir() / "sase_questions.md"
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    flat = collapse_whitespace(body)
+
+    assert front_matter is not None
+    assert '"copy": [' in body
+    assert '"label": "Chrome settings"' in body
+    for guidance in (
+        "Declare `copy` for every path, URL, command, ID, or other exact value",
+        "in the order the user should paste them",
+        "Label long or opaque values; labels are limited to 48 characters",
+        "Short values should also appear in the prose",
+        "Prefer one runnable command",
+        "Do not split one decision into several questions",
+        "at most 20 unique items, each up to 4 KiB",
+        "indexed error before staging the question",
+    ):
+        assert guidance in flat
+
+
 def test_sase_repo_skill_description_covers_web_fetches() -> None:
     """The always-visible skill trigger closes the repository web-fetch loophole."""
     src = get_sase_package_skills_dir() / "sase_repo.md"
