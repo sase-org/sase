@@ -31,6 +31,13 @@ def test_lint_includes_toobig_stage() -> None:
     assert "just _lint-toobig" in output
 
 
+def test_lint_includes_completion_spec_stage() -> None:
+    output = dry_run("lint")
+
+    assert "Checking completion spec snapshot is current" in output
+    assert "just sync-completion-spec-check" in output
+
+
 def test_lint_includes_symvision_stage() -> None:
     output = dry_run("lint")
 
@@ -137,6 +144,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
         'if [ "$1" = "-I" ]; then exit 0; fi\n'
         'if [ "$1" = "tools/render_docs" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'if [ "$1" = "tools/sync_footprint_catalog" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
+        'if [ "$1" = "tools/sync_completion_spec" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',
     )
     _install_executable(
@@ -168,6 +176,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
     assert "format-python tools/render_docs --format-only" in recorded
     assert "sase-python tools/render_docs --sase-only" in recorded
     assert "sase-python tools/sync_footprint_catalog --write" in recorded
+    assert "sase-python tools/sync_completion_spec --write" in recorded
     assert "prettier --write **/*.md" in recorded
     assert "keep-sorted sample.yml" in recorded
     assert "forbidden-app-python" not in recorded

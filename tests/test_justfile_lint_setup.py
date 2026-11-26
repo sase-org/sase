@@ -24,6 +24,8 @@ _SASE_BACKED_FIX_RECIPES = (
     "docs-gen-check",
     "sync-footprint-catalog",
     "sync-footprint-catalog-check",
+    "sync-completion-spec",
+    "sync-completion-spec-check",
 )
 
 

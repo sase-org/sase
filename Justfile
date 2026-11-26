@@ -66,7 +66,8 @@ _venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
 
 # Ensure the application venv can import the installed sase distribution and
-# PyYAML. `just fix` runs docs-gen and sync-footprint-catalog on every commit;
+# PyYAML. `just fix` runs docs-gen, sync-footprint-catalog, and
+# sync-completion-spec on every commit;
 # depending on `_setup` would fetch sase-core and may rebuild sase_core_rs.
 # Probe first so a provisioned checkout stays offline. The probe uses
 # `python -I` because the repo-root `sase/` directory is a namespace package
@@ -324,7 +325,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + docs contract + toobig + keep-sorted)
+# Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + docs contract + Footprint catalog + completion spec + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -348,6 +349,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just docs-lint
     @printf "\n---------- Checking Footprint catalog is current... ----------\n"
     @just sync-footprint-catalog-check
+    @printf "\n---------- Checking completion spec snapshot is current... ----------\n"
+    @just sync-completion-spec-check
     @printf "\n---------- Checking Python file line counts... ----------\n"
     @just _lint-toobig
 
@@ -376,8 +379,12 @@ sync-macro-input-schemas: _setup
     {{ venv_bin }}/python tools/sync_macro_input_schemas --write
 
 # Rewrite the checked-in structural completion spec snapshot from the argparse tree.
-sync-completion-spec: _setup
+sync-completion-spec: _setup-app-import
     {{ venv_bin }}/python tools/sync_completion_spec --write
+
+# Check the completion spec snapshot matches the argparse tree (CI mode, no writes).
+sync-completion-spec-check: _setup-app-import
+    {{ venv_bin }}/python tools/sync_completion_spec --check
 
 # Compare legacy bead note blobs with the structured note projection.
 check-bead-note-migration *args: _setup
@@ -575,7 +582,7 @@ _lint-toobig *args:
     {{ venv_bin }}/toobig tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Auto-fix all code (format + keep-sorted + docs budget ratchet)
-fix: (_header "fix") fmt-py fmt-docs docs-gen fmt-md fix-keep-sorted fix-docs-budgets sync-footprint-catalog
+fix: (_header "fix") fmt-py fmt-docs docs-gen fmt-md fix-keep-sorted fix-docs-budgets sync-footprint-catalog sync-completion-spec
 
 # Auto-format all code
 fmt: (_header "fmt") fmt-py fmt-docs docs-gen fmt-md
