@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.core.index_lookup_patience import retry_while_busy
 from sase.core.rust import require_rust_binding
 
 NamedDismissedBundleAvailability = Literal[
@@ -43,43 +44,54 @@ def lookup_named_dismissed_bundle(
     root: Path | str, name: str
 ) -> _NamedDismissedBundleLookupWire:
     """Resolve a bundle name without migrating or rebuilding the archive index."""
-    raw = require_rust_binding("lookup_named_dismissed_bundle")(str(root), name)
-    if not isinstance(raw, dict):
-        raise RuntimeError("lookup_named_dismissed_bundle returned a non-object result")
-    availability = str(raw.get("availability") or "corrupt")
-    if availability not in {
-        "ready",
-        "missing",
-        "stale_schema",
-        "newer_schema",
-        "corrupt",
-        "busy",
-    }:
-        availability = "corrupt"
-    winner_value = raw.get("winner")
-    winner = (
-        _NamedDismissedBundleHitWire(
-            bundle_path=str(winner_value.get("bundle_path") or ""),
-            artifacts_dir=str(winner_value.get("artifacts_dir") or ""),
-            raw_suffix=str(winner_value.get("raw_suffix") or ""),
-            filename=str(winner_value.get("filename") or ""),
+
+    def attempt() -> _NamedDismissedBundleLookupWire:
+        raw = require_rust_binding("lookup_named_dismissed_bundle")(str(root), name)
+        if not isinstance(raw, dict):
+            raise RuntimeError(
+                "lookup_named_dismissed_bundle returned a non-object result"
+            )
+        availability = str(raw.get("availability") or "corrupt")
+        if availability not in {
+            "ready",
+            "missing",
+            "stale_schema",
+            "newer_schema",
+            "corrupt",
+            "busy",
+        }:
+            availability = "corrupt"
+        winner_value = raw.get("winner")
+        winner = (
+            _NamedDismissedBundleHitWire(
+                bundle_path=str(winner_value.get("bundle_path") or ""),
+                artifacts_dir=str(winner_value.get("artifacts_dir") or ""),
+                raw_suffix=str(winner_value.get("raw_suffix") or ""),
+                filename=str(winner_value.get("filename") or ""),
+            )
+            if isinstance(winner_value, dict)
+            else None
         )
-        if isinstance(winner_value, dict)
-        else None
-    )
-    return _NamedDismissedBundleLookupWire(
-        availability=availability,  # type: ignore[arg-type]
-        complete=bool(raw.get("complete")),
-        source=str(raw.get("source") or "none"),
-        winner=winner,
-        diagnostic=(
-            str(raw["diagnostic"]) if raw.get("diagnostic") is not None else None
-        ),
-        truncated=bool(raw.get("truncated")),
-        directories_visited=_int(raw.get("directories_visited")),
-        entries_visited=_int(raw.get("entries_visited")),
-        file_probes=_int(raw.get("file_probes")),
-        payloads_decoded=_int(raw.get("payloads_decoded")),
+        return _NamedDismissedBundleLookupWire(
+            availability=availability,  # type: ignore[arg-type]
+            complete=bool(raw.get("complete")),
+            source=str(raw.get("source") or "none"),
+            winner=winner,
+            diagnostic=(
+                str(raw["diagnostic"]) if raw.get("diagnostic") is not None else None
+            ),
+            truncated=bool(raw.get("truncated")),
+            directories_visited=_int(raw.get("directories_visited")),
+            entries_visited=_int(raw.get("entries_visited")),
+            file_probes=_int(raw.get("file_probes")),
+            payloads_decoded=_int(raw.get("payloads_decoded")),
+        )
+
+    return retry_while_busy(
+        attempt,
+        is_busy=lambda result: result.availability == "busy" and not result.complete,
+        diagnostic=lambda result: result.diagnostic,
+        lookup="dismissed-bundle index",
     )
 
 

@@ -487,3 +487,82 @@ def test_clan_ignores_unnamed_new_generation(tmp_path: Path) -> None:
         clan = find_agent_clan("review")
     assert clan is not None
     assert [member.artifacts_dir for member in clan.members] == [valid]
+
+
+def test_group_lookup_retries_busy_artifact_index_only_with_runner_patience(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core import agent_artifact_lookup
+    from sase.core.index_lookup_patience import (
+        LookupPatience,
+        process_lookup_patience,
+        retry_while_busy,
+    )
+    from sase.core.rust import require_rust_binding as real_require_rust_binding
+
+    _current_owner(monkeypatch)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260701010101",
+        "review.alpha",
+        done=True,
+        extra_meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260701010000",
+        },
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
+    _rebuild_index()
+
+    real_lookup = real_require_rust_binding("lookup_agent_artifacts")
+    calls = 0
+
+    def lookup_with_initial_busy(*args: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return {
+                "availability": "busy",
+                "complete": False,
+                "source": "fallback",
+                "diagnostic": "database is locked",
+            }
+        return real_lookup(*args)
+
+    def require_binding(name: str):
+        if name == "lookup_agent_artifacts":
+            return lookup_with_initial_busy
+        return real_require_rust_binding(name)
+
+    monkeypatch.setattr(agent_artifact_lookup, "require_rust_binding", require_binding)
+
+    with process_lookup_patience(None):
+        with pytest.raises(AgentArtifactGroupLookupUnavailable):
+            find_agent_clan("review")
+    assert calls == 1
+
+    calls = 0
+    now = 0.0
+
+    def fake_retry(attempt: object, **kwargs: object) -> object:
+        def sleep(seconds: float) -> None:
+            nonlocal now
+            now += seconds
+
+        return retry_while_busy(
+            attempt,  # type: ignore[arg-type]
+            **kwargs,  # type: ignore[arg-type]
+            sleep=sleep,
+            monotonic=lambda: now,
+        )
+
+    monkeypatch.setattr(agent_artifact_lookup, "retry_while_busy", fake_retry)
+    with process_lookup_patience(LookupPatience(1)):
+        result = find_agent_clan("review")
+
+    assert result is not None
+    assert result.generation == "20260701010000"
+    assert [member.name for member in result.members] == ["review.alpha"]
+    assert calls == 2

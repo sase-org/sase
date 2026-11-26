@@ -384,3 +384,72 @@ class TestIndexedDismissedBundles:
         assert result is not None
         assert result.is_done
         assert result.artifacts_dir == "/archive/older"
+
+
+def test_find_named_agent_retries_busy_lookup_only_with_runner_patience(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+    from sase.core import agent_artifact_lookup
+    from sase.core.index_lookup_patience import (
+        LookupPatience,
+        process_lookup_patience,
+        retry_while_busy,
+    )
+    from sase.core.rust import require_rust_binding as real_require_rust_binding
+
+    _configure_machine(monkeypatch)
+    _make_agent(tmp_path, "proj", "run1", "foo", done=True)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _rebuild_artifact_index()
+
+    real_lookup = real_require_rust_binding("lookup_agent_artifacts")
+    calls = 0
+
+    def lookup_with_initial_busy(*args: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return {
+                "availability": "busy",
+                "complete": False,
+                "source": "fallback",
+                "diagnostic": "database is locked",
+            }
+        return real_lookup(*args)
+
+    def require_binding(name: str):
+        if name == "lookup_agent_artifacts":
+            return lookup_with_initial_busy
+        return real_require_rust_binding(name)
+
+    monkeypatch.setattr(agent_artifact_lookup, "require_rust_binding", require_binding)
+
+    with process_lookup_patience(None):
+        with pytest.raises(AgentNamedLookupUnavailable):
+            find_named_agent("foo")
+    assert calls == 1
+
+    calls = 0
+    now = 0.0
+
+    def fake_retry(attempt: object, **kwargs: object) -> object:
+        def sleep(seconds: float) -> None:
+            nonlocal now
+            now += seconds
+
+        return retry_while_busy(
+            attempt,  # type: ignore[arg-type]
+            **kwargs,  # type: ignore[arg-type]
+            sleep=sleep,
+            monotonic=lambda: now,
+        )
+
+    monkeypatch.setattr(agent_artifact_lookup, "retry_while_busy", fake_retry)
+    with process_lookup_patience(LookupPatience(1)):
+        result = find_named_agent("foo")
+
+    assert result is not None
+    assert result.name == "foo"
+    assert calls == 2

@@ -19,7 +19,7 @@ import signal
 import sys
 import time
 import traceback
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -95,6 +95,12 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
+from sase.core.index_lookup_patience import (
+    LookupPatience,
+    LookupRetryEvent,
+    process_lookup_patience,
+    set_process_lookup_patience,
+)
 from sase.core.runner_slots import HOLD_ARMER_WAIT_PRIORITY
 from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
 from sase.env_contracts import (
@@ -103,6 +109,9 @@ from sase.env_contracts import (
 )
 from sase.telemetry.metrics import AGENT_KILLS
 from sase.bead.claims import read_bead_claim_marker
+
+RUNNER_LOOKUP_PATIENCE_BUDGET_SECONDS = 60.0
+_LOOKUP_RETRY_LOG_INTERVAL_SECONDS = 10.0
 
 snapshot_oom_baseline()
 
@@ -470,6 +479,40 @@ def _defer_start_across_code_swap() -> None:
     defer_launch_for_code_swap([sys.executable, *sys.argv])
 
 
+def _runner_lookup_retry_logger() -> Callable[[LookupRetryEvent], None]:
+    """Build a rate-limited stderr reporter for runner lookup retries."""
+    last_progress_log: float | None = None
+
+    def report(event: LookupRetryEvent) -> None:
+        nonlocal last_progress_log
+        if event.recovered:
+            line = f"Lookup {event.lookup} recovered after {event.seconds_waited:.1f}s"
+        elif event.gave_up:
+            line = (
+                f"Lookup {event.lookup} still busy after "
+                f"{event.seconds_waited:.1f}s; giving up"
+            )
+        elif (
+            last_progress_log is None
+            or event.seconds_waited - last_progress_log
+            >= _LOOKUP_RETRY_LOG_INTERVAL_SECONDS
+        ):
+            line = (
+                f"Lookup {event.lookup} busy; attempt {event.attempt}, "
+                f"waited {event.seconds_waited:.1f}s, retrying in "
+                f"{event.next_delay_seconds:.2f}s"
+            )
+            if event.last_diagnostic:
+                detail = " ".join(event.last_diagnostic.split())[:160]
+                line += f" ({detail})"
+            last_progress_log = event.seconds_waited
+        else:
+            return
+        print(line, file=sys.stderr, flush=True)
+
+    return report
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     _defer_start_across_code_swap()
@@ -491,6 +534,11 @@ def main() -> None:
     from sase.feature_flags import install_process_feature_flags
 
     install_process_feature_flags()
+    runner_lookup_patience = LookupPatience(
+        budget_seconds=RUNNER_LOOKUP_PATIENCE_BUDGET_SECONDS,
+        on_retry=_runner_lookup_retry_logger(),
+    )
+    set_process_lookup_patience(runner_lookup_patience)
     state = _build_run_state(sys.argv)
     try:
         from sase.agent.auto_restart.gate import auto_restart_automatic_enabled
@@ -507,7 +555,8 @@ def main() -> None:
                     _restore_killed_lean_wait_state(state, lean_wait_result)
                     raise SystemExit(128 + signal.SIGTERM)
                 state.lean_wait_result = lean_wait_result
-            _run_agent(state)
+            with process_lookup_patience(runner_lookup_patience):
+                _run_agent(state)
         except Exception as e:
             artifacts_dir = state.current_artifacts_dir or state.artifacts_dir
             if was_killed() and has_user_kill_intent(artifacts_dir):

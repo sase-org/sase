@@ -20,6 +20,7 @@ from sase.core.agent_artifact_lookup_wire import (
     agent_artifact_lookup_query_to_dict,
     agent_artifact_lookup_result_from_dict,
 )
+from sase.core.index_lookup_patience import retry_while_busy
 from sase.core.rust import require_rust_binding
 
 
@@ -32,16 +33,26 @@ def lookup_agent_artifacts(
 ) -> AgentArtifactLookupResultWire:
     """Look up matching ace-run artifacts without maintenance on the read path."""
     payload = agent_artifact_lookup_query_to_dict(query)
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            payload = {**payload, "forced_unavailability": "busy"}
-        rust_lookup = require_rust_binding("lookup_agent_artifacts")
-        result: dict[str, Any] = rust_lookup(
-            str(index_path),
-            str(projects_root),
-            payload,
-        )
-    return agent_artifact_lookup_result_from_dict(result)
+
+    def attempt() -> AgentArtifactLookupResultWire:
+        with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+            attempt_payload = (
+                payload if acquired else {**payload, "forced_unavailability": "busy"}
+            )
+            rust_lookup = require_rust_binding("lookup_agent_artifacts")
+            result: dict[str, Any] = rust_lookup(
+                str(index_path),
+                str(projects_root),
+                attempt_payload,
+            )
+        return agent_artifact_lookup_result_from_dict(result)
+
+    return retry_while_busy(
+        attempt,
+        is_busy=lambda result: result.availability == "busy" and not result.complete,
+        diagnostic=lambda result: result.diagnostic,
+        lookup="agent artifact index",
+    )
 
 
 __all__ = ["lookup_agent_artifacts"]
