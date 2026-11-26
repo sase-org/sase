@@ -67,6 +67,68 @@ class TestDeferredWorkspacePreparation:
         claim_next.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))
 
+    def test_claim_deferred_vcs_workspace_uses_project_primary_not_cwd(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """VCS deferred allocation must use ProjectSpec WORKSPACE_DIR as primary."""
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        primary = tmp_path / "canonical-primary"
+        unrelated_cwd = tmp_path / "unrelated-cwd"
+        workspace_dir = tmp_path / "managed-workspace"
+
+        primary.mkdir()
+        unrelated_cwd.mkdir()
+        workspace_dir.mkdir()
+
+        project_file = tmp_path / "project.sase"
+        project_file.write_text(
+            f"WORKSPACE_DIR: {primary}\n"
+            "NAME: Test Feature\n"
+            "STATUS: Ready\n"
+        )
+
+        monkeypatch.setenv("SASE_AGENT_VCS_WORKFLOW_TYPE", "gh")
+        monkeypatch.chdir(unrelated_cwd)
+
+        ws_get_dir = MagicMock(return_value=str(workspace_dir))
+
+        with (
+            patch("sase.running_field.release_workspace"),
+            patch("sase.running_field.claim_next_axe_workspace", return_value=7),
+            patch(
+                "sase.workspace_provider.get_pre_allocated_env_prefix",
+                return_value=None,
+            ),
+            patch(
+                "sase.workspace_provider.get_workspace_directory",
+                ws_get_dir,
+            ),
+            patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
+        ):
+            workspace_num, actual_workspace_dir = claim_deferred_workspace(
+                str(project_file),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        assert workspace_num == 7
+        assert actual_workspace_dir == str(workspace_dir)
+
+        ws_get_dir.assert_called_once_with(
+            "gh",
+            7,
+            "test-project",
+            str(primary),
+        )
+
+        assert str(primary) != str(unrelated_cwd)
+        chdir_mock.assert_called_once_with(str(workspace_dir))
+
     def test_claim_deferred_workspace_writes_occupant_record(
         self, tmp_path: Path
     ) -> None:
