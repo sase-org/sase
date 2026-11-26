@@ -10,6 +10,7 @@ from sase.agents_sync._commit_publication_queue import (
     drain_selected_agent_publications,
     enqueue_committed_agent_publication,
     fulfillment_scope_for_commit_cwd,
+    publication_project_key_for_path,
     publish_committed_agent_hood,
     resolve_publication_project_key,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "drain_selected_agent_publications",
     "enqueue_committed_agent_publication",
     "fulfillment_scope_for_commit_cwd",
+    "publication_project_key_for_path",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",

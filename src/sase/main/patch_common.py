@@ -27,7 +27,7 @@ def patch_target(args: argparse.Namespace) -> str | None:
     return getattr(args, "patch", None) or getattr(args, "patch", None)
 
 
-def _project_from_project_file(project_file: str | None) -> str | None:
+def project_from_project_file(project_file: str | None) -> str | None:
     """Return the project basename for a main or archive project file path."""
     if not project_file:
         return None
@@ -61,7 +61,7 @@ def resolve_project_context(
     """Resolve project and project-file context for ``patch current``."""
     if explicit:
         explicit_project_file = os.path.expanduser(explicit)
-        return _project_from_project_file(explicit_project_file), explicit_project_file
+        return project_from_project_file(explicit_project_file), explicit_project_file
     project = get_project_from_workspace_fn()
     project_file: str | None = get_project_file_path_fn(project) if project else None
     return project, project_file
@@ -78,6 +78,7 @@ __all__ = [
     "command_prefix",
     "file_location",
     "patch_target",
+    "project_from_project_file",
     "resolve_project_context",
     "resolve_project_file",
     "target_option",

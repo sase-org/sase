@@ -365,8 +365,9 @@ def _enqueue_agent_publication_background(
     if "publish_agent_hood" in cp.completed_steps:
         return True
 
+    evidence_project_key = _resolve_commit_publication_project_key(cp)
     try:
-        _record_real_change_release_evidence(cp)
+        _record_real_change_release_evidence(cp, evidence_project_key)
     except Exception as exc:  # noqa: BLE001 - release evidence gates link drains.
         print_status(
             "The primary commit succeeded, but release evidence for its artifact "
@@ -389,6 +390,7 @@ def _enqueue_agent_publication_background(
             lambda: enqueue_committed_agent_publication(
                 publication_agent,
                 revision,
+                project=evidence_project_key,
                 commit_cwd=cp.cwd,
                 artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
                 run_id=cp.run_id,
@@ -403,6 +405,12 @@ def _enqueue_agent_publication_background(
         )
         return False
 
+    if evidence_project_key is not None and project_key is not None:
+        assert project_key == evidence_project_key, (
+            "agent publication must drain under the same project key as its "
+            f"release evidence: {project_key!r} != {evidence_project_key!r}"
+        )
+
     if outcome.error and not outcome.queued:
         print_status(
             "The primary commit succeeded, but agent publication could not be "
@@ -412,6 +420,16 @@ def _enqueue_agent_publication_background(
         )
         return False
     if not outcome.queued or project_key is None or item is None:
+        if outcome.skip_reason and not outcome.error:
+            reason = outcome.skip_reason.rstrip(".")
+            print_status(
+                "The primary commit succeeded, but agent publication was "
+                f"skipped for repository {cp.cwd!r}: {reason}.",
+                "warning",
+            )
+            cp.completed_steps.append("enqueue_agent_publication")
+            checkpoint_save(cp)
+            return True
         reason = (
             outcome.skip_reason or outcome.error or "the project queue is unavailable"
         )
@@ -452,7 +470,50 @@ def _enqueue_agent_publication_background(
     return True
 
 
-def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
+def _resolve_commit_publication_project_key(cp: CommitCheckpoint) -> str | None:
+    """Return the host project key a commit's publication belongs to.
+
+    Candidates are tried in order and the first canonical key wins:
+
+    1. the repo-inventory match for ``cp.cwd`` (the same source
+       ``_resolve_sidecar_publication_target`` uses);
+    2. ``resolve_artifact_link_project_key`` for ``cp.cwd`` (workspace marker);
+    3. the project named by the checkpoint's ``project_file``
+       (``~/.sase/projects/<key>/<key>.sase``).
+
+    Returns ``None`` when no candidate maps ``cp.cwd`` to a project.
+    """
+
+    try:
+        from sase.agents_sync.commit_publication import (
+            publication_project_key_for_path,
+        )
+
+        inventory_key = publication_project_key_for_path(cp.cwd)
+    except Exception:  # noqa: BLE001 - inventory is best-effort here
+        inventory_key = None
+    if inventory_key:
+        return inventory_key
+    try:
+        from sase.sdd.artifact_link_store import resolve_artifact_link_project_key
+
+        marker_key = resolve_artifact_link_project_key(Path(cp.cwd))
+    except Exception:  # noqa: BLE001 - marker resolution is best-effort here
+        marker_key = None
+    if marker_key:
+        return marker_key
+    try:
+        from sase.main.patch_common import project_from_project_file
+
+        return project_from_project_file(cp.project_file)
+    except Exception:  # noqa: BLE001 - a missing project file means no key
+        return None
+
+
+def _record_real_change_release_evidence(
+    cp: CommitCheckpoint,
+    project_key: str | None,
+) -> None:
     """Record that this run earned the right to publish its pending links.
 
     Reaching this point only happens after a real ``create_commit``/
@@ -463,8 +524,20 @@ def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     non-bookkeeping change. Publication of some other agent or agent-session
     member is not evidence for this run, so evidence is bound to this run's
     own ``SASE_AGENT_TIMESTAMP``/``publication_agent`` identity.
+
+    Evidence is keyed to *project_key* -- the same project the publication
+    queue drains for -- and no longer depends on the process cwd. When no
+    key resolves, a warning naming the repository is printed and recording
+    is skipped instead of failing the already-landed commit.
     """
 
+    if not project_key:
+        print_status(
+            f"Could not resolve the current project for repository {cp.cwd!r}; "
+            "skipping artifact-link release evidence without failing the commit.",
+            "warning",
+        )
+        return
     run_id = cp.run_id or os.environ.get("SASE_AGENT_TIMESTAMP", "")
     if not run_id or not cp.publication_agent:
         return
@@ -476,7 +549,6 @@ def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     from sase.sdd.artifact_link_release_evidence import (
         record_artifact_link_release_evidence,
     )
-    from sase.sdd.artifact_link_store import resolve_artifact_link_store
 
     decision = decide_artifact_link_eligibility(
         run_id=run_id,
@@ -496,9 +568,8 @@ def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     )
     if not decision.eligible:
         return
-    store = resolve_artifact_link_store()
     record_artifact_link_release_evidence(
-        project_key=store.project_key,
+        project_key=project_key,
         run_id=decision.run_id,
         agent_id=decision.agent_id,
         qualifying_repo_ids=decision.qualifying_repo_ids,
@@ -516,16 +587,16 @@ def _drain_artifact_link_outbox_for_agent(
 
         def drain() -> None:
             from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
-
-            _record_real_change_release_evidence(cp)
             from sase.sdd.artifact_link_store import (
-                resolve_artifact_link_store,
                 resolve_machine_artifact_link_store,
             )
 
-            current_store = resolve_artifact_link_store(cwd=Path(cp.cwd))
+            project_key = _resolve_commit_publication_project_key(cp)
+            if project_key is None:
+                return
+            _record_real_change_release_evidence(cp, project_key)
             store = resolve_machine_artifact_link_store(
-                current_store.project_key,
+                project_key,
                 Path(cp.cwd),
             )
             drain_artifact_link_outbox(

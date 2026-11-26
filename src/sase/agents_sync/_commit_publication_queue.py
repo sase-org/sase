@@ -332,6 +332,18 @@ def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
     return None if match is None else match[0]
 
 
+def publication_project_key_for_path(commit_cwd: Path | str) -> str | None:
+    """Return the host project key for *commit_cwd* from the repo inventory.
+
+    Public wrapper around :func:`_publication_project_key_from_path` for
+    callers outside ``sase.agents_sync`` (such as commit publication steps)
+    that must key release evidence to the same project as the publication
+    queue. Returns ``None`` when no inventory record contains the path.
+    """
+
+    return _publication_project_key_from_path(commit_cwd)
+
+
 def _display_repository(commit_cwd: Path | str | None) -> str:
     if commit_cwd is None:
         return "the current checkout"
