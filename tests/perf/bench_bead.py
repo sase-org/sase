@@ -27,13 +27,19 @@ from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
-import pytest
+# Script invocation (`python tests/perf/bench_bead.py`) puts this
+# file's directory on ``sys.path``; the package imports need the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from tests.test_bead.legacy_sqlite import db as db_mod
-from sase.bead.config import save_config
-from sase.bead.model import Issue, IssueType, Status
-from sase.bead.project import BeadProject
-from sase.bead.work import build_epic_work_plan_from_beads_dir
+import pytest  # noqa: E402
+
+from tests.test_bead.legacy_sqlite import db as db_mod  # noqa: E402
+from sase.bead.config import save_config  # noqa: E402
+from sase.bead.model import Issue, IssueType, Status  # noqa: E402
+from sase.bead.project import BeadProject  # noqa: E402
+from sase.bead.work import build_epic_work_plan_from_beads_dir  # noqa: E402
 
 pytestmark = pytest.mark.slow
 
