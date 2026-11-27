@@ -34,6 +34,23 @@ store that owns a full parent ID. Commands without a bead selector (`list`, `sea
 `ready`, `blocked`, and `stats`) keep the current-project scope. See
 [Bead ID Arguments](beads.md#bead-id-arguments).
 
+### Plan-file epic launches
+
+`sase bead work <plan-file>` refreshes a remote-backed bead store before resolving a
+linked epic and before each new epic mint. A transient refresh problem (remote
+unavailable, timeout, or busy lock) prints a warning and continues from the local store;
+bead-ID conflict resolution handles any stale counter collision. A conflict or other
+unrecoverable integration failure stops before creating beads, with a resume command. A
+linked `bead_id` whose epic names a different plan is stale and replaced with a newly
+created epic. An epic without a `design` keeps the existing resume behavior.
+
+If publishing a newly created graph fails because concurrent history cannot be merged,
+and no agents have spawned, plan-file mode preserves the attempt under a recovery ref,
+resets the bead clone to its upstream, and retries with fresh IDs. The launch makes at
+most three creation attempts. If the safety checks prevent replay, the error gives
+manual recovery steps. See [Starting bead work](bead-work.md#sase-bead-work-target) for
+the full launch and recovery behavior.
+
 `sase project` defaults to `sase project list`, and `sase project list` defaults to
 enabled true projects. `sase project current` prints the current project derived from
 the VCS macro MRU head — the project name in that project's accent color, its canonical

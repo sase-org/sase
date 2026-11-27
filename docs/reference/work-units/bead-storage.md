@@ -223,19 +223,26 @@ Two other surfaces enforce the same invariant:
 #### Duplicate Bead IDs
 
 Two clones minting from their own `next_counter` can allocate the same bead ID and each
-write their own `events/streams/<id>.jsonl`. A naive merge of that add/add conflict
-produces a stream with two `issue_created` events, which the reducer rejects —
-historically wedging the shared store because every sync retry failed the same way.
+write their own `events/streams/<id>.jsonl`. A naive merge of two unpublished
+`issue_created` events for that ID produces a stream the reducer rejects, which can
+wedge the shared store.
 
-Conflict resolution relocates one of the two beads instead of failing. The resolver
-allocates the relocation ID from a store-wide pool built from `config.json`'s
-`next_counter` plus every stream ID already in the store, so the ID a collision lands on
-depends only on the store's contents and not on which clone happens to resolve the
-conflict first. Both beads survive under distinct IDs, and the resolver reports
-`relocated duplicate beads: <old> -> <new>` — in its own resolution message and in the
-managed sync log under `~/.sase/bead_push_logs/sync-*.log`. If a bead you expect is
-missing after a concurrent-mint conflict, search those logs for that line: the bead
-still exists, under the new ID.
+Conflict resolution treats an ID with any published `issue_created` event as taken, even
+when that incarnation was later removed. A published create/remove/create history is
+valid and stays intact; an unpublished creation that reuses that ID is the one that
+moves. This keeps removed IDs from being minted again and preserves the published
+history while the unpublished bead survives under a fresh ID.
+
+The resolver allocates relocation IDs from a store-wide pool built from `config.json`'s
+`next_counter` and every stream ID in the store, including streams for removed beads and
+relocations. After a merge, it advances `next_counter` past the highest top-level stream
+ID. A rollback followed by a retry therefore cannot mint the ID that the first attempt
+was moved to. The chosen relocation ID depends on store contents, not on which clone
+resolves the conflict first. The resolver reports
+`relocated duplicate beads: <old> -> <new>` in its resolution message and the managed
+sync log under `~/.sase/bead_push_logs/sync-*.log`. If a bead you expect is missing
+after a concurrent-mint conflict, search those logs for that line: the bead still exists
+under the new ID.
 
 ## Rust Backend
 
