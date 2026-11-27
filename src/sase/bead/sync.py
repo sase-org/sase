@@ -14,6 +14,7 @@ from sase.bead._sync_git import (
 )
 from sase.bead._sync_git import (
     bead_state_is_clean as bead_state_is_clean,
+    bead_store_head_sha as bead_store_head_sha,
     bead_store_write_lock as bead_store_write_lock,
     commit_bead_claim as commit_bead_claim,
     commit_bead_claim_reconciliation as commit_bead_claim_reconciliation,

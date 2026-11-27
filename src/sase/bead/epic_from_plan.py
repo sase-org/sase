@@ -46,6 +46,9 @@ class EpicFromPlanError(RuntimeError):
         rollback_performed: bool = False,
         retry_requires_push: bool = False,
         relocated_epic_id: str | None = None,
+        publication_conflict: bool = False,
+        checkpoint_sha: str | None = None,
+        attempt_tip_sha: str | None = None,
     ) -> None:
         super().__init__(message)
         self.graph_published = graph_published
@@ -53,6 +56,9 @@ class EpicFromPlanError(RuntimeError):
         self.rollback_performed = rollback_performed
         self.retry_requires_push = retry_requires_push
         self.relocated_epic_id = relocated_epic_id
+        self.publication_conflict = publication_conflict
+        self.checkpoint_sha = checkpoint_sha
+        self.attempt_tip_sha = attempt_tip_sha
 
 
 @dataclass(frozen=True)
@@ -255,6 +261,36 @@ def create_and_launch_epic_from_plan(
                 retry_requires_push=exc.retry_requires_push,
             ) from exc
 
+        if (
+            isinstance(exc, BeadWorkError)
+            and exc.publication_conflict
+            and not exc.agents_spawned
+        ):
+            # The graph checkpoint is unpublished and cannot merge with
+            # concurrently published history. Nothing spawned, so there is
+            # no runner state to preserve: restore the plan link like the
+            # existing rollback, but keep the beads (no ``proj.remove`` —
+            # the store is about to be reset) and let the launch loop replay.
+            restore_errors = _restore_plan_link(
+                plan_path=plan_path,
+                original_content=original_content,
+                plan_link_update_attempted=plan_link_update_attempted,
+                plan_link_committed=plan_link_committed,
+                commit_plan_update=commit_plan_update,
+            )
+            detail = str(exc)
+            if restore_errors:
+                detail += "; plan-link restore also failed: " + "; ".join(
+                    restore_errors
+                )
+            raise EpicFromPlanError(
+                detail,
+                retry_requires_push=exc.retry_requires_push,
+                publication_conflict=True,
+                checkpoint_sha=exc.checkpoint_sha,
+                attempt_tip_sha=exc.attempt_tip_sha,
+            ) from exc
+
         relocated_epic_id: str | None = None
         if isinstance(exc, EpicGraphRelocatedError):
             # Publication moved our own freshly created graph. The pre-move
@@ -339,6 +375,32 @@ def preview_parented_epic_id(proj: BeadProject, parent_id: str) -> str:
     return f"{parent_id}.{highest + 1}"
 
 
+def _restore_plan_link(
+    *,
+    plan_path: Path,
+    original_content: str,
+    plan_link_update_attempted: bool,
+    plan_link_committed: bool,
+    commit_plan_update: PlanUpdateCommitter,
+) -> list[str]:
+    """Restore the plan file's pre-launch content; never raises."""
+    errors: list[str] = []
+    if plan_link_update_attempted:
+        try:
+            # A false result is benign when the failed forward commit never
+            # reached git; an exception still reports an incomplete rollback.
+            restored = commit_plan_update(
+                plan_path,
+                original_content,
+                f"Restore approved epic plan after failed launch: {plan_path.stem}",
+            )
+            if plan_link_committed and not restored:
+                errors.append(f"could not commit restored approved plan {plan_path}")
+        except Exception as exc:  # noqa: BLE001 - preserve the primary error
+            errors.append(f"could not restore approved plan {plan_path}: {exc}")
+    return errors
+
+
 def _rollback_epic_creation(
     proj: BeadProject,
     *,
@@ -373,19 +435,15 @@ def _rollback_epic_creation(
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
             errors.append(f"could not remove epic {remove_epic_id}: {exc}")
 
-    if plan_link_update_attempted:
-        try:
-            # A false result is benign when the failed forward commit never
-            # reached git; an exception still reports an incomplete rollback.
-            restored = commit_plan_update(
-                plan_path,
-                original_content,
-                f"Restore approved epic plan after failed launch: {plan_path.stem}",
-            )
-            if plan_link_committed and not restored:
-                errors.append(f"could not commit restored approved plan {plan_path}")
-        except Exception as exc:  # noqa: BLE001 - preserve the primary error
-            errors.append(f"could not restore approved plan {plan_path}: {exc}")
+    errors.extend(
+        _restore_plan_link(
+            plan_path=plan_path,
+            original_content=original_content,
+            plan_link_update_attempted=plan_link_update_attempted,
+            plan_link_committed=plan_link_committed,
+            commit_plan_update=commit_plan_update,
+        )
+    )
     return errors
 
 

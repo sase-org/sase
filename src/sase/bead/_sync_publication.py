@@ -23,6 +23,7 @@ class PushOutcome:
     log_path: Path | None = None
     bead_relocations: tuple[Any, ...] = ()
     push_attempts: int = 0
+    integration_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ def push_bead_work_launch(
                 log_path=log_path,
                 bead_relocations=result.bead_relocations,
                 push_attempts=result.push_attempts,
+                integration_status=result.integration_status,
             )
         if result.skipped_locked:
             if head_is_published(repo_root):
@@ -79,6 +81,7 @@ def push_bead_work_launch(
                     log_path=log_path,
                     bead_relocations=result.bead_relocations,
                     push_attempts=result.push_attempts,
+                    integration_status=result.integration_status,
                 )
             return PushOutcome(
                 pushed=False,
@@ -88,6 +91,7 @@ def push_bead_work_launch(
                 log_path=log_path,
                 bead_relocations=result.bead_relocations,
                 push_attempts=result.push_attempts,
+                integration_status=result.integration_status,
             )
         return PushOutcome(
             pushed=False,
@@ -97,6 +101,7 @@ def push_bead_work_launch(
             log_path=log_path,
             bead_relocations=result.bead_relocations,
             push_attempts=result.push_attempts,
+            integration_status=result.integration_status,
         )
     except Exception as exc:  # noqa: BLE001 - this API must never raise.
         return PushOutcome(

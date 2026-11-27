@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from sase.sdd._git import SddGitCommandTimeout
@@ -10,6 +11,7 @@ from sase.sdd._repository_health import (
     safe_git_error_text,
     unmerged_paths,
 )
+
 from sase.sdd._repository_integration_verify import (
     abort_and_verify,
     successful_integration,
@@ -22,6 +24,48 @@ from sase.sdd._repository_types import (
     SddRepositoryState,
     is_git_timeout,
 )
+
+_REBASING_PROGRESS_RE = re.compile(r"rebasing \(\d+/\d+\)", re.IGNORECASE)
+
+
+def _strip_git_noise(text: str) -> str:
+    """Drop git progress/hint noise from an integration error summary.
+
+    The full git output stays in the managed sync log; the summary keeps
+    only the actionable lines. ``Rebasing (n/m)`` progress is stripped
+    inline so the surrounding operation context (for example the ``git
+    rebase failed`` prefix) survives.
+    """
+    kept = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("hint:"):
+            continue
+        cleaned = _REBASING_PROGRESS_RE.sub("", stripped)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip().rstrip(" ;:")
+        if not cleaned:
+            continue
+        kept.append(cleaned)
+    return "; ".join(kept)
+
+
+def _cause_first_integration_error(primary_failure: str, semantic_detail: str) -> str:
+    """Lead an unmergeable-conflict error with the semantic cause.
+
+    The semantic repair outcome names the collision; the raw git rebase
+    output that precedes it is context at best, so it follows cleaned of
+    progress and hint noise.
+    """
+    cause = (
+        "bead-ID collision with concurrently published history "
+        f"could not be merged: {_strip_git_noise(semantic_detail)}"
+    )
+    context = _strip_git_noise(primary_failure)
+    if not context:
+        return cause
+    return f"{cause}; {context}"
 
 
 def repair_or_abort_rebase(
@@ -82,7 +126,9 @@ def repair_or_abort_rebase(
             return abort_and_verify(
                 repo_root,
                 starting=starting,
-                primary_failure=f"{primary_failure}; {message}",
+                primary_failure=_cause_first_integration_error(
+                    primary_failure, message
+                ),
                 runner=runner,
                 op_prefix=op_prefix,
             )
@@ -97,7 +143,9 @@ def repair_or_abort_rebase(
             return abort_and_verify(
                 repo_root,
                 starting=starting,
-                primary_failure=f"{primary_failure}; {resolution.message}",
+                primary_failure=_cause_first_integration_error(
+                    primary_failure, resolution.message
+                ),
                 runner=runner,
                 op_prefix=op_prefix,
             )

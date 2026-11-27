@@ -533,8 +533,16 @@ def publish_epic_graph_before_launch_result(store: SddStore, *, no_push: bool) -
     completed, plus any bead-id relocations resolved during publication.
     Unlike ordinary post-commit synchronization, publication failures are fatal
     because workers cannot safely claim unpublished beads.
+
+    An unmergeable publication raises
+    :class:`EpicGraphPublicationConflictError` so the plan-launch retry loop
+    can discard the unpublished graph and re-mint; every other failure keeps
+    today's ``RuntimeError`` path with the local checkpoint as the retry
+    point.
     """
     from sase.bead.cli_work_commit import LaunchCheckpointResult
+    from sase.bead.cli_work_handler_errors import EpicGraphPublicationConflictError
+    from sase.sdd._repository_types import SddIntegrationStatus
 
     if not _store_requires_remote_publication(store):
         return LaunchCheckpointResult(False)
@@ -564,10 +572,30 @@ def publish_epic_graph_before_launch_result(store: SddStore, *, no_push: bool) -
             _publication_lock_timeout_message(getattr(outcome, "log_path", None))
         )
     if outcome.error is not None:
+        if (
+            getattr(outcome, "integration_status", None)
+            == SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
+        ):
+            raise EpicGraphPublicationConflictError(
+                _publication_conflict_message(outcome),
+                semantic_cause=outcome.error,
+                log_path=getattr(outcome, "log_path", None),
+            )
         raise RuntimeError(outcome.error)
     raise RuntimeError(
         "the detached bead store has no push remote; configure its remote "
         "before launching workers"
+    )
+
+
+def _publication_conflict_message(outcome: Any) -> str:
+    """Render a cause-first message for an unmergeable graph publication."""
+    cause = getattr(outcome, "error", None) or "unresolvable publication conflict"
+    log_path = getattr(outcome, "log_path", None)
+    log_detail = f" (managed sync log: {log_path})" if log_path is not None else ""
+    return (
+        f"epic graph publication conflicted with concurrently published history "
+        f"and could not be merged: {cause}{log_detail}"
     )
 
 

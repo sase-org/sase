@@ -91,6 +91,13 @@ def publish_epic_work_graph_and_launch(
                 rollback_preclaims=rollback_preclaims,
                 no_push=True,
             )
+            if exc.publication_conflict:
+                # The rollback above may have committed restored launch
+                # state, so record the post-rollback HEAD: the replay
+                # safety check compares it against the unpublished range.
+                from sase.bead.sync import bead_store_head_sha
+
+                exc.attempt_tip_sha = bead_store_head_sha(proj.beads_dir)
         raise
     except Exception as exc:
         rollback_work_launch(

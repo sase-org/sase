@@ -21,7 +21,7 @@ from sase.bead._sync_worker_common import (
 from sase.bead._sync_worker_rollback import restore_pre_integration_head
 from sase.sdd._push_race import is_retryable_push_race
 from sase.sdd._repository_health import default_git_runner as _git
-from sase.sdd._repository_types import SddIntegrationOutcome
+from sase.sdd._repository_types import SddIntegrationOutcome, SddIntegrationStatus
 
 _MAX_PUSH_ATTEMPTS = 3
 _MAX_LOCAL_CHANGES_ATTEMPTS = 3
@@ -39,6 +39,7 @@ class _ManagedSyncOutcome:
     error: str | None = None
     bead_relocations: tuple[Any, ...] = ()
     push_attempts: int = 0
+    integration_status: str | None = None
 
 
 def run_managed_sync_worker(
@@ -157,6 +158,7 @@ def _run_locked_sync(
 
     integrated = False
     bead_relocations: tuple[Any, ...] = ()
+    last_integration_status: str | None = None
     git_runner = _git_runner_for_deadline(deadline)
     for push_attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
         pre_head = rev_parse_head(
@@ -184,7 +186,9 @@ def _run_locked_sync(
                 f"integration timed out: {exc}; {rollback_summary}",
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                integration_status=SddIntegrationStatus.TIMED_OUT.value,
             )
+        last_integration_status = integration.status.value
         integrated = integrated or integration.integrated
         integration_relocations = _integration_relocations(integration)
         bead_relocations = compose_bead_relocations(
@@ -198,6 +202,7 @@ def _run_locked_sync(
                 or f"SDD integration ended with {integration.status.value}",
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                integration_status=integration.status.value,
             )
         if integration_relocations:
             rewritten = rewrite_head_subject_for_bead_relocations(
@@ -231,6 +236,7 @@ def _run_locked_sync(
                 f"{exc}; {rollback_summary}",
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                integration_status=last_integration_status,
             )
 
         # Any successful integration ends the clone's failed-integration
@@ -251,6 +257,7 @@ def _run_locked_sync(
                 f"timed out clearing the integration marker: {exc}",
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                integration_status=SddIntegrationStatus.TIMED_OUT.value,
             )
 
         try:
@@ -266,6 +273,7 @@ def _run_locked_sync(
                 f"git push timed out: {exc}",
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                integration_status=last_integration_status,
             )
         if pushed.returncode == 0:
             log_sync_event(
@@ -283,6 +291,7 @@ def _run_locked_sync(
                 integrated=integrated,
                 bead_relocations=bead_relocations,
                 push_attempts=push_attempt,
+                integration_status=last_integration_status,
             )
         if not _is_non_fast_forward_rejection(pushed):
             return _failure(
@@ -487,6 +496,7 @@ def _failure(
     integrated: bool = False,
     bead_relocations: tuple[Any, ...] = (),
     push_attempts: int = 0,
+    integration_status: str | None = None,
 ) -> _ManagedSyncOutcome:
     from sase.sdd._repository_health import format_git_error
 
@@ -505,4 +515,5 @@ def _failure(
         error=error,
         bead_relocations=bead_relocations,
         push_attempts=push_attempts,
+        integration_status=integration_status,
     )

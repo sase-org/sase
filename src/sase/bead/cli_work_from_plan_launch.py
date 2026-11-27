@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import ExitStack
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from rich.console import Console
 
@@ -257,13 +257,24 @@ def work_from_plan_file_locked(
         )
 
     def publish_created_graph(project: BeadProject, epic_id: str) -> Any:
-        return hooks.checkpoint_and_publish_graph(
-            store=store,
-            project=project,
-            epic_id=epic_id,
-            no_push=no_push,
-            render=render,
-        )
+        from sase.bead.cli_work_handler_errors import EpicGraphPublicationConflictError
+        from sase.bead.sync import bead_store_head_sha
+
+        try:
+            return hooks.checkpoint_and_publish_graph(
+                store=store,
+                project=project,
+                epic_id=epic_id,
+                no_push=no_push,
+                render=render,
+            )
+        except EpicGraphPublicationConflictError as exc:
+            # Record the attempt's tip as a fallback. The launch handler
+            # overwrites this with the post-rollback HEAD after its own
+            # rollback runs; without a handler rollback this is the tip.
+            if exc.attempt_tip_sha is None:
+                exc.attempt_tip_sha = bead_store_head_sha(project.beads_dir)
+            raise
 
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
         nonlocal launched_names, preserved_names, launch_state
@@ -303,6 +314,8 @@ def work_from_plan_file_locked(
 
     timer.fields["relocation_retries"] = 0
     relocation_retries = 0
+    timer.fields["publication_conflict_replays"] = 0
+    publication_conflict_replays = 0
     created: Any = None
     try:
         for attempt in range(1, _EPIC_CREATION_MAX_ATTEMPTS + 1):
@@ -344,6 +357,37 @@ def work_from_plan_file_locked(
                     timer.fields["bead_id"] = created.epic.id
                     break
             except EpicFromPlanError as retry_exc:
+                if retry_exc.publication_conflict:
+                    if attempt >= _EPIC_CREATION_MAX_ATTEMPTS:
+                        raise
+                    recovery_ref = _replay_publication_conflict(
+                        beads_dir=location.beads_dir,
+                        launch_base=launch_base,
+                        epic_id=attempted_epic_ids[-1] if attempted_epic_ids else "?",
+                        checkpoint_sha=retry_exc.checkpoint_sha,
+                        attempt_tip_sha=retry_exc.attempt_tip_sha,
+                        cause=str(retry_exc),
+                        archived_path=archived_path,
+                    )
+                    publication_conflict_replays += 1
+                    timer.fields["publication_conflict_replays"] = (
+                        publication_conflict_replays
+                    )
+                    if render:
+                        old_id = attempted_epic_ids[-1] if attempted_epic_ids else "?"
+                        Console().print(
+                            f"[yellow]↻[/yellow] Epic ID {old_id} could not be "
+                            "merged with concurrently published history; "
+                            "discarded the unpublished launch graph "
+                            f"(recovery ref {recovery_ref}), retrying "
+                            f"(attempt {attempt + 1}/{_EPIC_CREATION_MAX_ATTEMPTS})"
+                        )
+                    # The store is back at upstream and the next attempt
+                    # re-runs the pre-mint refresh, opens a fresh
+                    # BeadProject, and mints a fresh ID. stale_epic_id stays
+                    # unchanged: the plan link was restored to its original
+                    # content before the replay.
+                    continue
                 relocated_id = retry_exc.relocated_epic_id
                 rollback_clean = "; rollback also failed" not in str(retry_exc)
                 if (
@@ -566,6 +610,7 @@ def checkpoint_and_publish_graph(
 ) -> Any:
     """Commit the complete ready graph and cross the visibility barrier."""
     from sase.bead.cli_work_handler import BeadWorkError
+    from sase.bead.cli_work_handler_errors import EpicGraphPublicationConflictError
     from sase.bead.sync import bead_state_is_clean, commit_epic_graph_checkpoint
 
     try:
@@ -581,9 +626,19 @@ def checkpoint_and_publish_graph(
         Console().print(
             f"[green]✓[/green] Graph committed epic {epic_id} · workers preassigned"
         )
+    # The checkpoint commit is this attempt's first recorded beads-repo
+    # commit; the replay safety check compares it against the unpublished
+    # range before discarding anything.
+    from sase.bead.sync import bead_store_head_sha
+
+    checkpoint_sha = bead_store_head_sha(project.beads_dir)
 
     try:
         published = hooks.publish_epic_graph_before_launch(store, no_push=no_push)
+    except EpicGraphPublicationConflictError as exc:
+        if exc.checkpoint_sha is None:
+            exc.checkpoint_sha = checkpoint_sha
+        raise
     except Exception as exc:
         raise BeadWorkError(
             f"epic graph publication failed before agent launch for {epic_id}: {exc}",
@@ -594,6 +649,241 @@ def checkpoint_and_publish_graph(
         destination = "remote" if published else "shared authoritative store"
         Console().print(f"[green]✓[/green] Graph published {epic_id} · {destination}")
     return published
+
+
+def _replay_publication_conflict(
+    *,
+    beads_dir: Path,
+    launch_base: str | None,
+    epic_id: str,
+    checkpoint_sha: str | None,
+    attempt_tip_sha: str | None,
+    cause: str,
+    archived_path: Path,
+) -> str:
+    """Discard this attempt's unpublished graph; return the recovery ref.
+
+    Raises :class:`EpicFromPlanError` with manual recovery steps when any
+    safety check fails; the caller must not reset then.
+    """
+    from sase.bead.epic_from_plan import EpicFromPlanError
+    from sase.bead.sync import bead_store_git_root
+
+    def _refuse(reason: str) -> NoReturn:
+        raise EpicFromPlanError(
+            _publication_replay_refusal_message(
+                cause=cause,
+                epic_id=epic_id,
+                beads_dir=beads_dir,
+                archived_path=archived_path,
+                reason=reason,
+            ),
+            publication_conflict=True,
+        )
+
+    repo_root = bead_store_git_root(beads_dir)
+    if repo_root is None:
+        _refuse(f"could not locate the beads git repo for {beads_dir}")
+
+    try:
+        from sase.workspace_provider.ownership import authorize_store_mutation
+
+        authorize_store_mutation(repo_root)
+    except Exception as exc:
+        _refuse(f"the workspace ownership guard refused the reset: {exc}")
+
+    import subprocess
+
+    from sase.sdd._git import run_sdd_git
+    from sase.sdd._git_contention import store_git_write_lock
+
+    def _git(args: list[str], op: str) -> subprocess.CompletedProcess[Any]:
+        return run_sdd_git(
+            args,
+            cwd=repo_root,
+            op=op,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    with store_git_write_lock(
+        repo_root,
+        op="bead.publication_conflict_replay",
+        mutates_worktree=True,
+    ) as acquired:
+        if not acquired:
+            _refuse(
+                "could not acquire the beads store write lock; another writer holds it"
+            )
+        fetched = _git(["fetch"], "bead.publication_conflict_replay.fetch")
+        if fetched.returncode != 0:
+            _refuse(
+                "could not fetch the beads repo: "
+                f"{(fetched.stderr or fetched.stdout or '').strip()}"
+            )
+        upstream = _git(
+            ["rev-parse", "--verify", "@{upstream}"],
+            "bead.publication_conflict_replay.upstream",
+        )
+        if upstream.returncode != 0 or not upstream.stdout.strip():
+            _refuse("the beads clone has no configured upstream to reset to")
+        upstream_sha = upstream.stdout.strip()
+
+        if not launch_base:
+            _refuse("no launch base was recorded before minting this attempt")
+        ancestor = _git(
+            ["merge-base", "--is-ancestor", launch_base, "@{upstream}"],
+            "bead.publication_conflict_replay.ancestor",
+        )
+        if ancestor.returncode != 0:
+            _refuse(
+                f"the launch base {launch_base} is not an ancestor of "
+                "@{upstream}; another writer moved the store"
+            )
+
+        head = _git(["rev-parse", "HEAD"], "bead.publication_conflict_replay.head")
+        if head.returncode != 0 or not head.stdout.strip():
+            _refuse("could not read the beads clone HEAD")
+        head_sha = head.stdout.strip()
+
+        symbolic = _git(
+            ["symbolic-ref", "--quiet", "HEAD"],
+            "bead.publication_conflict_replay.branch",
+        )
+        if symbolic.returncode != 0:
+            _refuse("the beads clone is on a detached HEAD; refusing to reset")
+        branch = symbolic.stdout.strip().removeprefix("refs/heads/")
+
+        git_dir_result = _git(
+            ["rev-parse", "--absolute-git-dir"],
+            "bead.publication_conflict_replay.git_dir",
+        )
+        git_dir_text = git_dir_result.stdout.strip()
+        git_dir = Path(git_dir_text) if git_dir_text else None
+        markers = ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD")
+        if git_dir is not None and any(
+            (git_dir / marker).exists() for marker in markers
+        ):
+            _refuse("a git operation is still in progress in the beads clone")
+
+        if head_sha == launch_base:
+            _refuse("the beads store holds no unpublished commits for this attempt")
+
+        rev_list = _git(
+            ["rev-list", f"{launch_base}..HEAD"],
+            "bead.publication_conflict_replay.range",
+        )
+        if rev_list.returncode != 0:
+            _refuse(
+                "could not list the unpublished commits: "
+                f"{(rev_list.stderr or rev_list.stdout or '').strip()}"
+            )
+        unpublished = [line for line in rev_list.stdout.splitlines() if line.strip()]
+        if not unpublished:
+            _refuse("the beads store holds no unpublished commits for this attempt")
+        allowed = {sha for sha in (checkpoint_sha, attempt_tip_sha) if sha is not None}
+        if not allowed:
+            _refuse("this attempt recorded no checkpoint commit to compare against")
+        foreign = [sha for sha in unpublished if sha not in allowed]
+        if foreign:
+            _refuse(
+                "commit "
+                + ", ".join(foreign)
+                + " is not part of this attempt's unpublished graph"
+            )
+
+        status = _git(
+            ["status", "--porcelain"],
+            "bead.publication_conflict_replay.status",
+        )
+        if status.returncode != 0:
+            _refuse("could not inspect the beads worktree for tracked changes")
+        tracked_changes = [
+            line for line in status.stdout.splitlines() if not line.startswith("??")
+        ]
+        if tracked_changes:
+            _refuse("the beads worktree has other tracked changes")
+
+        import time
+
+        from sase.sdd._repository_recovery_git import (
+            recovery_ref,
+            update_and_verify_ref,
+            verify_managed_reset,
+        )
+
+        ref = recovery_ref(repo_root, epic_id, head_sha, time.time())
+
+        def _locked_runner(
+            root: Path, args: list[str], *, op: str, network: bool = False
+        ) -> subprocess.CompletedProcess[Any]:
+            del network
+            return run_sdd_git(
+                args,
+                cwd=root,
+                op=op,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        try:
+            preserve_problem = update_and_verify_ref(
+                repo_root,
+                ref,
+                head_sha,
+                _locked_runner,
+                "bead.publication_conflict_replay",
+            )
+        except Exception as exc:
+            _refuse(f"timed out preserving the unpublished graph: {exc}")
+        if preserve_problem is not None:
+            _refuse(preserve_problem)
+
+        reset = _git(
+            ["reset", "--hard", "@{upstream}"],
+            "bead.publication_conflict_replay.reset",
+        )
+        if reset.returncode != 0:
+            _refuse(
+                "could not reset the beads clone to upstream: "
+                f"{(reset.stderr or reset.stdout or '').strip()}; the "
+                f"unpublished graph is preserved under {ref}"
+            )
+        reset_problem = verify_managed_reset(
+            repo_root,
+            branch=branch,
+            upstream_sha=upstream_sha,
+            runner=_locked_runner,
+        )
+        if reset_problem is not None:
+            _refuse(f"{reset_problem}; the unpublished graph is preserved under {ref}")
+        return ref
+
+
+def _publication_replay_refusal_message(
+    *,
+    cause: str,
+    epic_id: str,
+    beads_dir: Path,
+    archived_path: Path,
+    reason: str,
+) -> str:
+    """Render the no-reset failure: cause first, then manual recovery."""
+    return (
+        f"{cause}\n"
+        f"The unpublished launch graph for {epic_id} was NOT discarded: "
+        f"{reason}.\n"
+        "Recover manually:\n"
+        f"  1. rescue the unpublished commits, e.g. `git -C {beads_dir} "
+        "update-ref refs/sase/recovery/<name> HEAD`;\n"
+        f"  2. reset the beads clone to upstream: `git -C {beads_dir} fetch "
+        f"&& git -C {beads_dir} reset --hard @{{upstream}}`;\n"
+        f"  3. remove the plan's `bead_id` header from {archived_path};\n"
+        f"  4. rerun `sase bead work {archived_path}`.\n"
+        "For broader diagnostics, run `sase doctor -v`."
+    )
 
 
 __all__ = [

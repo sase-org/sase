@@ -16,6 +16,7 @@ from sase.bead.cli_work_handler_entry import (
 )
 from sase.bead.cli_work_handler_errors import (
     BeadWorkError,
+    EpicGraphPublicationConflictError,
     EpicGraphRelocatedError,
     EpicLaunchState,
 )
@@ -35,6 +36,7 @@ from sase.bead.cli_work_task import (
 __all__ = [
     "BEAD_WORK_TIMING_ENV",
     "BeadWorkError",
+    "EpicGraphPublicationConflictError",
     "EpicGraphRelocatedError",
     "EpicLaunchState",
     "TaskBeadWorkError",

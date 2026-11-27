@@ -453,6 +453,27 @@ def find_git_root(path: Path) -> Path | None:
     return None
 
 
+def bead_store_head_sha(beads_dir: Path) -> str | None:
+    """Return the beads-repo ``HEAD`` SHA, or ``None`` when unavailable."""
+    from sase.sdd._git import run_sdd_git
+
+    repo_root = find_git_root(beads_dir)
+    if repo_root is None:
+        return None
+    result = run_sdd_git(
+        ["rev-parse", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+        op="bead.store_head_sha",
+    )
+    if result.returncode != 0:
+        return None
+    sha = result.stdout.strip()
+    return sha or None
+
+
 def relative_pathspec(path: Path, repo_root: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 

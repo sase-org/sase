@@ -9,7 +9,11 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
+from sase.bead.cli_work_handler import (
+    BeadWorkError,
+    EpicGraphPublicationConflictError,
+    launch_epic_bead_work,
+)
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
 from sase.macro.models import Macro
@@ -487,3 +491,55 @@ def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
 
     with BeadProject(root, beads_dirname="beads") as project:
         assert epic_plan_source_path(project, plan_ref) == source.resolve()
+
+
+def test_publication_conflict_error_propagates_typed_without_spawning(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unmergeable graph publication stays typed and spawns nothing."""
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    launcher_reached = False
+
+    def unexpected_launch(*_args: object, **_kwargs: object) -> object:
+        nonlocal launcher_reached
+        launcher_reached = True
+        raise AssertionError("agent launcher crossed a failed visibility barrier")
+
+    def fail_publication(project: BeadProject, active_epic_id: str) -> None:
+        raise EpicGraphPublicationConflictError(
+            "epic graph publication conflicted with concurrently published "
+            "history and could not be merged: bead-ID collision with "
+            "concurrently published history could not be merged: duplicate "
+            "issue_created event for sase-1",
+            semantic_cause=(
+                "bead-ID collision with concurrently published history "
+                "could not be merged: duplicate issue_created event for sase-1"
+            ),
+            log_path=project_dir / "sync.log",
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
+        unexpected_launch,
+    )
+
+    with BeadProject(project_dir) as project:
+        with pytest.raises(
+            EpicGraphPublicationConflictError,
+            match="could not be merged",
+        ) as excinfo:
+            launch_epic_bead_work(
+                project,
+                epic_id,
+                dry_run=False,
+                yes=True,
+                no_push=False,
+                before_agent_launch=fail_publication,
+            )
+
+    assert excinfo.value.publication_conflict is True
+    assert excinfo.value.agents_spawned is False
+    assert excinfo.value.semantic_cause is not None
+    assert "duplicate issue_created event for sase-1" in excinfo.value.semantic_cause
+    assert launcher_reached is False
