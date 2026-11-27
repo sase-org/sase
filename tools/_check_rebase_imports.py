@@ -28,6 +28,9 @@ FIRST_PARTY_ROOT = "sase"
 CONTEXT_ENV = "SASE_REBASE_CONTEXT"
 RESULT_ENV = "SASE_REBASE_RESULT"
 SRC_DIRNAME = "src"
+# Dirty/untracked queries stay inside these roots so gitignored virtualenv
+# trees cannot fail the committed-tree check.
+_FIRST_PARTY_SOURCE_ROOTS = (SRC_DIRNAME, "tools", "tests")
 
 #: Exact ``(module, imported_name)`` pairs that may fail at runtime only inside
 #: a proven ``TYPE_CHECKING`` block. Derived from an importlib scan of this
@@ -361,18 +364,23 @@ def _nul_split(payload: str) -> list[str]:
 
 
 def _python_paths_not_matching_tree(repo: Path, tree: str) -> list[str]:
-    """Return dirty or untracked ``.py`` paths that could shadow the tree."""
+    """Return dirty or untracked first-party ``.py`` paths that could shadow the tree.
+
+    Limited to ``src/``, ``tools/``, and ``tests/`` so gitignored virtualenv
+    files do not count as dirty.
+    """
 
     names: list[str] = []
     queries = (
-        ("diff", "--name-only", "-z", tree, "--"),
-        ("diff", "--cached", "--name-only", "-z", tree, "--"),
-        ("ls-files", "-o", "-z", "--"),
-        ("ls-files", "-o", "-i", "--exclude-standard", "-z", "--"),
+        ("diff", "--name-only", "-z", tree),
+        ("diff", "--cached", "--name-only", "-z", tree),
+        ("ls-files", "-o", "-z"),
+        ("ls-files", "-o", "-i", "--exclude-standard", "-z"),
     )
     seen: set[str] = set()
     for args in queries:
-        for path in _nul_split(_git_text(repo, *args)):
+        listed = _git_text(repo, *args, "--", *_FIRST_PARTY_SOURCE_ROOTS)
+        for path in _nul_split(listed):
             posix = _posix_relpath(path)
             if posix.endswith(".py") and posix not in seen:
                 seen.add(posix)

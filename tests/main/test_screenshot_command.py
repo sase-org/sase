@@ -575,6 +575,27 @@ def test_local_capture_keep_then_recapture_uses_printed_unique_target(
     assert first.tmux_target == "@1"
     assert second.tmux_target == "@1"
     assert (first.screenshot_dir / "screen_2.svg").exists()
+    assert any(call[:1] == ["kill"] for call in runner.calls)
+    assert not any(call[:2] == ["tmux", "kill-window"] for call in runner.calls)
+
+
+def test_window_without_screenshot_dir_is_refused_without_signal(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = _FakeRunner(tmp_path)
+    monkeypatch.setattr(screenshot_local.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(screenshot_local.ScreenshotCaptureError) as excinfo:
+        capture_local_screenshot(
+            _options(output=tmp_path / "shot.png", window="sase:4"),
+            runner=runner,
+        )
+
+    message = str(excinfo.value)
+    assert "sase screenshot --keep" in message
+    assert "@sase_screenshot_dir" in message
+    assert not any(call[:1] == ["kill"] for call in runner.calls)
     assert not any(call[:2] == ["tmux", "kill-window"] for call in runner.calls)
 
 
@@ -586,11 +607,6 @@ def test_existing_window_svg_capture_does_not_kill_or_rasterize(
     existing_request_dir = tmp_path / "existing-window-request"
     runner.screenshot_dir = existing_request_dir
     output = tmp_path / "shot.svg"
-    monkeypatch.setattr(
-        screenshot_local,
-        "screenshot_request_dir",
-        lambda session, window_name: existing_request_dir,
-    )
     monkeypatch.setattr(screenshot_local.time, "sleep", lambda seconds: None)
 
     from sase.ace.tui import visual_render
@@ -610,5 +626,6 @@ def test_existing_window_svg_capture_does_not_kill_or_rasterize(
     assert result.svg == output
     assert result.png is None
     assert result.created_window is False
+    assert any(call[:1] == ["kill"] for call in runner.calls)
     assert not any(call[:2] == ["tmux", "new-window"] for call in runner.calls)
     assert not any(call[:2] == ["tmux", "kill-window"] for call in runner.calls)

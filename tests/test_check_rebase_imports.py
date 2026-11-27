@@ -422,6 +422,28 @@ def test_stale_pyc_is_never_used_for_committed_source(tmp_path: Path) -> None:
     assert report["findings"][0]["imported_name"] == "X"
 
 
+def test_ignored_venv_python_files_do_not_block_certification(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(
+            **{
+                ".gitignore": "__pycache__/\n.venv/\n",
+                "src/sase/importer.py": "from sase.mod import Present\n",
+            }
+        ),
+    )
+    _write(repo, ".venv/lib/python3.13/site-packages/x.py", "print('venv')\n")
+
+    proc, report = _run_tool(
+        repo,
+        _context(repo, [_change("src/sase/importer.py")]),
+    )
+
+    assert proc.returncode == 0
+    assert report is not None
+    assert report["status"] == "clean"
+
+
 def test_ignored_untracked_first_party_source_is_not_certified(tmp_path: Path) -> None:
     repo = _init_repo(
         tmp_path,

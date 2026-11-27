@@ -13,7 +13,6 @@ import time
 from collections.abc import Sequence
 from typing import Any, Literal, Protocol, cast
 
-from sase.ace.tui.screenshot_export import screenshot_request_dir
 from sase.core.paths import get_sase_managed_tmpdir
 from sase.core.time import generate_timestamp
 from sase.main import ace_tmux
@@ -275,17 +274,19 @@ def _inspect_tmux_window(
     session = fields[0]
     window_id = fields[1]
     window_name = fields[2]
-    request_dir = (
-        Path(fields[4]).expanduser()
-        if fields[4]
-        else screenshot_request_dir(session, window_name)
-    )
+    screenshot_dir = fields[4].strip()
+    if not screenshot_dir:
+        raise ScreenshotCaptureError(
+            f"--window target {target!r} was not launched by sase screenshot "
+            "(missing @sase_screenshot_dir). Recapture a target from "
+            "sase screenshot --keep."
+        )
     return _InspectedTmuxWindow(
         session=session,
         window_name=window_name,
         target=window_id if window_id.startswith("@") else target,
         pane_pid=pane_pid,
-        request_dir=request_dir,
+        request_dir=Path(screenshot_dir).expanduser(),
     )
 
 
