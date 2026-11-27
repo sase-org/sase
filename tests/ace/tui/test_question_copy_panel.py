@@ -222,7 +222,36 @@ def test_copyable_multiline_uses_fenced_block() -> None:
         include_copy_items=True,
     )
     assert "```" in out
-    assert "line one\nline two" in out
+    assert "  line one\n  line two\n" in out
+
+
+def test_copyable_multiline_round_trips_through_commonmark() -> None:
+    from markdown_it import MarkdownIt
+
+    value = "line one\n  indented two\n\n\tthree ```x```"
+    out = build_qa_markdown(
+        questions=[
+            {
+                "question": "Run?",
+                "options": [{"label": "A"}],
+                "copy": [{"text": value, "label": "Cmd"}, {"text": "after"}],
+            }
+        ],
+        answers=[{"selected": ["A"]}],
+        global_note=None,
+        include_copy_items=True,
+    )
+    tokens = MarkdownIt("commonmark").parse(out)
+    fences = [token.content for token in tokens if token.type == "fence"]
+    assert fences == [value + "\n"]
+    inline_code = [
+        child.content
+        for token in tokens
+        if token.type == "inline"
+        for child in token.children or ()
+        if child.type == "code_inline"
+    ]
+    assert inline_code == ["after"]
 
 
 def test_exactness_matrix_row_values_are_byte_exact() -> None:

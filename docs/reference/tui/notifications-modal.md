@@ -156,16 +156,16 @@ The dim `FOUND IN TEXT` section offers up to five safe candidates from code span
 fenced code, scheme URLs, and valid SASE artifact refs; it never guesses bare paths and
 does not add these detected values to the `yy` export.
 
-| Key                           | Copies                                                     |
-| ----------------------------- | ---------------------------------------------------------- |
-| `1`–`9`, `0`, then `b`…`z`*   | one declared snippet, exactly                              |
-| `a` (2 or more snippets)      | all snippets, one per line                                 |
-| `t`                           | the question text                                          |
-| `o`                           | the highlighted option (disabled on `Other…` or no options)|
-| `y`                           | questions and answers Markdown, plus copyable items        |
-| `Enter` / click               | the highlighted row                                      |
-| `j`/`k`, `↑`/`↓`              | move                                                     |
-| `q` / `Esc`                   | close; nothing is copied and the form is untouched         |
+| Key                                 | Copies                                                      |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `1`–`9`, `0`, then `b`…`z`*         | one declared snippet, exactly                               |
+| `a` (2 or more snippets)            | all snippets, one per line                                  |
+| `t`                                 | the question text                                           |
+| `o`                                 | the highlighted option (disabled on `Other…` or no options) |
+| `y`                                 | questions and answers Markdown, plus copyable items         |
+| `Enter` / click                     | the highlighted row                                         |
+| `j`/`k`, `↑`/`↓`, `ctrl+n`/`ctrl+p` | move                                                        |
+| `q` / `Esc`                         | close; nothing is copied and the form is untouched          |
 
 \* Snippet keys skip `a j k o q t y`. Pressing `y` while typing an `Other` answer, a
 global note, or while the app's `%` copy mode is active types or forwards `y` instead

@@ -48,7 +48,12 @@ def _copy_code_span(value: str) -> str:
 
 
 def _copy_fenced_block(value: str) -> list[str]:
-    """Render one multi-line value verbatim as a fenced block."""
+    """Render one multi-line value verbatim as fenced-block lines.
+
+    Every value line is its own list entry so callers can indent each one
+    into a list item; indenting only the joined value would leave later
+    lines outside the item and strip their leading whitespace.
+    """
     run = 0
     best = 0
     for char in value:
@@ -58,7 +63,7 @@ def _copy_fenced_block(value: str) -> list[str]:
         else:
             run = 0
     fence = "`" * max(3, best + 1)
-    return [fence, value, fence]
+    return [fence, *value.split("\n"), fence]
 
 
 def _render_copyable_items(lines: list[str], q: dict[str, Any]) -> None:
@@ -75,7 +80,8 @@ def _render_copyable_items(lines: list[str], q: dict[str, Any]) -> None:
         if "\n" in item.text:
             lines.append(f"- {item.label}" if item.label else "-")
             lines.extend(
-                f"  {fence_line}" for fence_line in _copy_fenced_block(item.text)
+                f"  {fence_line}" if fence_line else ""
+                for fence_line in _copy_fenced_block(item.text)
             )
         elif item.label:
             lines.append(f"- {item.label}: {_copy_code_span(item.text)}")
