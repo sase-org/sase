@@ -90,9 +90,19 @@ def render_stale_link_replacement(
     archived_path: Path,
     *,
     dry_run: bool,
+    foreign_title: str | None = None,
+    foreign_plan_ref: str | None = None,
 ) -> None:
-    """Render a missing managed ``bead_id`` replacement notice."""
+    """Render a missing or foreign managed ``bead_id`` replacement notice."""
     action = "would create" if dry_run else "creating"
+    if foreign_title is not None:
+        plan_bit = f" · {foreign_plan_ref}" if foreign_plan_ref else ""
+        Console().print(
+            f"[yellow]↺[/yellow] Stale bead link {stale_epic_id} belongs to "
+            f"another plan ({foreign_title}{plan_bit}) · "
+            f"{action} a replacement epic for {archived_path}"
+        )
+        return
     Console().print(
         f"[yellow]↺[/yellow] Stale bead link {stale_epic_id} missing · "
         f"{action} a replacement epic for {archived_path}"

@@ -12,6 +12,7 @@ from sase.bead.cli_work_from_plan_helpers import (
     build_work_plan,
     error_with_resume,
     linked_bead_id_if_present,
+    linked_epic_belongs_to_other_plan,
     ordered_agent_names,
     require_matching_plan_identity,
     require_parent_override_matches_linked,
@@ -28,6 +29,7 @@ from sase.bead.cli_work_from_plan_resume import (
     resume_linked_epic as _resume_linked_epic_impl,
 )
 from sase.bead.cli_work_from_plan_types import (
+    PlanFileWorkError,
     PlanFileWorkResult,
     normalize_epic_launch_result,
 )
@@ -144,6 +146,24 @@ def work_from_plan_file_locked(
             capacity=capacity,
         ) from exc
 
+    from sase.bead.cli_work_from_plan_premint import refresh_store_before_epic_mint
+    from sase.sdd.plan_refs import plan_ref_for_store
+
+    plan_ref = plan_ref_for_store(
+        archived_path,
+        store,
+        workspace_dir=workspace_dir,
+    )
+    refresh_store_before_epic_mint(
+        beads_dir=location.beads_dir,
+        archived_path=archived_path,
+        no_push=no_push,
+        capacity=capacity,
+        render=render,
+        parent=parent,
+        timer=timer,
+    )
+
     linked_epic_id = linked_bead_id_if_present(archived_path)
     stale_epic_id: str | None = None
     if linked_epic_id is not None:
@@ -154,7 +174,12 @@ def work_from_plan_file_locked(
             linked_epic_id,
             archived_path,
         )
-        if linked_issue is not None:
+        if linked_issue is not None and not linked_epic_belongs_to_other_plan(
+            linked_issue,
+            archived_path=archived_path,
+            store=store,
+            workspace_dir=workspace_dir,
+        ):
             timer.fields["bead_id"] = linked_issue.id
             if parent_id is not None:
                 with ExitStack() as stack:
@@ -198,10 +223,17 @@ def work_from_plan_file_locked(
             )
         stale_epic_id = linked_epic_id
         if render:
+            foreign_title = None
+            foreign_plan_ref = None
+            if linked_issue is not None:
+                foreign_title = linked_issue.title
+                foreign_plan_ref = linked_issue.design.strip() or None
             render_stale_link_replacement(
                 stale_epic_id,
                 archived_path,
                 dry_run=False,
+                foreign_title=foreign_title,
+                foreign_plan_ref=foreign_plan_ref,
             )
 
     from sase.bead.cli_work_handler import launch_epic_bead_work
@@ -209,13 +241,7 @@ def work_from_plan_file_locked(
         EpicFromPlanError,
         create_and_launch_epic_from_plan,
     )
-    from sase.sdd.plan_refs import plan_ref_for_store
 
-    plan_ref = plan_ref_for_store(
-        archived_path,
-        store,
-        workspace_dir=workspace_dir,
-    )
     launched_names: tuple[str, ...] = ()
     preserved_names: tuple[str, ...] = ()
     launch_state = ""
@@ -283,6 +309,16 @@ def work_from_plan_file_locked(
             launched_names = ()
             preserved_names = ()
             launch_state = ""
+            launch_base = refresh_store_before_epic_mint(
+                beads_dir=location.beads_dir,
+                archived_path=archived_path,
+                no_push=no_push,
+                capacity=capacity,
+                render=render,
+                parent=parent,
+                timer=timer,
+            )
+            timer.fields["launch_base"] = launch_base
             try:
                 with ExitStack() as stack:
                     with timer.stage("bead_project_open"):
@@ -343,6 +379,8 @@ def work_from_plan_file_locked(
                 # stale_epic_id stays unchanged: rollback restored the
                 # original plan content.
                 continue
+    except PlanFileWorkError:
+        raise
     except Exception as exc:
         retry_requires_push = False
         detail = str(exc)

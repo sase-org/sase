@@ -105,6 +105,55 @@ def test_plan_file_dry_run_previews_stale_link_replacement_without_writes(
     assert "resuming sase-999" not in output
 
 
+def test_plan_file_dry_run_previews_foreign_link_replacement_without_writes(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.model import BeadTier, IssueType
+    from sase.bead.project import BeadProject
+
+    with BeadProject(project_dir) as project:
+        foreign = project.create(
+            "Tree-note link walks",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            design="plan:202608/other.md",
+        )
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    original = EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {foreign.id}")
+    plan.write_text(original, encoding="utf-8")
+    before = {
+        path.relative_to(project_dir): path.read_bytes()
+        for path in project_dir.rglob("*")
+        if path.is_file()
+    }
+
+    result = work_from_plan_file(
+        str(plan),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        render=True,
+    )
+
+    after = {
+        path.relative_to(project_dir): path.read_bytes()
+        for path in project_dir.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert result.epic_id is None
+    assert result.resumed is False
+    assert result.replaced_stale_epic_id == foreign.id
+    output = capsys.readouterr().out
+    assert f"Stale bead link {foreign.id} belongs to another plan" in output
+    assert "Tree-note link walks" in output
+    assert "plan:202608/other.md" in output
+    assert "would create a replacement epic" in output
+    assert f"resuming {foreign.id}" not in output
+
+
 def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

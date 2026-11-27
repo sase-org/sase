@@ -12,6 +12,7 @@ from sase.bead.cli_work_from_plan_helpers import (
     error_with_resume as _error_with_resume,
     is_plan_file_target,
     linked_bead_id_if_present as _linked_bead_id_if_present,
+    linked_epic_belongs_to_other_plan as _linked_epic_belongs_to_other_plan,
     neutral_gate_destination_name as _neutral_gate_destination_name,
     preview_waves as _preview_waves,
     require_matching_plan_identity as _require_matching_plan_identity,
@@ -235,12 +236,23 @@ def work_from_plan_file(
             linked_epic_id = _linked_bead_id_if_present(archive_destination)
             existing_epic_id: str | None = None
             stale_epic_id: str | None = None
+            foreign_title: str | None = None
+            foreign_plan_ref: str | None = None
             if linked_epic_id is not None:
                 linked_issue = _resolve_linked_epic(
                     location, linked_epic_id, archive_destination
                 )
                 if linked_issue is None:
                     stale_epic_id = linked_epic_id
+                elif _linked_epic_belongs_to_other_plan(
+                    linked_issue,
+                    archived_path=archive_destination,
+                    store=store,
+                    workspace_dir=workspace_dir,
+                ):
+                    stale_epic_id = linked_epic_id
+                    foreign_title = linked_issue.title
+                    foreign_plan_ref = linked_issue.design.strip() or None
                 else:
                     existing_epic_id = linked_issue.id
                     _require_parent_override_matches_linked(
@@ -261,6 +273,8 @@ def work_from_plan_file(
                         stale_epic_id,
                         archive_destination,
                         dry_run=True,
+                        foreign_title=foreign_title,
+                        foreign_plan_ref=foreign_plan_ref,
                     )
                 _render_plan_preview(plan, waves)
                 _render_parent_preview(

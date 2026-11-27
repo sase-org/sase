@@ -34,7 +34,8 @@ from sase.bead._sync_refresh import integration_is_fresh as _integration_is_fres
 
 BeadPublicationStatus = _sync_diagnostics.BeadPublicationStatus
 BeadRefreshMode = _sync_refresh.BeadRefreshMode
-_BeadStoreRefreshError = _sync_refresh.BeadStoreRefreshError
+BeadStoreRefreshError = _sync_refresh.BeadStoreRefreshError
+_BeadStoreRefreshError = BeadStoreRefreshError
 _SyncLogOutcome = _sync_logs.SyncLogOutcome
 _PushOutcome = _sync_publication.PushOutcome
 _AsyncPushHandle = _sync_publication.AsyncPushHandle

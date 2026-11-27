@@ -192,6 +192,120 @@ def test_plan_file_replaces_missing_linked_bead(
         ]
 
 
+def test_plan_file_replaces_foreign_linked_epic(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        foreign = project.create(
+            "Tree-note link walks",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            design="plan:202608/other.md",
+        )
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {foreign.id}"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    launches: list[str] = []
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
+    )
+
+    result = work_from_plan_file(
+        str(plan),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=True,
+    )
+
+    assert result.epic_id is not None
+    assert result.epic_id != foreign.id
+    assert result.replaced_stale_epic_id == foreign.id
+    assert result.resumed is False
+    assert launches == [result.epic_id]
+    output = capsys.readouterr().out
+    assert f"Stale bead link {foreign.id} belongs to another plan" in output
+    assert "Tree-note link walks" in output
+    assert "plan:202608/other.md" in output
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan.read_text(encoding="utf-8")
+    )
+    assert frontmatter["bead_id"] == result.epic_id
+    with BeadProject(project_dir) as project:
+        assert project.show(foreign.id).title == "Tree-note link walks"
+        assert project.show(result.epic_id).tier is BeadTier.EPIC
+
+
+def test_plan_file_resumes_linked_epic_with_matching_design(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.plan_refs import plan_ref_for_store
+    from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
+
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(EPIC_PLAN, encoding="utf-8")
+    store = SddStore(
+        storage=SDD_STORAGE_IN_TREE,
+        sdd_dir=project_dir / "sdd",
+        repo_root=project_dir,
+    )
+    plan_ref = plan_ref_for_store(plan, store, workspace_dir=project_dir)
+    with BeadProject(project_dir) as project:
+        epic = project.create(
+            "Plan-file rollout",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            design=plan_ref,
+        )
+        core = project.create("Build the core", IssueType.PHASE, parent_id=epic.id)
+        cli = project.create("Add the CLI", IssueType.PHASE, parent_id=epic.id)
+        verify = project.create("Verify the result", IssueType.PHASE, parent_id=epic.id)
+        project.add_dependency(cli.id, core.id)
+        project.add_dependency(verify.id, core.id)
+        project.add_dependency(verify.id, cli.id)
+    plan.write_text(
+        EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {epic.id}"),
+        encoding="utf-8",
+    )
+    launches: list[str] = []
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
+    )
+
+    result = work_from_plan_file(
+        str(plan),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    assert result.epic_id == epic.id
+    assert result.resumed is True
+    assert result.replaced_stale_epic_id is None
+    assert result.phase_bead_ids == (core.id, cli.id, verify.id)
+    assert launches == [epic.id]
+    with BeadProject(project_dir) as project:
+        assert len(project.list_issues()) == 4
+
+
 def test_plan_file_rejects_linked_non_epic_bead(
     project_dir: Path,
 ) -> None:

@@ -196,8 +196,13 @@ def test_refresh_bead_store_lock_timeout_declines_a_contended_clone(
     try:
         assert holder_acquired.wait(timeout=10)
         started = time.monotonic()
-        with pytest.raises(RuntimeError, match="refresh lock"):
+        with pytest.raises(RuntimeError, match="refresh lock") as caught:
             refresh_bead_store(beads_dir, lock_timeout=0.5)
+        from sase.bead._sync_refresh import BeadStoreRefreshError
+        from sase.sdd._repository_types import SddIntegrationStatus
+
+        assert isinstance(caught.value, BeadStoreRefreshError)
+        assert caught.value.status is SddIntegrationStatus.LOCK_UNAVAILABLE
         elapsed = time.monotonic() - started
     finally:
         release_holder.set()

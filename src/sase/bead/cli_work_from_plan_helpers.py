@@ -13,6 +13,7 @@ from sase.sdd.plan_waves import plan_phase_waves
 
 if TYPE_CHECKING:
     from sase.bead.work import EpicWorkPlan
+    from sase.sdd.store import SddStore
 
 
 def is_plan_file_target(target: str) -> bool:
@@ -119,6 +120,75 @@ def resolve_linked_epic(
             "epic plan bead; remove the stale bead_id or restore the correct bead"
         )
     return issue
+
+
+def _canonical_plan_identity(
+    value: str,
+    *,
+    store: SddStore,
+    workspace_dir: Path,
+) -> str:
+    """Return a comparable plan identity for a stored or computed plan ref."""
+    text = value.strip()
+    if not text:
+        return ""
+    from sase.core.paths import sase_subdir
+    from sase.sdd.plan_refs import (
+        canonicalize_plan_reference_from_roots,
+        parse_plan_reference,
+    )
+
+    roots = (store.kind_root("plans"), sase_subdir("plans"))
+    try:
+        parsed = parse_plan_reference(text)
+    except Exception:
+        parsed = None
+    if parsed is not None and not parsed.legacy:
+        return parsed.rendered
+
+    candidates: list[Path] = []
+    raw_path = Path(text)
+    if raw_path.is_absolute():
+        candidates.append(raw_path.expanduser().resolve(strict=False))
+    else:
+        candidates.append((workspace_dir / raw_path).expanduser().resolve(strict=False))
+        candidates.append(raw_path.expanduser().resolve(strict=False))
+    for path in candidates:
+        canonical = canonicalize_plan_reference_from_roots(path, roots=roots)
+        if canonical is not None:
+            return canonical
+    canonical = canonicalize_plan_reference_from_roots(text, roots=roots)
+    if canonical is not None:
+        return canonical
+    if parsed is not None:
+        return parsed.rendered
+    return text
+
+
+def linked_epic_belongs_to_other_plan(
+    issue: Issue,
+    *,
+    archived_path: Path,
+    store: SddStore,
+    workspace_dir: Path,
+) -> bool:
+    """Return whether a linked epic's design names a different plan.
+
+    An epic with no ``design`` keeps today's resume behavior.
+    """
+    design = issue.design.strip()
+    if not design:
+        return False
+    from sase.sdd.plan_refs import plan_ref_for_store
+
+    expected = plan_ref_for_store(
+        archived_path,
+        store,
+        workspace_dir=workspace_dir,
+    )
+    left = _canonical_plan_identity(design, store=store, workspace_dir=workspace_dir)
+    right = _canonical_plan_identity(expected, store=store, workspace_dir=workspace_dir)
+    return left != right
 
 
 def require_parent_override_matches_linked(

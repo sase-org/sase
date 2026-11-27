@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.sdd._repository_types import SddIntegrationStatus
 
 
 BeadRefreshMode = Literal["background", "blocking", "off"]
@@ -12,6 +15,10 @@ BeadRefreshMode = Literal["background", "blocking", "off"]
 
 class BeadStoreRefreshError(RuntimeError):
     """Raised when a blocking refresh cannot integrate the bead store."""
+
+    def __init__(self, message: str, *, status: SddIntegrationStatus) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 def bead_refresh_mode() -> BeadRefreshMode:
@@ -60,7 +67,10 @@ def refresh_bead_store(
     from sase.sdd._repository_recovery_markers import (
         clear_failed_integration_marker,
     )
-    from sase.sdd._repository_transaction import integrate_sdd_repository
+    from sase.sdd._repository_transaction import (
+        SddIntegrationStatus,
+        integrate_sdd_repository,
+    )
 
     observed_generation = integration_marker_generation(repo_root)
     with store_git_write_lock(
@@ -74,7 +84,8 @@ def refresh_bead_store(
             return
         if not acquired:
             raise BeadStoreRefreshError(
-                f"could not acquire the bead-store refresh lock for {repo_root}"
+                f"could not acquire the bead-store refresh lock for {repo_root}",
+                status=SddIntegrationStatus.LOCK_UNAVAILABLE,
             )
         outcome = integrate_sdd_repository(
             repo_root,
@@ -93,4 +104,4 @@ def refresh_bead_store(
         return
 
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
-    raise BeadStoreRefreshError(detail)
+    raise BeadStoreRefreshError(detail, status=outcome.status)
