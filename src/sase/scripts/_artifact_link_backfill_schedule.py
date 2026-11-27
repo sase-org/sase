@@ -45,6 +45,8 @@ class BackfillSchedule:
     sweep_fingerprints: dict[str, str] = field(default_factory=dict)
     sweep_full_at: dict[str, float] = field(default_factory=dict)
     reconcile_memos: dict[str, ArtifactLinkReconcileMemo] = field(default_factory=dict)
+    reconcile_priority: dict[str, bool] = field(default_factory=dict)
+    reconcile_started_at: dict[str, float] = field(default_factory=dict)
 
     def stale_drop_due(self, project: str, *, now: float) -> bool:
         """Return whether *project*'s daily stale-terminal drop should run."""
@@ -111,6 +113,23 @@ class BackfillSchedule:
 
         return self.reconcile_memos.setdefault(project, ArtifactLinkReconcileMemo())
 
+    def has_reconcile_priority(self, project: str) -> bool:
+        """Return whether *project* should skip its sweep and bypass the gate."""
+
+        return bool(self.reconcile_priority.get(project))
+
+    def mark_reconcile_priority(self, project: str) -> None:
+        self.reconcile_priority[project] = True
+
+    def clear_reconcile_priority(self, project: str) -> None:
+        self.reconcile_priority.pop(project, None)
+
+    def mark_reconcile_started(self, project: str, *, now: float) -> None:
+        self.reconcile_started_at[project] = float(now)
+
+    def clear_reconcile_started(self, project: str) -> None:
+        self.reconcile_started_at.pop(project, None)
+
     def prune(self, live_projects: Iterable[str]) -> None:
         """Forget projects that are no longer enabled."""
 
@@ -121,6 +140,8 @@ class BackfillSchedule:
             self.sweep_fingerprints,
             self.sweep_full_at,
             self.reconcile_memos,
+            self.reconcile_priority,
+            self.reconcile_started_at,
         ):
             for key in set(mapping) - live:
                 del mapping[key]
@@ -144,6 +165,8 @@ def read_backfill_schedule(path: Path) -> BackfillSchedule:
         sweep_fingerprints=_string_map(payload.get("sweep_fingerprints")),
         sweep_full_at=_number_map(payload.get("sweep_full_at")),
         reconcile_memos=_memo_map(payload.get("reconcile_memos")),
+        reconcile_priority=_flag_map(payload.get("reconcile_priority")),
+        reconcile_started_at=_number_map(payload.get("reconcile_started_at")),
     )
 
 
@@ -161,6 +184,12 @@ def write_backfill_schedule(path: Path, schedule: BackfillSchedule) -> None:
             key: memo.to_json()
             for key, memo in sorted(schedule.reconcile_memos.items())
         },
+        "reconcile_priority": sorted(
+            project
+            for project, flagged in schedule.reconcile_priority.items()
+            if flagged
+        ),
+        "reconcile_started_at": dict(sorted(schedule.reconcile_started_at.items())),
     }
     fd, temporary_path = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
@@ -201,6 +230,18 @@ def _string_map(value: object) -> dict[str, str]:
         for key, item in value.items()
         if isinstance(key, str) and isinstance(item, str) and item
     }
+
+
+def _flag_map(value: object) -> dict[str, bool]:
+    if isinstance(value, dict):
+        return {
+            key: True
+            for key, item in value.items()
+            if isinstance(key, str) and key and item
+        }
+    if isinstance(value, list):
+        return {key: True for key in value if isinstance(key, str) and key}
+    return {}
 
 
 def _memo_map(value: object) -> dict[str, ArtifactLinkReconcileMemo]:

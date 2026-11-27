@@ -12,7 +12,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sase.chops.builtin import BuiltinChopRuntime
-from sase.scripts._artifact_link_backfill_schedule import BackfillSchedule
+from sase.scripts._artifact_link_backfill_schedule import (
+    BackfillSchedule,
+    write_backfill_schedule,
+)
 from sase.scripts._artifact_link_backfill_state import write_sweep_state
 from sase.sdd._artifact_link_incremental import document_sweep_fingerprint
 from sase.sdd._artifact_link_outbox_drain_support import (
@@ -36,6 +39,7 @@ from sase.sdd.artifact_link_store import (
 CHOP_NAME = "artifact_link_backfill"
 _SWEEP_BATCH_SIZE = 500
 _RECONCILE_CUT_SHORT_DIAGNOSTIC = "reconcile deadline expired"
+_RECONCILE_ESTIMATE_MARGIN = 1.5
 
 
 @dataclass
@@ -86,6 +90,23 @@ def _log_project_stage(
     runtime: BuiltinChopRuntime, project_key: str, stage: str
 ) -> None:
     runtime.log.info(f"[{CHOP_NAME}] {project_key}: {stage}")
+
+
+def persist_backfill_schedule(
+    path: Path, schedule: BackfillSchedule, totals: BackfillTotals
+) -> None:
+    try:
+        write_backfill_schedule(path, schedule)
+    except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+        totals.warnings.append(f"failed to persist backfill schedule: {exc}")
+
+
+def _sweep_phase_line(project_key: str, report: object) -> str:
+    rendered = " ".join(
+        f"{name}={value:.2f}s"
+        for name, value in (getattr(report, "phase_seconds", ()) or ())
+    )
+    return f"[{CHOP_NAME}] {project_key}: sweep phases: {rendered}"
 
 
 def _drain_phase_line(
@@ -171,6 +192,7 @@ def run_project(
     deadline: float,
     chop_deadline: float,
     state_path: Path,
+    schedule_path: Path,
     runtime: BuiltinChopRuntime,
     terminal_times: AgentTerminalTimes,
     schedule: BackfillSchedule,
@@ -232,8 +254,11 @@ def run_project(
         return False
     elapsed["store_resolution"] = time.monotonic() - resolve_started
 
+    priority_first = first_project and schedule.has_reconcile_priority(project_key)
     sweep_fingerprint = document_sweep_fingerprint(store)
-    if time.monotonic() < deadline and schedule.sweep_skippable(
+    if priority_first:
+        _log_project_stage(runtime, project_key, "sweep skipped (reconcile priority)")
+    elif time.monotonic() < deadline and schedule.sweep_skippable(
         project_key, sweep_fingerprint, now=time.time()
     ):
         totals.sweep_skipped += 1
@@ -249,6 +274,8 @@ def run_project(
             persist_deadline=chop_deadline,
         )
         elapsed["sweep"] = time.monotonic() - sweep_started
+        if report.phase_seconds:
+            runtime.log.info(_sweep_phase_line(project_key, report))
         schedule.record_sweep(
             project_key,
             sweep_fingerprint,
@@ -264,6 +291,7 @@ def run_project(
             write_sweep_state(state_path, swept)
         except Exception as exc:  # noqa: BLE001 - retry on the next tick.
             totals.warnings.append(f"failed to persist sweep checkpoint: {exc}")
+        persist_backfill_schedule(schedule_path, schedule, totals)
         if report.remaining and time.monotonic() >= deadline:
             totals.warnings.append(
                 f"{project_key}: deferred outbox/reconcile after sweep budget"
@@ -346,7 +374,9 @@ def run_project(
     skip_plausible = memo.input_fingerprint is not None and not (
         memo.full_pass_due(now=time.time())
     )
-    if not first_project and not skip_plausible and remaining < estimate:
+    needed = estimate * _RECONCILE_ESTIMATE_MARGIN
+    if not skip_plausible and remaining < needed and not priority_first:
+        schedule.mark_reconcile_priority(project_key)
         totals.deferred_projects += 1
         totals.warnings.append(
             f"{project_key}: deferred reconcile/repair: "
@@ -359,6 +389,10 @@ def run_project(
     _log_project_stage(runtime, project_key, "reconcile")
     reconcile_started = time.monotonic()
     reconcile_deferred = False
+    full_reconcile = not skip_plausible
+    if full_reconcile:
+        schedule.mark_reconcile_started(project_key, now=time.time())
+        persist_backfill_schedule(schedule_path, schedule, totals)
     try:
         reconcile_report = reconcile_and_repair_artifact_links(
             store,
@@ -391,12 +425,23 @@ def run_project(
             _RECONCILE_CUT_SHORT_DIAGNOSTIC in str(item)
             for item in reconcile_report.skip_diagnostics
         )
-        if not reconcile_deferred and not reconcile_skipped:
-            # The estimate gates a full reconcile, so a cheap skipped pass
-            # must not talk it down.
-            schedule.record_reconcile(project_key, time.monotonic() - reconcile_started)
+        if reconcile_deferred:
+            schedule.mark_reconcile_priority(project_key)
+        else:
+            schedule.clear_reconcile_priority(project_key)
+            if not reconcile_skipped:
+                # The estimate gates a full reconcile, so a cheap skipped pass
+                # must not talk it down.
+                schedule.record_reconcile(
+                    project_key, time.monotonic() - reconcile_started
+                )
     except Exception as exc:  # noqa: BLE001 - continue with the other projects.
+        schedule.mark_reconcile_priority(project_key)
         totals.warnings.append(f"{project_key}: reconcile/repair failed: {exc}")
+    finally:
+        if full_reconcile:
+            schedule.clear_reconcile_started(project_key)
+            persist_backfill_schedule(schedule_path, schedule, totals)
     elapsed["reconcile_repair"] = time.monotonic() - reconcile_started
 
     totals.projects += 1

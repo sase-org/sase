@@ -47,6 +47,7 @@ class _ArtifactLinkDerivationOutcome:
     persisted: int = 0
     errors: tuple[str, ...] = ()
     deferred: bool = False
+    phase_seconds: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -202,6 +203,7 @@ def _persist_derived_link_candidates_as_events(
             )
 
     deferred = False
+    phase_seconds: tuple[tuple[str, float], ...] = ()
     if queued_ids:
         try:
             report = drain_artifact_link_outbox(
@@ -214,6 +216,14 @@ def _persist_derived_link_candidates_as_events(
             if report.publication_error:
                 errors.append(report.publication_error)
             deferred = report.deferred
+            phase_seconds = tuple(
+                (
+                    f"persist.{name.removeprefix('publish.')}",
+                    seconds,
+                )
+                for name, seconds in getattr(report, "phase_seconds", ()) or ()
+                if name.startswith("publish.")
+            )
         except Exception as exc:  # noqa: BLE001 - derivation remains best-effort.
             errors.append(str(exc))
 
@@ -226,6 +236,7 @@ def _persist_derived_link_candidates_as_events(
         persisted=persisted,
         errors=tuple(errors),
         deferred=deferred,
+        phase_seconds=phase_seconds,
     )
 
 

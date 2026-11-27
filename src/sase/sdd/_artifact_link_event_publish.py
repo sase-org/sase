@@ -15,7 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.paths import sase_projects_dir
-from sase.memory.locks import locked_file
+from sase.memory.locks import LockTimeoutError, locked_file
 from sase.sdd._artifact_link_bead_endpoint import BeadEndpointEvidence
 from sase.sdd._artifact_link_event_canonical import (
     ARTIFACT_LINK_EVENT_LOCK_FILENAME,
@@ -56,6 +56,11 @@ if TYPE_CHECKING:
 
 AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC = (
     "artifact-link aggregate projection deferred past deadline"
+)
+_PUBLISH_MIN_HEADROOM_SECONDS = 60.0
+_EVENT_LOCK_BUSY_DIAGNOSTIC = (
+    f"{BEAD_PROJECTION_DEFERRED_DIAGNOSTIC}: timed out waiting for "
+    f"{ARTIFACT_LINK_EVENT_LOCK_FILENAME}"
 )
 
 
@@ -137,16 +142,43 @@ def publish_artifact_link_events(
             extra_roots=extra_roots,
             deadline=deadline,
         )
-    with locked_file(lock_path, fcntl.LOCK_EX):
-        return _publish_event_objects_locked(
-            store,
-            objects,
-            push_after_commit=push_after_commit,
-            mutation_origin=mutation_origin,
-            artifacts_dir=artifacts_dir,
-            extra_roots=extra_roots,
-            deadline=deadline,
-        )
+    if deadline is None:
+        with locked_file(lock_path, fcntl.LOCK_EX):
+            return _publish_event_objects_locked(
+                store,
+                objects,
+                push_after_commit=push_after_commit,
+                mutation_origin=mutation_origin,
+                artifacts_dir=artifacts_dir,
+                extra_roots=extra_roots,
+                deadline=deadline,
+            )
+    lock_timeout = max(0.0, deadline - time.monotonic() - _PUBLISH_MIN_HEADROOM_SECONDS)
+    try:
+        with locked_file(lock_path, fcntl.LOCK_EX, timeout=lock_timeout):
+            return _publish_event_objects_locked(
+                store,
+                objects,
+                push_after_commit=push_after_commit,
+                mutation_origin=mutation_origin,
+                artifacts_dir=artifacts_dir,
+                extra_roots=extra_roots,
+                deadline=deadline,
+            )
+    except LockTimeoutError:
+        return _deferred_publish_report(objects, _EVENT_LOCK_BUSY_DIAGNOSTIC)
+
+
+def _deferred_publish_report(
+    objects: Sequence[_ArtifactLinkEventObject],
+    *diagnostics: str,
+) -> _ArtifactLinkEventPublishReport:
+    skip = tuple(dict.fromkeys((BEAD_PROJECTION_DEFERRED_DIAGNOSTIC, *diagnostics)))
+    return _ArtifactLinkEventPublishReport(
+        attempted=len(objects),
+        skip_diagnostics=skip,
+        deferred=True,
+    )
 
 
 def _publish_event_objects_locked(
@@ -159,12 +191,10 @@ def _publish_event_objects_locked(
     extra_roots: Sequence[Path] = (),
     deadline: float | None = None,
 ) -> _ArtifactLinkEventPublishReport:
-    if deadline is not None and time.monotonic() >= deadline:
-        return _ArtifactLinkEventPublishReport(
-            attempted=len(objects),
-            skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
-            deferred=True,
-        )
+    if deadline is not None and (
+        time.monotonic() + _PUBLISH_MIN_HEADROOM_SECONDS >= deadline
+    ):
+        return _deferred_publish_report(objects)
     phases: list[tuple[str, float]] = []
     phase_started = time.monotonic()
     admission = _admit_incoming_event_objects(

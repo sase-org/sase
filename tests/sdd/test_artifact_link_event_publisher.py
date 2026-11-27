@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import subprocess
 import json
 from pathlib import Path
@@ -11,10 +12,16 @@ import pytest
 
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.core.paths import sase_projects_dir
+from sase.memory.locks import locked_file
 from sase.sdd._artifact_link_event_canonical import (
+    ARTIFACT_LINK_EVENT_LOCK_FILENAME,
     canonical_artifact_link_event_object,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
+from sase.sdd._artifact_link_event_project import (
+    BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+)
 from sase.sdd._artifact_link_event_publish import (
     AGGREGATE_PROJECTION_DEFERRED_DIAGNOSTIC,
 )
@@ -642,3 +649,71 @@ def test_aggregate_deferral_retains_the_rows_and_marks_the_report_deferred(
     assert replay.published == 1
     assert replay.deferred is False
     assert len(store.load_aggregate()["rows"]) == 1
+
+
+def test_publish_defers_when_the_event_lock_is_busy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    admitted: list[object] = []
+
+    def _admit(*_args: object, **_kwargs: object) -> None:
+        admitted.append(True)
+        raise AssertionError("admission should not run while the lock is busy")
+
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_event_publish._admit_incoming_event_objects",
+        _admit,
+    )
+    lock_path = (
+        sase_projects_dir() / store.project_key / ARTIFACT_LINK_EVENT_LOCK_FILENAME
+    )
+    with locked_file(lock_path, fcntl.LOCK_EX):
+        report = publish_artifact_link_events(
+            store,
+            (_ownerless_event("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),),
+            push_after_commit=False,
+            mutation_origin="machine",
+            deadline=time.monotonic() + 0.2,
+        )
+
+    assert report.deferred is True
+    assert report.published == 0
+    assert admitted == []
+    assert BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in report.skip_diagnostics
+    assert ARTIFACT_LINK_EVENT_LOCK_FILENAME in " ".join(report.skip_diagnostics)
+
+
+def test_publish_defers_inside_the_headroom_window_before_admission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    admitted: list[object] = []
+
+    def _admit(*_args: object, **_kwargs: object) -> None:
+        admitted.append(True)
+        raise AssertionError("admission should not run inside the headroom window")
+
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_event_publish._admit_incoming_event_objects",
+        _admit,
+    )
+
+    report = publish_artifact_link_events(
+        store,
+        (_ownerless_event("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),),
+        push_after_commit=False,
+        mutation_origin="machine",
+        deadline=time.monotonic() + 30.0,
+    )
+
+    assert report.deferred is True
+    assert report.published == 0
+    assert admitted == []
+    assert BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in report.skip_diagnostics

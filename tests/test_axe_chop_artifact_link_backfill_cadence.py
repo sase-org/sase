@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -81,12 +82,17 @@ def test_schedule_round_trips_prunes_and_reads_invalid_files_as_empty(
     schedule = BackfillSchedule(
         stale_checked_at={"keep": 1.0, "gone": 2.0},
         reconcile_seconds={"keep": 30.0, "gone": 40.0},
+        reconcile_priority={"keep": True, "gone": True},
+        reconcile_started_at={"keep": 9.0, "gone": 8.0},
     )
     schedule.prune({"keep"})
     write_backfill_schedule(path, schedule)
 
     assert read_backfill_schedule(path) == BackfillSchedule(
-        stale_checked_at={"keep": 1.0}, reconcile_seconds={"keep": 30.0}
+        stale_checked_at={"keep": 1.0},
+        reconcile_seconds={"keep": 30.0},
+        reconcile_priority={"keep": True},
+        reconcile_started_at={"keep": 9.0},
     )
     for payload in ("{not-json", "[]", json.dumps({"schema_version": 99})):
         path.write_text(payload, encoding="utf-8")
@@ -162,7 +168,7 @@ def test_chop_drops_stale_daily_shares_one_catalog_and_logs_phases(
     assert "catalog=shared" in log_output.split("p3: drain phases:")[1].splitlines()[0]
 
 
-def test_reconcile_waits_for_headroom_unless_first_and_cursor_goes_to_deferred(
+def test_reconcile_defers_first_project_without_priority_and_cursor_goes_to_deferred(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _patch_projects(monkeypatch, tmp_path, ("p1", "p2", "p3"))
@@ -191,19 +197,22 @@ def test_reconcile_waits_for_headroom_unless_first_and_cursor_goes_to_deferred(
     runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
     result = backfill_chop._run(runtime)
 
-    # p1 is first this tick, so it reconciles despite a 500s estimate; p2's
-    # estimate exceeds the 240s left; p3 fits the default estimate.
-    assert reconciled == ["p1", "p3"]
-    assert result.counters["deferred_projects"] == 1
+    # Without priority, p1's 500s estimate misses the 1.5x margin against
+    # 240s left, same as p2; p3 fits the default estimate.
+    assert reconciled == ["p3"]
+    assert result.counters["deferred_projects"] == 2
+    assert "p1: deferred reconcile/repair: needs ~500s, 240s left" in stderr.getvalue()
     assert "p2: deferred reconcile/repair: needs ~500s, 240s left" in stderr.getvalue()
     cursor = json.loads(
         (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
             encoding="utf-8"
         )
     )
-    assert cursor["next_project"] == "p2"
+    assert cursor["next_project"] == "p1"
     schedule = read_backfill_schedule(_schedule_path(tmp_path))
-    assert schedule.reconcile_seconds["p1"] == pytest.approx(0.7 * 500.0)
+    assert schedule.has_reconcile_priority("p1")
+    assert schedule.has_reconcile_priority("p2")
+    assert schedule.reconcile_seconds["p1"] == 500.0
     assert schedule.reconcile_seconds["p2"] == 500.0
     assert schedule.reconcile_seconds["p3"] == 0.0
 
@@ -241,12 +250,218 @@ def test_cut_short_reconcile_keeps_its_estimate_and_defers_the_project(
     schedule = read_backfill_schedule(_schedule_path(tmp_path))
     assert schedule.reconcile_seconds["p1"] == 50.0
     assert "p2" in schedule.reconcile_seconds
+    assert schedule.has_reconcile_priority("p1")
     cursor = json.loads(
         (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
             encoding="utf-8"
         )
     )
     assert cursor["next_project"] == "p1"
+
+
+def test_reconcile_gate_applies_the_estimate_margin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_projects(monkeypatch, tmp_path, ("p1",))
+    write_backfill_schedule(
+        _schedule_path(tmp_path),
+        BackfillSchedule(reconcile_seconds={"p1": 200.0}),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: 0.0)
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: (
+            reconciled.append(store.project_key) or _ArtifactLinkReconcileReport()
+        ),
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    result = backfill_chop._run(runtime)
+
+    # 200s fits in 240s without the margin; 200 * 1.5 does not.
+    assert reconciled == []
+    assert result.counters["deferred_projects"] == 1
+    assert "p1: deferred reconcile/repair: needs ~200s, 240s left" in stderr.getvalue()
+    assert read_backfill_schedule(_schedule_path(tmp_path)).has_reconcile_priority("p1")
+
+
+def test_priority_first_project_skips_sweep_and_reconciles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_projects(monkeypatch, tmp_path, ("p1", "p2"))
+    write_backfill_schedule(
+        _schedule_path(tmp_path),
+        BackfillSchedule(
+            reconcile_seconds={"p1": 500.0, "p2": 500.0},
+            reconcile_priority={"p1": True},
+        ),
+    )
+    swept: list[str] = []
+
+    def _sweep(
+        store: SimpleNamespace, **_kwargs: object
+    ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
+        swept.append(store.project_key)
+        return _ArtifactLinkBackfillReport(), frozenset()
+
+    monkeypatch.setattr(backfill_jobs, "run_artifact_link_backfill_batch", _sweep)
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: 0.0)
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: (
+            reconciled.append(store.project_key) or _ArtifactLinkReconcileReport()
+        ),
+    )
+
+    runtime, stdout, _stderr = _runtime_with_logs(tmp_path)
+    backfill_chop._run(runtime)
+
+    assert swept == ["p2"]
+    assert reconciled == ["p1"]
+    assert "sweep skipped (reconcile priority)" in stdout.getvalue()
+    schedule = read_backfill_schedule(_schedule_path(tmp_path))
+    assert not schedule.has_reconcile_priority("p1")
+    assert schedule.has_reconcile_priority("p2")
+
+
+def test_schedule_and_cursor_persist_after_each_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_projects(monkeypatch, tmp_path, ("p1", "p2"))
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+    real_run = backfill_jobs.run_project
+
+    def _run_until_killed(project_key: str, workspace_dir: str, **kwargs: Any) -> bool:
+        if project_key == "p2":
+            raise RuntimeError("killed")
+        return real_run(project_key, workspace_dir, **kwargs)
+
+    monkeypatch.setattr(backfill_jobs, "run_project", _run_until_killed)
+    monkeypatch.setattr(backfill_chop, "run_project", _run_until_killed)
+
+    runtime, _stdout, _stderr = _runtime_with_logs(tmp_path)
+    with pytest.raises(RuntimeError, match="killed"):
+        backfill_chop._run(runtime)
+
+    schedule = read_backfill_schedule(_schedule_path(tmp_path))
+    assert "p1" in schedule.reconcile_seconds
+    assert "p2" not in schedule.reconcile_seconds
+    cursor = json.loads(
+        (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert cursor["next_project"] == "p2"
+
+
+def test_leftover_in_flight_marker_sets_priority_and_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_projects(monkeypatch, tmp_path, ("p1",))
+    write_backfill_schedule(
+        _schedule_path(tmp_path),
+        BackfillSchedule(
+            reconcile_seconds={"p1": 500.0},
+            reconcile_started_at={"p1": 1.0},
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: 0.0)
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: (
+            reconciled.append(store.project_key) or _ArtifactLinkReconcileReport()
+        ),
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    backfill_chop._run(runtime)
+
+    assert reconciled == ["p1"]
+    assert "p1: previous reconcile did not finish; prioritizing it" in stderr.getvalue()
+    schedule = read_backfill_schedule(_schedule_path(tmp_path))
+    assert "p1" not in schedule.reconcile_started_at
+    assert not schedule.has_reconcile_priority("p1")
+
+
+def test_sweep_phases_line_is_logged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_projects(monkeypatch, tmp_path, ("p1",))
+    monkeypatch.setattr(
+        backfill_jobs,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (
+            _ArtifactLinkBackfillReport(
+                scanned=1,
+                phase_seconds=(
+                    ("documents", 0.1),
+                    ("inputs", 0.2),
+                    ("derive", 0.3),
+                    ("persist", 0.4),
+                    ("persist.admission", 0.25),
+                ),
+            ),
+            frozenset(),
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False, stale_checked=True
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_jobs,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    runtime, stdout, _stderr = _runtime_with_logs(tmp_path)
+    backfill_chop._run(runtime)
+
+    assert (
+        "p1: sweep phases: documents=0.10s inputs=0.20s derive=0.30s "
+        "persist=0.40s persist.admission=0.25s"
+    ) in stdout.getvalue()
 
 
 def test_drain_phase_line_prints_publish_sub_phases_after_publish() -> None:

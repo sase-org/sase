@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 import fcntl
 import os
+import threading
 import time
 
 from sase.agents_sync._publication_job_drain import drain_project
@@ -62,9 +63,98 @@ PUBLICATION_JOB_WORK_BUDGET_SECONDS = 240.0
 #: long, so normal fast ticks stay quiet in lumberjack-publication.log.
 PUBLICATION_PROGRESS_THRESHOLD_SECONDS = 60.0
 
+#: After the first slow-pass line, a stalled stage is re-reported this often.
+PUBLICATION_STALL_REPORT_INTERVAL_SECONDS = 60.0
+
 # Machine-wide failures (project listing, target resolution, heartbeat write)
 # are keyed to a pseudo-project that can never collide with a real project.
 _PUBLISHER_STANDING_PROJECT = "*publisher*"
+
+
+class _PublicationStageWatch:
+    """Record the current publication stage and re-report it while it stalls."""
+
+    def __init__(
+        self,
+        started: float,
+        progress: Callable[[str], None] | None,
+    ) -> None:
+        self._started = started
+        self._progress = progress
+        self._lock = threading.Lock()
+        self._step: str | None = None
+        self._project_key: str | None = None
+        self._stage_started_elapsed = 0.0
+        self._last_identity: tuple[str | None, str | None] | None = None
+        self._last_emitted_at = 0.0
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self._progress is None:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name="agent-publication-stall-watchdog",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=1.0)
+
+    def record(self, step: str, project_key: str | None) -> None:
+        elapsed = time.monotonic() - self._started
+        with self._lock:
+            self._step = step
+            self._project_key = project_key
+            self._stage_started_elapsed = elapsed
+
+    def note_emitted(self, step: str, project_key: str | None) -> None:
+        with self._lock:
+            self._last_identity = (step, project_key)
+            self._last_emitted_at = time.monotonic()
+
+    def _run(self) -> None:
+        if self._stop.wait(PUBLICATION_PROGRESS_THRESHOLD_SECONDS):
+            return
+        while not self._stop.is_set():
+            self._emit_if_stalled()
+            if self._stop.wait(PUBLICATION_STALL_REPORT_INTERVAL_SECONDS):
+                return
+
+    def _emit_if_stalled(self) -> None:
+        progress = self._progress
+        if progress is None:
+            return
+        now = time.monotonic()
+        with self._lock:
+            step = self._step
+            project_key = self._project_key
+            stage_started = self._stage_started_elapsed
+            last = self._last_identity
+            last_emitted_at = self._last_emitted_at
+        if step is None:
+            return
+        identity = (step, project_key)
+        if last is not None and last != identity:
+            return
+        if last is not None and now - last_emitted_at < (
+            PUBLICATION_STALL_REPORT_INTERVAL_SECONDS
+        ):
+            return
+        elapsed = now - self._started
+        suffix = f" project={project_key}" if project_key else ""
+        progress(
+            "agent_publication progress: still in "
+            f"{step} (started at {stage_started:.1f}s) at {elapsed:.1f}s{suffix}"
+        )
+        with self._lock:
+            self._last_identity = identity
+            self._last_emitted_at = time.monotonic()
 
 
 def run_publication_job(
@@ -96,8 +186,11 @@ def _run_publication_job(
     summary = PublicationJobSummary()
     started = time.monotonic()
     deadline = started + max(0.0, work_budget_seconds)
+    stall_watch = _PublicationStageWatch(started, progress)
+    stall_watch.start()
 
     def _maybe_progress(step: str, project_key: str | None = None) -> None:
+        stall_watch.record(step, project_key)
         if progress is None:
             return
         elapsed = time.monotonic() - started
@@ -105,284 +198,293 @@ def _run_publication_job(
             return
         suffix = f" project={project_key}" if project_key else ""
         progress(f"agent_publication progress: {step} at {elapsed:.1f}s{suffix}")
+        stall_watch.note_emitted(step, project_key)
 
-    # Machine-wide failures fold into one standing apply after the heartbeat
-    # write, so each reports only its transitions and a clean pass clears it.
-    publisher_observations: list[tuple[str, str]] = []
-    _maybe_progress("project discovery")
     try:
-        records = list_project_records(
-            sase_projects_dir(),
-            include_states=("enabled",),
-            include_home=False,
-            projects_only=True,
-        )
-        project_keys = tuple(
-            sorted(
-                {
-                    record.project_name
-                    for record in records
-                    if record.is_project and record.workspace_dir
-                }
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 - heartbeat exposes failed discovery.
-        publisher_observations.append(
-            (STANDING_KIND_SELECTION_ERROR, f"could not list enabled projects: {exc}")
-        )
-        project_keys = ()
-    targets: dict[str, ProjectTarget] = {}
-    outcomes_by_key: dict[str, SyncOutcome] = {}
-    selection_errors: dict[str, str] = {}
-    if project_keys:
-        _maybe_progress("resolve_sync_targets")
+        # Machine-wide failures fold into one standing apply after the heartbeat
+        # write, so each reports only its transitions and a clean pass clears it.
+        publisher_observations: list[tuple[str, str]] = []
+        _maybe_progress("project discovery")
         try:
-            selection = resolve_sync_targets(project_keys)
-            targets = {target.project_key: target for target in selection.targets}
-            outcomes_by_key = {
-                outcome.project_key: outcome for outcome in selection.outcomes
-            }
-            for outcome in selection.outcomes:
-                if outcome.error:
-                    # Counted per project below through the standing decider,
-                    # so a repeated failure reports only its transition.
-                    selection_errors[outcome.project_key] = outcome.error
-        except Exception as exc:  # noqa: BLE001 - projects are retried next tick.
+            records = list_project_records(
+                sase_projects_dir(),
+                include_states=("enabled",),
+                include_home=False,
+                projects_only=True,
+            )
+            project_keys = tuple(
+                sorted(
+                    {
+                        record.project_name
+                        for record in records
+                        if record.is_project and record.workspace_dir
+                    }
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - heartbeat exposes failed discovery.
             publisher_observations.append(
                 (
                     STANDING_KIND_SELECTION_ERROR,
-                    f"could not resolve publication targets: {exc}",
+                    f"could not list enabled projects: {exc}",
                 )
             )
-    standing_alerts = load_standing_alerts()
-    standing_now = time.time()
-
-    summary.projects = len(project_keys)
-    for index, project_key in enumerate(project_keys):
-        if blocking_alerts(standing_alerts, project_key, standing_now):
-            # A project-scoped alert is backing off: skip the drain and the
-            # doorbell until it is due. Queued hints stay queued because no
-            # claim is taken, and the trigger's max_quiet backstop re-runs
-            # the job. Attempt counts still tick so the record stays true.
-            for blocked_report in repeat_blocked_ticks(
-                standing_alerts, project_key, now=standing_now
-            ):
-                _count_standing_report(
-                    summary, project_key, blocked_report, standing_now
-                )
-            _defer_selection_error(
-                summary,
-                project_key,
-                selection_errors,
-                tracked=has_open_alert_of_kind(
-                    standing_alerts, project_key, STANDING_KIND_SELECTION_ERROR
-                ),
-            )
-            blocked_active = safe_active_items(project_key)
-            blocked_parked = _parked_items(blocked_active)
-            summary.active_remaining += len(blocked_active)
-            summary.parked += len(blocked_parked)
-            summary.project_stats[project_key] = {
-                "active_count": len(blocked_active),
-                "oldest_active_age_seconds": _oldest_age(blocked_active),
-                "parked_count": len(blocked_parked),
-                "oldest_parked_age_seconds": _oldest_parked_age(blocked_parked),
-                "last_outcome": "standing_backoff",
-                **project_standing_stats(standing_alerts, project_key),
-            }
-            continue
-        if time.monotonic() >= deadline:
-            summary.deferred_projects += len(project_keys) - index
-            for deferred_key in project_keys[index:]:
-                deferred_active = safe_active_items(deferred_key)
-                deferred_parked = _parked_items(deferred_active)
-                deferred_parked_count = len(deferred_parked)
-                summary.parked += deferred_parked_count
-                summary.project_stats[deferred_key] = {
-                    "active_count": len(deferred_active),
-                    "oldest_active_age_seconds": _oldest_age(deferred_active),
-                    "parked_count": deferred_parked_count,
-                    "oldest_parked_age_seconds": _oldest_parked_age(deferred_parked),
-                    "last_outcome": "deferred_budget",
-                    **project_standing_stats(standing_alerts, deferred_key),
+            project_keys = ()
+        targets: dict[str, ProjectTarget] = {}
+        outcomes_by_key: dict[str, SyncOutcome] = {}
+        selection_errors: dict[str, str] = {}
+        if project_keys:
+            _maybe_progress("resolve_sync_targets")
+            try:
+                selection = resolve_sync_targets(project_keys)
+                targets = {target.project_key: target for target in selection.targets}
+                outcomes_by_key = {
+                    outcome.project_key: outcome for outcome in selection.outcomes
                 }
-                if read_diverged_replay_marker(deferred_key) is None and is_due(
-                    standing_alerts, deferred_key, standing_now
+                for outcome in selection.outcomes:
+                    if outcome.error:
+                        # Counted per project below through the standing decider,
+                        # so a repeated failure reports only its transition.
+                        selection_errors[outcome.project_key] = outcome.error
+            except Exception as exc:  # noqa: BLE001 - projects are retried next tick.
+                publisher_observations.append(
+                    (
+                        STANDING_KIND_SELECTION_ERROR,
+                        f"could not resolve publication targets: {exc}",
+                    )
+                )
+        standing_alerts = load_standing_alerts()
+        standing_now = time.time()
+
+        summary.projects = len(project_keys)
+        for index, project_key in enumerate(project_keys):
+            if blocking_alerts(standing_alerts, project_key, standing_now):
+                # A project-scoped alert is backing off: skip the drain and the
+                # doorbell until it is due. Queued hints stay queued because no
+                # claim is taken, and the trigger's max_quiet backstop re-runs
+                # the job. Attempt counts still tick so the record stays true.
+                for blocked_report in repeat_blocked_ticks(
+                    standing_alerts, project_key, now=standing_now
                 ):
-                    _safe_ring(deferred_key)
+                    _count_standing_report(
+                        summary, project_key, blocked_report, standing_now
+                    )
                 _defer_selection_error(
                     summary,
-                    deferred_key,
+                    project_key,
                     selection_errors,
                     tracked=has_open_alert_of_kind(
-                        standing_alerts, deferred_key, STANDING_KIND_SELECTION_ERROR
+                        standing_alerts, project_key, STANDING_KIND_SELECTION_ERROR
                     ),
                 )
-            break
-        observations: list[tuple[str, str]] = []
-        selection_error = selection_errors.pop(project_key, None)
-        if selection_error is not None:
-            observations.append((STANDING_KIND_SELECTION_ERROR, selection_error))
-        target = targets.get(project_key)
-        if target is None:
-            # A missing target cannot be drained, so the job never rings the
-            # doorbell here: the trigger's max_quiet backstop re-runs the job,
-            # and queued hints stay in the hints file because no claim is
-            # taken, so nothing is lost when the target comes back.
-            missing_active = safe_active_items(project_key)
-            missing_parked = _parked_items(missing_active)
-            missing_parked_count = len(missing_parked)
-            summary.parked += missing_parked_count
-            summary.active_remaining += len(missing_active)
-            missing_outcome = outcomes_by_key.get(project_key)
-            if missing_outcome is not None and missing_outcome.error:
-                # Already recorded once as a selection observation above; do
-                # not record a second observation.
-                last_outcome = "target_unavailable"
-            else:
-                skip_reason = (
-                    missing_outcome.skip_reason
-                    if missing_outcome is not None and missing_outcome.skip_reason
-                    else "no usable agents publication target"
-                )
-                if missing_active:
-                    observations.append(
-                        (
-                            STANDING_KIND_TARGET_UNAVAILABLE,
-                            f"{len(missing_active)} queued publication "
-                            f"request(s) cannot drain: {skip_reason}",
-                        )
+                blocked_active = safe_active_items(project_key)
+                blocked_parked = _parked_items(blocked_active)
+                summary.active_remaining += len(blocked_active)
+                summary.parked += len(blocked_parked)
+                summary.project_stats[project_key] = {
+                    "active_count": len(blocked_active),
+                    "oldest_active_age_seconds": _oldest_age(blocked_active),
+                    "parked_count": len(blocked_parked),
+                    "oldest_parked_age_seconds": _oldest_parked_age(blocked_parked),
+                    "last_outcome": "standing_backoff",
+                    **project_standing_stats(standing_alerts, project_key),
+                }
+                continue
+            if time.monotonic() >= deadline:
+                summary.deferred_projects += len(project_keys) - index
+                for deferred_key in project_keys[index:]:
+                    deferred_active = safe_active_items(deferred_key)
+                    deferred_parked = _parked_items(deferred_active)
+                    deferred_parked_count = len(deferred_parked)
+                    summary.parked += deferred_parked_count
+                    summary.project_stats[deferred_key] = {
+                        "active_count": len(deferred_active),
+                        "oldest_active_age_seconds": _oldest_age(deferred_active),
+                        "parked_count": deferred_parked_count,
+                        "oldest_parked_age_seconds": _oldest_parked_age(
+                            deferred_parked
+                        ),
+                        "last_outcome": "deferred_budget",
+                        **project_standing_stats(standing_alerts, deferred_key),
+                    }
+                    if read_diverged_replay_marker(deferred_key) is None and is_due(
+                        standing_alerts, deferred_key, standing_now
+                    ):
+                        _safe_ring(deferred_key)
+                    _defer_selection_error(
+                        summary,
+                        deferred_key,
+                        selection_errors,
+                        tracked=has_open_alert_of_kind(
+                            standing_alerts, deferred_key, STANDING_KIND_SELECTION_ERROR
+                        ),
                     )
+                break
+            observations: list[tuple[str, str]] = []
+            selection_error = selection_errors.pop(project_key, None)
+            if selection_error is not None:
+                observations.append((STANDING_KIND_SELECTION_ERROR, selection_error))
+            target = targets.get(project_key)
+            if target is None:
+                # A missing target cannot be drained, so the job never rings the
+                # doorbell here: the trigger's max_quiet backstop re-runs the job,
+                # and queued hints stay in the hints file because no claim is
+                # taken, so nothing is lost when the target comes back.
+                missing_active = safe_active_items(project_key)
+                missing_parked = _parked_items(missing_active)
+                missing_parked_count = len(missing_parked)
+                summary.parked += missing_parked_count
+                summary.active_remaining += len(missing_active)
+                missing_outcome = outcomes_by_key.get(project_key)
+                if missing_outcome is not None and missing_outcome.error:
+                    # Already recorded once as a selection observation above; do
+                    # not record a second observation.
                     last_outcome = "target_unavailable"
                 else:
-                    # Nothing queued is silently clean: the b0de76422d
-                    # no-target-with-nothing-queued case stays silent, and a
-                    # clean pass clears any open alert for this project.
-                    last_outcome = "target_skipped"
-            for missing_report in apply_project_observations(
+                    skip_reason = (
+                        missing_outcome.skip_reason
+                        if missing_outcome is not None and missing_outcome.skip_reason
+                        else "no usable agents publication target"
+                    )
+                    if missing_active:
+                        observations.append(
+                            (
+                                STANDING_KIND_TARGET_UNAVAILABLE,
+                                f"{len(missing_active)} queued publication "
+                                f"request(s) cannot drain: {skip_reason}",
+                            )
+                        )
+                        last_outcome = "target_unavailable"
+                    else:
+                        # Nothing queued is silently clean: the b0de76422d
+                        # no-target-with-nothing-queued case stays silent, and a
+                        # clean pass clears any open alert for this project.
+                        last_outcome = "target_skipped"
+                for missing_report in apply_project_observations(
+                    standing_alerts,
+                    project_key,
+                    observations,
+                    now=standing_now,
+                    clean=not observations,
+                ):
+                    _count_standing_report(
+                        summary, project_key, missing_report, standing_now
+                    )
+                summary.project_stats[project_key] = {
+                    "active_count": len(missing_active),
+                    "oldest_active_age_seconds": _oldest_age(missing_active),
+                    "parked_count": missing_parked_count,
+                    "oldest_parked_age_seconds": _oldest_parked_age(missing_parked),
+                    "last_outcome": last_outcome,
+                    **project_standing_stats(standing_alerts, project_key),
+                }
+                continue
+            _maybe_progress(f"drain_project({project_key})", project_key)
+            try:
+                result = drain_project(
+                    target,
+                    deadline=deadline,
+                    git_runner=git_runner,
+                    progress=_drain_stage_progress(_maybe_progress, project_key),
+                )
+            except Exception as exc:  # noqa: BLE001 - one project cannot starve others.
+                result = ProjectPass(
+                    error=str(exc) or type(exc).__name__,
+                    claim_unfinished=True,
+                    outcome="error",
+                )
+            summary.hood_drained += result.hood_drained
+            summary.link_drained += result.link_drained
+            summary.referenced_by_drained += result.referenced_by_drained
+            summary.lock_busy += int(result.lock_busy)
+            summary.deferred_projects += int(result.deferred)
+            if result.error:
+                observations.append((_standing_kind_for_result(result), result.error))
+            clean_pass = (
+                not observations
+                and not result.deferred
+                and not result.lock_busy
+                and not result.outcome.startswith("diverged_replay")
+            )
+            for drain_report in apply_project_observations(
                 standing_alerts,
                 project_key,
                 observations,
                 now=standing_now,
-                clean=not observations,
+                clean=clean_pass,
             ):
-                _count_standing_report(
-                    summary, project_key, missing_report, standing_now
+                _count_standing_report(summary, project_key, drain_report, standing_now)
+            active = safe_active_items(project_key)
+            active_count = len(active)
+            summary.active_remaining += active_count
+            parked_items = _parked_items(active)
+            parked_count = len(parked_items)
+            summary.parked += parked_count
+            publishable_count = sum(publication_is_ready(item) for item in active)
+            refby_count = safe_referenced_by_count(project_key)
+            if (
+                (
+                    publishable_count
+                    or refby_count
+                    or result.lock_busy
+                    or result.deferred
+                    or result.retained_hints
+                    or result.claim_unfinished
                 )
+                and not result.outcome.startswith("diverged_replay")
+                and is_due(standing_alerts, project_key, standing_now)
+            ):
+                _safe_ring(project_key)
             summary.project_stats[project_key] = {
-                "active_count": len(missing_active),
-                "oldest_active_age_seconds": _oldest_age(missing_active),
-                "parked_count": missing_parked_count,
-                "oldest_parked_age_seconds": _oldest_parked_age(missing_parked),
-                "last_outcome": last_outcome,
+                "active_count": active_count,
+                "oldest_active_age_seconds": _oldest_age(active),
+                "parked_count": parked_count,
+                "oldest_parked_age_seconds": _oldest_parked_age(parked_items),
+                "last_outcome": result.outcome,
                 **project_standing_stats(standing_alerts, project_key),
             }
-            continue
-        _maybe_progress(f"drain_project({project_key})", project_key)
+
+        # Every listed project pops its own selection error above. An outcome
+        # keyed to a project outside the listing can never be processed, so it is
+        # recorded on the publisher pseudo-project, where a later clean pass
+        # clears it.
+        for leftover_key in sorted(selection_errors):
+            publisher_observations.append(
+                (
+                    STANDING_KIND_SELECTION_ERROR,
+                    f"{leftover_key}: {selection_errors[leftover_key]}",
+                )
+            )
+
+        # The heartbeat write is machine-wide too. Every publisher observation
+        # folds into one apply, because a pass clears any publisher alert it did
+        # not observe: a failure reports only its transition, a clean pass clears.
+        _maybe_progress("standing-alert apply")
         try:
-            result = drain_project(
-                target,
-                deadline=deadline,
-                git_runner=git_runner,
-                progress=_drain_stage_progress(_maybe_progress, project_key),
+            _maybe_progress("heartbeat write")
+            write_publication_heartbeat(summary.project_stats)
+        except Exception as exc:  # noqa: BLE001 - the next pass retries heartbeat.
+            publisher_observations.append(
+                (
+                    STANDING_KIND_HEARTBEAT_WRITE,
+                    f"could not write publisher heartbeat: {exc}",
+                )
             )
-        except Exception as exc:  # noqa: BLE001 - one project cannot starve others.
-            result = ProjectPass(
-                error=str(exc) or type(exc).__name__,
-                claim_unfinished=True,
-                outcome="error",
-            )
-        summary.hood_drained += result.hood_drained
-        summary.link_drained += result.link_drained
-        summary.referenced_by_drained += result.referenced_by_drained
-        summary.lock_busy += int(result.lock_busy)
-        summary.deferred_projects += int(result.deferred)
-        if result.error:
-            observations.append((_standing_kind_for_result(result), result.error))
-        clean_pass = (
-            not observations
-            and not result.deferred
-            and not result.lock_busy
-            and not result.outcome.startswith("diverged_replay")
-        )
-        for drain_report in apply_project_observations(
+        for publisher_report in apply_project_observations(
             standing_alerts,
-            project_key,
-            observations,
+            _PUBLISHER_STANDING_PROJECT,
+            publisher_observations,
             now=standing_now,
-            clean=clean_pass,
+            clean=not publisher_observations,
         ):
-            _count_standing_report(summary, project_key, drain_report, standing_now)
-        active = safe_active_items(project_key)
-        active_count = len(active)
-        summary.active_remaining += active_count
-        parked_items = _parked_items(active)
-        parked_count = len(parked_items)
-        summary.parked += parked_count
-        publishable_count = sum(publication_is_ready(item) for item in active)
-        refby_count = safe_referenced_by_count(project_key)
-        if (
-            (
-                publishable_count
-                or refby_count
-                or result.lock_busy
-                or result.deferred
-                or result.retained_hints
-                or result.claim_unfinished
+            _count_standing_report(
+                summary, _PUBLISHER_STANDING_PROJECT, publisher_report, standing_now
             )
-            and not result.outcome.startswith("diverged_replay")
-            and is_due(standing_alerts, project_key, standing_now)
-        ):
-            _safe_ring(project_key)
-        summary.project_stats[project_key] = {
-            "active_count": active_count,
-            "oldest_active_age_seconds": _oldest_age(active),
-            "parked_count": parked_count,
-            "oldest_parked_age_seconds": _oldest_parked_age(parked_items),
-            "last_outcome": result.outcome,
-            **project_standing_stats(standing_alerts, project_key),
-        }
 
-    # Every listed project pops its own selection error above. An outcome
-    # keyed to a project outside the listing can never be processed, so it is
-    # recorded on the publisher pseudo-project, where a later clean pass
-    # clears it.
-    for leftover_key in sorted(selection_errors):
-        publisher_observations.append(
-            (
-                STANDING_KIND_SELECTION_ERROR,
-                f"{leftover_key}: {selection_errors[leftover_key]}",
-            )
-        )
-
-    # The heartbeat write is machine-wide too. Every publisher observation
-    # folds into one apply, because a pass clears any publisher alert it did
-    # not observe: a failure reports only its transition, a clean pass clears.
-    _maybe_progress("standing-alert apply")
-    try:
-        _maybe_progress("heartbeat write")
-        write_publication_heartbeat(summary.project_stats)
-    except Exception as exc:  # noqa: BLE001 - the next pass retries heartbeat.
-        publisher_observations.append(
-            (
-                STANDING_KIND_HEARTBEAT_WRITE,
-                f"could not write publisher heartbeat: {exc}",
-            )
-        )
-    for publisher_report in apply_project_observations(
-        standing_alerts,
-        _PUBLISHER_STANDING_PROJECT,
-        publisher_observations,
-        now=standing_now,
-        clean=not publisher_observations,
-    ):
-        _count_standing_report(
-            summary, _PUBLISHER_STANDING_PROJECT, publisher_report, standing_now
-        )
-
-    summary.standing = open_alert_count(standing_alerts)
-    save_standing_alerts(standing_alerts)
-    return summary
+        summary.standing = open_alert_count(standing_alerts)
+        save_standing_alerts(standing_alerts)
+        return summary
+    finally:
+        stall_watch.stop()
 
 
 def _drain_stage_progress(

@@ -18,9 +18,10 @@ pre-existing documents converges over several hours without redoing already
 
 Job 2's stale-terminal drop runs at most once per day per project and shares
 one lazily built agent catalog across every project in a run. Job 3 starts
-only when its decaying duration estimate fits in the remaining budget (the
-first project of a tick always runs it). A project whose drain or reconcile
-work was deferred for budget goes first on the next tick.
+only when its decaying duration estimate times a safety margin fits in the
+remaining budget. A project whose drain or reconcile work was deferred for
+budget, cut short, or interrupted goes first on the next tick and skips its
+sweep so reconcile gets the full budget.
 
 Jobs 1, 3, and 4 are incremental (see ``sase.sdd._artifact_link_incremental``):
 the sweep skips its document walk, reconcile recomputes only projected rows,
@@ -44,12 +45,12 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.scripts._artifact_link_backfill_jobs import (
     CHOP_NAME,
     BackfillTotals,
+    persist_backfill_schedule,
     run_project,
 )
 from sase.scripts._artifact_link_backfill_schedule import (
     SCHEDULE_FILENAME,
     read_backfill_schedule,
-    write_backfill_schedule,
 )
 from sase.scripts._artifact_link_backfill_state import (
     CURSOR_FILENAME,
@@ -165,6 +166,20 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     chop_deadline = time.monotonic() + _CHOP_WORK_BUDGET_SECONDS
     last_started: str | None = None
     first_deferred: str | None = None
+    for project_key in tuple(schedule.reconcile_started_at):
+        schedule.mark_reconcile_priority(project_key)
+        schedule.clear_reconcile_started(project_key)
+        totals.warnings.append(
+            f"{project_key}: previous reconcile did not finish; prioritizing it"
+        )
+    persist_backfill_schedule(schedule_path, schedule, totals)
+
+    def _persist_cursor(next_project: str | None) -> None:
+        try:
+            write_project_cursor(cursor_path, next_project)
+        except Exception as exc:  # noqa: BLE001 - fairness retries on the next tick.
+            totals.warnings.append(f"failed to persist project cursor: {exc}")
+
     for index, record in enumerate(records):
         assert record.workspace_dir is not None
         if time.monotonic() >= chop_deadline:
@@ -176,6 +191,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             )
             break
         last_started = record.project_name
+        _persist_cursor(first_deferred or last_started)
         deferred = run_project(
             record.project_name,
             record.workspace_dir,
@@ -184,6 +200,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             deadline=deadline,
             chop_deadline=chop_deadline,
             state_path=state_path,
+            schedule_path=schedule_path,
             runtime=runtime,
             terminal_times=terminal_times,
             schedule=schedule,
@@ -191,22 +208,15 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         )
         if deferred and first_deferred is None:
             first_deferred = record.project_name
+        persist_backfill_schedule(schedule_path, schedule, totals)
+        _persist_cursor(first_deferred or next_cursor_after(records, last_started))
 
     try:
         write_sweep_state(state_path, swept)
     except Exception as exc:  # noqa: BLE001 - retry on the next tick.
         totals.warnings.append(f"failed to persist sweep checkpoint: {exc}")
-    try:
-        write_backfill_schedule(schedule_path, schedule)
-    except Exception as exc:  # noqa: BLE001 - retry on the next tick.
-        totals.warnings.append(f"failed to persist backfill schedule: {exc}")
-    try:
-        write_project_cursor(
-            cursor_path,
-            first_deferred or next_cursor_after(records, last_started),
-        )
-    except Exception as exc:  # noqa: BLE001 - fairness retries on the next tick.
-        totals.warnings.append(f"failed to persist project cursor: {exc}")
+    persist_backfill_schedule(schedule_path, schedule, totals)
+    _persist_cursor(first_deferred or next_cursor_after(records, last_started))
 
     for warning in totals.warnings:
         runtime.log.warning(f"[{CHOP_NAME}] {warning}")

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import threading
+import time
 
 import pytest
 
@@ -311,4 +313,76 @@ def test_fast_pass_keeps_drain_stage_lines_quiet(
         work_budget_seconds=240, progress=messages.append
     )
 
+    assert messages == []
+
+
+def test_stalled_stage_emits_still_in_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    _install_single_project(monkeypatch, tmp_path)
+    monkeypatch.setattr(job_run, "PUBLICATION_PROGRESS_THRESHOLD_SECONDS", 0.05)
+    monkeypatch.setattr(job_run, "PUBLICATION_STALL_REPORT_INTERVAL_SECONDS", 0.05)
+    release = threading.Event()
+
+    def _blocking_drain(*_a: object, **_k: object) -> SimpleNamespace:
+        release.wait(timeout=5)
+        return SimpleNamespace(
+            hood_drained=0,
+            link_drained=0,
+            referenced_by_drained=0,
+            lock_busy=False,
+            deferred=False,
+            deferred_projects=0,
+            retained_hints=False,
+            claim_unfinished=False,
+            error=None,
+            outcome="empty",
+        )
+
+    monkeypatch.setattr(job_run, "drain_project", _blocking_drain)
+    messages: list[str] = []
+    finished = threading.Event()
+
+    def _run() -> None:
+        try:
+            publication_job.run_publication_job(
+                work_budget_seconds=240, progress=messages.append
+            )
+        finally:
+            finished.set()
+
+    worker = threading.Thread(target=_run, name="publication-stall-test")
+    worker.start()
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline and not any(
+        "still in drain_project(proj)" in message for message in messages
+    ):
+        time.sleep(0.01)  # sase-test-wait: poll stall watchdog for still-in line
+    release.set()
+    worker.join(timeout=5)
+    assert finished.is_set()
+    still_in = [
+        message for message in messages if "still in drain_project(proj)" in message
+    ]
+    assert still_in
+    assert any("started at" in message for message in still_in)
+    assert any("project=proj" in message for message in still_in)
+
+
+def test_watchdog_thread_stops_when_the_pass_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    _install_single_project(monkeypatch, tmp_path)
+    messages: list[str] = []
+
+    publication_job.run_publication_job(
+        work_budget_seconds=240, progress=messages.append
+    )
+
+    assert all(
+        thread.name != "agent-publication-stall-watchdog" or not thread.is_alive()
+        for thread in threading.enumerate()
+    )
     assert messages == []

@@ -60,8 +60,11 @@ oldest request age, and its last outcome—including the retained link-row count
 
 Once a pass has run for at least 60 seconds, the publisher logs progress before starting
 phases, including project drains and heartbeat writes. These lines show time since the
-pass started and the project when applicable; they are not periodic updates during a
-phase. The final summary reports the outcome.
+pass started and the project when applicable. A stage that has not changed is
+re-reported every minute as `still in <stage> (started at <s>s)`. A deadline-bearing
+event publish waits only as long as the remaining budget minus a 60-second headroom for
+the `artifact-link-events.lock`; a busy lock or too little headroom defers instead of
+blocking, and the rows stay queued. The final summary reports the outcome.
 
 The `error_digest` job snapshots the durable interval counter and writes a grouped
 digest file at `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The header states the
@@ -298,10 +301,13 @@ error on one document no longer holds back the rest of its chunk. The drain move
 never-published rows of long-finished agents into the dropped audit at most once per 24
 hours per project, and every project in a tick shares one agent catalog build for that
 check. Each drain logs per-phase timings
-(`drain phases: read=… evidence=… eligibility=… catalog=… publish=… rewrite=…`).
-Reconcile starts only when its learned duration fits the remaining budget; the first
-project of a tick always reconciles. Drain or reconcile work deferred for budget is
-logged as a warning, and that project goes first on the next tick. Counters include
+(`drain phases: read=… evidence=… eligibility=… catalog=… publish=… rewrite=…`). Each
+sweep logs per-phase timings (`sweep phases: documents=… inputs=… derive=… persist=…`).
+Reconcile starts only when its learned duration times a 1.5 safety margin fits the
+remaining budget. Drain or reconcile work deferred for budget, cut short, or interrupted
+is logged as a warning; that project goes first on the next tick and skips its sweep so
+reconcile gets the full budget. Schedule and cursor persist after each project so a
+SIGKILL keeps learned estimates and priorities. Counters include
 `bead_projection_failed`, `parked_new`, `parked_total`, `transient`, and
 `stale_checked_projects`. A hard bead projection failure this tick sets status
 `check_error` with reason `bead_projection_failed` even if traversal completed; parked

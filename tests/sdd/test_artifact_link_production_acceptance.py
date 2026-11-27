@@ -17,6 +17,7 @@ from sase.sdd._artifact_link_event_project import (
     BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
     apply_events_to_beads,
 )
+from sase.sdd._artifact_link_event_publish import _PUBLISH_MIN_HEADROOM_SECONDS
 from sase.sdd.artifact_link_backfill import run_artifact_link_backfill_batch
 from sase.sdd.artifact_link_beads import set_bead_endpoint_projections
 from sase.sdd.artifact_link_outbox import read_artifact_link_outbox_entries
@@ -69,6 +70,7 @@ def test_scaled_backfill_bounds_bulk_io_defers_then_converges_without_rewrite(
     core_sizes: list[int] = []
     core_changed: list[bool] = []
     now = [0.0]
+    persist_deadline = _PUBLISH_MIN_HEADROOM_SECONDS + 10.0
     real_bulk = set_bead_endpoint_projections
     real_core = rust_beads.set_link_projections
 
@@ -76,7 +78,7 @@ def test_scaled_backfill_bounds_bulk_io_defers_then_converges_without_rewrite(
         payload = tuple(requests)
         bulk_sizes.append(len(payload))
         outcome = real_bulk(beads_dir, payload)
-        now[0] = 10.0
+        now[0] = persist_deadline + 1.0
         return outcome
 
     def _spy_core(beads_dir: Path, requests: object) -> dict[str, object]:
@@ -100,8 +102,8 @@ def test_scaled_backfill_bounds_bulk_io_defers_then_converges_without_rewrite(
         cluster.machine_a.store,
         already_swept=_SEED_REFS,
         batch_size=8,
-        deadline=20.0,
-        persist_deadline=5.0,
+        deadline=persist_deadline + 15.0,
+        persist_deadline=persist_deadline,
     )
 
     expected_requests = _HISTORICAL_RECEIPTS + 1

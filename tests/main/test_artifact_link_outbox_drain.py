@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import pytest
 
@@ -203,6 +204,119 @@ def test_drain_expired_deadline_retains_queued_events(
     assert report.drained == 0
     assert report.retained == 1
     assert BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in report.skip_diagnostics
+    assert len(read_artifact_link_outbox_entries(store.project_key)) == 1
+
+
+def test_drain_keeps_rows_queued_when_publish_defers_on_busy_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import fcntl
+
+    from sase.core.paths import sase_projects_dir
+    from sase.memory.locks import locked_file
+    from sase.sdd._artifact_link_event_canonical import (
+        ARTIFACT_LINK_EVENT_LOCK_FILENAME,
+    )
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    producer = artifact_link_alias_producer_id()
+    append_artifact_link_outbox_event(
+        project_key=store.project_key,
+        agent_name=producer,
+        run_id=artifact_link_machine_run_id(),
+        event=canonical_event(
+            {
+                "schema_version": 1,
+                "project_key": store.project_key,
+                "operation_id": stable_artifact_link_operation_id(
+                    "artifact-link-alias",
+                    store.project_key,
+                    "plan:old.md",
+                    "plan:new.md",
+                ),
+                "created_by": producer,
+                "origin": "migrated",
+                "created_at": artifact_link_stable_fact_created_at(),
+                "kind": {
+                    "type": "alias",
+                    "old_ref": "plan:old.md",
+                    "new_ref": "plan:new.md",
+                },
+            }
+        ),
+    )
+    lock_path = (
+        sase_projects_dir() / store.project_key / ARTIFACT_LINK_EVENT_LOCK_FILENAME
+    )
+    with locked_file(lock_path, fcntl.LOCK_EX):
+        report = drain_artifact_link_outbox(
+            store=store,
+            drop_stale_terminal=False,
+            push_after_commit=False,
+            deadline=time.monotonic() + 0.2,
+        )
+
+    assert report.deferred is True
+    assert report.drained == 0
+    assert len(read_artifact_link_outbox_entries(store.project_key)) == 1
+
+
+def test_drain_keeps_rows_queued_when_publish_defers_for_headroom(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    producer = artifact_link_alias_producer_id()
+    append_artifact_link_outbox_event(
+        project_key=store.project_key,
+        agent_name=producer,
+        run_id=artifact_link_machine_run_id(),
+        event=canonical_event(
+            {
+                "schema_version": 1,
+                "project_key": store.project_key,
+                "operation_id": stable_artifact_link_operation_id(
+                    "artifact-link-alias",
+                    store.project_key,
+                    "plan:old.md",
+                    "plan:new.md",
+                ),
+                "created_by": producer,
+                "origin": "migrated",
+                "created_at": artifact_link_stable_fact_created_at(),
+                "kind": {
+                    "type": "alias",
+                    "old_ref": "plan:old.md",
+                    "new_ref": "plan:new.md",
+                },
+            }
+        ),
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        drop_stale_terminal=False,
+        push_after_commit=False,
+        deadline=time.monotonic() + 30.0,
+    )
+
+    assert report.deferred is True
+    assert report.drained == 0
     assert len(read_artifact_link_outbox_entries(store.project_key)) == 1
 
 

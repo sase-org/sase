@@ -63,6 +63,7 @@ class _ArtifactLinkBackfillReport:
     persisted: int = 0
     remaining: int = 0
     errors: tuple[str, ...] = ()
+    phase_seconds: tuple[tuple[str, float], ...] = ()
 
 
 def sweepable_artifact_link_documents(
@@ -110,9 +111,15 @@ def run_artifact_link_backfill_batch(
     candidate, so a repeat call over an unchanged tree is a fast no-op.
     """
 
+    phases: list[tuple[str, float]] = []
+    documents_started = time.monotonic()
     pending = sweepable_artifact_link_documents(store, already_swept=already_swept)
+    phases.append(("documents", time.monotonic() - documents_started))
     if not pending:
-        return _ArtifactLinkBackfillReport(), already_swept
+        return (
+            _ArtifactLinkBackfillReport(phase_seconds=tuple(phases)),
+            already_swept,
+        )
 
     needed_roots: dict[str, Path] = {}
     for document in pending:
@@ -132,6 +139,7 @@ def run_artifact_link_backfill_batch(
                 total_pending=len(pending),
                 remaining=len(pending),
                 errors=skip_diagnostics,
+                phase_seconds=tuple(phases),
             ),
             already_swept,
         )
@@ -143,6 +151,7 @@ def run_artifact_link_backfill_batch(
                 total_pending=len(pending),
                 remaining=len(pending),
                 errors=skip_diagnostics,
+                phase_seconds=tuple(phases),
             ),
             already_swept,
         )
@@ -152,16 +161,25 @@ def run_artifact_link_backfill_batch(
     persisted = 0
     errors: list[str] = []
     scanned = 0
+    inputs_started = time.monotonic()
     derivation_inputs = artifact_link_derivation_inputs(store)
+    phases.append(("inputs", time.monotonic() - inputs_started))
     projection_deadline = persist_deadline if persist_deadline is not None else deadline
+    derive_seconds = 0.0
+    persist_seconds = 0.0
+    persist_subs: dict[str, float] = {}
+    persist_order: list[str] = []
     for offset in range(0, len(batch), _PERSIST_CHUNK_SIZE):
         chunk = batch[offset : offset + _PERSIST_CHUNK_SIZE]
+        derive_started = time.monotonic()
         candidates_by_ref = _derive_chunk_candidates(chunk, derivation_inputs)
+        derive_seconds += time.monotonic() - derive_started
         chunk_candidates = tuple(
             candidate
             for document_candidates in candidates_by_ref.values()
             for candidate in document_candidates
         )
+        persist_started = time.monotonic()
         outcome = persist_derived_link_candidates(
             store,
             chunk_candidates,
@@ -169,6 +187,11 @@ def run_artifact_link_backfill_batch(
             artifacts_dir=artifacts_dir,
             deadline=projection_deadline,
         )
+        persist_seconds += time.monotonic() - persist_started
+        for name, seconds in getattr(outcome, "phase_seconds", ()) or ():
+            if name not in persist_subs:
+                persist_order.append(name)
+            persist_subs[name] = persist_subs.get(name, 0.0) + seconds
         scanned += len(chunk)
         candidates += len(chunk_candidates)
         persisted += outcome.persisted
@@ -185,6 +208,9 @@ def run_artifact_link_backfill_batch(
         )
         if deadline is not None and time.monotonic() >= deadline:
             break
+    phases.append(("derive", derive_seconds))
+    phases.append(("persist", persist_seconds))
+    phases.extend((name, persist_subs[name]) for name in persist_order)
     report = _ArtifactLinkBackfillReport(
         total_pending=len(pending),
         scanned=scanned,
@@ -192,6 +218,7 @@ def run_artifact_link_backfill_batch(
         persisted=persisted,
         remaining=sum(1 for document in pending if document.ref not in updated_swept),
         errors=(*skip_diagnostics, *errors),
+        phase_seconds=tuple(phases),
     )
     return report, frozenset(updated_swept)
 

@@ -1593,9 +1593,10 @@ axe:
             Processes hinted hood requests before oldest remaining requests in one bounded pass, continuing after
             row-scoped failures and stopping on repository-scope failures. Deferred hood and link hints are compacted
             into one claim file per project; completed link drains release their hints even when rows remain for
-            hourly backfill. Each pass is bounded to four minutes. The job also converts fenced or refreshes
-            unfenced Referenced By requests and writes ~/.sase/agent_publication/heartbeat.json so commit
-            publication can check publisher liveness.
+            hourly backfill. Each pass is bounded to four minutes. After the first slow-pass progress line, a stalled
+            stage is reported every minute. A busy artifact-link-events.lock defers the publish instead of blocking.
+            The job also converts fenced or refreshes unfenced Referenced By requests and writes
+            ~/.sase/agent_publication/heartbeat.json so commit publication can check publisher liveness.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence
@@ -1904,10 +1905,12 @@ axe:
             over several ticks instead of rescanning every document every hour; a document is swept once
             each candidate is durable or parked. The drain drops never-published rows of long-finished
             agents at most once per day per project and logs per-phase timings; reconcile starts only
-            when its learned duration fits the remaining budget, and a project whose work was deferred
-            goes first on the next tick. Unchanged inputs skip work: the sweep skips its document walk
-            while the document paths match its last complete sweep, reconcile only recomputes projected
-            rows while the event stores, bead events, outbox, and store-backed aggregate rows match its
+            when its learned duration times a safety margin fits the remaining budget, and a project
+            whose work was deferred, cut short, or interrupted goes first on the next tick and skips
+            its sweep so reconcile gets the full budget. Unchanged inputs skip work: the sweep skips its
+            document walk while the document paths match its last complete sweep, reconcile only
+            recomputes projected rows while the event stores, bead events, outbox, and store-backed
+            aggregate rows match its
             last complete pass, and the git rename scan is skipped while the dangling-ref set and sidecar
             ref heads match a scan that found nothing; each runs in full at least once a day. A hard bead
             projection failure this tick is check_error with reason bead_projection_failed; parked
