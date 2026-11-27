@@ -175,10 +175,8 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
           agent must already be inside an expanded group, since
           collapsed groups hide agents). On a selected clan-container
           row with exactly one running member, ``l`` instead jumps to
-          that member (or through it to a session's lone running
-          monitor); with no running member and exactly one failed member,
-          ``l`` jumps to that member (or through it to the session's
-          failed turn). On a sequential-session row, ``l`` jumps to its
+          that member; with no running member and exactly one failed member,
+          ``l`` jumps to that member. On a sequential-session row, ``l`` jumps to its
           lone running monitor, or to its failed turn when the session
           failed with nothing in flight.
         * Other tabs preserve the original per-workflow behavior.

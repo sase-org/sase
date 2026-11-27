@@ -152,7 +152,7 @@ def test_two_failed_keeps_today_behavior() -> None:
     assert _selected(app).identity == container.identity
 
 
-def test_clan_with_failed_session_drills_to_failed_turn() -> None:
+def test_clan_with_failed_session_jumps_to_session_then_failed_turn() -> None:
     session, code = _make_failed_session(clan="research")
     done = make_agent("member-done", clan="research")
     done.status = "DONE"
@@ -163,7 +163,21 @@ def test_clan_with_failed_session_drills_to_failed_turn() -> None:
     app = ClanLJumpHarness(complete, container)
     clan_key = _clan_key(container)
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    target = app._resolve_member_jump_target()
+    assert target is not None
+    assert target.label == "failed member"
+    assert target.row.identity == session.identity
     anchors_before = len(app._entry_jump_agents_anchor_stack)
+
+    app.action_expand_or_layout()
+
+    assert _selected(app).identity == session.identity
+    assert app._fold_manager.get(clan_key) is not FoldLevel.COLLAPSED
+    session_key = agent_fold_key(session)
+    assert session_key is not None
+    assert app._fold_manager.get(session_key) is FoldLevel.COLLAPSED
+    assert all(agent.agent_name != "alpha--code" for agent in app._agents)
+    assert len(app._entry_jump_agents_anchor_stack) == anchors_before + 1
 
     app.action_expand_or_layout()
 
@@ -173,16 +187,8 @@ def test_clan_with_failed_session_drills_to_failed_turn() -> None:
         if agent.agent_name == "alpha--code"
     )
     assert _selected(app).identity == target.identity
-    assert app._fold_manager.get(clan_key) is not FoldLevel.COLLAPSED
-    session_row = next(
-        agent for agent in app._agents_with_children if agent.agent_name == "alpha"
-    )
-    session_key = agent_fold_key(session_row)
-    assert (
-        session_key is None
-        or app._fold_manager.get(session_key) is not FoldLevel.COLLAPSED
-    )
-    assert len(app._entry_jump_agents_anchor_stack) == anchors_before + 1
+    assert app._fold_manager.get(session_key) is not FoldLevel.COLLAPSED
+    assert len(app._entry_jump_agents_anchor_stack) == anchors_before + 2
     assert app.notifications == []
 
 

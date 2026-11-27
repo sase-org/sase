@@ -124,7 +124,7 @@ def test_session_running_agent_turn_keeps_fold_ladder() -> None:
     assert len(app._entry_jump_agents_anchor_stack) == anchors_before
 
 
-def test_clan_with_monitor_only_session_jumps_to_monitor() -> None:
+def test_clan_with_monitor_only_session_jumps_to_session_then_monitor() -> None:
     done = make_agent("member-done", clan="research")
     done.status = "DONE"
     done.status_bucket = "Done"
@@ -135,11 +135,58 @@ def test_clan_with_monitor_only_session_jumps_to_monitor() -> None:
     clan_key = agent_fold_key(container)
     assert clan_key is not None
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    session_key = _session_key(_session)
+    target = app._resolve_member_jump_target()
+    assert target is not None
+    assert target.label == "running member"
+    assert target.row.identity == _session.identity
     anchors_before = len(app._entry_jump_agents_anchor_stack)
 
     app.action_expand_or_layout()
 
-    assert _selected(app).identity == monitor.identity
+    assert _selected(app).identity == _session.identity
     assert app._fold_manager.get(clan_key) is not FoldLevel.COLLAPSED
+    assert app._fold_manager.get(session_key) is FoldLevel.COLLAPSED
+    assert all(agent.identity != monitor.identity for agent in app._agents)
     assert len(app._entry_jump_agents_anchor_stack) == anchors_before + 1
+    assert app.notifications == []
+    target = app._resolve_member_jump_target()
+    assert target is not None
+    assert target.label == "running monitor"
+
+    app.action_expand_or_layout()
+
+    assert _selected(app).identity == monitor.identity
+    assert app._fold_manager.get(session_key) is not FoldLevel.COLLAPSED
+    assert len(app._entry_jump_agents_anchor_stack) == anchors_before + 2
+    assert app.notifications == []
+
+
+def test_clan_jump_with_expanded_monitor_only_session_still_selects_session() -> None:
+    done = make_agent("member-done", clan="research")
+    done.status = "DONE"
+    done.status_bucket = "Done"
+    app, container, session, monitor = _make_session_with_lone_running_monitor(
+        clan="research",
+        extra_members=[done],
+    )
+    clan_key = agent_fold_key(container)
+    assert clan_key is not None
+    session_key = _session_key(session)
+    app._fold_manager.expand(session_key)
+    app._refilter_agents()
+    app._fold_manager.collapse(clan_key)
+    app._refilter_agents()
+    app.current_idx = next(
+        index
+        for index, agent in enumerate(app._agents)
+        if agent.identity == container.identity
+    )
+
+    app.action_expand_or_layout()
+
+    assert _selected(app).identity == session.identity
+    assert any(agent.identity == monitor.identity for agent in app._agents)
+    assert app._fold_manager.get(clan_key) is not FoldLevel.COLLAPSED
+    assert app._fold_manager.get(session_key) is not FoldLevel.COLLAPSED
     assert app.notifications == []

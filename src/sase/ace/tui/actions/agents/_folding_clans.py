@@ -224,16 +224,16 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         """Return the ``l`` jump target for a lone running/failed node.
 
         Applies on the Agents tab with no whole-panel focus and no grouping-
-        banner focus. A selected clan-container row whose lone running member
-        is a session whose only in-flight turn is a running monitor drills
-        through to that monitor; otherwise the clan member itself is the
-        target. With no running member, a clan with exactly one failed member
-        jumps to that member, or through it to the session's failed turn.
-        Any other selected row jumps to its lone running monitor, or to its
-        failed turn when the session itself failed with nothing in flight.
-        The footer reuses this resolver so the chip and the key cannot
-        disagree. The Archive and Tools-card routes stay in the dispatcher
-        before ``_expand_fold``.
+        banner focus. A clan with exactly one running member targets that
+        member, even when it is a session whose only in-flight turn is a
+        monitor. With no running member, a clan with exactly one failed
+        member targets that member. A clan jump never opens a member session;
+        ``l`` on the session row then reaches its monitor or failed turn. Any
+        other selected row jumps to its lone running monitor, or to its failed
+        turn when the session itself failed with nothing in flight. The footer
+        reuses this resolver so the chip and the key cannot disagree. The
+        Archive and Tools-card routes stay in the dispatcher before
+        ``_expand_fold``.
         """
         if getattr(self, "current_tab", None) != "agents":
             return None
@@ -264,21 +264,13 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
                 member = clan_lone_running_member(selected)
                 if member is not None:
-                    monitor = agent_session_lone_running_monitor_row(member)
-                    if monitor is not None and monitor.identity != selected.identity:
-                        return _MemberJumpTarget(row=monitor, label="running monitor")
                     if member.identity != selected.identity:
                         return _MemberJumpTarget(row=member, label="running member")
                     return None
                 failed = clan_lone_failed_member(selected)
-                if failed is None:
+                if failed is None or failed.identity == selected.identity:
                     return None
-                turn = agent_session_failed_turn_row(failed)
-                if turn is not None and turn.identity != selected.identity:
-                    return _MemberJumpTarget(row=turn, label="failed turn")
-                if failed.identity != selected.identity:
-                    return _MemberJumpTarget(row=failed, label="failed member")
-                return None
+                return _MemberJumpTarget(row=failed, label="failed member")
             monitor = agent_session_lone_running_monitor_row(selected)
             if monitor is not None and monitor.identity != selected.identity:
                 return _MemberJumpTarget(row=monitor, label="running monitor")

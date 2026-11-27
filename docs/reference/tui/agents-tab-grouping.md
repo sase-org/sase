@@ -58,12 +58,9 @@ start of the compact second line. A clan's outer fold is binary: from a collapse
 row, press `l` once to reveal its direct agents, session rows, and visible workflow
 rows. The clan row's fold count and status chrome count those direct clan agent nodes
 once; nested session or workflow members do not inflate them. To reveal descendants
-within a session or workflow, move to that row and press `l` there; pressing `l` again
-on the clan row itself has no effect unless the clan has exactly one running member, in
-which case `l` jumps to that member, or through it to the session's running monitor when
-that monitor is the session's only in-flight turn, or unless the clan has no running
-member and exactly one failed member, in which case `l` jumps to that member or its
-session's failed turn (see
+within a session or workflow, move to that row and press `l` there. Pressing `l` on the
+clan row jumps to its only running member, or, when there is no running member and
+exactly one failed member, to that member (see
 [Agent clans](../agents/agent-clans.md)). Lowercase `h` moves to the validated parent
 without changing fold state. Sequential session members use `--<suffix>` names and run
 one after another. Killing or dismissing a clan row cascades to the clan's live members;
