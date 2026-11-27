@@ -84,6 +84,28 @@ skips this confirmation. Declining prints `Hold not armed; launch cancelled.` an
 `1`. Accepting pre-arms the hold before launch admission, then transfers ownership to
 the launched runner.
 
+### Busy agent-index lookups
+
+Detached runners retry incomplete lookups that report a busy agent index or
+dismissed-bundle index. Each lookup has a 60-second retry budget, with delays starting
+at 0.25 seconds and doubling to a 5-second maximum. Complete answers return immediately;
+missing, corrupt, or incompatible indexes do not trigger this busy-index retry policy.
+Interactive CLI and TUI callers retain their bounded lookup behavior without the
+runner's extra retry budget.
+
+The runner log reports the first busy attempt, progress at most every 10 seconds, and
+recovery or exhaustion. An exhausted lookup remains an error rather than being treated
+as an absent agent. The failure message distinguishes these cases:
+
+| Result                                       | Recovery guidance                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------- |
+| The index stayed busy                        | Retry the agent once the index is idle                            |
+| The lookup is unavailable for another reason | Inspect `sase agent index status` and follow its `repair_command` |
+
+These host lookup failures do not consume provider retries, switch models, or disable
+the provider. See [Provider retry and fallback](../providers/retry-and-fallback.md) for
+the separate handling of provider failures.
+
 ## Daily Operation
 
 Flag and option details live in the generated [CLI command groups](../cli/index.md):

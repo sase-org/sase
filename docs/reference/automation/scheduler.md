@@ -40,23 +40,24 @@ The `sase axe` surface remains for the routine/job tree (`sase axe job`,
 
 ## Architecture
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│                              Orchestrator                             │
-│                    (spawns & monitors all routines)                   │
-├───────────┬──────────┬────────────┬───────────┬──────────┬────────────┤
-│ hooks     │ waits    │ checks     │ external_ │ comments │ housekeep- │
-│ (5s)      │ (10s)    │ (5min)     │ mirror    │ (1min)   │ ing (1hr)  │
-│           │          │            │ (15min)   │          │            │
-│ hook_     │ wait_    │ bead_task_ │ external_ │ comment_ │ error_     │
-│ checks    │ checks   │ triage     │ issue_    │ checks   │ digest     │
-│ mentor_   │ bead_    │ pr_sub-    │ mirror    │          │ managed_   │
-│ checks    │ claim_   │ mitted_    │ external_ │          │ tmp_reap   │
-│ workflow_ │ checks   │ checks     │ pr_mirror │          │ disk_      │
-│ checks    │ ...      │ ...        │           │          │ pressure   │
-│ ...       │          │            │           │          │ ...        │
-└───────────┴──────────┴────────────┴───────────┴──────────┴────────────┘
-```
+The orchestrator spawns and monitors an independent process for each routine. The
+shipped routines separate these responsibilities:
+
+| Routine                                                                               | Responsibility                                                    |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`hooks`](scheduler-default-routines.md#hooks-5-second-interval)                      | Hook and workflow completion, mentors, and dead-process cleanup   |
+| [`waits`](scheduler-default-routines.md#waits-10-second-interval)                     | Bead claims, epic-launch completion, and update-skew recovery     |
+| [`agent_waits`](scheduler-default-routines.md#agentwaits-2-second-interval)           | Agent and bead dependency resolution through `wait_checks`        |
+| [`sidecar_sync`](scheduler-default-routines.md#sidecarsync-30-second-interval)        | Primary sidecar convergence and connection of registered projects |
+| [`publication`](scheduler-housekeeping.md#publication-15-second-interval)             | Queued agent and artifact-link publication                        |
+| [`checks`](scheduler-default-routines.md#checks-5-minute-interval)                    | Periodic triage, submission checks, reconciliation, and recovery  |
+| [`usage`](scheduler-default-routines.md#usage-60-second-interval)                     | Subscription-usage refresh                                        |
+| [`external_mirror`](scheduler-default-routines.md#external_mirror-15-minute-interval) | External issue and pull-request mirroring                         |
+| [`comments`](scheduler-default-routines.md#comments-1-minute-interval)                | Remote review-comment polling                                     |
+| [`housekeeping`](scheduler-housekeeping.md#housekeeping-1-hour-interval)              | Error digests, disk cleanup, and artifact retention               |
+
+Each linked routine entry lists its default interval and jobs. Job triggers and cadence
+can skip work on a routine tick; see [Scheduler jobs](scheduler-jobs.md).
 
 ### Key Concepts
 

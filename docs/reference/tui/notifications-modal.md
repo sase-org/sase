@@ -145,21 +145,37 @@ agents (no `agent_name`) keep the prior format.
 
 ### User-question copy panel
 
-Inside the user-question response modal, `y` opens the copy panel instead of copying
-the whole ballot. The panel lists every agent-declared snippet under `SNIPPETS` and the
-question-level rows under `QUESTION`; each row copies its exact bytes, never a guessed
-or truncated value. Copied snippets gain a `✓`, and the subtitle counts progress (kept
-per question bundle for the life of the TUI process), so repeated `y` then `Enter`
-walks a multi-paste workflow in order.
+Inside the user-question response modal, `y` opens the copy panel for the current
+question. Agent-declared values appear under `SNIPPETS`; question text, the highlighted
+option, and the whole bundle's Q&A export appear under `QUESTION`. The preview shows
+up to six lines of the highlighted value, or three in a narrow panel, with a count of
+remaining lines. The clipboard receives the complete value even when its row or preview
+is shortened.
 
-The dim `FOUND IN TEXT` section offers up to five safe candidates from code spans,
-fenced code, scheme URLs, and valid SASE artifact refs; it never guesses bare paths and
-does not add these detected values to the `yy` export.
+The question pane shows these cues before the copy panel opens:
+
+| Cue | Meaning |
+| --- | --- |
+| Teal underline | An agent-declared snippet occurs in the question text |
+| Green underline | That snippet has been copied |
+| `also copyable · y then key` | Declared snippets absent from the question text, with their keys and full values |
+| `N copyable · y`, `k/N copied · y`, or `✓ N/N copied` | Progress through the declared snippets; malformed stored entries add an unavailable count |
+
+Copied rows gain a `✓`. Progress is kept per question bundle for the life of the TUI
+process. The panel initially selects the first uncopied declared snippet, or Q&A when
+none remain, so repeated `y` then `Enter` copies declared snippets in order. Copying
+changes neither the answers nor the question's submission state.
+
+The dim `FOUND IN TEXT` section offers up to five detected values from code spans,
+fenced code, scheme URLs, and valid SASE artifact refs. It excludes declared values and
+does not guess bare paths. Detected rows receive keys after the declared snippets and
+can be copied individually; they are excluded from the declared-snippet progress count,
+the copy-all action, and the `yy` export.
 
 | Key                                 | Copies                                                      |
 | ----------------------------------- | ----------------------------------------------------------- |
-| `1`–`9`, `0`, then `b`…`z`*         | one declared snippet, exactly                               |
-| `a` (2 or more snippets)            | all snippets, one per line                                  |
+| `1`–`9`, `0`, then `b`…`z`*         | one declared snippet or detected value, exactly              |
+| `a` (2 or more declared snippets)   | all declared snippets, joined with a newline                |
 | `t`                                 | the question text                                           |
 | `o`                                 | the highlighted option (disabled on `Other…` or no options) |
 | `y`                                 | questions and answers Markdown, plus copyable items         |
