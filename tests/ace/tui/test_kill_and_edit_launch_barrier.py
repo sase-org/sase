@@ -10,7 +10,9 @@ relaunch-barrier hold tests.
 from __future__ import annotations
 
 from tests.ace.tui.test_kill_and_edit_launch_barrier_hold import (
-    test_barrier_timeout_releases_held_launch_with_warning,
+    test_barrier_recheck_keeps_held_launch_and_toasts_once,
+    test_barrier_recheck_past_ceiling_releases_held_launch_with_warning,
+    test_barrier_settle_after_recheck_replays_parked_launch_once,
     test_cancelled_hold_drops_old_submit_and_new_prompt_launches,
     test_kill_last_launch_during_hold_drops_parked_launch,
     test_launch_held_while_barrier_pending_then_replays_once_settled,
@@ -28,7 +30,9 @@ from tests.ace.tui.test_kill_and_edit_launch_barrier_mount import (
 )
 
 __all__ = [
-    "test_barrier_timeout_releases_held_launch_with_warning",
+    "test_barrier_recheck_keeps_held_launch_and_toasts_once",
+    "test_barrier_recheck_past_ceiling_releases_held_launch_with_warning",
+    "test_barrier_settle_after_recheck_replays_parked_launch_once",
     "test_cancelled_hold_drops_old_submit_and_new_prompt_launches",
     "test_focused_dismiss_kill_and_edit_missing_raw_suffix_mounts_nothing",
     "test_focused_dismiss_kill_and_edit_mounts_prompt_bar_immediately",

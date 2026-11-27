@@ -178,7 +178,7 @@ def test_repeated_whole_bar_submit_while_held_replays_once() -> None:
     assert launched[0]["request"]["prompt"] == prompt
 
 
-async def test_barrier_timeout_releases_held_launch_with_warning(
+async def test_barrier_recheck_keeps_held_launch_and_toasts_once(
     tmp_path: Path,
 ) -> None:
     agent = done_agent(tmp_path, "feature", "20260801190700", "%id:foo\nDo work")
@@ -193,20 +193,81 @@ async def test_barrier_timeout_releases_held_launch_with_warning(
         submit_launch(app, prompt)
         assert launch_procs(app) == []
 
-        # The cleanup proc's callable never runs (a hung supervisor);
-        # simulate the timer firing directly rather than sleeping in real
-        # time for ``RELAUNCH_CLEANUP_BARRIER_TIMEOUT_SECONDS``.
+        # Recheck under the ceiling without sleeping
+        # ``RELAUNCH_CLEANUP_BARRIER_RECHECK_SECONDS``.
         barrier = barriers(app)[0]
-        _relaunch_barrier._settle_on_timeout(app, barrier)
+        _relaunch_barrier._recheck_barrier(app, barrier)
+        _relaunch_barrier._recheck_barrier(app, barrier)
+
+        assert barriers(app) == [barrier]
+        assert barrier.settled is False
+        assert launch_procs(app) == []
+        still_running = [
+            message
+            for message, _severity in app.notifications
+            if "still running" in message
+        ]
+        assert len(still_running) == 1
+
+
+async def test_barrier_recheck_past_ceiling_releases_held_launch_with_warning(
+    tmp_path: Path,
+) -> None:
+    agent = done_agent(tmp_path, "feature", "20260801190710", "%id:foo\nDo work")
+    app = LaunchBarrierApp([agent], selected=agent)
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: bool(app.tracked_procs))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
+
+        prompt = "%id:!foo\nDo work edited"
+        submit_launch(app, prompt)
+        assert launch_procs(app) == []
+
+        barrier = barriers(app)[0]
+        barrier.opened_at -= _relaunch_barrier.RELAUNCH_CLEANUP_BARRIER_MAX_WAIT_SECONDS
+        _relaunch_barrier._recheck_barrier(app, barrier)
 
         assert barriers(app) == []
         launched = launch_procs(app)
         assert len(launched) == 1
         assert launched[0]["request"]["prompt"] == prompt
         assert any(
-            "did not settle in time" in message and severity == "warning"
+            "still unconfirmed" in message and severity == "warning"
             for message, severity in app.notifications
         )
+
+
+async def test_barrier_settle_after_recheck_replays_parked_launch_once(
+    tmp_path: Path,
+) -> None:
+    agent = done_agent(tmp_path, "feature", "20260801190720", "%id:foo\nDo work")
+    app = LaunchBarrierApp([agent], selected=agent)
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: bool(app.tracked_procs))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
+
+        cleanup_task = app.tracked_procs[-1]
+        prompt = "%id:!foo\nDo work edited"
+        submit_launch(app, prompt)
+        assert launch_procs(app) == []
+
+        barrier = barriers(app)[0]
+        _relaunch_barrier._recheck_barrier(app, barrier)
+        assert barrier.settled is False
+        assert barrier._timer is not None
+
+        cleanup_task["proc_callable"]()
+        await wait_for(pilot, lambda: bool(launch_procs(app)))
+
+        launched = launch_procs(app)
+        assert len(launched) == 1
+        assert launched[0]["request"]["prompt"] == prompt
+        assert barriers(app) == []
+        assert barrier._timer is None
 
 
 async def test_two_overlapping_barriers_replay_parked_launch_once(

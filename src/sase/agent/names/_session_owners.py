@@ -197,7 +197,7 @@ def _owner_path_key(owner: Any, *, fallback_name: str) -> tuple[str | None, str 
     return (artifact_key, bundle_key)
 
 
-def _describe_residual_owner(name: str, entry: Any) -> str:
+def describe_residual_owner(name: str, entry: Any) -> str:
     if not isinstance(entry, dict):
         return name
     parts = [name]
@@ -230,12 +230,17 @@ def _dedupe_session_names(names: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(name for name in names if name))
 
 
-def wipe_agent_sessions_for_forced_reuse(names: Sequence[str]) -> None:
+def wipe_agent_sessions_for_forced_reuse(
+    names: Sequence[str], *, retry_residual: bool = True
+) -> None:
     """Resolve and wipe every owner of several agent-session reservations.
 
     Lazily-loaded implementation behind
     ``sase.agent.names._forced_reuse._wipe_agent_sessions_for_forced_reuse`` so
     the TUI startup closure does not pay for this session-only path.
+    *retry_residual* re-runs this wipe once for names still reserved after
+    rebuild so a late catalog writer is absorbed; the recursive call passes
+    ``False``.
     """
     from sase.agent.names import find_agent_session, load_name_registry
     from sase.agent.names._registry_entries import AGENT_SESSION_CONTAINER_KIND
@@ -438,12 +443,14 @@ def wipe_agent_sessions_for_forced_reuse(names: Sequence[str]) -> None:
         )
 
     residual_errors: list[str] = []
+    residual_session_names: list[str] = []
     for agent_session_name in active_sessions:
         member_names = members_by_agent_session.get(agent_session_name, ())
         residual_names = sorted({agent_session_name, *member_names} & set(entries))
         if residual_names:
+            residual_session_names.append(agent_session_name)
             details = [
-                _describe_residual_owner(name, entries.get(name))
+                describe_residual_owner(name, entries.get(name))
                 for name in residual_names
             ]
             residual_errors.append(
@@ -451,6 +458,11 @@ def wipe_agent_sessions_for_forced_reuse(names: Sequence[str]) -> None:
                 f"reservations after rebuild: {', '.join(details)}"
             )
     if residual_errors:
+        if retry_residual:
+            wipe_agent_sessions_for_forced_reuse(
+                residual_session_names, retry_residual=False
+            )
+            return
         raise ForcedReuseCleanupError("; ".join(residual_errors))
 
 

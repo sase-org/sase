@@ -28,6 +28,7 @@ from sase.agent.names import (
     release_stale_container,
     wipe_agent_name_for_reuse,
     wipe_force_reuse_owner,
+    wipe_force_reuse_owners,
 )
 from tests._agent_name_wipe_helpers import make_wipe_artifact, make_wipe_bundle
 
@@ -560,3 +561,131 @@ def test_wipe_force_reuse_residual_error_names_blocking_file(
         assert "source=" in message
         assert "artifacts_dir=" in message
         assert "collision_owners=" in message
+
+
+def test_wipe_force_reuse_owners_retries_once_for_late_dismissed_bundle(
+    tmp_path: Path,
+) -> None:
+    name = "bob-cli-q5"
+    suffix = "20261127120000"
+    artifact = make_wipe_artifact(tmp_path, suffix, name, done=True)
+
+    from sase.agent.names import _wipe as wipe_mod
+
+    real_execute = wipe_mod.execute_wipe_plan
+    calls = {"n": 0}
+    late_bundle: dict[str, Path | None] = {"path": None}
+
+    def _execute_with_late_writer(plan: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            late_bundle["path"] = make_wipe_bundle(tmp_path, suffix, name)
+        return real_execute(plan)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert name in get_reserved_agent_names()
+        with patch.object(
+            wipe_mod, "execute_wipe_plan", side_effect=_execute_with_late_writer
+        ):
+            wipe_force_reuse_owners([name], allow_container_skip=False)
+
+        assert not artifact.exists()
+        assert late_bundle["path"] is not None
+        assert not late_bundle["path"].exists()
+        assert name not in get_reserved_agent_names()
+        assert calls["n"] == 2
+
+
+def test_wipe_force_reuse_owners_persistent_residual_retries_once(
+    tmp_path: Path,
+) -> None:
+    name = "blocked"
+    make_wipe_artifact(tmp_path, "20261127120100", name, done=True)
+
+    from sase.agent.names import _forced_reuse as forced_mod
+    from sase.agent.names import _wipe_execute as execute_mod
+
+    real_batch = forced_mod._wipe_names_for_reuse_batch
+    batch_calls = {"n": 0}
+
+    def _keep_all(paths: set[Path], errors: list[str]) -> set[Path]:
+        del paths, errors
+        return set()
+
+    def _count_batch(*args: object, **kwargs: object) -> object:
+        batch_calls["n"] += 1
+        return real_batch(*args, **kwargs)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with (
+            patch.object(execute_mod, "_remove_artifact_dirs", side_effect=_keep_all),
+            patch.object(
+                forced_mod, "_wipe_names_for_reuse_batch", side_effect=_count_batch
+            ),
+            pytest.raises(
+                ForcedReuseCleanupError, match="forced reuse cleanup left"
+            ) as excinfo,
+        ):
+            wipe_force_reuse_owners([name], allow_container_skip=False)
+
+        message = str(excinfo.value)
+        assert batch_calls["n"] == 2
+        assert "source=" in message
+        assert "artifacts_dir=" in message
+
+
+def test_wipe_force_reuse_session_retries_once_for_late_plan_bundle(
+    tmp_path: Path,
+) -> None:
+    session = "epic.land"
+    plan_name = f"{session}--plan"
+    code_name = f"{session}--code"
+    plan = make_wipe_artifact(
+        tmp_path,
+        "20261127120200",
+        plan_name,
+        done=True,
+        day_sharded=True,
+        meta={**_session_meta(session, "root"), "plan_chain_root": True},
+    )
+    code = make_wipe_artifact(
+        tmp_path,
+        "20261127120300",
+        code_name,
+        done=True,
+        day_sharded=True,
+        meta=_session_meta(session, "code", parent_timestamp=plan.name),
+    )
+
+    from sase.agent.names import _wipe as wipe_mod
+
+    real_execute = wipe_mod.execute_wipe_plan
+    calls = {"n": 0}
+    late_bundle: dict[str, Path | None] = {"path": None}
+
+    def _execute_with_late_writer(plan_arg: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            late_bundle["path"] = make_wipe_bundle(
+                tmp_path,
+                "20261127125900",
+                plan_name,
+                **_session_meta(session, "root"),
+            )
+        return real_execute(plan_arg)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with patch.object(
+            wipe_mod, "execute_wipe_plan", side_effect=_execute_with_late_writer
+        ):
+            wipe_force_reuse_owner(session, allow_container_skip=False)
+
+        assert not plan.exists()
+        assert not code.exists()
+        assert late_bundle["path"] is not None
+        assert not late_bundle["path"].exists()
+        assert session not in get_reserved_agent_names()
+        assert plan_name not in get_reserved_agent_names()

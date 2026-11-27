@@ -8,6 +8,12 @@ to reuse. A :class:`_RelaunchCleanupBarrier` records one such in-flight
 cleanup; :func:`hold_launch_for_relaunch_cleanup` parks a launch until every
 open barrier settles.
 
+The barrier rechecks on a 30s interval instead of abandoning a slow cleanup
+at 30s. A parked launch stays held until the cleanup settles or a 300s
+ceiling is reached (a wedged supervisor or proc observer). Rechecks while a
+launch is parked emit one informational toast; the ceiling uses the warning
+path and releases the hold so ACE cannot wedge.
+
 An in-flight ``,X`` deferred kill is an additional hold: the replacement
 launch must wait through the T0→T4 window until the pending kill is
 abandoned or the ordinary cleanup barrier opened at T4 takes over.
@@ -16,6 +22,7 @@ abandoned or the ordinary cleanup barrier opened at T4 takes over.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -28,7 +35,8 @@ from ._types import RelaunchOperation
 
 log = logging.getLogger(__name__)
 
-RELAUNCH_CLEANUP_BARRIER_TIMEOUT_SECONDS = 30.0
+RELAUNCH_CLEANUP_BARRIER_RECHECK_SECONDS = 30.0
+RELAUNCH_CLEANUP_BARRIER_MAX_WAIT_SECONDS = 300.0
 PENDING_LAUNCH_KILL_TIMEOUT_SECONDS = 180.0
 
 
@@ -39,6 +47,8 @@ class _RelaunchCleanupBarrier:
     label: str
     operation: RelaunchOperation | None = None
     settled: bool = False
+    opened_at: float = 0.0
+    still_running_notified: bool = False
     _timer: object | None = None
 
 
@@ -59,20 +69,17 @@ def open_relaunch_cleanup_barrier(
     operation: RelaunchOperation | None = None,
 ) -> _RelaunchCleanupBarrier:
     """Register one in-flight cleanup a replacement launch must wait on."""
-    barrier = _RelaunchCleanupBarrier(label=label, operation=operation)
+    barrier = _RelaunchCleanupBarrier(
+        label=label, operation=operation, opened_at=time.monotonic()
+    )
     barriers = getattr(app, "_relaunch_cleanup_barriers", None)
     if barriers is None:
         barriers = []
         app._relaunch_cleanup_barriers = barriers  # type: ignore[attr-defined]
     barriers.append(barrier)
-
-    set_timer = getattr(app, "set_timer", None)
-    if callable(set_timer):
-        barrier._timer = set_timer(
-            RELAUNCH_CLEANUP_BARRIER_TIMEOUT_SECONDS,
-            lambda: _settle_on_timeout(app, barrier),
-            name="relaunch-cleanup-barrier-timeout",
-        )
+    _arm_relaunch_cleanup_recheck(
+        app, barrier, RELAUNCH_CLEANUP_BARRIER_RECHECK_SECONDS
+    )
     return barrier
 
 
@@ -267,19 +274,85 @@ def _barriers_pending_for_operation(
     )
 
 
+def _recheck_barrier(app: object, barrier: _RelaunchCleanupBarrier) -> None:
+    """Recheck an unsettled barrier: keep holding, or settle at the ceiling."""
+    if barrier.settled:
+        return
+    elapsed = time.monotonic() - barrier.opened_at
+    if elapsed >= RELAUNCH_CLEANUP_BARRIER_MAX_WAIT_SECONDS:
+        _settle_on_timeout(app, barrier)
+        return
+    if not barrier.still_running_notified and _barrier_has_parked_launch(app, barrier):
+        notify = getattr(app, "notify", None)
+        if callable(notify):
+            notify(
+                "Kill/dismiss cleanup is still running; the relaunch stays "
+                "held until it finishes (,X cancels it)"
+            )
+        barrier.still_running_notified = True
+    remaining = RELAUNCH_CLEANUP_BARRIER_MAX_WAIT_SECONDS - elapsed
+    _arm_relaunch_cleanup_recheck(
+        app,
+        barrier,
+        min(RELAUNCH_CLEANUP_BARRIER_RECHECK_SECONDS, remaining),
+    )
+
+
+def _barrier_has_parked_launch(app: object, barrier: _RelaunchCleanupBarrier) -> bool:
+    waiters = getattr(app, "_relaunch_cleanup_launch_waiters", None) or ()
+    for waiter in waiters:
+        if not isinstance(waiter, _RelaunchParkedLaunch) or waiter.replayed:
+            continue
+        if waiter.launch_id is not None and not pending_launch_is_live(
+            app, waiter.launch_id
+        ):
+            continue
+        if waiter.operation is barrier.operation:
+            return True
+        if waiter.launch_id is None and waiter.operation is None:
+            return True
+    return False
+
+
+def _arm_relaunch_cleanup_recheck(
+    app: object, barrier: _RelaunchCleanupBarrier, delay: float
+) -> None:
+    timer, barrier._timer = barrier._timer, None
+    if timer is not None:
+        stop = getattr(timer, "stop", None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception:
+                pass
+    if delay <= 0:
+        return
+    set_timer = getattr(app, "set_timer", None)
+    if callable(set_timer):
+        barrier._timer = set_timer(
+            delay,
+            lambda: _recheck_barrier(app, barrier),
+            name="relaunch-cleanup-barrier-recheck",
+        )
+
+
 def _settle_on_timeout(app: object, barrier: _RelaunchCleanupBarrier) -> None:
     if barrier.settled:
         return
+    elapsed = time.monotonic() - barrier.opened_at
     log.warning(
         "Relaunch cleanup barrier %r timed out after %.1fs; releasing held launches",
         barrier.label,
-        RELAUNCH_CLEANUP_BARRIER_TIMEOUT_SECONDS,
+        elapsed,
     )
     settle_relaunch_cleanup_barrier(app, barrier)
     notify = getattr(app, "notify", None)
     if callable(notify):
+        ceiling_minutes = int(RELAUNCH_CLEANUP_BARRIER_MAX_WAIT_SECONDS // 60)
         notify(
-            "Kill/dismiss cleanup did not settle in time; launching without "
-            "waiting for it.",
+            "Kill/dismiss cleanup is still unconfirmed after "
+            f"{ceiling_minutes} minutes; launching without waiting. "
+            "The relaunch may fail with an agent-name reuse error that is "
+            "safe to retry.",
             severity="warning",
         )

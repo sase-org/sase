@@ -64,13 +64,11 @@ def wipe_force_reuse_owners(
     if not materialized:
         return
 
-    try:
-        results = _wipe_names_for_reuse_batch(materialized)
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            "forced reuse cleanup for agent names "
-            f"{', '.join(repr(name) for name in materialized)} failed: {exc}"
-        ) from exc
+    results = _wipe_batch_or_raise(materialized, materialized=materialized)
+    residual = _residual_reuse_names(results)
+    if residual:
+        retry_results = _wipe_batch_or_raise(residual, materialized=materialized)
+        results = _merge_wipe_results(results, retry_results)
 
     errors: list[str] = []
     agent_session_names: list[str] = []
@@ -106,10 +104,7 @@ def wipe_force_reuse_owners(
             )
             continue
         if result.found and name not in result.registry_names_removed:
-            errors.append(
-                f"forced reuse cleanup left agent name '{name}' reserved "
-                "after rebuild; resolve the conflicting owner and retry"
-            )
+            errors.append(_residual_owner_error(name))
 
     if errors:
         _raise_batch_errors(errors, materialized, results)
@@ -206,6 +201,64 @@ def _wipe_names_for_reuse_batch(
     return _shared_batch(
         names, allow_stale_container=allow_stale_container, catalog=catalog
     )
+
+
+def _wipe_batch_or_raise(
+    names: Sequence[str], *, materialized: Sequence[str]
+) -> tuple[Any, ...]:
+    try:
+        return _wipe_names_for_reuse_batch(names)
+    except Exception as exc:  # noqa: BLE001
+        raise ForcedReuseCleanupError(
+            "forced reuse cleanup for agent names "
+            f"{', '.join(repr(name) for name in materialized)} failed: {exc}"
+        ) from exc
+
+
+def _residual_reuse_names(results: Sequence[Any]) -> tuple[str, ...]:
+    return tuple(
+        result.target_name
+        for result in results
+        if result.found
+        and not result.errors
+        and not result.skipped_container_kind
+        and result.target_name not in result.registry_names_removed
+    )
+
+
+def _merge_wipe_results(first: Sequence[Any], retry: Sequence[Any]) -> tuple[Any, ...]:
+    by_name = {result.target_name: result for result in first}
+    by_name.update({result.target_name: result for result in retry})
+    merged = [by_name[result.target_name] for result in first]
+    seen = {result.target_name for result in first}
+    merged.extend(result for result in retry if result.target_name not in seen)
+    return tuple(merged)
+
+
+def _residual_owner_error(name: str) -> str:
+    base = (
+        f"forced reuse cleanup left agent name '{name}' reserved "
+        "after rebuild; resolve the conflicting owner and retry"
+    )
+    try:
+        from sase.agent.names import load_name_registry
+        from sase.agent.names._session_owners import describe_residual_owner
+
+        registry = load_name_registry()
+        entries = registry.get("entries")
+        if not isinstance(entries, dict):
+            return base
+        described = describe_residual_owner(name, entries.get(name))
+    except Exception:  # noqa: BLE001
+        return base
+    prefix = f"{name} ("
+    if described.startswith(prefix) and described.endswith(")"):
+        details = described[len(prefix) - 1 :]
+        return (
+            f"forced reuse cleanup left agent name '{name}' reserved "
+            f"after rebuild {details}; resolve the conflicting owner and retry"
+        )
+    return base
 
 
 def _dedupe_names(names: Sequence[str]) -> tuple[str, ...]:
