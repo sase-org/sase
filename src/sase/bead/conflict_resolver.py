@@ -225,11 +225,30 @@ def _resolve_bead_conflict_paths(
             merged_stream_ids.add(relocated_id)
         relocated_beads.extend(normalize_bead_relocations(outcome))
 
-    if merged_config is not None:
-        merged_config = _config_with_allocated_counter(
-            merged_config, relocation_ids.next_counter
-        )
-        save_config(resolved_beads_dir, merged_config)
+    if merged_stream_ids:
+        # counter (sase-1vt.2): a rollback-and-retry must never re-mint an
+        # ID the resolver relocated to. The relocation pool cursor reserves
+        # an ID per conflicted stream even when nothing relocates, so the
+        # floor comes only from the stream IDs now in the store: relocated
+        # streams and tombstoned (removed) streams included.
+        if merged_config is not None:
+            prefix = str(merged_config.get("issue_prefix", "beads"))
+            floor = max_counter_in_ids(prefix, set(streams)) + 1
+            merged_config = _config_with_allocated_counter(
+                merged_config, max(floor, relocation_ids.next_counter)
+            )
+            save_config(resolved_beads_dir, merged_config)
+        elif (resolved_beads_dir / "config.json").exists():
+            # config.json merged cleanly (or was untouched): it has no
+            # conflict markers, so raise it through the worktree copy and
+            # stage it alongside the resolved streams.
+            worktree_config = load_config(resolved_beads_dir)
+            prefix = str(worktree_config.get("issue_prefix", "beads"))
+            floor = max_counter_in_ids(prefix, set(streams)) + 1
+            updated = _config_with_allocated_counter(worktree_config, floor)
+            if updated.get("next_counter") != worktree_config.get("next_counter"):
+                save_config(resolved_beads_dir, updated)
+                store_conflicts.append(config_path)
 
     ordered_streams = [streams[key] for key in sorted(streams)]
     issues = reduce_event_streams(ordered_streams)

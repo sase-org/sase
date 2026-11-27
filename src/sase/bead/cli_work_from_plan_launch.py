@@ -337,9 +337,11 @@ def work_from_plan_file_locked(
                         f"(moved to {relocated_id}); rolled back, "
                         f"retrying (attempt {attempt + 1}/{_EPIC_CREATION_MAX_ATTEMPTS})"
                     )
-                # The integrated store's counter is already past both beads,
-                # so the retry mints fresh IDs. stale_epic_id stays unchanged:
-                # rollback restored the original plan content.
+                # The conflict resolver advances the store's next_counter
+                # past every relocation and stream ID (even when config.json
+                # itself merged cleanly), so the retry mints fresh IDs.
+                # stale_epic_id stays unchanged: rollback restored the
+                # original plan content.
                 continue
     except Exception as exc:
         retry_requires_push = False
