@@ -192,6 +192,25 @@ def test_telemetry_workflow_runs_cost_attribution_with_realistic_timeout() -> No
     assert any(step.get("run") == "just test-cost" for step in job["steps"])
 
 
+def test_telemetry_cost_recording_is_uploaded_even_when_the_job_fails() -> None:
+    job = load_telemetry_workflow()["jobs"]["test-cost"]
+    cost_dir = job["env"]["SASE_TEST_COST_DIR"]
+    upload_step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Upload test-cost recording"
+    )
+
+    assert cost_dir == ".pytest_cache/sase-test-cost"
+    assert upload_step["if"] == "always()"
+    assert upload_step["uses"] == "actions/upload-artifact@v4"
+    assert upload_step["with"]["path"] == cost_dir
+    assert upload_step["with"]["include-hidden-files"] is True
+    assert upload_step["with"]["retention-days"] == 14
+    assert "${{ github.sha }}" in upload_step["with"]["name"]
+    assert "${{ github.run_attempt }}" in upload_step["with"]["name"]
+
+
 def test_telemetry_workflow_publishes_contexts_on_master_only_with_headroom() -> None:
     job = load_telemetry_workflow()["jobs"]["coverage-contexts"]
 

@@ -28,6 +28,8 @@ jobs:
     needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      SASE_TEST_COST_DIR: .pytest_cache/sase-test-cost
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -46,6 +48,15 @@ jobs:
           name: sase-global-leaks-${{ github.sha }}
           path: .pytest_cache/sase-global-leaks.json
           if-no-files-found: warn
+          retention-days: 14
+      - name: Upload test-cost recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-test-cost-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: .pytest_cache/sase-test-cost
+          if-no-files-found: warn
+          include-hidden-files: true
           retention-days: 14
 
   # Per-test coverage contexts are the ground-truth source the diff-scoped

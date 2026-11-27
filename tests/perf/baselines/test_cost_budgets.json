@@ -2,59 +2,59 @@
   "causes": {
     "ace_page_enter": {
       "count_enforce": "hard",
-      "count_limit": 840,
+      "count_limit": 1500,
       "cpu_enforce": "hard",
-      "cpu_limit": 950.0,
+      "cpu_limit": 2100.0,
       "enforce": "advisory",
-      "limit": 540.0
+      "limit": 1900.0
     },
     "ace_settle_pilot": {
       "count_enforce": "hard",
-      "count_limit": 12000,
+      "count_limit": 24000,
       "cpu_enforce": "hard",
-      "cpu_limit": 420.0,
+      "cpu_limit": 1400.0,
       "enforce": "advisory",
-      "limit": 340.0
+      "limit": 1300.0
     },
     "parser_create": {
       "count_enforce": "hard",
-      "count_limit": 2300,
+      "count_limit": 3400,
       "cpu_enforce": "hard",
-      "cpu_limit": 68.0,
+      "cpu_limit": 150.0,
       "enforce": "advisory",
-      "limit": 52.0
+      "limit": 140.0
     },
     "pilot_pause_delay": {
       "count_enforce": "hard",
-      "count_limit": 23000,
+      "count_limit": 47000,
       "cpu_enforce": "hard",
-      "cpu_limit": 370.0,
+      "cpu_limit": 1100.0,
       "enforce": "advisory",
-      "limit": 230.0
+      "limit": 1100.0
     },
     "subprocess_run": {
       "count_enforce": "hard",
-      "count_limit": 52000,
+      "count_limit": 150000,
       "cpu_enforce": "hard",
-      "cpu_limit": 39.0,
+      "cpu_limit": 250.0,
       "enforce": "advisory",
-      "limit": 540.0
+      "limit": 870.0
     },
     "textual_app_run_test_enter": {
       "count_enforce": "hard",
-      "count_limit": 4500,
+      "count_limit": 7200,
       "cpu_enforce": "hard",
-      "cpu_limit": 750.0,
+      "cpu_limit": 1500.0,
       "enforce": "advisory",
-      "limit": 470.0
+      "limit": 1400.0
     },
     "yaml_load": {
       "count_enforce": "hard",
-      "count_limit": 71000,
+      "count_limit": 170000,
       "cpu_enforce": "hard",
-      "cpu_limit": 24.0,
+      "cpu_limit": 55.0,
       "enforce": "advisory",
-      "limit": 20.0
+      "limit": 51.0
     }
   },
   "notes": [
@@ -71,7 +71,7 @@
     "2026-08-26 cost-budget recalibration after repeated local full-lane failures on host athena: `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-26T06:08:02Z through 2026-08-26T16:25:19Z, all with 14 workers and 37,196-37,263 nodes. Raised only existing hard CPU limits that the retained recordings exceeded or nearly exceeded: total_file_cpu_seconds 1800 -> 2000, collection_cpu_seconds 25 -> 28, ace_page_enter.cpu 590 -> 690, ace_settle_pilot.cpu 290 -> 300, parser_create.cpu 33 -> 34, pilot_pause_delay.cpu 250 -> 270, subprocess_run.cpu 24 -> 27, textual_app_run_test_enter.cpu 520 -> 570, yaml_load.cpu 18 -> 19. Kept wall advisory, count, and memory budgets unchanged unless they were needed for the failing gate.",
     "2026-08-28 cost-budget recalibration after full-lane failure on host athena: `just test-cost` recorded /home/bryan/.sase/test-selection/gh_sase-org__sase/timings/cost/20260828T055221Z-872787.json (37,915 nodes, 14 workers) and `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-28T01:41:25Z through 2026-08-28T05:52:21Z, all with 14 workers and 37,904-37,915 nodes. Raised only existing hard CPU limits whose suggested values exceeded the committed file: total_file_cpu_seconds 2000 -> 2100, ace_page_enter.cpu 690 -> 720, ace_settle_pilot.cpu 300 -> 320, pilot_pause_delay.cpu 270 -> 290, textual_app_run_test_enter.cpu 570 -> 600, yaml_load.cpu 19 -> 20. Kept advisory wall limits, count limits, memory budgets, new suggested cause keys, and hard CPU limits whose suggestions did not exceed the committed values unchanged.",
     "2026-08-28 afternoon cost-budget recalibration after a second full-lane failure on host athena: `just test-cost` recorded /home/bryan/.sase/test-selection/gh_sase-org__sase/timings/cost/20260828T140131Z-1389154.json (37,935 nodes, 14 workers) and `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-28T02:27:51Z through 2026-08-28T14:01:31Z, all with 14 workers and 37,904-37,935 nodes. Invocation counts for ace_page_enter (665) and textual_app_run_test_enter (3637) were unchanged across the sample; only CPU seconds moved. Raised only existing hard CPU limits whose suggested values exceeded the committed file: ace_page_enter.cpu 720 -> 740, textual_app_run_test_enter.cpu 600 -> 610. Kept advisory wall limits, count limits, memory budgets, new suggested cause keys, and hard CPU limits whose suggestions did not exceed the committed values unchanged.",
-    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output — do not raise a limit to hide a one-off regression.",
+    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output \u2014 do not raise a limit to hide a one-off regression.",
     "2026-08-29: GitHub Full CI 3.13 `just test-cost` (run 33216659649, worker_count=3) exceeded athena-calibrated hard CPU limits (collection_cpu 77.852 vs 35 allowed, total_file_cpu 3199 vs 2625). Do not raise those numbers for GitHub-hosted slowness. `check_test_cost_budgets --ci` now reports CPU overages as advisory and keeps count/RSS hard.",
     "2026-09-07 CPU-only recalibration for sase-xc after the sase-xq landing test-cost run passed 38,961 tests on main 24ac549dd but failed six CPU ceilings. `tools/check_test_cost_budgets --suggest --history 8` used eight athena recordings from 2026-09-06T12:44:22Z through 2026-09-07T03:54:36Z (7-14 workers, 38,811-38,974 nodes); all records and exact suggestion output are preserved in file:explicit:d496b0ff14235d9ac51905f2. Total CPU min/median/max = 2451.074/2616.175/2967.464 seconds; four recordings already exceed the previous 2625-second allowance. ACE enter counts remain 711 across all eight records; Textual enter counts are 3681-3691. The standard suggestion formula raises only these existing CPU limits: ace_page_enter.cpu 740 -> 830, ace_settle_pilot.cpu 320 -> 360, pilot_pause_delay.cpu 290 -> 320, subprocess_run.cpu 27 -> 38, textual_app_run_test_enter.cpu 610 -> 690, yaml_load.cpu 20 -> 21, total_file_cpu_seconds 2100 -> 2400. Subprocess CPU also exceeded its old ceiling in the retained history (46.635 vs 33.750 seconds), so its suggested increase is included. Hard CPU enforcement and 25% tolerance remain; advisory wall, hard count, collection and RSS limits are unchanged. Historic parser/YAML wall regression coverage and every doubled-metric check remain applicable without fixture changes. This is a local athena calibration, not permission to absorb another host or an unexplained future regression into the budgets.",
     "2026-09-07 evening CPU-only recalibration applied during the sase-xz landing gate: the third `just check-full` attempt passed every lint gate, SASE validation, committed plans and the whole suite (39,329 passed, 14 skipped, 0 failed in 25m56s), then failed exactly one hard ceiling -- causes.parser_create.cpu 42.573 against the 42.500 allowance (34.0 + 25% tolerance), an overage of 0.073 seconds. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 athena recordings from 2026-09-07T14:39:02Z through 2026-09-07T22:57:37Z (6-14 workers, 39,089-39,342 nodes, plus one aborted 0-node record) and reports causes.parser_create.cpu min/median/max = 35.765/40.791/42.573 while causes.parser_create.count is invariant at 1882 across every record. The two adjacent full-lane recordings 20260907T213439Z-3356125.json (35.765s CPU) and 20260907T225737Z-695050.json (42.573s CPU) attribute parser_create to the identical 191 files with identical per-file counts, so the +19% CPU swing between them is host contention, not new parser work -- contrary to the 2026-08-23 note above, per-cause CPU seconds are not contention-stable for this cause at this sample size, and the sample median already sits at 96% of the committed allowance. Raised only causes.parser_create.cpu_limit 34.0 -> 35.0, the single existing key whose suggested value exceeds the committed file. Advisory wall limits, count limits, RSS budgets, tolerances, and every new cause key the suggestion proposes are left unchanged, and the pre-epic baseline regression fixture (which carries no per-cause CPU) is unaffected. The standing stale-budget defect is tracked by bead sase-xc; this is a local athena calibration, not permission to absorb another host or an unexplained future regression into the budgets.",
@@ -84,13 +84,15 @@
     "2026-09-16 afternoon CPU-only recalibration for bead sase-11r.1 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,148 passed, 15 skipped, 0 failed in 49m38s), then failed two hard ceilings on recording 20260916T160928Z-2379592.json: summary.total_file_cpu_seconds 3492.865 against the 3375.000 allowance (2700.0 + 25% tolerance), and causes.parser_create.cpu 78.744 against the 68.750 allowance (55.0 + 25% tolerance). `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-15T19:57:29Z through 2026-09-16T16:09:28Z (8-14 workers, 42,006-42,162 nodes) and reports total_file_cpu min/median/max = 2991.793/3122.683/3492.865 and causes.parser_create.cpu min/median/max = 46.564/50.403/78.744 with count 1,996-2,000. Raised only the existing failing hard CPU limits to the suggested values: total_file_cpu_seconds 2700 -> 2800, and parser_create.cpu 55 -> 63. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged. This gate failed twice within the same day purely from organic suite growth across unrelated concurrently landing epics, not from this phase's starter-race fix.",
     "2026-09-18 CPU-only recalibration while landing bead sase-11l.5.1.2.1: `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,634 passed, 15 skipped, 0 failed in 2h13m36s), then failed hard CPU ceilings on recording 20260918T025847Z-3409454.json: summary.total_file_cpu_seconds 3786.843 against the 3500.000 allowance, causes.ace_settle_pilot.cpu 512.996 against 512.500, causes.parser_create.cpu 84.554 against 78.750, and causes.textual_app_run_test_enter.cpu 904.450 against 900.000. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-16T16:09:28Z through 2026-09-18T02:58:47Z (4-14 workers, 42,159-42,648 nodes) and reports total_file_cpu min/median/max = 3257.191/3510.857/3786.843; ace_settle_pilot.cpu = 454.696/492.650/514.980; parser_create.cpu = 68.922/78.241/84.554; subprocess_run.cpu = 37.897/41.000/48.072; textual_app_run_test_enter.cpu = 811.432/855.872/904.450. Raised only existing hard CPU limits whose suggested values exceed the committed file: total_file_cpu_seconds 2800 -> 3100, ace_settle_pilot.cpu 410 -> 420, parser_create.cpu 63 -> 68, subprocess_run.cpu 38 -> 39, and textual_app_run_test_enter.cpu 720 -> 730. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new suggested key are left unchanged.",
     "2026-09-18 CPU-only recalibration while completing bead sase-126.4 after `just check-full` passed every lint gate, SASE validation, committed plans, visual checks, Phase 7 performance checks, and the whole pytest cost lane (42,696 passed, 15 skipped, 0 failed in 28m28s), then failed two hard ceilings on recording 20260918T065242Z-990654.json: causes.ace_page_enter.cpu 1153.732 against the 1137.500 allowance and causes.textual_app_run_test_enter.cpu 902.826 against the 900.000 allowance. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-17T11:52:00Z through 2026-09-18T06:52:42Z (4-14 workers, 42,463-42,710 nodes) and reports total_file_cpu min/median/max = 3301.592/3433.130/3786.843, ace_page_enter.cpu = 1053.375/1103.563/1153.732, ace_settle_pilot.cpu = 454.696/476.490/512.996, parser_create.cpu = 72.948/77.240/84.554, and textual_app_run_test_enter.cpu = 844.977/873.617/904.450. Raised only existing hard CPU limits whose suggested values exceeded the committed file: total_file_cpu_seconds 2800 -> 3100, ace_page_enter.cpu 910 -> 930, ace_settle_pilot.cpu 410 -> 420, parser_create.cpu 63 -> 68, and textual_app_run_test_enter.cpu 720 -> 730. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged.",
-    "2026-09-18 evening CPU-only recalibration while landing bead sase-11l.10 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,947 passed, 15 skipped, 0 failed in 23m36s), then failed one hard ceiling on recording 20260918T180720Z-1223725.json: causes.textual_app_run_test_enter.cpu 912.733 against the 912.500 allowance (730.0 + 25% tolerance). `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-18T06:57:06Z through 2026-09-18T18:07:20Z (7-14 workers, 42,648-43,054 nodes) and reports textual_app_run_test_enter.cpu min/median/max = 803.786/885.358/937.053 with count 3,995-4,016; ace_page_enter.cpu = 1040.855/1123.890/1179.762; pilot_pause_delay.cpu = 405.481/416.539/453.471; yaml_load.cpu = 24.813/26.033/28.890. Raised only existing hard CPU limits whose suggested values exceed the committed file: ace_page_enter.cpu 930 -> 950, pilot_pause_delay.cpu 360 -> 370, textual_app_run_test_enter.cpu 730 -> 750, and yaml_load.cpu 23 -> 24. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged."
+    "2026-09-18 evening CPU-only recalibration while landing bead sase-11l.10 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,947 passed, 15 skipped, 0 failed in 23m36s), then failed one hard ceiling on recording 20260918T180720Z-1223725.json: causes.textual_app_run_test_enter.cpu 912.733 against the 912.500 allowance (730.0 + 25% tolerance). `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-18T06:57:06Z through 2026-09-18T18:07:20Z (7-14 workers, 42,648-43,054 nodes) and reports textual_app_run_test_enter.cpu min/median/max = 803.786/885.358/937.053 with count 3,995-4,016; ace_page_enter.cpu = 1040.855/1123.890/1179.762; pilot_pause_delay.cpu = 405.481/416.539/453.471; yaml_load.cpu = 24.813/26.033/28.890. Raised only existing hard CPU limits whose suggested values exceed the committed file: ace_page_enter.cpu 930 -> 950, pilot_pause_delay.cpu 360 -> 370, textual_app_run_test_enter.cpu 730 -> 750, and yaml_load.cpu 23 -> 24. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged.",
+    "2026-11-27 authoritative rebaseline for sase-1vn.2. Full fast-suite sample: file:explicit:f2f774fd30fcf4bccf90defa (raw JSON), file:explicit:1a88240988579736c6140252 (complete monitor log), and file:explicit:81365da9fcfee7f81c0cfd0d (isolated-only --suggest output). Command: `env SASE_PYTEST_WORKERS=4 SASE_TEST_COST_DIR=<unique .pytest_cache directory> just test-cost`; base SHA f07962869753f885da90cb754bb8f282f51e36e7, host athena, Python 3.14.7, 64 CPUs, preflight 47 GiB available memory and suite-gate cap 32, exact four-worker grant, 63,815 selected nodes across 5,847 files, 2026-11-27 16:40:03Z\u201318:14:49Z (5,586 s). The retained log shows `4 workers [63815 items]`, 100% completion, no deselection or selector arguments, and all four workers reported files; monitor output was complete and drain-confirmed. Load average was not captured; other monitors were active at preflight. Exit 1 followed complete execution: two test assertions assumed the default cost directory despite the intentional SASE_TEST_COST_DIR override (fixed as hermetic override tests), and the unchanged base recorded one leak-detector poisoning change in tests/ace/tui/test_agent_jump_clan_members.py::test_real_app_named_agent_jump_expands_collapsed_clan for global sase.config.core._live_config_token_refresh_threads, owned by existing bead sase-1vg. No worker crash or early stop. Historical plan sample 20260919T182806Z-2099141.json is no longer in the local retained store or artifact index; its approved-plan summary records 43,271 nodes, 3,993 files, four workers, and 3,860.711 file CPU seconds, with prior misses ace_settle_pilot.cpu 538.531, parser_create.cpu 86.304, pilot_pause_delay.cpu 470.900, and subprocess_run.count 53,787. Current sample grows nodes 47.5%, files 46.4%, and total file CPU 86.6% (+26.6% CPU/node); the current timing-store comparison covers 5,846/5,847 files and is only +242.509 s (+2.3%) wall. For each changed cause CPU budget, no single file exceeds 5.7% of cause CPU; measured call volume and CPU growth are broad rather than concentrated in a named test. Classify these misses as suite-wide growth with no named regression supported by this recording, not as wall contention alone. New CPU/RSS limits use round_up_nice(max_sample / (0.85 * (1 + tolerance))); resulting local effective allowances are total_file_cpu 8,500 vs 7,205.321 sample (15.2% headroom), collection_cpu 51.25 vs 43.369 per worker (15.4%), and peak RSS 4,945,000 KiB vs 4,193,576 (15.2%). Cause CPU limits are ace_page_enter 950->2,100, ace_settle_pilot 420->1,400, parser_create 68->150, pilot_pause_delay 370->1,100, subprocess_run 39->250, textual_app_run_test_enter 750->1,500, yaml_load 24->55; count limits use round_up_nice(max_count * 1.25) with zero runtime tolerance and are respectively 840->1,500, 12,000->24,000, 2,300->3,400, 23,000->47,000, 52,000->150,000, 4,500->7,200, 71,000->170,000. Existing wall metrics remain advisory; total_file_wall_seconds 4,700->9,400 and cause wall limits were refreshed from this sample. Tolerance, summary gates, severity policy, and count semantics are unchanged.",
+    "2026-11-27 check-full verification follow-up for sase-1vn.2. Isolated evidence: file:explicit:0c6bf85783f13300e8d3c47c (raw recording) and file:explicit:1fa482f4cf347ac59b28ab35 (complete monitor log). Command: `env SASE_PYTEST_WORKERS=4 SASE_TEST_COST_DIR=<unique .pytest_cache directory> just check-full`; monitor 62r1026bwztg ran 2026-11-27 19:13:59Z-21:00:43Z (6,349 s, exit 1). The isolated cost record has 63,822 nodes over 5,847 files and four workers. gw0/gw1/gw2/gw3 recorded 10,694/15,551/17,536/20,041 nodes (sum 63,822); all reported files. No worker crashed or stopped early. There were no ad-hoc paths, shards, -k selectors, or non-default markers; tools/run_pytest used the default fast selector (not slow and not visual), which is the intended test-cost lane. The complete pytest run ended with 63,806 passed and 17 skipped. The check-full command stopped in test-cost after the global leak detector found four poisoning tests for sase.config.core._live_config_token_refresh_threads: test_confirming_last_panel_member_preserves_neighbors_and_valid_focus, test_circumflex_history_replaces_the_live_edit_while_the_bar_is_open, test_collapsed_content_rows_are_exact, and test_pending_hold_keeps_rows_then_settles. The earlier clean-base test_real_app_named_agent_jump_expands_collapsed_clan signature on this same global remains owned by existing task sase-1vg. The initial isolated local replay also exposed collection_cpu_seconds=53.562 per worker against the old effective 51.25 allowance (limit 41.0 plus 25% tolerance); CI replay passed. The isolated --suggest output recommends 51.0 by round_up_nice(53.562 / (0.85 * 1.25)); with 25% tolerance the effective allowance is 63.75, leaving 16.0% headroom. The committed collection CPU limit is now 51.0; local and CI replay both pass. Compared with the earlier same-day four-worker 63,815-node sample, total file CPU rose 5.1%, while individual cause CPU changes were 2.7-8.8%; the largest current file used 142.056 CPU seconds (1.88% of total), so no named per-file regression is supported. Collection CPU has no per-file attribution and all four workers reported 53.123-53.880 collection CPU seconds. The monitor stopped before the visual snapshot stage, and no PNG golden files or visual reports changed. Advisory wall overages were left advisory."
   ],
   "schema": 1,
   "summary": {
     "collection_cpu_seconds": {
       "enforce": "hard",
-      "limit": 28.0,
+      "limit": 51.0,
       "per_worker": true
     },
     "collection_seconds": {
@@ -104,15 +106,15 @@
     },
     "peak_worker_rss_kib": {
       "enforce": "hard",
-      "limit": 1800000.0
+      "limit": 4300000.0
     },
     "total_file_cpu_seconds": {
       "enforce": "hard",
-      "limit": 3100.0
+      "limit": 6800.0
     },
     "total_file_wall_seconds": {
       "enforce": "advisory",
-      "limit": 4700.0
+      "limit": 9400.0
     }
   },
   "tolerance": {

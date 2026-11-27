@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -28,6 +31,95 @@ COMMITTED_BUDGETS_PATH = (
 BASELINE_RECORDING_PATH = (
     REPO_ROOT / "tests" / "perf" / "baselines" / "test_cost_baseline.json"
 )
+
+
+def _fresh_full_sample_record() -> dict[str, Any]:
+    """Keep a compact fixture from the retained 2026-11-27 full recording.
+
+    Source: ``file:explicit:f2f774fd30fcf4bccf90defa`` (63,815 nodes, four workers).
+    The real 4.3 MB recording stays an artifact; only budget-relevant summary
+    values are copied here so the real CLI has a small, deterministic input.
+    """
+
+    return {
+        "schema": 1,
+        "mode": "cost",
+        "recorded_at": "2026-11-27T18:14:43.516479+00:00",
+        "host": "athena",
+        "worker_count": 4,
+        "summary": {
+            "total_file_wall_seconds": 10766.840657,
+            "total_file_cpu_seconds": 7205.321394,
+            "idle_seconds": 3561.519263,
+            "peak_worker_rss_kib": 4193576,
+            "collection_seconds": 192.311539,
+            "collection_cpu_seconds": 173.474945,
+            "causes": {
+                "ace_page_enter": {
+                    "count": 1155,
+                    "seconds": 2119.765803,
+                    "cpu_seconds": 2127.907329,
+                },
+                "ace_settle_pilot": {
+                    "count": 18562,
+                    "seconds": 1399.899501,
+                    "cpu_seconds": 1398.292843,
+                },
+                "parser_create": {
+                    "count": 2689,
+                    "seconds": 156.256525,
+                    "cpu_seconds": 155.742373,
+                },
+                "pilot_pause_delay": {
+                    "count": 37599,
+                    "seconds": 1213.662787,
+                    "cpu_seconds": 1164.828661,
+                },
+                "subprocess_run": {
+                    "count": 114809,
+                    "seconds": 996.020707,
+                    "cpu_seconds": 261.406694,
+                },
+                "textual_app_run_test_enter": {
+                    "count": 5714,
+                    "seconds": 1587.494618,
+                    "cpu_seconds": 1592.339329,
+                },
+                "yaml_load": {
+                    "count": 133913,
+                    "seconds": 58.524307,
+                    "cpu_seconds": 58.426651,
+                },
+            },
+        },
+    }
+
+
+def _run_budget_cli(
+    tmp_path: Path, record: dict[str, Any], *, ci: bool = False
+) -> subprocess.CompletedProcess[str]:
+    recording_path = tmp_path / "recording.json"
+    recording_path.write_text(json.dumps(record), encoding="utf-8")
+    env = os.environ.copy()
+    env["GITHUB_ACTIONS"] = "true" if ci else "false"
+    command = [
+        sys.executable,
+        str(CHECK_TOOL_PATH),
+        "--recording",
+        str(recording_path),
+        "--budgets",
+        str(COMMITTED_BUDGETS_PATH),
+    ]
+    if ci:
+        command.append("--ci")
+    return subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _load_check_tool() -> ModuleType:
@@ -136,6 +228,51 @@ def test_committed_cost_budgets_are_valid() -> None:
 
     assert budgets["summary"]["collection_seconds"]["limit"] == 60.0
     assert budgets["summary"]["collection_seconds"]["per_worker"] is True
+
+
+def test_real_cli_accepts_compact_fixture_from_fresh_full_sample(
+    tmp_path: Path,
+) -> None:
+    record = _fresh_full_sample_record()
+
+    local = _run_budget_cli(tmp_path, record)
+    ci = _run_budget_cli(tmp_path, record, ci=True)
+
+    assert local.returncode == 0, local.stdout + local.stderr
+    assert ci.returncode == 0, ci.stdout + ci.stderr
+
+
+@pytest.mark.parametrize(
+    ("metric", "ci_mode", "expected_failure"),
+    [
+        ("cpu", False, "total_file_cpu_seconds"),
+        ("count", True, "causes.subprocess_run.count"),
+        ("rss", True, "peak_worker_rss_kib"),
+    ],
+)
+def test_real_cli_rejects_doctored_hard_budget_overages(
+    tmp_path: Path, metric: str, ci_mode: bool, expected_failure: str
+) -> None:
+    record = _fresh_full_sample_record()
+    budgets = load_cost_budgets(COMMITTED_BUDGETS_PATH)
+    summary = record["summary"]
+
+    if metric == "cpu":
+        limit = float(budgets["summary"]["total_file_cpu_seconds"]["limit"])
+        tolerance = float(budgets["tolerance"]["cpu"])
+        summary["total_file_cpu_seconds"] = limit * (1.0 + tolerance) + 1.0
+    elif metric == "count":
+        count_limit = int(budgets["causes"]["subprocess_run"]["count_limit"])
+        summary["causes"]["subprocess_run"]["count"] = count_limit + 1
+    else:
+        limit = float(budgets["summary"]["peak_worker_rss_kib"]["limit"])
+        tolerance = float(budgets["tolerance"]["ci"])
+        summary["peak_worker_rss_kib"] = int(limit * (1.0 + tolerance)) + 1
+
+    result = _run_budget_cli(tmp_path, record, ci=ci_mode)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert expected_failure in result.stderr
 
 
 _COMMITTED_BUDGETS: dict[str, Any] = load_cost_budgets(COMMITTED_BUDGETS_PATH)
@@ -249,23 +386,28 @@ def test_every_committed_budget_flags_a_doubled_metric(
 
 
 def test_committed_pre_epic_baseline_still_fails_recalibrated_budgets() -> None:
-    """The pre-epic baseline predates per-cause CPU attribution.
-
-    Its two known-bad causes must still be reported (as advisories, since
-    wall-only causes.* budgets are advisory by default) and must not trip any
-    hard metric -- the recalibrated budgets add count_limit/cpu_limit
-    dimensions this old recording cannot exercise.
-    """
+    """Keep the old measurement intact without pinning its former miss list."""
 
     baseline = load_cost_record(BASELINE_RECORDING_PATH)
-
     failures = check_cost_budgets(baseline, _COMMITTED_BUDGETS)
 
-    assert [failure.metric for failure in failures] == [
-        "causes.parser_create",
-        "causes.yaml_load",
-    ]
-    assert [failure.severity for failure in failures] == ["advisory", "advisory"]
+    assert baseline["summary"]["node_count"] == 27988
+    assert all(failure.severity == "advisory" for failure in failures)
+    assert any(failure.metric.startswith("causes.") for failure in failures)
+
+
+def test_suggested_cpu_and_rss_limits_leave_fifteen_percent_headroom() -> None:
+    tool = _load_check_tool()
+
+    cpu_sample = 7205.321394
+    cpu_limit = tool._suggest_limit([cpu_sample], 0.25, headroom=0.15)
+    rss_sample = 4193576.0
+    rss_limit = tool._suggest_limit([rss_sample], 0.15, headroom=0.15)
+
+    assert cpu_limit == 6800.0
+    assert rss_limit == 4300000.0
+    assert cpu_sample <= cpu_limit * 1.25 * 0.85
+    assert rss_sample <= rss_limit * 1.15 * 0.85
 
 
 def test_suggest_output_round_trips_through_load_cost_budgets(tmp_path: Path) -> None:

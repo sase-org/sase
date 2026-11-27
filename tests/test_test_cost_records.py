@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from tests._test_cost import (
+    TEST_COST_DIR_ENV,
     build_cost_record,
     cost_directory,
     format_cost_report,
@@ -16,7 +17,13 @@ from tests._test_cost import (
 
 
 def test_cost_directory_lives_under_the_timing_store(tmp_path: Path) -> None:
-    assert cost_directory(tmp_path) == tmp_path / "timings" / "cost"
+    assert cost_directory(tmp_path, {}) == tmp_path / "timings" / "cost"
+
+
+def test_cost_directory_honors_an_explicit_isolated_store(tmp_path: Path) -> None:
+    override = tmp_path / "isolated-cost"
+
+    assert cost_directory(tmp_path, {TEST_COST_DIR_ENV: str(override)}) == override
 
 
 def test_build_cost_record_merges_workers_and_files() -> None:

@@ -234,6 +234,8 @@ def test_main_cost_mode_arms_cost_and_health_recorders(
     runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
     monkeypatch.setenv("SASE_TEST_GATE_DIR", str(tmp_path / "gate"))
+    isolated_cost_dir = tmp_path / "isolated-cost"
+    monkeypatch.setenv("SASE_TEST_COST_DIR", str(isolated_cost_dir))
     monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
     observed: dict[str, object] = {}
 
@@ -268,7 +270,7 @@ def test_main_cost_mode_arms_cost_and_health_recorders(
     cost_request = json.loads(str(observed["cost_request"]))
     assert cost_request["mode"] == "cost"
     assert cost_request["worker_count"] == 2
-    assert Path(cost_request["directory"]).name == "cost"
+    assert Path(cost_request["directory"]) == isolated_cost_dir
 
 
 def test_main_cost_mode_loads_global_state_detector_without_selector(

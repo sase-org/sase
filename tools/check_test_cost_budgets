@@ -46,6 +46,7 @@ CPU_SUMMARY_METRICS = frozenset({"total_file_cpu_seconds", "collection_cpu_secon
 MEMORY_SUMMARY_METRICS = frozenset(
     {"peak_worker_rss_kib", "median_worker_rss_kib", "post_collection_worker_rss_kib"}
 )
+SUGGESTED_HARD_BUDGET_HEADROOM = 0.15
 
 # (metric, per_worker) pairs suggested from recorded history. Per-worker metrics
 # are summed across xdist workers by build_cost_record(), so they must be
@@ -121,10 +122,12 @@ def _round_up_nice(value: float) -> float:
     return float(math.ceil(value / step) * step)
 
 
-def _suggest_limit(values: Sequence[float], tolerance: float) -> float | None:
+def _suggest_limit(
+    values: Sequence[float], tolerance: float, *, headroom: float = 0.0
+) -> float | None:
     if not values:
         return None
-    return _round_up_nice(max(values) / (1.0 + tolerance))
+    return _round_up_nice(max(values) / ((1.0 - headroom) * (1.0 + tolerance)))
 
 
 def _suggest_count_limit(values: Sequence[int]) -> int | None:
@@ -255,7 +258,12 @@ def suggest_budgets(
     for metric, per_worker in SUGGESTED_SUMMARY_METRICS:
         values = _summary_metric_values(records, metric, per_worker=per_worker)
         metric_tolerance = cpu_tolerance if metric in CPU_SUMMARY_METRICS else tolerance
-        limit = _suggest_limit(values, metric_tolerance)
+        headroom = (
+            SUGGESTED_HARD_BUDGET_HEADROOM
+            if metric in CPU_SUMMARY_METRICS | MEMORY_SUMMARY_METRICS
+            else 0.0
+        )
+        limit = _suggest_limit(values, metric_tolerance, headroom=headroom)
         if limit is None:
             continue
         entry: dict[str, Any] = {"limit": limit}
@@ -285,7 +293,9 @@ def suggest_budgets(
             )
 
         cpu_values = _cause_cpu_values(records, name)
-        cpu_limit = _suggest_limit(cpu_values, cpu_tolerance)
+        cpu_limit = _suggest_limit(
+            cpu_values, cpu_tolerance, headroom=SUGGESTED_HARD_BUDGET_HEADROOM
+        )
         if cpu_limit is not None:
             entry["cpu_limit"] = cpu_limit
             entry["cpu_enforce"] = "hard"
@@ -310,10 +320,12 @@ def suggest_budgets(
             causes[name] = entry
 
     notes = [
-        "Suggested by `tools/check_test_cost_budgets --suggest`: wall/cpu limit = "
-        "ceil(worst recorded value / (1 + tolerance)) using the local (wall) or "
-        "cpu tolerance; count_limit = ceil(max observed count * 1.25) with no "
-        "runtime tolerance; each rounded up to a round number. `enforce` / "
+        "Suggested by `tools/check_test_cost_budgets --suggest`: wall limit = "
+        "round_up_nice(max sample / (1 + tolerance)); hard CPU/RSS limits = "
+        "round_up_nice(max sample / (0.85 * (1 + tolerance))) so the measured "
+        "sample remains at least 15% below its effective allowance; count_limit = "
+        "round_up_nice(max observed count * 1.25) with no runtime tolerance. "
+        "`enforce` / "
         "`cpu_enforce` / `count_enforce` are always written explicitly so the "
         "committed file never depends on the implicit family default (wall "
         "advisory, cpu/count/memory hard).",

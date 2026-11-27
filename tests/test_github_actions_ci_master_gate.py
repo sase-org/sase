@@ -51,6 +51,9 @@ from tests._github_actions_ci_master_gate_full import (
     test_telemetry_workflow_builds_core_through_the_shared_reusable_workflow,
 )
 from tests._github_actions_ci_master_gate_full import (
+    test_telemetry_cost_recording_is_uploaded_even_when_the_job_fails,
+)
+from tests._github_actions_ci_master_gate_full import (
     test_telemetry_workflow_publishes_contexts_on_master_only_with_headroom,
 )
 from tests._github_actions_ci_master_gate_full import (
@@ -152,6 +155,7 @@ __all__ = [
     "test_telemetry_workflow_triggers_on_a_schedule_offset_from_full_ci",
     "test_telemetry_workflow_builds_core_through_the_shared_reusable_workflow",
     "test_telemetry_workflow_runs_cost_attribution_with_realistic_timeout",
+    "test_telemetry_cost_recording_is_uploaded_even_when_the_job_fails",
     "test_telemetry_workflow_publishes_contexts_on_master_only_with_headroom",
     "test_telemetry_workflow_runs_one_contention_repeat_within_the_same_ceiling",
     "test_telemetry_lane_jobs_run_just_recipes_against_the_shared_core_artifact",
