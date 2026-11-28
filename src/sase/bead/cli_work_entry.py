@@ -368,7 +368,21 @@ def _handle_bead_work_locked(
             )
         if issue.tier == BeadTier.EPIC:
             from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
+            from sase.bead.recovery_submit import (
+                RecoveryGuardError,
+                recovery_guard_from_env,
+            )
 
+            try:
+                recovery_guard = recovery_guard_from_env(
+                    launch_context.project_key if launch_context is not None else None
+                )
+            except RecoveryGuardError as exc:
+                _exit_bead_id_error(
+                    str(exc),
+                    target=target,
+                    json_output=json_output,
+                )
             captured = io.StringIO()
             output_context = (
                 contextlib.redirect_stdout(captured)
@@ -391,6 +405,7 @@ def _handle_bead_work_locked(
                         extra_waits=extra_waits,
                         capacity=capacity,
                         bead_context=launch_context,
+                        recovery_guard=recovery_guard,
                     )
             except cli_work_handler.BeadWorkError as exc:
                 if json_output:

@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.bead.operation_context import BeadOperationContext
     from sase.bead.project import EpicPreclaimRollback
+    from sase.bead.recovery_submit import RecoveryLaunchGuard
     from sase.bead.work import PatchLaunchContext, VCSLaunchContext
     from sase.macro.directive_edit import PromptWaitDirective
 
@@ -73,12 +74,19 @@ def launch_epic_bead_work(
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
     bead_context: BeadOperationContext | None = None,
+    recovery_guard: RecoveryLaunchGuard | None = None,
 ) -> EpicWorkResult:
     """Run the epic bead-work path, returning the structured launch outcome.
 
     This is the library entry point used both by the CLI and deterministic
     epic approval. It raises :class:`BeadWorkError` instead of terminating the
     process so host-side callers can roll back newly-created epic beads.
+
+    When *recovery_guard* is set, the shared zombie predicate is rechecked
+    before any readiness, preclaim, cleanup, or launch mutation: a reopened
+    child, a new owner, or a changed close token aborts with
+    :class:`BeadWorkError` instead of launching phase workers. Manual runs
+    never set the guard, so their behavior is unchanged.
     """
     if timer is None:
         owned_timer = make_bead_work_timer(epic_id, dry_run=dry_run)
@@ -96,6 +104,7 @@ def launch_epic_bead_work(
                 extra_waits=extra_waits,
                 capacity=capacity,
                 bead_context=bead_context,
+                recovery_guard=recovery_guard,
             )
 
     if not dry_run:
@@ -126,6 +135,21 @@ def launch_epic_bead_work(
 
     timer.add_fields(resolved_epic_id=epic_id)
     issue = proj.show(epic_id)
+    if recovery_guard is not None:
+        with timer.stage("recovery_guard"):
+            from sase.bead.recovery_submit import (
+                RecoveryGuardError,
+                check_recovery_close_token,
+            )
+
+            try:
+                check_recovery_close_token(
+                    recovery_guard.project,
+                    epic_id,
+                    recovery_guard.expected_close_token,
+                )
+            except RecoveryGuardError as e:
+                raise BeadWorkError(str(e)) from e
     with timer.stage("work_plan_build"):
         try:
             plan = build_epic_work_plan_from_beads_dir(proj.beads_dir, epic_id)
