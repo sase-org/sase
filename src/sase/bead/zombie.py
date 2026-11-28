@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import time
 from typing import Any
 
@@ -52,6 +52,7 @@ class ZombieReport:
     generated_at: float
     collection_failed: bool = False
     failure_reason: str | None = None
+    latest_owner_terminal_at: Mapping[str, float] = field(default_factory=dict)
 
     @property
     def zombie_rows(self) -> tuple[ZombieVerdict, ...]:
@@ -110,10 +111,12 @@ def _collect_zombie_report_input(
         "unknown_reason": snapshot_raw.get("unknown_reason"),
         "beads": beads,
     }
+    owners = _owner_facts(project, beads)
     return {
         "schema_version": ZOMBIE_PLAN_WIRE_SCHEMA_VERSION,
         "snapshot": snapshot,
-        "owners": _owner_facts(project, beads),
+        "owners": owners,
+        "latest_owner_terminal_at": _latest_owner_terminal_at(owners),
         "titles": _titles_for_beads(beads),
     }
 
@@ -143,8 +146,10 @@ def load_zombie_report(project: str, *, now: float | None = None) -> ZombieRepor
             generated_at=moment,
             collection_failed=True,
             failure_reason=str(exc),
+            latest_owner_terminal_at={},
         )
     titles = payload.pop("titles", {})
+    latest_owner_terminal_at = payload.pop("latest_owner_terminal_at", {})
     try:
         report = evaluate_zombie_plans(payload)
     except Exception as exc:  # noqa: BLE001 - callers must never see evaluator errors.
@@ -160,13 +165,36 @@ def load_zombie_report(project: str, *, now: float | None = None) -> ZombieRepor
             generated_at=moment,
             collection_failed=True,
             failure_reason=str(exc),
+            latest_owner_terminal_at=latest_owner_terminal_at,
         )
     return ZombieReport(
         report=report,
         project=project,
         titles=titles if isinstance(titles, Mapping) else {},
         generated_at=moment,
+        latest_owner_terminal_at=latest_owner_terminal_at,
     )
+
+
+def _latest_owner_terminal_at(owners: list[dict[str, Any]]) -> dict[str, float]:
+    """Return terminal timestamps already collected for the shared predicate."""
+
+    latest: dict[str, float] = {}
+    for owner in owners:
+        plan_id = owner.get("plan_id")
+        members = owner.get("members")
+        if not isinstance(plan_id, str) or not isinstance(members, list):
+            continue
+        timestamps = [
+            float(value)
+            for member in members
+            if isinstance(member, Mapping)
+            for value in [member.get("ended_at")]
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ]
+        if timestamps:
+            latest[plan_id] = max(timestamps)
+    return latest
 
 
 def _titles_for_beads(beads: list[Any]) -> dict[str, str]:

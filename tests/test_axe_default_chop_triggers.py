@@ -421,17 +421,23 @@ def test_orphan_agent_scope_reap_keeps_the_always_trigger() -> None:
     assert chop.timeout == 120
 
 
-def test_waits_lane_holds_only_bead_claim_checks_and_epic_launch_flush() -> None:
+def test_waits_lane_holds_bead_claim_checks_and_epic_recovery_jobs() -> None:
     """``wait_checks`` moved to ``agent_waits``; ``sidecar_auto_sync`` to ``sidecar_sync``."""
     cfg = load_axe_config()
     assert sorted(c.name for c in cfg.lumberjacks["waits"].chops) == [
         "agent_auto_restart",
         "bead_claim_checks",
         "epic_launch_flush",
+        "epic_liveness",
     ]
     epic_launch_flush = _default_chop("waits", "epic_launch_flush")
     assert epic_launch_flush.trigger == {"provider": "always"}
     assert epic_launch_flush.run_every == 30
+    epic_liveness = _default_chop("waits", "epic_liveness")
+    assert epic_liveness.script == "sase_job_epic_liveness"
+    assert epic_liveness.trigger == {"provider": "always"}
+    assert epic_liveness.run_every == 60
+    assert epic_liveness.timeout == 40
 
 
 def test_agent_auto_restart_job_watches_doorbell_and_lock() -> None:

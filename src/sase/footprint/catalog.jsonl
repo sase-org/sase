@@ -1,4 +1,4 @@
-{"count": 3730, "rev": "17cbc3545af8", "schema": "sase.footprint.catalog/1"}
+{"count": 3731, "rev": "06879fa81e9a", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -46,6 +46,7 @@
 {"area": "automation", "id": "auto:axe.waits.agent_auto_restart", "kind": "auto", "label": "Sweep update-skew recoveries and submit the healer as a durable proc", "ns": "auto", "parent": "auto:axe.waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.waits.bead_claim_checks", "kind": "auto", "label": "Acquire missing bead claims for live pre-launch agents and release claims held by dead ones", "ns": "auto", "parent": "auto:axe.waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.waits.epic_launch_flush", "kind": "auto", "label": "Flush planner completion notifications orphaned by an unsettled epic launch", "ns": "auto", "parent": "auto:axe.waits", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.waits.epic_liveness", "kind": "auto", "label": "Recover eligible stranded epic plans through durable land-only submissions", "ns": "auto", "parent": "auto:axe.waits", "src": "sase/default_config.yml"}
 {"area": "cli", "id": "cli:_root", "kind": "command", "label": "sase", "ns": "cli", "parent": null, "src": null}
 {"area": "cli", "id": "cli:_root#disable_feature", "kind": "option", "label": "Option --disable_feature of cli:_root", "ns": "cli", "parent": "cli:_root", "src": null}
 {"area": "cli", "id": "cli:_root#enable_feature", "kind": "option", "label": "Option --enable_feature of cli:_root", "ns": "cli", "parent": "cli:_root", "src": null}

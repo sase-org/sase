@@ -101,7 +101,12 @@ def _row_lines(row: ZombieVerdict, *, now: float) -> list[str]:
             f"({_close_age(row.latest_descendant_closed_at, now)})"
         )
         ownership = row.ownership_reason or "no live owner"
-        if row.recovery_eligible:
+        if row.tier != "epic":
+            lines.append(
+                f"    ownership: {ownership} · recovery: unsupported plan tier "
+                f"{row.tier or 'unknown'} (automatic recovery supports epic plans)"
+            )
+        elif row.recovery_eligible:
             lines.append(
                 f"    ownership: {ownership} · recovery: eligible — "
                 f"run `sase bead work {row.plan_id}`"
@@ -172,6 +177,10 @@ def _row_json(row: ZombieVerdict) -> dict[str, object]:
         "state": row.state,
         "zombie": row.zombie,
         "recovery_eligible": row.recovery_eligible,
+        "automatic_recovery_supported": row.tier == "epic",
+        "automatic_recovery_reason": (
+            None if row.tier == "epic" else "unsupported_plan_tier"
+        ),
         "reason": row.reason,
         "unknown_reason": row.unknown_reason,
         "recovery_reason": row.recovery_reason,

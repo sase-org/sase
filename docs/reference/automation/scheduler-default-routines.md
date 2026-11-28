@@ -47,7 +47,19 @@ Bead-claim reconciliation and epic-launch flushing:
 | -------------------- | ------------------------------------------------------------- |
 | `bead_claim_checks`  | Acquire/release bead claims for pre-launch agents             |
 | `epic_launch_flush`  | Flush planner completions orphaned by unsettled epic launches |
+| `epic_liveness`      | Recover eligible stranded epic plans through durable procs    |
 | `agent_auto_restart` | Sweep update-skew recoveries; submit the healer as a proc     |
+
+`epic_liveness` runs once a minute with a 30-second work budget. It records a
+per-project activation cutoff without launching on that arming pass, then considers only
+complete and known epic-plan zombies whose latest descendant close or terminal
+land-session evidence is older than the 120-second settlement grace. Historical closes,
+unsupported non-epic plan tiers, owned plans, and unknown evidence remain report-only.
+Each pass submits at most one durable launch proc across all projects and resumes fairly
+from persisted project and candidate cursors after a restart. The proc uses the normal
+bead-work path with a close-token guard, so reopened descendants cannot turn recovery
+into a phase launch. The read-only `sase bead zombies` report names plan tiers that
+automatic recovery does not support.
 
 ## agent_waits (2-second interval) {#agentwaits-2-second-interval}
 

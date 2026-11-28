@@ -1496,6 +1496,17 @@ axe:
 
             Preserves deferrals while a matching detached epic-launch task is active, flushes unowned deferrals after
             a 90-second grace period with a resume command, and reaps unclaimed settle markers after one hour.
+        - name: epic_liveness
+          script: sase_job_epic_liveness
+          run_every: "60s"
+          timeout: "40s"
+          description: |-
+            Recover eligible stranded epic plans through durable land-only submissions
+
+            Arms each project's rollout cutoff without launching during that pass, then considers only complete,
+            known epic zombies closed after the cutoff and settled for 120 seconds. Each 30-second pass submits at
+            most one durable launch proc globally, persists fair project and candidate cursors, and reports
+            historical, owned, unknown, grace, consumed, deferred, submitted, and failed candidates.
         - name: agent_auto_restart
           script: sase_job_agent_auto_restart
           trigger:

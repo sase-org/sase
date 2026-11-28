@@ -570,12 +570,9 @@ _lint-patch-stitch-terminology: _setup
 # display API: the question panel annotates QuestionCopyDisplay, types snapshots
 # with QuestionCopyItem, and calls display_question_copy_items from the copying
 # mixin and the qa_markdown TUI flag, so those rows were dropped after landing.
-# sase-1vn.4.1.3 exported the recovery claim/activation publication adapter;
-# sase-1vn.4.1.4 consumed the published-claim permit through the recovery
-# submission path, and sase-1vn.4.1.5 consumes activation arming plus store
-# inspection. sase-1vn.4.1.4 also exported the recovery submission adapter;
-# sase-1vn.4.1.5 consumes it from the bounded AXE job. Drop each row once
-# that phase lands its production consumer.
+# sase-1vn.4.1.5 wired activation inspection and the stable recovery submission
+# path into epic_liveness. The parent epic land agent still owns triage of the
+# in-store submission seam and request builders without direct consumers.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -584,18 +581,12 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1vn.4.1.5(inspect_recovery_store)" \
-        --epic-symbol "sase-1vn.4.1.5(publish_recovery_activation_in_store)" \
-        --epic-symbol "sase-1vn.4.1.5(RecoveryStoreInspect)" \
-        --epic-symbol "sase-1vn.4.1.5(RecoverySubmission)" \
-        --epic-symbol "sase-1vn.4.1.5(default_owner_machine)" \
-        --epic-symbol "sase-1vn.4.1.5(recovery_claim_request)" \
-        --epic-symbol "sase-1vn.4.1.5(recovery_concurrency_keys)" \
-        --epic-symbol "sase-1vn.4.1.5(recovery_proc_id)" \
-        --epic-symbol "sase-1vn.4.1.5(recovery_proc_request)" \
-        --epic-symbol "sase-1vn.4.1.5(recovery_request_fingerprint)" \
-        --epic-symbol "sase-1vn.4.1.5(submit_recovery_launch)" \
-        --epic-symbol "sase-1vn.4.1.5(submit_recovery_launch_in_store)" \
+        --epic-symbol "sase-1vn.4.1(submit_recovery_launch_in_store)" \
+        --epic-symbol "sase-1vn.4.1(recovery_claim_request)" \
+        --epic-symbol "sase-1vn.4.1(recovery_concurrency_keys)" \
+        --epic-symbol "sase-1vn.4.1(recovery_proc_id)" \
+        --epic-symbol "sase-1vn.4.1(recovery_proc_request)" \
+        --epic-symbol "sase-1vn.4.1(recovery_request_fingerprint)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

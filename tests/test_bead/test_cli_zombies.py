@@ -190,6 +190,21 @@ def test_zombies_json_reports_every_row(
     assert row["state"] == "zombie"
     assert row["close_token"] == "sase-1.1:close-1"
     assert row["recovery_eligible"] is True
+    assert row["automatic_recovery_supported"] is True
+
+
+def test_zombies_report_explains_unsupported_plan_tier(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = _run_handler(
+        monkeypatch,
+        capsys,
+        ["zombies"],
+        {"demo": _loaded_report(_zombie_row(tier="plan"))},
+    )
+    assert "unsupported plan tier plan" in out
+    assert "automatic recovery supports epic plans" in out
 
 
 def _tree_state(root: Path) -> dict[str, bytes | None]:
@@ -277,6 +292,7 @@ def test_zombie_collector_confirms_completed_descendant_epic(
     assert row.all_descendants_closed is True
     assert row.latest_descendant_closed_at is not None
     assert (row.close_token is not None) == row.recovery_eligible
+    assert report.latest_owner_terminal_at[epic.id] == 1_700_000_000.0
 
 
 def test_zombie_collector_marks_ownerless_evidence_unknown(
