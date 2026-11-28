@@ -30,7 +30,7 @@ _READ_ONLY_REF_ACTIONS = frozenset({"list"})
 # the Rust core always declines them. Keep this set in sync with that
 # match: gating a verb Rust handles would silently drop the fast path.
 _ALWAYS_DEFERRED_VERBS = frozenset(
-    {"note", "+1", "snooze", "doctor", "attach", "export"}
+    {"note", "+1", "snooze", "doctor", "attach", "export", "zombies"}
 )
 
 

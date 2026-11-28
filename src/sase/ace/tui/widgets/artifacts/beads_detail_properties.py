@@ -28,6 +28,7 @@ from sase.bead.stranded_presentation import (
     blocked_sentence,
     stranded_age_label,
     stranded_cause_sentence,
+    zombie_sentence,
 )
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
@@ -42,7 +43,7 @@ from sase.phase_size_presentation import (
 )
 
 from .beads_data import BeadsSnapshot
-from .beads_stranded import cached_bead_verdict
+from .beads_stranded import cached_bead_verdict, cached_zombie_verdict
 
 
 def stranded_property(issue: Issue, *, project: str) -> Text:
@@ -51,13 +52,17 @@ def stranded_property(issue: Issue, *, project: str) -> Text:
     if verdict is None:
         return Text()
     if verdict.state == "stranded":
-        parts = (
+        sentences: list[str | None] = [
             verdict.last_turn,
             stranded_cause_sentence(verdict),
             stranded_age_label(verdict.since, time()),
-        )
+        ]
+        zombie = cached_zombie_verdict(project, issue.id)
+        if zombie is not None:
+            sentences.append(zombie_sentence(zombie, now=time()))
         return Text(
-            " · ".join(part for part in parts if part), style=STRANDED_LEAF_STYLE
+            " · ".join(part for part in sentences if part),
+            style=STRANDED_LEAF_STYLE,
         )
     if verdict.state == "blocked":
         sentence = blocked_sentence(verdict)

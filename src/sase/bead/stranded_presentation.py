@@ -6,7 +6,12 @@ drift. Rich style strings only; no Textual imports.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sase.core.stranded_work_facade import StrandedWorkVerdict
+
+if TYPE_CHECKING:
+    from sase.core.zombie_facade import ZombieVerdict
 
 STRANDED_GLYPH = "⚐"
 STRANDED_WORD = "STRANDED"
@@ -63,6 +68,28 @@ def blocked_sentence(verdict: StrandedWorkVerdict) -> str:
     return f"blocked by stranded {leaf}"
 
 
+def zombie_sentence(verdict: ZombieVerdict, *, now: float) -> str:
+    """Return the close-time explanation for a zombie verdict, or ``""``.
+
+    Non-zombie rows (owned, not-zombie, unknown) render nothing so callers
+    can append this unconditionally after the stranded cause sentence.
+    """
+    if verdict.state != "zombie":
+        return ""
+    if verdict.all_descendants_closed:
+        tree = f"all {verdict.descendant_count} descendants closed"
+    else:
+        tree = f"{verdict.descendant_count} descendants"
+    from sase.bead._stranded_facts_members import epoch
+
+    age = stranded_age_label(epoch(verdict.latest_descendant_closed_at), now)
+    closed = f"{tree} {age} ago" if age else tree
+    if verdict.recovery_eligible:
+        return f"{closed}; run `sase bead work {verdict.plan_id}` to relaunch"
+    reason = verdict.recovery_reason or "unavailable"
+    return f"{closed}; recovery {reason}"
+
+
 __all__ = [
     "STRANDED_BREADCRUMB_STYLE",
     "STRANDED_GLYPH",
@@ -71,4 +98,5 @@ __all__ = [
     "blocked_sentence",
     "stranded_age_label",
     "stranded_cause_sentence",
+    "zombie_sentence",
 ]

@@ -29,6 +29,7 @@ from sase.main.parser_bead_queries import (
     register_bead_search_parser,
     register_bead_show_parser,
     register_bead_stats_parser,
+    register_bead_zombies_parser,
 )
 from sase.main.parser_bead_store import (
     register_bead_dep_parser,
@@ -91,6 +92,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_touched_parser(bead_subparsers)
     register_bead_update_parser(bead_subparsers)
     register_bead_work_parser(bead_subparsers)
+    register_bead_zombies_parser(bead_subparsers)
 
 
 __all__ = ["nonnegative_int", "register_bead_parser"]

@@ -14279,6 +14279,76 @@
             "stdin": false,
             "subcommands": [],
             "writes": true
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6dead7b831056943",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "zombies",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "all_projects",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all-projects"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "compact",
+                  "json"
+                ],
+                "default": "compact",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "bead",
+              "zombies"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
           }
         ],
         "writes": false

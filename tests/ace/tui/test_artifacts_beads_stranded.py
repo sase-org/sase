@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.models import _agent_stranded_cache as stranded_cache
+from sase.ace.tui.models import _zombie_report_cache as zombie_cache
 
 import asyncio
 from dataclasses import replace
@@ -25,6 +26,9 @@ from sase.bead.stranded_presentation import (
     STRANDED_BREADCRUMB_STYLE,
     STRANDED_LEAF_STYLE,
 )
+from sase.bead.zombie import ZombieReport
+from sase.core.stranded_work_facade import StrandedWorkVerdict
+from sase.core.zombie_facade import ZombieEvaluationReport, ZombieVerdict
 from tests.ace.tui._artifacts_beads_stranded_helpers import stranded_snapshot
 
 
@@ -168,3 +172,76 @@ async def test_warmup_coalesces_and_rejects_old_scope(tmp_path, monkeypatch):
     await asyncio.gather(*pane._beads_stranded_refresh_tasks)
     rendered.assert_not_called()
     assert not pane._stranded_running
+
+
+def _with_stranded_epic(report, since):
+    verdicts = tuple(
+        v
+        if v.bead_id != "alpha-1"
+        else StrandedWorkVerdict(
+            bead_id="alpha-1",
+            kind="epic",
+            state="stranded",
+            reason="child_landed",
+            session="alpha-1.land",
+            last_turn="alpha-1.land",
+            since=since,
+        )
+        for v in report.report.verdicts
+    )
+    return replace(report, report=replace(report.report, verdicts=tuple(verdicts)))
+
+
+def test_stranded_detail_appends_zombie_close_time_for_completed_epic(
+    tmp_path, monkeypatch
+):
+    value, _ = stranded_snapshot(tmp_path, monkeypatch)
+    epic_issue = next(item for item in value.epics).issue
+    stranded_report = stranded_cache._STRANDED_REPORT_CACHE.get("alpha")
+    assert stranded_report is not None
+    stranded_cache._STRANDED_REPORT_CACHE.set(
+        "alpha",
+        _with_stranded_epic(stranded_report, stranded_report.report.verdicts[2].since),
+        "fixture",
+    )
+    zombie = ZombieReport(
+        report=ZombieEvaluationReport(
+            rows=(
+                ZombieVerdict(
+                    plan_id="alpha-1",
+                    title="Epic",
+                    tier="epic",
+                    assignee="alpha-1.land",
+                    state="zombie",
+                    zombie=True,
+                    recovery_eligible=True,
+                    ownership_reason="child_landed",
+                    tree_complete=True,
+                    descendant_count=2,
+                    all_descendants_closed=True,
+                    latest_descendant_closed_at="2026-07-01T00:00:00Z",
+                    latest_descendant_id="alpha-1.2",
+                    latest_descendant_close_event_id="close-9",
+                    close_token="alpha-1.2:close-9",
+                ),
+            )
+        ),
+        project="alpha",
+        titles={"alpha-1": "Epic"},
+        generated_at=0.0,
+    )
+    zombie_cache._ZOMBIE_REPORT_CACHE.clear()
+    zombie_cache._ZOMBIE_REPORT_CACHE.set("alpha", zombie, "fixture")
+    console = Console(width=160, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                epic_issue, value, project="alpha", project_name="Alpha"
+            )
+        )
+    rendered = capture.get()
+    assert "child epic landed; the phase is still open" in rendered
+    assert "all 2 descendants closed" in rendered
+    assert "sase bead work alpha-1" in rendered
+    assert "Stranded" in rendered
+    zombie_cache._ZOMBIE_REPORT_CACHE.clear()

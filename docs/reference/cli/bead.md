@@ -13,7 +13,7 @@ Reference for `sase bead`. Run `sase bead --help` for the exact output on this c
 
 ```text
 usage: sase bead [-h]
-                 {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work} ...
+                 {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work,zombies} ...
 ```
 
 Bare `sase bead` defaults to `sase bead list`.
@@ -61,6 +61,7 @@ Subcommands:
 | `sase bead touched`           | List beads one agent touched                                                     |
 | `sase bead update`            | Update one or more issues                                                        |
 | `sase bead work`              | Create or launch one or more epic plan or task bead targets                      |
+| `sase bead zombies`           | Report zombie epic plans with closed descendants and no owner                    |
 
 ## `sase bead +1`
 
@@ -1215,5 +1216,21 @@ Arguments:
 | Argument | Description                                                                                                |
 | -------- | ---------------------------------------------------------------------------------------------------------- |
 | `target` | One or more full or shorthand epic/task bead IDs or paths to validated epic plan files, processed in order |
+
+## `sase bead zombies`
+
+```text
+usage: sase bead zombies [-h] [-a] [-f {compact,json}]
+```
+
+Report in-progress plan beads whose entire descendant tree is closed and whose land session has no current owner, using the shared zombie-plan predicate. Read-only: never arms, claims, launches, closes, or reopens any bead. Defaults to the current project.
+
+Options:
+
+| Option                         | Description                                                                    | Default   |
+| ------------------------------ | ------------------------------------------------------------------------------ | --------- |
+| `-a`, `--all-projects`         | Report on every enabled project with a materialized store                      | `false`   |
+| `-f FORMAT`, `--format FORMAT` | Output format: compact or json (default: compact) (choices: `compact`, `json`) | `compact` |
+| `-h`, `--help`                 | show this help message and exit                                                | —         |
 
 Related: [CLI command groups](index.md).

@@ -10,8 +10,10 @@ from sase.bead.stranded_presentation import (
     blocked_sentence,
     stranded_age_label,
     stranded_cause_sentence,
+    zombie_sentence,
 )
 from sase.core.stranded_work_facade import StrandedWorkVerdict
+from sase.core.zombie_facade import ZombieVerdict
 
 
 def _verdict(**kwargs: object) -> StrandedWorkVerdict:
@@ -70,3 +72,44 @@ def test_blocked_sentence_names_the_leaf_and_extra_count() -> None:
     two = _verdict(blocked_by=("sase-1.2", "sase-1.3"))
     assert blocked_sentence(two) == "blocked by stranded sase-1.2 (+1 more)"
     assert blocked_sentence(_verdict()) == ""
+
+
+def _zombie(**kwargs: object) -> ZombieVerdict:
+    values: dict[str, object] = {
+        "plan_id": "sase-1",
+        "title": "Epic",
+        "state": "zombie",
+        "zombie": True,
+        "recovery_eligible": True,
+        "tree_complete": True,
+        "descendant_count": 4,
+        "all_descendants_closed": True,
+        "latest_descendant_closed_at": "2026-09-13T10:21:02Z",
+        "latest_descendant_id": "sase-1.2",
+        "ownership_reason": "child_landed",
+    }
+    values.update(kwargs)
+    return ZombieVerdict(**values)  # type: ignore[arg-type]
+
+
+def test_zombie_sentence_names_close_time_and_land_command() -> None:
+    now = 1_790_000_000.0
+    sentence = zombie_sentence(_zombie(), now=now)
+    assert "all 4 descendants closed" in sentence
+    assert "ago" in sentence
+    assert "sase bead work sase-1" in sentence
+
+
+def test_zombie_sentence_reports_unavailable_recovery() -> None:
+    sentence = zombie_sentence(
+        _zombie(recovery_eligible=False, recovery_reason="legacy_close_timestamp"),
+        now=1_790_000_000.0,
+    )
+    assert "all 4 descendants closed" in sentence
+    assert "recovery legacy_close_timestamp" in sentence
+    assert "sase bead work" not in sentence
+
+
+def test_zombie_sentence_is_empty_for_non_zombie_rows() -> None:
+    for state in ("owned", "not_zombie", "unknown"):
+        assert zombie_sentence(_zombie(state=state, zombie=False), now=1.0) == ""

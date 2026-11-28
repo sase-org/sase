@@ -33,6 +33,7 @@ from sase.bead.cli_basic import (
     handle_bead_stats,
     handle_bead_sync,
     handle_bead_update,
+    handle_bead_zombies,
 )
 from sase.bead.cli_work import handle_bead_work
 from sase.bead.cli_pages import handle_bead_pages
@@ -109,4 +110,5 @@ __all__ = [
     "handle_bead_touched",
     "handle_bead_update",
     "handle_bead_work",
+    "handle_bead_zombies",
 ]

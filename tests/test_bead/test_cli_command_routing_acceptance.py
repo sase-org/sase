@@ -78,6 +78,7 @@ NON_EXISTING_ID_COMMANDS = frozenset(
         "sync-external",
         "task-type",
         "touched",
+        "zombies",
     }
 )
 

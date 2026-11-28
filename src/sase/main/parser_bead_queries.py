@@ -556,3 +556,40 @@ def register_bead_stats_parser(
 ) -> None:
     """Register ``sase bead stats``."""
     subparsers.add_parser("stats", help="Show project statistics")
+
+
+def register_bead_zombies_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead zombies``."""
+    parser = subparsers.add_parser(
+        "zombies",
+        help="Report zombie epic plans with closed descendants and no owner",
+        description=(
+            "Report in-progress plan beads whose entire descendant tree is "
+            "closed and whose land session has no current owner, using the "
+            "shared zombie-plan predicate. Read-only: never arms, claims, "
+            "launches, closes, or reopens any bead. Defaults to the current "
+            "project."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead zombies\n"
+            "  sase bead zombies -a\n"
+            "  sase bead zombies --format json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-a",
+        "--all-projects",
+        action="store_true",
+        help="Report on every enabled project with a materialized store",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json"],
+        default="compact",
+        help="Output format: compact or json (default: compact)",
+    )

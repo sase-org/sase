@@ -236,6 +236,11 @@ def stranded_project_keys(agents: Iterable[Agent]) -> tuple[str, ...]:
     )
 
 
+def project_store_fingerprint(project_key: str) -> str | None:
+    """Read the bead-store fingerprint; shared with the zombie report cache."""
+    return _project_fingerprint(project_key)
+
+
 def _project_fingerprint(project_key: str) -> str | None:
     """Read the bead-store fingerprint; called only by the warmup worker."""
     from sase.bead.store_locator import canonical_beads_dir_for_project

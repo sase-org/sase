@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from time import time
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -15,7 +16,11 @@ from sase.bead.stranded_presentation import (
 from sase.core.stranded_work_facade import StrandedWorkVerdict
 
 from ...models.agent_stranded import cached_stranded_report
+from ...models.agent_zombie import cached_zombie_report
 from .beads_data_models import BeadsSnapshot
+
+if TYPE_CHECKING:
+    from sase.core.zombie_facade import ZombieVerdict
 
 
 def cached_bead_verdict(project: str, bead_id: str) -> StrandedWorkVerdict | None:
@@ -24,6 +29,14 @@ def cached_bead_verdict(project: str, bead_id: str) -> StrandedWorkVerdict | Non
     if snapshot is None:
         return None
     return next((v for v in snapshot.report.verdicts if v.bead_id == bead_id), None)
+
+
+def cached_zombie_verdict(project: str, bead_id: str) -> ZombieVerdict | None:
+    """Look up a plan bead in the shared zombie report without I/O."""
+    snapshot = cached_zombie_report(project)
+    if snapshot is None or snapshot.collection_failed:
+        return None
+    return next((row for row in snapshot.report.rows if row.plan_id == bead_id), None)
 
 
 def stranded_badge(verdict: StrandedWorkVerdict | None) -> Text:
@@ -70,10 +83,24 @@ def beads_stranded_count(snapshot: BeadsSnapshot) -> int:
 def beads_stranded_signature(snapshot: BeadsSnapshot) -> tuple[object, ...]:
     """Diff displayed facts and age labels, never the collector timestamp."""
     now = time()
-    return tuple(
+    stranded = tuple(
         (project, v, stranded_age_label(v.since, now))
         for project in snapshot.projects
         if (report := cached_stranded_report(project)) is not None
         for v in report.report.verdicts
         if v.state in {"stranded", "blocked"} or v.blocked_by
     )
+    zombies = tuple(
+        (
+            project,
+            row.plan_id,
+            row.state,
+            row.latest_descendant_closed_at,
+            row.recovery_eligible,
+        )
+        for project in snapshot.projects
+        if (zombie_report := cached_zombie_report(project)) is not None
+        and not zombie_report.collection_failed
+        for row in zombie_report.report.rows
+    )
+    return stranded + zombies

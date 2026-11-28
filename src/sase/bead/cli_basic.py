@@ -39,6 +39,7 @@ from sase.bead.cli_query import (
 )
 from sase.bead.cli_refs import handle_bead_ref
 from sase.bead.cli_touched import handle_bead_touched
+from sase.bead.cli_zombies import handle_bead_zombies
 
 _parse_type_arg = parse_type_arg
 
@@ -72,4 +73,5 @@ __all__ = [
     "handle_bead_sync",
     "handle_bead_touched",
     "handle_bead_update",
+    "handle_bead_zombies",
 ]

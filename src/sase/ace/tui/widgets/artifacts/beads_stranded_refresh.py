@@ -6,6 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from ...models.agent_stranded import warm_stranded_work_reports
+from ...models.agent_zombie import warm_zombie_reports
 from ...util.pump_tasks import spawn_pump_free_task
 from .beads_data_models import BeadsSnapshot
 from .beads_stranded import beads_stranded_signature
@@ -19,6 +20,18 @@ if TYPE_CHECKING:
     from .query_session import ArtifactQuerySession
 else:
     _MixinBase = object
+
+
+def _warm_beads_reports(projects: tuple[str, ...], *, force: bool = False) -> None:
+    """Warm stranded and zombie reports together off the event loop.
+
+    Both reports read the same project stores and session facts through the
+    shared Rust predicate family; warming them in one worker pass keeps the
+    badge and the close-time explanation coherent. Neither report arms,
+    claims, launches, closes, or reopens any bead.
+    """
+    warm_stranded_work_reports(projects, force=force)
+    warm_zombie_reports(projects, force=force)
 
 
 class BeadsStrandedRefreshMixin(_MixinBase):
@@ -104,9 +117,7 @@ class BeadsStrandedRefreshMixin(_MixinBase):
             ):
                 return
             force, self._stranded_force = self._stranded_force, False
-            await asyncio.to_thread(
-                warm_stranded_work_reports, snapshot.projects, force=force
-            )
+            await asyncio.to_thread(_warm_beads_reports, snapshot.projects, force=force)
             # The selection, scope, and inventory may have changed during I/O.
             current = self._snapshot
             if (

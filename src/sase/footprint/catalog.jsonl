@@ -1,4 +1,4 @@
-{"count": 3727, "rev": "3927d5c141ae", "schema": "sase.footprint.catalog/1"}
+{"count": 3730, "rev": "17cbc3545af8", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -686,6 +686,9 @@
 {"area": "cli.bead", "id": "cli:bead.work#wait", "kind": "option", "label": "Option --wait of cli:bead.work", "ns": "cli", "parent": "cli:bead.work", "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.work#yes", "kind": "option", "label": "Option --yes of cli:bead.work", "ns": "cli", "parent": "cli:bead.work", "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.work#yes_to_all", "kind": "option", "label": "Option --yes_to_all of cli:bead.work", "ns": "cli", "parent": "cli:bead.work", "src": "sase/main/parser_bead.py:register_bead_parser"}
+{"area": "cli.bead", "id": "cli:bead.zombies", "kind": "command", "label": "Report zombie epic plans with closed descendants and no owner", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
+{"area": "cli.bead", "id": "cli:bead.zombies#all_projects", "kind": "option", "label": "Option --all_projects of cli:bead.zombies", "ns": "cli", "parent": "cli:bead.zombies", "src": "sase/main/parser_bead.py:register_bead_parser"}
+{"area": "cli.bead", "id": "cli:bead.zombies#format", "kind": "option", "label": "Option --format of cli:bead.zombies", "ns": "cli", "parent": "cli:bead.zombies", "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.chat", "id": "cli:chat", "kind": "command", "label": "Discover and inspect prior agent chat transcripts", "ns": "cli", "parent": null, "src": "sase/main/parser_chat.py:register_chat_parser"}
 {"area": "cli.chat", "id": "cli:chat.list", "kind": "command", "label": "List recent chat transcripts (pretty table by default, JSON with -j)", "ns": "cli", "parent": null, "src": "sase/main/parser_chat.py:register_chat_parser"}
 {"area": "cli.chat", "id": "cli:chat.list#json", "kind": "option", "label": "Option --json of cli:chat.list", "ns": "cli", "parent": "cli:chat.list", "src": "sase/main/parser_chat.py:register_chat_parser"}

@@ -80,6 +80,7 @@ def dispatch_initial_commands(args: Any, parser: Any) -> None:
             handle_bead_touched,
             handle_bead_update,
             handle_bead_work,
+            handle_bead_zombies,
         )
 
         bead_sub = getattr(args, "bead_subcommand", None)
@@ -123,12 +124,13 @@ def dispatch_initial_commands(args: Any, parser: Any) -> None:
             "touched": handle_bead_touched,
             "update": handle_bead_update,
             "work": handle_bead_work,
+            "zombies": handle_bead_zombies,
         }
         handler = _BEAD_HANDLERS.get(bead_sub)  # type: ignore[arg-type]
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work}"
+                " {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work,zombies}"
             )
             sys.exit(1)
         try:

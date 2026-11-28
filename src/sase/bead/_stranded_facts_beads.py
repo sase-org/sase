@@ -92,7 +92,7 @@ def _bead_facts(
         records, records_available = _records_for_issue(issue, sessions)
     members = [member_facts(record) for record in records] if candidate else []
     if candidate:
-        _attach_declared_action(members)
+        attach_declared_bead_action(members)
     failure = issue.completion_failure
     return {
         "id": issue.id,
@@ -140,7 +140,8 @@ def _bead_kind(issue: Issue) -> str:
     return "phase"
 
 
-def _attach_declared_action(members: list[dict[str, Any]]) -> None:
+def attach_declared_bead_action(members: list[dict[str, Any]]) -> None:
+    """Record the newest agent member's finalizer bead action, if any."""
     newest: dict[str, Any] | None = None
     newest_key = float("-inf")
     for member in members:
