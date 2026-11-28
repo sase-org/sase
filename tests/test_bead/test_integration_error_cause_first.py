@@ -91,7 +91,7 @@ def test_publication_conflict_replay_refuses_unsandboxed_reset(
     """The sandbox guard refuses the reset before any recovery ref or reset."""
     from tests.test_bead.sync_test_helpers import configure_git_identity
 
-    from sase.bead.cli_work_from_plan_launch import _replay_publication_conflict
+    from sase.bead._cli_work_from_plan_replay import replay_publication_conflict
     from sase.bead.epic_from_plan import EpicFromPlanError
 
     remote = _init_replay_remote(tmp_path, "sandbox-beads")
@@ -117,7 +117,7 @@ def test_publication_conflict_replay_refuses_unsandboxed_reset(
     )
 
     with pytest.raises(EpicFromPlanError, match="NOT discarded") as excinfo:
-        _replay_publication_conflict(
+        replay_publication_conflict(
             beads_dir=clone,
             launch_base=launch_base,
             epic_id="beads-9",

@@ -500,7 +500,7 @@ def test_publication_conflict_replay_discards_graph_and_remints(
     counter; the first publication aborts, the replay preserves the graph
     under a recovery ref, resets to upstream, and the retry mints fresh.
     """
-    import sase.bead.cli_work_from_plan_launch as launch_module
+    import sase.bead._cli_work_from_plan_transaction as launch_module
     import sase.sdd._semantic_conflict_resolver as resolver_module
 
     _store, _location, plans, beads = _seed_split_sidecars(
@@ -552,7 +552,7 @@ def test_publication_conflict_replay_discards_graph_and_remints(
     )
 
     replayed: list[tuple[str, str]] = []
-    real_replay = launch_module._replay_publication_conflict
+    real_replay = launch_module.replay_publication_conflict
 
     def spy_replay(**kwargs: Any) -> str:
         ref = real_replay(**kwargs)
@@ -563,7 +563,7 @@ def test_publication_conflict_replay_discards_graph_and_remints(
 
     monkeypatch.setattr(
         launch_module,
-        "_replay_publication_conflict",
+        "replay_publication_conflict",
         spy_replay,
     )
 
@@ -604,7 +604,7 @@ def test_publication_conflict_replay_refuses_foreign_unpublished_commit(
     tmp_path: Path,
 ) -> None:
     """A foreign commit in the unpublished range refuses the reset entirely."""
-    from sase.bead.cli_work_from_plan_launch import _replay_publication_conflict
+    from sase.bead._cli_work_from_plan_replay import replay_publication_conflict
     from sase.bead.epic_from_plan import EpicFromPlanError
 
     remote = _init_replay_remote(tmp_path, "replay-beads")
@@ -621,7 +621,7 @@ def test_publication_conflict_replay_refuses_foreign_unpublished_commit(
     _git(clone, "commit", "-m", "foreign unpublished commit")
 
     with pytest.raises(EpicFromPlanError, match="NOT discarded") as excinfo:
-        _replay_publication_conflict(
+        replay_publication_conflict(
             beads_dir=clone,
             launch_base=launch_base,
             epic_id="beads-9",
