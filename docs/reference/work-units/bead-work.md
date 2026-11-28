@@ -107,24 +107,34 @@ Plan-file mode is the canonical epic-approval entry point. It:
    on failure.
 2. Resolves the project's SDD and bead stores, initializing the bead store when needed.
 3. Archives the plan under the resolved `{YYYYMM}/` plans directory and commits it.
-4. Resumes the linked epic when the archived plan already has a valid `bead_id`.
-5. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level
+4. Refreshes a remote-backed bead store before the linked epic is resolved and before
+   each mint attempt. Transient failures (remote unavailable, timeout, busy lock) warn
+   and continue. Any other integration failure stops before creating beads, with a
+   resume command.
+5. Resumes the linked epic only when it exists and its `design` names this plan, or when
+   it has no `design`. An epic that names another plan, or a missing bead, is replaced
+   with a new epic, and the launch renders a warning. A missing bead store or a non-epic
+   bead still fails.
+6. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level
    `model`, optional `parent_bead`, and optional Patch metadata; creates phase beads
    with their authored sizes in `phases[]` order; wires every `depends_on` edge; and
    commits the new `bead_id` link.
-6. Invokes the existing bead-ID launch path.
+7. Invokes the existing bead-ID launch path.
 
-A missing phase description becomes a deterministic pointer to the plan and phase ID. A
-linked `bead_id` that is missing fails with instructions to remove the stale link or
-restore the bead store. Failures before the launch checkpoint is committed remove the
-newly-created epic and children and restore the plan link. A publication failure after
-the checkpoint preserves the linked, preassigned epic as the safe retry point even
-though no runner spawned. If dispatch fails with no runner spawned, plan-file mode
-removes a newly created graph and restores the plan link; for an epic that already
-existed, it instead restores that epic's prior readiness, assignments, and statuses.
-Once a runner has spawned, the linked epic and checkpoint are preserved for recovery and
-partial runners are terminated. Every plan-file failure after archiving prints the exact
-`sase bead work ... --yes` command to resume.
+A missing phase description becomes a deterministic pointer to the plan and phase ID.
+Failures before the launch checkpoint is committed remove the newly-created epic and
+children and restore the plan link. When graph publication cannot merge with
+concurrently published history and no agents have spawned, plan-file mode restores the
+plan link, preserves the unpublished graph under `refs/sase/recovery/…`, resets the
+beads clone to upstream, and re-mints, within the three creation attempts. When a safety
+check refuses the replay, it prints manual recovery steps and `sase doctor -v`. Every
+other publication failure after the checkpoint preserves the linked, preassigned epic as
+the safe retry point even though no runner spawned. If dispatch fails with no runner
+spawned, plan-file mode removes a newly created graph and restores the plan link; for an
+epic that already existed, it instead restores that epic's prior readiness, assignments,
+and statuses. Once a runner has spawned, the linked epic and checkpoint are preserved
+for recovery and partial runners are terminated. Every plan-file failure after archiving
+prints the exact `sase bead work ... --yes` command to resume.
 
 When an epic-tier plan is proposed from bead work, `sase plan propose` automatically
 stamps `parent_bead` from the phase agent's `SASE_PHASE_BEAD_ID`, from the land agent's

@@ -54,18 +54,30 @@ def _strip_git_noise(text: str) -> str:
 def _cause_first_integration_error(primary_failure: str, semantic_detail: str) -> str:
     """Lead an unmergeable-conflict error with the semantic cause.
 
-    The semantic repair outcome names the collision; the raw git rebase
+    The semantic repair outcome names the cause; the raw git rebase
     output that precedes it is context at best, so it follows cleaned of
-    progress and hint noise.
+    progress and hint noise. Only bead-ID collisions keep the collision
+    label; every other semantic failure uses a neutral conflict label.
     """
-    cause = (
-        "bead-ID collision with concurrently published history "
-        f"could not be merged: {_strip_git_noise(semantic_detail)}"
-    )
+    if _is_bead_id_collision_detail(semantic_detail):
+        label = (
+            "bead-ID collision with concurrently published history could not be merged:"
+        )
+    else:
+        label = "conflict with concurrently published history could not be merged:"
+    cause = f"{label} {_strip_git_noise(semantic_detail)}"
     context = _strip_git_noise(primary_failure)
     if not context:
         return cause
     return f"{cause}; {context}"
+
+
+def _is_bead_id_collision_detail(semantic_detail: str) -> bool:
+    """Return whether a semantic detail names a bead-ID collision."""
+    return (
+        "duplicate issue_created event" in semantic_detail
+        or "duplicate bead" in semantic_detail
+    )
 
 
 def repair_or_abort_rebase(

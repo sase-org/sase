@@ -165,7 +165,7 @@ def test_pre_mint_refresh_records_launch_base(
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_from_plan_premint._beads_repo_head_sha",
+        "sase.bead.sync.bead_store_head_sha",
         lambda _beads_dir: "abc123def",
     )
     timer = LaunchTimingRecorder(operation="pre-mint-test")

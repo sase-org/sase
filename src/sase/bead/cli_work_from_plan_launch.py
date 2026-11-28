@@ -692,6 +692,15 @@ def _replay_publication_conflict(
     except Exception as exc:
         _refuse(f"the workspace ownership guard refused the reset: {exc}")
 
+    try:
+        from sase.core.state_write_guard import assert_bead_store_write_sandboxed
+
+        assert_bead_store_write_sandboxed(
+            beads_dir, operation="publication conflict replay"
+        )
+    except Exception as exc:
+        _refuse(f"the bead-store write sandbox refused the reset: {exc}")
+
     import subprocess
 
     from sase.sdd._git import run_sdd_git

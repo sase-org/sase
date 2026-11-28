@@ -25,28 +25,6 @@ _TRANSIENT_PRE_MINT_REFRESH_STATUSES = frozenset(
 )
 
 
-def _beads_repo_head_sha(beads_dir: Path) -> str | None:
-    """Return the beads-repo ``HEAD`` SHA, or ``None`` when it is unavailable."""
-    from sase.bead.sync import bead_store_git_root
-    from sase.sdd._git import run_sdd_git
-
-    repo_root = bead_store_git_root(beads_dir)
-    if repo_root is None:
-        return None
-    result = run_sdd_git(
-        ["rev-parse", "HEAD"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-        op="bead.pre_mint_launch_base",
-    )
-    if result.returncode != 0:
-        return None
-    sha = result.stdout.strip()
-    return sha or None
-
-
 def refresh_store_before_epic_mint(
     *,
     beads_dir: Path,
@@ -65,7 +43,7 @@ def refresh_store_before_epic_mint(
     not nest store write locks with itself and must not run while this
     process already holds the beads-repo store write lock.
     """
-    from sase.bead.sync import refresh_bead_store
+    from sase.bead.sync import bead_store_head_sha, refresh_bead_store
 
     with timer.stage("pre_mint_refresh"):
         try:
@@ -93,7 +71,7 @@ def refresh_store_before_epic_mint(
                     parent_override=parent,
                     capacity=capacity,
                 ) from exc
-        launch_base = _beads_repo_head_sha(beads_dir)
+        launch_base = bead_store_head_sha(beads_dir)
         timer.fields["launch_base"] = launch_base
         return launch_base
 
