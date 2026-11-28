@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -152,17 +153,39 @@ def _staged_monitor_occupies_capacity(
     )
 
     state = "" if monitor_turn is None else (monitor_turn.state or "")
+    monitor_id = "" if monitor_turn is None else (monitor_turn.id or "")
     try:
         facts = evaluate_staged_monitor_membership(
             {
                 "schema_version": 1,
                 "monitor_state": state or "running",
                 "supervisor_present": pid is not None,
+                "inactive_stage": _inactive_stage_for_monitor_id(monitor_id),
             }
         )
     except StagedHandoffContractError:
         return state != "staged"
     return bool(facts.get("occupies_runner_capacity"))
+
+
+def _inactive_stage_for_monitor_id(monitor_id: str) -> dict[str, Any] | None:
+    """Return inactive-stage facts for one staged monitor, or ``None``.
+
+    ``None`` keeps the historical capacity evaluation. The resolver only
+    returns facts for an identity-matched current stage.
+    """
+    if not (monitor_id or "").strip():
+        return None
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            observe_inactive_stage_for_monitor_id,
+        )
+    except Exception:  # noqa: BLE001 - capacity evaluation fails closed.
+        return None
+    try:
+        return observe_inactive_stage_for_monitor_id(monitor_id)
+    except Exception:  # noqa: BLE001 - capacity evaluation fails closed.
+        return None
 
 
 def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:

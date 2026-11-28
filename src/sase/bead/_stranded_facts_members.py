@@ -48,6 +48,7 @@ def member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
     pending = pending_handoff_kind(record.artifact_dir)
     staged_kind, staged_outcome = _staged_facts(record.artifact_dir)
     staged_delivered = _staged_delivered(record.artifact_dir)
+    inactive_stage = _inactive_stage_facts(record.artifact_dir, staged_delivered)
     followup_outcome, followup_pending, followup_agent, turn_state = _followup_fields(
         record
     )
@@ -63,6 +64,7 @@ def member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "staged_handoff": staged_kind,
         "staged_receipt_outcome": staged_outcome,
         "staged_delivered": staged_delivered,
+        "inactive_stage": inactive_stage,
         "handoff_inflight": _handoff_inflight(record.artifact_dir),
         "recovery_in_flight": recovery_in_flight(record.artifact_dir),
         "workspace_retention": _workspace_retention_unresolved(record.artifact_dir),
@@ -179,6 +181,31 @@ def _staged_delivered(artifact_dir: str) -> bool:
         return False
 
 
+def _inactive_stage_facts(
+    artifact_dir: str, staged_delivered: bool
+) -> dict[str, Any] | None:
+    """Return the Rust inactive-stage request for one origin, or ``None``.
+
+    ``None`` keeps the historical conservative ownership: older producers
+    omit the field and the reducer treats a missing request as no inactive
+    evidence. Collection is read-only and fails open to ``None``.
+    """
+    if not artifact_dir:
+        return None
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            observe_inactive_stage_request,
+        )
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        return None
+    try:
+        return observe_inactive_stage_request(
+            artifact_dir, staged_delivered=staged_delivered
+        )
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        return None
+
+
 def _workspace_retention_unresolved(artifact_dir: str) -> bool:
     retention = read_workspace_retention_record(artifact_dir)
     return bool(retention is not None and retention.terminal and retention.unresolved)
@@ -260,7 +287,14 @@ def _process_live(record: AgentArtifactRecordWire) -> bool:
     if record.pending_question is not None:
         return True
     if is_visible_monitor_record(record):
-        return True
+        # Listing visibility is not liveness: a staged monitor that never
+        # started has a row but no process. Require positive start evidence
+        # (a recorded supervisor pid or a start timestamp) so an unstarted
+        # monitor does not appear live merely because it is listed. A stale
+        # pid still counts as started; the reducer's inactive-stage policy
+        # decides whether a dead starter's monitor still owns the bead.
+        meta = record.agent_meta
+        return bool(meta is not None and (meta.pid is not None or meta.run_started_at))
     if is_real_gate_member_record(record):
         turn = _session_turn(record)
         state = (getattr(turn, "state", None) or "").strip().lower()

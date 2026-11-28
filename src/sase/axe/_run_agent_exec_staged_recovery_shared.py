@@ -139,7 +139,30 @@ def write_adopted_locked(
         },
         artifacts_dir=artifacts_dir,
     )
+    _invalidate_inactive_settlement_after_adoption(artifacts_dir, staged_id)
     _settle_origin_retention_after_adoption(artifacts_dir)
+
+
+def _invalidate_inactive_settlement_after_adoption(
+    artifacts_dir: str, staged_id: str
+) -> None:
+    """Drop the inactive-settlement marker once execution genuinely resumes.
+
+    Adoption proves the stage is live again, so the dead-origin occupancy
+    state must vanish atomically with the adopted receipt. Callers hold the
+    adoption lock; the clear is staged-ID-scoped so a replacement stage's
+    marker is never touched.
+    """
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            clear_inactive_settlement_locked,
+        )
+    except Exception:  # noqa: BLE001 - adoption must not fail on this cleanup.
+        return
+    try:
+        clear_inactive_settlement_locked(artifacts_dir, staged_id=staged_id)
+    except Exception:  # noqa: BLE001 - adoption must not fail on this cleanup.
+        return
 
 
 def _settle_origin_retention_after_adoption(artifacts_dir: str) -> None:

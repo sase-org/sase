@@ -20,6 +20,7 @@ The implementation lives in focused modules; this file keeps the historical
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,32 @@ from sase.axe.run_agent_exec_staged_recovery_facts import (
 
 
 _RECOVERY_MODES = ("automatic", "explicit")
+
+
+def _settle_failed_automatic_origin(origin: str) -> None:
+    """Settle one held automatic origin whose turn has terminally failed.
+
+    Shares the idempotent inactive-stage settlement with the failed-dispatch
+    boundary. Best effort: any failure leaves the hold standing for the next
+    pass. The caller holds the adoption lock.
+    """
+    try:
+        from sase.axe.run_agent_exec_staged_inactive import (
+            InactiveStageSettlement,
+            maybe_settle_automatic_hold,
+        )
+    except Exception:  # noqa: BLE001 - settlement is best effort.
+        return
+    try:
+        settlement: InactiveStageSettlement | None = maybe_settle_automatic_hold(origin)
+    except Exception:  # noqa: BLE001 - settlement is best effort.
+        return
+    if settlement is not None and settlement.settled:
+        logging.getLogger(__name__).debug(
+            "settled inactive staged handoff %s: %s",
+            settlement.staged_id,
+            settlement.reason,
+        )
 
 
 def _already_needs_delivery(
@@ -183,6 +210,7 @@ def recover_staged_handoff(
                     retain_dead_staged_origin(
                         staged_id, str(automatic["reason"]), artifacts_dir=origin
                     )
+                    _settle_failed_automatic_origin(origin)
                 return StagedRecoveryResult(
                     adopted=False,
                     already_adopted=bool(automatic["already_adopted"]),

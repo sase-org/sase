@@ -58,7 +58,7 @@ def occupying_handoff_names(
     for name in PENDING_HANDOFF_MARKERS:
         if path_exists(root / name):
             found.append(name)
-    if path_exists(root / STAGED_HANDOFF_FILENAME):
+    if path_exists(root / STAGED_HANDOFF_FILENAME) and not _stage_is_settled(str(root)):
         found.append(STAGED_HANDOFF_FILENAME)
     occupying_reservation = _occupying_staging_reservation_name(
         root, ignore_reservation_id=ignore_reservation_id
@@ -66,6 +66,36 @@ def occupying_handoff_names(
     if occupying_reservation is not None:
         found.append(occupying_reservation)
     return tuple(found)
+
+
+def _stage_is_settled(artifacts_dir: str) -> bool:
+    """Return whether the current staged record carries inactive settlement.
+
+    An identity-matched durable marker means the failed origin's stage no
+    longer occupies the one-handoff slot. Read-only; a missing or malformed
+    marker keeps the historical occupying behavior.
+    """
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            read_inactive_settlement,
+        )
+        from sase.agent._staged_handoff_store import read_staged_handoff
+    except Exception:  # noqa: BLE001 - admission fails closed to occupying.
+        return False
+    try:
+        staged = read_staged_handoff(artifacts_dir)
+    except Exception:  # noqa: BLE001 - unreadable stage keeps occupying.
+        return False
+    if not isinstance(staged, dict):
+        return False
+    staged_id = staged.get("staged_id")
+    if not isinstance(staged_id, str) or not staged_id:
+        return False
+    try:
+        marker = read_inactive_settlement(artifacts_dir)
+    except Exception:  # noqa: BLE001 - unreadable marker keeps occupying.
+        return False
+    return marker is not None and marker.get("staged_id") == staged_id
 
 
 def _occupying_staging_reservation_name(

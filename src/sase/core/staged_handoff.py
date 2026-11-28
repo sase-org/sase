@@ -182,6 +182,22 @@ def evaluate_staged_owner_liveness(request: dict[str, Any]) -> dict[str, Any]:
         raise StagedHandoffContractError(str(exc)) from exc
 
 
+def evaluate_inactive_staged_handoff(request: dict[str, Any]) -> dict[str, Any]:
+    """Decide whether a staged handoff is inactive and settlement-eligible.
+
+    The request carries typed host observations (stage/receipt identity and
+    validity, origin terminal outcome, observed execution, finalization, and
+    recovery). Unknown or malformed observations preserve the pending owner.
+    """
+    binding = require_rust_binding("evaluate_inactive_staged_handoff")
+    try:
+        return dict(binding(request))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
 def evaluate_staged_self_wait(request: dict[str, Any]) -> dict[str, Any]:
     """Decide whether a wait is a self-wait on the caller's staged run."""
     binding = require_rust_binding("evaluate_staged_self_wait")

@@ -13,6 +13,7 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.plan_chain import agent_session_base
@@ -321,11 +322,34 @@ def _blocks_lane_start(monitor: MonitorRecord) -> bool:
                 "schema_version": 1,
                 "monitor_state": monitor.monitor_state,
                 "supervisor_present": monitor.pid is not None,
+                "inactive_stage": _inactive_stage_for_monitor(monitor),
             }
         )
     except StagedHandoffContractError:
         return monitor.monitor_state == "lost" or not monitor.is_terminal
     return bool(facts.get("blocks_lane_start"))
+
+
+def _inactive_stage_for_monitor(monitor: MonitorRecord) -> dict[str, Any] | None:
+    """Return inactive-stage facts for one staged monitor, or ``None``.
+
+    ``None`` keeps the historical membership evaluation. The resolver only
+    returns facts for an identity-matched current stage, so a stale owner
+    index row never opens the lane for a replacement stage.
+    """
+    monitor_id = (monitor.monitor_id or "").strip()
+    if not monitor_id:
+        return None
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            observe_inactive_stage_for_monitor,
+        )
+    except Exception:  # noqa: BLE001 - lane evaluation fails closed.
+        return None
+    try:
+        return observe_inactive_stage_for_monitor(monitor_id, monitor.artifacts_dir)
+    except Exception:  # noqa: BLE001 - lane evaluation fails closed.
+        return None
 
 
 def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:

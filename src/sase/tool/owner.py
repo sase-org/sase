@@ -102,13 +102,15 @@ def _pending_staged_monitor_owner(monitor_id: str) -> bool:
     index = read_staged_owner_index(monitor_id)
     staged_id = ""
     record_present = False
+    starter_dir = ""
     if index is not None:
         staged_id = str(index.get("staged_id") or "")
         artifacts_dir = str(index.get("artifacts_dir") or "")
         if artifacts_dir:
             record_present = launch_payload_path(artifacts_dir).is_file()
+        starter_dir = str(index.get("starter_artifacts_dir") or "")
         if not record_present:
-            starter = str(index.get("starter_artifacts_dir") or "")
+            starter = starter_dir
             if starter:
                 try:
                     from sase.agent.staged_handoff import read_staged_handoff
@@ -128,11 +130,42 @@ def _pending_staged_monitor_owner(monitor_id: str) -> bool:
                 "staged_id": staged_id or "00000000-0000-4000-8000-000000000000",
                 "stage_record_present": record_present,
                 "proc_exists": False,
+                "inactive_stage": _inactive_stage_for_owner(starter_dir, staged_id),
             }
         )
     except Exception:  # noqa: BLE001 - unknown facts are not pending ownership.
         return False
     return bool(decision.get("pending_owner"))
+
+
+def _inactive_stage_for_owner(
+    starter_dir: str, staged_id: str
+) -> dict[str, Any] | None:
+    """Return inactive-stage facts for one staged starter, or ``None``.
+
+    ``None`` keeps the historical evaluation. The index row must name the
+    starter's current stage: a stale index row never suppresses a
+    replacement stage.
+    """
+    if not starter_dir or not staged_id:
+        return None
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            observe_inactive_stage_request,
+        )
+        from sase.agent.staged_handoff import read_staged_handoff
+    except Exception:  # noqa: BLE001 - unknown facts are not ownership.
+        return None
+    try:
+        current = read_staged_handoff(starter_dir)
+    except Exception:  # noqa: BLE001 - unknown facts are not ownership.
+        return None
+    if not isinstance(current, dict) or current.get("staged_id") != staged_id:
+        return None
+    try:
+        return observe_inactive_stage_request(starter_dir)
+    except Exception:  # noqa: BLE001 - unknown facts are not ownership.
+        return None
 
 
 def owner_fact_from_settlement(

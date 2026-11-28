@@ -179,6 +179,35 @@ def _handle_killed_iteration(
     return "killed"
 
 
+def _maybe_settle_inactive_stage(artifacts_dir: str) -> None:
+    """Best-effort inactive settlement after a refused inline dispatch.
+
+    The adoption lock is free here: the refused dispatch already released
+    it. Settlement re-observes the core policy under the lock and only
+    mutates when a failed origin left a never-started stage behind. Never
+    masks the original failure.
+    """
+    try:
+        from sase.agent._staged_handoff_inactive import (
+            observe_inactive_stage_request,
+        )
+        from sase.axe.run_agent_exec_staged_inactive import (
+            settle_inactive_staged_handoff,
+        )
+    except Exception:  # noqa: BLE001 - settlement is best effort.
+        return
+    try:
+        request = observe_inactive_stage_request(artifacts_dir)
+    except Exception:  # noqa: BLE001 - settlement is best effort.
+        return
+    if request is None or request.get("origin_outcome") != "failed":
+        return
+    try:
+        settle_inactive_staged_handoff(artifacts_dir, blocking=False)
+    except Exception:  # noqa: BLE001 - settlement is best effort.
+        return
+
+
 def _dispatch_staged_on_workflow_error(
     ctx: AgentExecContext,
     state: LoopState,
@@ -230,6 +259,7 @@ def _dispatch_staged_on_workflow_error(
             staged_dispatch.reason,
         )
         state.loop_outcome = "failed"
+        _maybe_settle_inactive_stage(state.current_artifacts_dir)
         return True
     if staged_dispatch.outcome is None:
         # An inline continuation cannot safely resume after the ordinary
@@ -427,6 +457,7 @@ def _run_execution_loop_bound(
                         staged_dispatch.reason,
                     )
                     state.loop_outcome = "failed"
+                    _maybe_settle_inactive_stage(state.current_artifacts_dir)
                     break
                 if staged_dispatch.outcome is None:
                     # Plan feedback and synchronous auto-approval can hand
