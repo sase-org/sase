@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import statistics
 import sys
+import time
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -27,7 +29,10 @@ from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from tests._jsonl_rows import read_jsonl_rows
 
+from sase.ace.tui.tab_order import SERVICES_TAB
+
 _KEYS_PER_SCENARIO = 20
+_AXE_MEASURED_ACTIONS: frozenset[str] = frozenset({"next", "prev"})
 _AXE_P95_BUDGET_MS = 16.0
 # The Patches tab fixture (50 rows) is comparable in scale to the AXE cached
 # fixture, so it is held to the same tight epic budget
@@ -331,3 +336,131 @@ async def _warm_axe_navigation(pilot: object) -> None:
     for key in ("j", "k") * 4:
         await pilot.press(key)  # type: ignore[attr-defined]
         await pilot.pause(0.01)  # type: ignore[attr-defined]
+
+
+def _select_axe_measured_samples(
+    samples: list[dict[str, object]],
+    *,
+    app_instance_id: str,
+    start: float,
+    end: float,
+) -> list[dict[str, object]]:
+    """Select only this benchmark's in-window Services j/k rows.
+
+    A row is measured when it carries this app's nonempty ``app_instance_id``,
+    the canonical ``SERVICES_TAB``, a j/k ``action`` in ``{"next", "prev"}``,
+    and a ``t_keypress`` within ``[start, end]`` (same ``perf_counter`` clock
+    as ``JKPerfTimer``). Foreign-app rows, other-tab rows, warmup rows
+    published late, and teardown rows fall outside at least one predicate.
+    """
+    if not app_instance_id:
+        raise AssertionError("axe sample selector needs a nonempty app_instance_id")
+    selected: list[dict[str, object]] = []
+    for sample in samples:
+        if sample.get("app_instance_id") != app_instance_id:
+            continue
+        if str(sample.get("tab")) != SERVICES_TAB:
+            continue
+        if str(sample.get("action")) not in _AXE_MEASURED_ACTIONS:
+            continue
+        try:
+            t_keypress = float(sample.get("t_keypress"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            continue
+        if not (start <= t_keypress <= end):
+            continue
+        selected.append(sample)
+    return selected
+
+
+async def _drain_perf_writer(
+    timeout: float = 5.0,
+    writer: Any | None = None,
+) -> None:
+    """Wait until previously queued perf writes have been published.
+
+    Submits a sentinel callback through the shared ``PerfWriter`` FIFO after
+    the final measured paint has settled. The sentinel runs only after every
+    earlier queued write, so awaiting it proves the durable window is complete.
+    Fails clearly when queue admission or the bounded wait fails.
+    """
+    import threading
+
+    from sase.ace.tui.util.perf_writer import shared_perf_writer
+
+    target = writer if writer is not None else shared_perf_writer()
+    drained = threading.Event()
+
+    def _sentinel(_row: dict[str, Any]) -> None:
+        drained.set()
+
+    try:
+        admitted = target.submit(_sentinel, {})
+    except Exception as exc:  # noqa: BLE001 - fail clearly, never hang.
+        raise AssertionError(f"perf writer drain submission raised: {exc!r}") from exc
+    if not admitted:
+        raise AssertionError("perf writer queue full; cannot drain measured samples")
+    loop = asyncio.get_running_loop()
+    drained_ok = await loop.run_in_executor(None, lambda: drained.wait(timeout))
+    if not drained_ok:
+        raise AssertionError(
+            f"perf writer did not drain measured samples within {timeout:g}s"
+        )
+
+
+def _eligible_timer_t_keypresses(
+    timer_samples: list[dict[str, object]],
+    start: float,
+    end: float,
+) -> list[float]:
+    """Return in-memory ``t_keypress`` values eligible for the durable window."""
+    eligible: list[float] = []
+    for sample in timer_samples:
+        if str(sample.get("tab")) != SERVICES_TAB:
+            continue
+        if str(sample.get("action")) not in _AXE_MEASURED_ACTIONS:
+            continue
+        try:
+            t_keypress = float(sample.get("t_keypress"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            continue
+        if start <= t_keypress <= end:
+            eligible.append(t_keypress)
+    return eligible
+
+
+def _assert_durable_window_complete(
+    timer_samples: list[dict[str, object]],
+    durable_selected: list[dict[str, object]],
+    start: float,
+    end: float,
+) -> None:
+    """Prove the durable window kept every measured keypress exactly once."""
+    expected = _eligible_timer_t_keypresses(timer_samples, start, end)
+    if not expected:
+        raise AssertionError("no eligible in-memory Services j/k samples in window")
+    if not durable_selected:
+        raise AssertionError("no durable Services j/k samples in window")
+    durable_keys: list[float] = []
+    for sample in durable_selected:
+        try:
+            durable_keys.append(float(sample.get("t_keypress")))  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            raise AssertionError(
+                f"durable sample missing t_keypress: {sample!r}"
+            ) from exc
+    if len(set(durable_keys)) != len(durable_keys):
+        raise AssertionError(f"duplicate durable t_keypress values: {durable_keys!r}")
+    missing = set(expected) - set(durable_keys)
+    if missing:
+        raise AssertionError(f"durable window lost {len(missing)} measured row(s)")
+    unexpected = set(durable_keys) - set(expected)
+    if unexpected:
+        raise AssertionError(
+            f"durable window holds {len(unexpected)} unexpected row(s)"
+        )
+
+
+def _capture_measurement_window() -> float:
+    """Return the current ``perf_counter`` value on the timer's clock."""
+    return time.perf_counter()
