@@ -50,14 +50,33 @@ def write_staged_owner_index(
 
 def read_staged_owner_index(monitor_id: str) -> dict[str, Any] | None:
     """Return the pending staged-owner row for *monitor_id*, if any."""
+    status, payload = probe_staged_owner_index(monitor_id)
+    return payload if status == "present" else None
+
+
+def probe_staged_owner_index(
+    monitor_id: str,
+) -> tuple[str, dict[str, Any] | None]:
+    """Observe the pending-owner row without treating errors as absence.
+
+    Returns ``(status, payload)`` where *status* is ``present``, ``absent``,
+    or ``unreadable``. A missing file is confirmed absence. Permission,
+    decode, and other probe failures stay ``unreadable``.
+    """
     path = _staged_owner_index_path(monitor_id)
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return None
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "absent", None
+    except OSError:
+        return "unreadable", None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return "unreadable", None
     if not isinstance(payload, dict):
-        return None
-    return payload
+        return "unreadable", None
+    return "present", payload
 
 
 def clear_staged_owner_index(monitor_id: str) -> None:
@@ -66,6 +85,38 @@ def clear_staged_owner_index(monitor_id: str) -> None:
         _staged_owner_index_path(monitor_id).unlink()
     except FileNotFoundError:
         return
+
+
+def clear_matching_staged_owner_index(monitor_id: str, staged_id: str) -> str:
+    """Delete the pending-owner row only when it still names *staged_id*.
+
+    Returns ``cleared``, ``absent``, ``mismatch``, or ``unreadable``. A
+    replaced row for a different stage is left untouched.
+    """
+    path = _staged_owner_index_path(monitor_id)
+    status, payload = probe_staged_owner_index(monitor_id)
+    if status == "absent":
+        return "absent"
+    if status != "present" or payload is None:
+        return "unreadable"
+    if payload.get("staged_id") != staged_id:
+        return "mismatch"
+    # Re-read immediately before unlink so a replacement staged_id is not
+    # deleted by a stale settlement that observed the previous row.
+    status, payload = probe_staged_owner_index(monitor_id)
+    if status == "absent":
+        return "absent"
+    if status != "present" or payload is None:
+        return "unreadable"
+    if payload.get("staged_id") != staged_id:
+        return "mismatch"
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return "unreadable"
+    return "cleared"
 
 
 def staged_monitor_member_artifacts_dir(
@@ -105,8 +156,10 @@ def staged_monitor_member_artifacts_dir(
 __all__ = [
     "STAGED_LAUNCH_PAYLOAD_FILENAME",
     "STAGED_OWNER_DIRNAME",
+    "clear_matching_staged_owner_index",
     "clear_staged_owner_index",
     "launch_payload_path",
+    "probe_staged_owner_index",
     "read_staged_owner_index",
     "staged_monitor_member_artifacts_dir",
     "write_staged_owner_index",

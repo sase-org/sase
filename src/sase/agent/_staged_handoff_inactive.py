@@ -460,7 +460,7 @@ def _observe_recovery(root: str) -> str:
         return "unknown"
 
 
-def read_inactive_settlement(artifacts_dir: str) -> dict[str, Any] | None:
+def _read_inactive_settlement(artifacts_dir: str) -> dict[str, Any] | None:
     """Return the durable inactive-settlement marker, or ``None``.
 
     Absent, unreadable, and malformed markers all read as no settlement, so a
@@ -508,7 +508,7 @@ def clear_inactive_settlement_locked(
     """
     path = Path(str(artifacts_dir)) / INACTIVE_SETTLEMENT_FILENAME
     if staged_id is not None:
-        current = read_inactive_settlement(str(artifacts_dir))
+        current = _read_inactive_settlement(str(artifacts_dir))
         if current is None or current.get("staged_id") != staged_id:
             return False
     try:
@@ -524,7 +524,7 @@ def settlement_matches_stage(artifacts_dir: str, staged_id: str | None) -> bool:
     """Return whether the durable marker settles exactly *staged_id*."""
     if not isinstance(staged_id, str) or not staged_id:
         return False
-    marker = read_inactive_settlement(artifacts_dir)
+    marker = _read_inactive_settlement(artifacts_dir)
     return marker is not None and marker.get("staged_id") == staged_id
 
 
@@ -535,7 +535,6 @@ __all__ = [
     "observe_inactive_stage_for_monitor",
     "observe_inactive_stage_for_monitor_id",
     "observe_inactive_stage_request",
-    "read_inactive_settlement",
     "settlement_matches_stage",
     "write_inactive_settlement_locked",
 ]

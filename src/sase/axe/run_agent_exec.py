@@ -185,27 +185,16 @@ def _maybe_settle_inactive_stage(artifacts_dir: str) -> None:
     The adoption lock is free here: the refused dispatch already released
     it. Settlement re-observes the core policy under the lock and only
     mutates when a failed origin left a never-started stage behind. Never
-    masks the original failure.
+    masks the original failure. Ordinary first-time failures settle after
+    the failed ``done.json`` is published from finalize.
     """
     try:
-        from sase.agent._staged_handoff_inactive import (
-            observe_inactive_stage_request,
-        )
         from sase.axe.run_agent_exec_staged_inactive import (
-            settle_inactive_staged_handoff,
+            maybe_settle_inactive_stage,
         )
     except Exception:  # noqa: BLE001 - settlement is best effort.
         return
-    try:
-        request = observe_inactive_stage_request(artifacts_dir)
-    except Exception:  # noqa: BLE001 - settlement is best effort.
-        return
-    if request is None or request.get("origin_outcome") != "failed":
-        return
-    try:
-        settle_inactive_staged_handoff(artifacts_dir, blocking=False)
-    except Exception:  # noqa: BLE001 - settlement is best effort.
-        return
+    maybe_settle_inactive_stage(artifacts_dir, blocking=False)
 
 
 def _dispatch_staged_on_workflow_error(

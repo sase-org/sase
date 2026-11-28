@@ -22,6 +22,9 @@ from pathlib import Path
 from typing import Any
 
 
+_CERTIFIED_CLEANUP = frozenset({"complete", "already-complete"})
+
+
 @dataclass(frozen=True)
 class InactiveStageSettlement:
     """Outcome of one idempotent inactive-stage settlement attempt."""
@@ -34,9 +37,10 @@ class InactiveStageSettlement:
     released_join: bool = False
     released_prepared_intent: bool = False
     cleared_pending_owner: bool = False
+    cleanup_complete: bool = False
 
 
-def settle_inactive_staged_handoff(
+def _settle_inactive_staged_handoff(
     artifacts_dir: str, *, blocking: bool = True
 ) -> InactiveStageSettlement:
     """Settle one failed origin's never-started stage. Safe to repeat.
@@ -58,6 +62,27 @@ def settle_inactive_staged_handoff(
                 reason="another caller owns the staged adoption lock",
             )
         return _settle_inactive_staged_handoff_locked(str(artifacts_dir))
+
+
+def maybe_settle_inactive_stage(artifacts_dir: str, *, blocking: bool = False) -> None:
+    """Best-effort inactive settlement after durable failed-terminal evidence.
+
+    Requires a failed origin observation. Swallows exceptions so a busy
+    adoption lock or a transient I/O error never masks the original
+    failure; the bounded reconciler retries later.
+    """
+    from sase.agent._staged_handoff_inactive import observe_inactive_stage_request
+
+    try:
+        request = observe_inactive_stage_request(str(artifacts_dir))
+    except Exception:
+        return
+    if request is None or request.get("origin_outcome") != "failed":
+        return
+    try:
+        _settle_inactive_staged_handoff(str(artifacts_dir), blocking=blocking)
+    except Exception:
+        return
 
 
 def maybe_settle_automatic_hold(
@@ -142,33 +167,49 @@ def _settle_inactive_staged_handoff_locked(
             staged_id=staged_id,
             reason=str(decision.get("reason") or "stage is not eligible"),
         )
-    if settlement_matches_stage(origin, staged_id):
-        return InactiveStageSettlement(
-            settled=True,
-            already_settled=True,
-            staged_id=staged_id,
-            reason=str(decision.get("reason") or "already settled"),
-        )
     resource_state = _settle_monitor_resources(origin, staged_record)
-    write_inactive_settlement_locked(
-        {
-            "schema_version": INACTIVE_SETTLEMENT_SCHEMA_VERSION,
-            "staged_id": staged_id,
-            "reason": str(decision.get("reason") or "origin_failed"),
-            "origin_id": request.get("origin_id"),
-            "settled_at": now_rfc3339(),
-        },
-        artifacts_dir=origin,
+    cleanup_status = str(resource_state.get("cleanup_status") or "unknown")
+    if cleanup_status not in _CERTIFIED_CLEANUP:
+        return InactiveStageSettlement(
+            settled=False,
+            already_settled=False,
+            staged_id=staged_id,
+            reason=str(
+                resource_state.get("reason") or "resource cleanup is incomplete"
+            ),
+            settled_tool_run_id=resource_state.get("settled_tool_run_id"),
+            released_join=resource_state.get("released_join", False),
+            released_prepared_intent=resource_state.get(
+                "released_prepared_intent", False
+            ),
+            cleared_pending_owner=resource_state.get("cleared_pending_owner", False),
+            cleanup_complete=False,
+        )
+    already = settlement_matches_stage(origin, staged_id)
+    reason = str(
+        decision.get("reason") or ("already settled" if already else "origin_failed")
     )
+    if not already:
+        write_inactive_settlement_locked(
+            {
+                "schema_version": INACTIVE_SETTLEMENT_SCHEMA_VERSION,
+                "staged_id": staged_id,
+                "reason": reason,
+                "origin_id": request.get("origin_id"),
+                "settled_at": now_rfc3339(),
+            },
+            artifacts_dir=origin,
+        )
     return InactiveStageSettlement(
         settled=True,
-        already_settled=False,
+        already_settled=already,
         staged_id=staged_id,
-        reason=str(decision.get("reason") or "origin_failed"),
+        reason=reason,
         settled_tool_run_id=resource_state.get("settled_tool_run_id"),
         released_join=resource_state.get("released_join", False),
         released_prepared_intent=resource_state.get("released_prepared_intent", False),
         cleared_pending_owner=resource_state.get("cleared_pending_owner", False),
+        cleanup_complete=True,
     )
 
 
@@ -178,14 +219,19 @@ def _settle_monitor_resources(
     """Settle never-started monitor resources, preserving evidence.
 
     Uses the held staged cleanup so the outer record and recovery evidence
-    survive, then removes only the stale pending-owner index row. A
-    submitted proc keeps its run and prepared evidence for the retry.
+    survive, then removes only this stage's pending-owner index row. A
+    submitted or unreadable proc never enters the absence branch. Incomplete
+    or unknown cleanup stays retryable: this function does not write the
+    settlement marker, and it does not erase the only remaining locator.
     """
+    del origin
     state: dict[str, Any] = {
         "settled_tool_run_id": None,
         "released_join": False,
         "released_prepared_intent": False,
         "cleared_pending_owner": False,
+        "cleanup_status": "complete",
+        "reason": "",
     }
     if staged_record.get("kind") != "monitor":
         return state
@@ -201,34 +247,99 @@ def _settle_monitor_resources(
     try:
         from sase.monitor.start_stage_cleanup import cleanup_staged_monitor
         from sase.monitor.staged_owner import (
-            clear_staged_owner_index,
+            clear_matching_staged_owner_index,
+            probe_staged_owner_index,
             staged_monitor_member_artifacts_dir,
         )
-    except Exception:
+    except Exception as exc:
+        state["cleanup_status"] = "unknown"
+        state["reason"] = f"staged monitor cleanup helpers are unavailable: {exc}"
+        return state
+    index_status, index_payload = probe_staged_owner_index(monitor_id)
+    if index_status == "unreadable":
+        state["cleanup_status"] = "unknown"
+        state["reason"] = "pending owner index is unreadable"
+        return state
+    proc_status = _probe_proc_store(monitor_id)
+    if proc_status == "unreadable":
+        state["cleanup_status"] = "unknown"
+        state["reason"] = "proc store is unreadable"
+        return state
+    if proc_status == "present":
+        state["cleanup_status"] = "incomplete"
+        state["reason"] = "submitted proc is still present"
         return state
     try:
         member_dir = staged_monitor_member_artifacts_dir(monitor_id, staged_id, payload)
     except Exception:
         member_dir = None
+    matching_index = (
+        index_status == "present"
+        and isinstance(index_payload, dict)
+        and index_payload.get("staged_id") == staged_id
+    )
+    if matching_index and not (isinstance(member_dir, str) and member_dir):
+        state["cleanup_status"] = "incomplete"
+        state["reason"] = "staged monitor member is unresolved"
+        return state
+    member_status = "already-complete"
     if isinstance(member_dir, str) and member_dir:
         try:
             result = cleanup_staged_monitor(member_dir, held=True)
-        except Exception:
-            result = None
-        if result is not None:
-            state["settled_tool_run_id"] = result.settled_tool_run_id
-            state["released_join"] = bool(result.released_join)
-            state["released_prepared_intent"] = bool(result.released_prepared_intent)
+        except Exception as exc:
+            state["cleanup_status"] = "incomplete"
+            state["reason"] = f"staged monitor cleanup failed: {exc}"
+            return state
+        if result.skipped:
+            state["cleanup_status"] = "incomplete"
+            state["reason"] = "staged monitor is still running"
+            return state
+        state["settled_tool_run_id"] = result.settled_tool_run_id
+        state["released_join"] = bool(result.released_join)
+        state["released_prepared_intent"] = bool(result.released_prepared_intent)
+        member_status = "complete"
     try:
-        clear_staged_owner_index(monitor_id)
+        clear_result = clear_matching_staged_owner_index(monitor_id, staged_id)
+    except Exception as exc:
+        state["cleanup_status"] = "unknown"
+        state["reason"] = f"pending owner index could not be cleared: {exc}"
+        return state
+    if clear_result == "unreadable":
+        state["cleanup_status"] = "unknown"
+        state["reason"] = "pending owner index is unreadable"
+        return state
+    owner_status = "already-complete"
+    if clear_result == "cleared":
         state["cleared_pending_owner"] = True
-    except Exception:
-        pass
+        owner_status = "complete"
+    state["cleanup_status"] = _combine_cleanup_status(member_status, owner_status)
     return state
+
+
+def _probe_proc_store(monitor_id: str) -> str:
+    """Return ``present``, ``absent``, or ``unreadable`` for one proc id."""
+    try:
+        from sase.procs.store import get_proc
+    except Exception:
+        return "unreadable"
+    try:
+        return "present" if get_proc(monitor_id) is not None else "absent"
+    except Exception:
+        return "unreadable"
+
+
+def _combine_cleanup_status(*statuses: str) -> str:
+    if "unknown" in statuses:
+        return "unknown"
+    if "incomplete" in statuses:
+        return "incomplete"
+    if "complete" in statuses:
+        return "complete"
+    return "already-complete"
 
 
 __all__ = [
     "InactiveStageSettlement",
     "maybe_settle_automatic_hold",
-    "settle_inactive_staged_handoff",
+    "maybe_settle_inactive_stage",
 ]

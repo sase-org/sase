@@ -498,6 +498,17 @@ def finalize_loop(
                     exc_info=True,
                 )
 
+    try:
+        from sase.axe.run_agent_exec_staged_inactive import maybe_settle_inactive_stage
+
+        maybe_settle_inactive_stage(state.current_artifacts_dir, blocking=False)
+    except Exception:  # noqa: BLE001 - settlement is best effort after done.json.
+        _LOGGER.warning(
+            "could not settle inactive staged handoff after done marker for %s",
+            state.current_artifacts_dir,
+            exc_info=True,
+        )
+
     if state.current_artifacts_dir != ctx.artifacts_dir:
         write_done_marker_and_update_index(
             ctx.artifacts_dir,

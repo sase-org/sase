@@ -63,9 +63,17 @@ def _write_origin_meta(artifact: Path, name: str, outcome: str = "failed") -> No
     )
 
 
-def _write_monitor_stage(artifact: Path, staged_id: str = _STAGED_ID) -> None:
+def _write_monitor_stage(
+    artifact: Path,
+    staged_id: str = _STAGED_ID,
+    *,
+    member_artifacts_dir: str | None = None,
+) -> None:
+    inner: dict[str, Any] = {"monitor_id": _MONITOR_ID}
+    if member_artifacts_dir:
+        inner["member_artifacts_dir"] = member_artifacts_dir
     payload = build_monitor_staged_record(
-        payload={"monitor_id": _MONITOR_ID},
+        payload=inner,
         dirty_obligations_at_stage=[],
         staged_id=staged_id,
     )
@@ -317,14 +325,14 @@ def test_running_origin_without_terminal_marker_stays_pending(
 
 def test_adopted_stage_never_settles(monkeypatch, tmp_path) -> None:
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
     _write_monitor_stage(artifact)
     _write_adopted_receipt(artifact)
     _write_origin_meta(artifact, "sase-1.2")
-    settlement = settle_inactive_staged_handoff(str(artifact))
+    settlement = _settle_inactive_staged_handoff(str(artifact))
     assert settlement.settled is False
     assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
 
@@ -332,35 +340,37 @@ def test_adopted_stage_never_settles(monkeypatch, tmp_path) -> None:
 def test_settlement_is_idempotent_and_keeps_recovery_evidence(
     monkeypatch, tmp_path
 ) -> None:
-    from sase.agent._staged_handoff_inactive import read_inactive_settlement
+    from sase.agent._staged_handoff_inactive import _read_inactive_settlement
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
     _write_monitor_stage(artifact)
     _write_held_receipt(artifact)
     _write_origin_meta(artifact, "sase-1.2")
-    first = settle_inactive_staged_handoff(str(artifact))
+    first = _settle_inactive_staged_handoff(str(artifact))
     assert first.settled is True
     assert first.already_settled is False
+    assert first.cleanup_complete is True
     assert first.staged_id == _STAGED_ID
     assert first.reason == "origin_failed"
-    marker = read_inactive_settlement(str(artifact))
+    marker = _read_inactive_settlement(str(artifact))
     assert marker is not None
     assert marker["staged_id"] == _STAGED_ID
     # Recovery evidence survives settlement.
     assert (artifact / STAGED_HANDOFF_FILENAME).is_file()
     assert (artifact / ".sase_handoff_adopted.json").is_file()
-    second = settle_inactive_staged_handoff(str(artifact))
+    second = _settle_inactive_staged_handoff(str(artifact))
     assert second.settled is True
     assert second.already_settled is True
+    assert second.cleanup_complete is True
     assert second.staged_id == _STAGED_ID
 
 
 def test_settlement_requires_failed_terminal_evidence(monkeypatch, tmp_path) -> None:
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
@@ -370,14 +380,14 @@ def test_settlement_requires_failed_terminal_evidence(monkeypatch, tmp_path) -> 
         json.dumps({"name": "sase-1.2", "agent_session": "sase-1.2"}),
         encoding="utf-8",
     )
-    settlement = settle_inactive_staged_handoff(str(artifact))
+    settlement = _settle_inactive_staged_handoff(str(artifact))
     assert settlement.settled is False
     assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
 
 
 def test_submitted_proc_blocks_settlement(monkeypatch, tmp_path) -> None:
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
@@ -389,14 +399,14 @@ def test_submitted_proc_blocks_settlement(monkeypatch, tmp_path) -> None:
         pass
 
     monkeypatch.setattr("sase.procs.store.get_proc", lambda _pid: _Proc())
-    settlement = settle_inactive_staged_handoff(str(artifact))
+    settlement = _settle_inactive_staged_handoff(str(artifact))
     assert settlement.settled is False
     assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
 
 
 def test_unreadable_proc_store_blocks_settlement(monkeypatch, tmp_path) -> None:
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
@@ -408,7 +418,7 @@ def test_unreadable_proc_store_blocks_settlement(monkeypatch, tmp_path) -> None:
         raise OSError("proc store unreadable")
 
     monkeypatch.setattr("sase.procs.store.get_proc", _boom)
-    settlement = settle_inactive_staged_handoff(str(artifact))
+    settlement = _settle_inactive_staged_handoff(str(artifact))
     assert settlement.settled is False
     assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
 
@@ -416,7 +426,7 @@ def test_unreadable_proc_store_blocks_settlement(monkeypatch, tmp_path) -> None:
 def test_settled_origin_releases_admission_slot(monkeypatch, tmp_path) -> None:
     from sase.agent._staged_handoff_admission import occupying_handoff_names
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
@@ -424,9 +434,11 @@ def test_settled_origin_releases_admission_slot(monkeypatch, tmp_path) -> None:
     _write_held_receipt(artifact)
     _write_origin_meta(artifact, "sase-1.2")
     assert occupying_handoff_names(str(artifact)) == (STAGED_HANDOFF_FILENAME,)
-    settlement = settle_inactive_staged_handoff(str(artifact))
+    settlement = _settle_inactive_staged_handoff(str(artifact))
     assert settlement.settled is True
-    assert occupying_handoff_names(str(artifact)) == ()
+    # Settlement releases live ownership, not the write slot. The saved
+    # stage still occupies this turn so later work cannot replace it.
+    assert occupying_handoff_names(str(artifact)) == (STAGED_HANDOFF_FILENAME,)
 
 
 def test_replacement_stage_is_not_suppressed_by_old_settlement(
@@ -434,16 +446,120 @@ def test_replacement_stage_is_not_suppressed_by_old_settlement(
 ) -> None:
     from sase.agent._staged_handoff_admission import occupying_handoff_names
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
     _write_monitor_stage(artifact)
     _write_held_receipt(artifact)
     _write_origin_meta(artifact, "sase-1.2")
-    assert settle_inactive_staged_handoff(str(artifact)).settled is True
+    assert _settle_inactive_staged_handoff(str(artifact)).settled is True
     _write_monitor_stage(artifact, staged_id=_OTHER_STAGED_ID)
     assert occupying_handoff_names(str(artifact)) == (STAGED_HANDOFF_FILENAME,)
+
+
+def test_settled_origin_refuses_same_turn_questions_overwrite(
+    monkeypatch, tmp_path
+) -> None:
+    from sase.agent.staged_handoff import StagedHandoffError, write_staged_handoff
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    origin = _dir(tmp_path, "sase-1.2")
+    _write_monitor_stage(origin)
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    original = (origin / STAGED_HANDOFF_FILENAME).read_bytes()
+    original_receipt = (origin / ".sase_handoff_adopted.json").read_bytes()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    assert _settle_inactive_staged_handoff(str(origin)).settled is True
+    questions = build_questions_staged_record(
+        questions=[{"question": "overwrite?"}],
+        dirty_obligations_at_stage=[],
+    )
+    with pytest.raises(StagedHandoffError, match="pending handoff already exists"):
+        write_staged_handoff(questions, artifacts_dir=str(origin))
+    assert (origin / STAGED_HANDOFF_FILENAME).read_bytes() == original
+    assert (origin / ".sase_handoff_adopted.json").read_bytes() == original_receipt
+    saved = json.loads((origin / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8"))
+    assert saved["kind"] == "monitor"
+    assert saved["staged_id"] == _STAGED_ID
+
+
+def test_later_turn_questions_use_fresh_artifacts_after_settlement(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    from sase.agent._staged_handoff_admission import occupying_handoff_names
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+    from sase.main.questions_command_handler import handle_questions_command
+    from sase.monitor.store_lane import _blocks_lane_start
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    _write_owner_index(member, origin)
+    original = (origin / STAGED_HANDOFF_FILENAME).read_bytes()
+    assert _settle_inactive_staged_handoff(str(origin)).settled is True
+    assert occupying_handoff_names(str(origin)) == (STAGED_HANDOFF_FILENAME,)
+    assert _blocks_lane_start(_lane_monitor(member)) is False
+
+    later = _dir(tmp_path, "sase-1.2--later")
+    (later / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1.2--later", "agent_session": "sase-1.2"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(later))
+    questions = json.dumps([{"question": "ship it?"}])
+    with pytest.raises(SystemExit) as staged_exit:
+        handle_questions_command(questions)
+    assert staged_exit.value.code == 0
+    later_record = json.loads(
+        (later / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert later_record["kind"] == "questions"
+    assert occupying_handoff_names(str(later)) == (STAGED_HANDOFF_FILENAME,)
+    assert (origin / STAGED_HANDOFF_FILENAME).read_bytes() == original
+    saved = json.loads((origin / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8"))
+    assert saved["kind"] == "monitor"
+    assert saved["staged_id"] == _STAGED_ID
+    output = capsys.readouterr().out
+    assert output.startswith("Staged")
+
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(origin))
+    with pytest.raises(SystemExit) as refused:
+        handle_questions_command(questions)
+    assert refused.value.code == 1
+    assert (origin / STAGED_HANDOFF_FILENAME).read_bytes() == original
+
+
+def test_live_origin_still_refuses_second_handoff(monkeypatch, tmp_path) -> None:
+    from sase.agent.staged_handoff import StagedHandoffError, write_staged_handoff
+
+    monkeypatch.setenv("SASE_AGENT", "1")
+    origin = _dir(tmp_path, "sase-1.2")
+    _write_monitor_stage(origin)
+    _write_held_receipt(origin)
+    (origin / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1.2", "agent_session": "sase-1.2"}),
+        encoding="utf-8",
+    )
+    original = (origin / STAGED_HANDOFF_FILENAME).read_bytes()
+    questions = build_questions_staged_record(
+        questions=[{"question": "second?"}],
+        dirty_obligations_at_stage=[],
+    )
+    with pytest.raises(StagedHandoffError, match="pending handoff already exists"):
+        write_staged_handoff(questions, artifacts_dir=str(origin))
+    assert (origin / STAGED_HANDOFF_FILENAME).read_bytes() == original
 
 
 def _patch_owner_home(monkeypatch, home: Path) -> None:
@@ -543,7 +659,7 @@ def test_settlement_removes_pending_owner_row_and_keeps_lane_clear(
     from sase.monitor.store_lane import _blocks_lane_start
     from sase.tool.owner import _pending_staged_monitor_owner
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     home = tmp_path / ".sase"
@@ -555,8 +671,9 @@ def test_settlement_removes_pending_owner_row_and_keeps_lane_clear(
     _write_origin_meta(origin, "sase-1.2")
     _write_member_launch(member, origin)
     _write_owner_index(member, origin)
-    settlement = settle_inactive_staged_handoff(str(origin))
+    settlement = _settle_inactive_staged_handoff(str(origin))
     assert settlement.settled is True
+    assert settlement.cleanup_complete is True
     assert settlement.cleared_pending_owner is True
     assert read_staged_owner_index(_MONITOR_ID) is None
     assert _pending_staged_monitor_owner(_MONITOR_ID) is False
@@ -565,11 +682,213 @@ def test_settlement_removes_pending_owner_row_and_keeps_lane_clear(
     assert _blocks_lane_start(_lane_monitor(member)) is False
 
 
+def test_incomplete_cleanup_stays_retryable(monkeypatch, tmp_path) -> None:
+    from sase.monitor.staged_owner import read_staged_owner_index
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    _write_owner_index(member, origin)
+    from sase.monitor.start_stage_cleanup import (
+        cleanup_staged_monitor as real_cleanup,
+    )
+
+    calls: list[str] = []
+    fail = True
+
+    def _maybe_boom(artifacts_dir: str, **kwargs: Any) -> Any:
+        calls.append(artifacts_dir)
+        if fail:
+            raise OSError("cleanup failed")
+        return real_cleanup(artifacts_dir, **kwargs)
+
+    monkeypatch.setattr(
+        "sase.monitor.start_stage_cleanup.cleanup_staged_monitor", _maybe_boom
+    )
+    first = _settle_inactive_staged_handoff(str(origin))
+    assert first.settled is False
+    assert first.already_settled is False
+    assert first.cleanup_complete is False
+    assert "cleanup failed" in first.reason
+    assert (origin / ".sase_handoff_settled_inactive.json").exists() is False
+    assert read_staged_owner_index(_MONITOR_ID) is not None
+    assert (origin / STAGED_HANDOFF_FILENAME).is_file()
+    assert calls == [str(member)]
+
+    fail = False
+    second = _settle_inactive_staged_handoff(str(origin))
+    assert second.settled is True
+    assert second.already_settled is False
+    assert second.cleanup_complete is True
+    assert read_staged_owner_index(_MONITOR_ID) is None
+    marker = json.loads(
+        (origin / ".sase_handoff_settled_inactive.json").read_text(encoding="utf-8")
+    )
+    assert marker["staged_id"] == _STAGED_ID
+
+
+def test_premature_marker_does_not_skip_unfinished_cleanup(
+    monkeypatch, tmp_path
+) -> None:
+    from sase.agent._staged_handoff_inactive import (
+        INACTIVE_SETTLEMENT_SCHEMA_VERSION,
+        write_inactive_settlement_locked,
+    )
+    from sase.monitor.staged_owner import read_staged_owner_index
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    _write_owner_index(member, origin)
+    write_inactive_settlement_locked(
+        {
+            "schema_version": INACTIVE_SETTLEMENT_SCHEMA_VERSION,
+            "staged_id": _STAGED_ID,
+            "reason": "origin_failed",
+            "origin_id": "sase-1.2",
+            "settled_at": "2026-10-28T12:02:00Z",
+        },
+        artifacts_dir=str(origin),
+    )
+    from sase.monitor.start_stage_cleanup import (
+        cleanup_staged_monitor as real_cleanup,
+    )
+
+    calls: list[str] = []
+    fail = True
+
+    def _maybe_boom(artifacts_dir: str, **kwargs: Any) -> Any:
+        calls.append(artifacts_dir)
+        if fail:
+            raise OSError("cleanup failed")
+        return real_cleanup(artifacts_dir, **kwargs)
+
+    monkeypatch.setattr(
+        "sase.monitor.start_stage_cleanup.cleanup_staged_monitor", _maybe_boom
+    )
+    first = _settle_inactive_staged_handoff(str(origin))
+    assert first.settled is False
+    assert first.already_settled is False
+    assert first.cleanup_complete is False
+    assert read_staged_owner_index(_MONITOR_ID) is not None
+    assert calls == [str(member)]
+
+    fail = False
+    second = _settle_inactive_staged_handoff(str(origin))
+    assert second.settled is True
+    assert second.cleanup_complete is True
+    assert read_staged_owner_index(_MONITOR_ID) is None
+    assert calls == [str(member), str(member)]
+
+
+def test_running_member_cleanup_stays_incomplete(monkeypatch, tmp_path) -> None:
+    from sase.monitor.staged_owner import read_staged_owner_index
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    _write_owner_index(member, origin)
+    (member / "agent_meta.json").write_text(
+        json.dumps({"monitor_id": _MONITOR_ID, "monitor_state": "running"}),
+        encoding="utf-8",
+    )
+    settlement = _settle_inactive_staged_handoff(str(origin))
+    assert settlement.settled is False
+    assert settlement.cleanup_complete is False
+    assert "still running" in settlement.reason
+    assert (origin / ".sase_handoff_settled_inactive.json").exists() is False
+    assert read_staged_owner_index(_MONITOR_ID) is not None
+
+
+def test_unreadable_owner_index_blocks_settlement(monkeypatch, tmp_path) -> None:
+    from sase.monitor.staged_owner import (
+        STAGED_OWNER_DIRNAME,
+        read_staged_owner_index,
+    )
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    index_path = home / STAGED_OWNER_DIRNAME / f"{_MONITOR_ID}.json"
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text("{broken", encoding="utf-8")
+    settlement = _settle_inactive_staged_handoff(str(origin))
+    assert settlement.settled is False
+    assert settlement.cleanup_complete is False
+    assert "unreadable" in settlement.reason
+    assert (origin / ".sase_handoff_settled_inactive.json").exists() is False
+    assert index_path.is_file()
+    assert read_staged_owner_index(_MONITOR_ID) is None
+
+
+def test_mismatched_owner_index_is_not_deleted(monkeypatch, tmp_path) -> None:
+    from sase.monitor.staged_owner import read_staged_owner_index
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+
+    home = tmp_path / ".sase"
+    _patch_owner_home(monkeypatch, home)
+    origin = _dir(tmp_path, "sase-1.2")
+    member = _dir(tmp_path, "sase-1.2--mon")
+    _write_monitor_stage(origin, member_artifacts_dir=str(member))
+    _write_held_receipt(origin)
+    _write_origin_meta(origin, "sase-1.2")
+    _write_member_launch(member, origin)
+    from sase.monitor.staged_owner import write_staged_owner_index
+
+    write_staged_owner_index(
+        _MONITOR_ID,
+        staged_id=_OTHER_STAGED_ID,
+        artifacts_dir=str(member),
+        starter_artifacts_dir=str(origin),
+    )
+    settlement = _settle_inactive_staged_handoff(str(origin))
+    assert settlement.settled is True
+    assert settlement.cleanup_complete is True
+    assert settlement.cleared_pending_owner is False
+    row = read_staged_owner_index(_MONITOR_ID)
+    assert row is not None
+    assert row["staged_id"] == _OTHER_STAGED_ID
+
+
 def test_fresh_turn_stages_questions_after_settlement(monkeypatch, tmp_path) -> None:
     from sase.agent._staged_handoff_admission import occupying_handoff_names
     from sase.agent.staged_handoff import write_staged_handoff
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     home = tmp_path / ".sase"
@@ -582,7 +901,7 @@ def test_fresh_turn_stages_questions_after_settlement(monkeypatch, tmp_path) -> 
     _write_origin_meta(origin, "sase-1.2")
     _write_member_launch(member, origin)
     _write_owner_index(member, origin)
-    assert settle_inactive_staged_handoff(str(origin)).settled is True
+    assert _settle_inactive_staged_handoff(str(origin)).settled is True
     fresh = _dir(tmp_path, "sase-1.2--retry")
     staged = build_questions_staged_record(
         questions=[{"question": "ship it?"}],
@@ -594,26 +913,128 @@ def test_fresh_turn_stages_questions_after_settlement(monkeypatch, tmp_path) -> 
 
 
 def test_readopt_invalidates_settlement_exactly_once(monkeypatch, tmp_path) -> None:
-    from sase.agent._staged_handoff_inactive import read_inactive_settlement
-    from sase.axe._run_agent_exec_staged_recovery_shared import write_adopted_locked
-    from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
-    )
+    import os
+    from types import SimpleNamespace
 
-    origin = _dir(tmp_path, "sase-1.2")
-    _write_monitor_stage(origin)
-    _write_held_receipt(origin)
-    _write_origin_meta(origin, "sase-1.2")
-    assert settle_inactive_staged_handoff(str(origin)).settled is True
-    assert read_inactive_settlement(str(origin)) is not None
-    write_adopted_locked(staged_id=_STAGED_ID, refs={}, artifacts_dir=str(origin))
-    assert read_inactive_settlement(str(origin)) is None
-    # A racing hold for the adopted stage cannot overwrite the receipt.
+    from sase.agent._staged_handoff_inactive import _read_inactive_settlement
     from sase.agent._staged_handoff_store import StagedHandoffError
-    from sase.agent.staged_handoff import read_adoption_receipt
+    from sase.agent.staged_handoff import (
+        read_adoption_receipt,
+        write_staged_handoff_response,
+    )
+    from sase.axe.run_agent_exec_staged_inactive import (
+        _settle_inactive_staged_handoff,
+    )
+    from sase.axe.run_agent_exec_staged_recovery import recover_staged_handoff
+    from sase.core.tool_run import tool_run_show
+    from sase.monitor.start_stage import stage_monitor
+    from tests.monitor._start_stage import sandbox_project, stage_env, stage_request
 
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+    root = sandbox_project(tmp_path)
+    monkeypatch.setattr(
+        "sase.monitor.start_prepare.get_monitor_tool_wrap", lambda: "verify"
+    )
+    dirs = stage_env(tmp_path, monkeypatch, cwd=str(root), workspace_dir=str(root))
+    staged = stage_monitor(
+        stage_request(
+            tmp_path,
+            command="just check",
+            cwd=str(root),
+            profile="verify",
+        )
+    )
+    dirs.append(staged.record.artifacts_dir)
+    origin = Path(dirs[0])
+    member = Path(staged.record.artifacts_dir)
+    staged_id = staged.staged_id
+    first_run_id = staged.record.tool_run_id
+    assert staged_id
+    assert first_run_id
+    _write_held_receipt(origin, staged_id=staged_id)
+    (origin / "done.json").write_text(
+        json.dumps({"outcome": "failed", "finished_at": _FAILED_AT}),
+        encoding="utf-8",
+    )
+    settlement = _settle_inactive_staged_handoff(str(origin))
+    assert settlement.settled is True
+    assert settlement.cleanup_complete is True
+    assert settlement.settled_tool_run_id == first_run_id
+    shown = tool_run_show(first_run_id)["run"]
+    assert shown["state"] == "signaled"
+    assert any(
+        "command was not run" in str(line) for line in (shown.get("diagnostics") or [])
+    )
+    assert _read_inactive_settlement(str(origin)) is not None
+    handoff = json.loads((origin / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8"))
+    assert handoff["payload"]["member_artifacts_dir"] == str(member)
+
+    write_staged_handoff_response(
+        staged_id, "monitor response", artifacts_dir=str(origin)
+    )
+    meta = json.loads((origin / "agent_meta.json").read_text(encoding="utf-8"))
+    meta["pid"] = 999999
+    meta["finalizer_status"] = {
+        "phase": "settled",
+        "status": "success",
+        "run_id": "controller-run-1",
+        "plan_digest": "digest-1",
+        "started_at": _NOW,
+    }
+    (origin / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    (origin / "finalizer_result.json").write_text(
+        json.dumps({"status": "success", "instances": []}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
+        lambda *_args, **_kwargs: "dead",
+    )
+    submits: list[str] = []
+    fake_pid = os.getpid() + 10000
+
+    def _fake_submit(
+        *args: Any, after_spawn: Any, after_ack: Any, **kwargs: Any
+    ) -> Any:
+        del args, kwargs
+        submits.append("submit")
+        after_spawn(SimpleNamespace(pid=fake_pid))
+        proc = SimpleNamespace(pid=fake_pid, supervisor_id="supervisor-fake")
+        after_ack(proc)
+        return proc
+
+    monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", _fake_submit)
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.claim_monitor_workspace",
+        lambda *args, **kwargs: SimpleNamespace(
+            result=SimpleNamespace(success=True), starter_claim=None
+        ),
+    )
+    result = recover_staged_handoff(str(origin), mode="explicit")
+    assert result.adopted is True
+    assert result.already_adopted is False
+    assert result.kind == "monitor"
+    assert result.destination is not None
+    assert result.destination.get("member_artifacts_dir") == str(member)
+    assert _read_inactive_settlement(str(origin)) is None
+    assert submits == ["submit"]
+    assert result.destination.get("monitor_id") == staged.record.monitor_id
+    meta_after = json.loads((member / "agent_meta.json").read_text(encoding="utf-8"))
+    recovered_run = meta_after.get("monitor_tool_run_id")
+    assert recovered_run
+    assert recovered_run != first_run_id
+    assert tool_run_show(recovered_run)["run"]["state"] == "created"
+
+    replay = recover_staged_handoff(str(origin), mode="explicit")
+    assert replay.adopted is True
+    assert replay.already_adopted is True
+    assert submits == ["submit"]
     with pytest.raises(StagedHandoffError):
-        _write_held_receipt(origin)
+        _write_held_receipt(origin, staged_id=staged_id)
     assert read_adoption_receipt(str(origin))["outcome"] == "adopted"
 
 
@@ -623,7 +1044,7 @@ def test_settlement_settles_reserved_tool_run_as_never_executed(
     import os
 
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
     from sase.core.tool_run import (
         tool_run_reserve_staged_join,
@@ -654,7 +1075,7 @@ def test_settlement_settles_reserved_tool_run_as_never_executed(
     _patch_owner_home(monkeypatch, tmp_path / ".sase")
     _write_member_launch(member, origin, tool_run_id=run_id)
     _write_owner_index(member, origin)
-    settlement = settle_inactive_staged_handoff(str(origin))
+    settlement = _settle_inactive_staged_handoff(str(origin))
     assert settlement.settled is True
     assert settlement.settled_tool_run_id == run_id
     shown = tool_run_show(run_id)["run"]
@@ -669,7 +1090,7 @@ def test_settlement_releases_staged_join_reservation(tmp_path, monkeypatch) -> N
     import os
 
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
     from sase.core.tool_run import (
         tool_run_reserve_staged_join,
@@ -713,7 +1134,7 @@ def test_settlement_releases_staged_join_reservation(tmp_path, monkeypatch) -> N
         encoding="utf-8",
     )
     _write_owner_index(member, origin)
-    settlement = settle_inactive_staged_handoff(str(origin))
+    settlement = _settle_inactive_staged_handoff(str(origin))
     assert settlement.settled is True
     assert settlement.released_join is True
     assert settlement.settled_tool_run_id is None
@@ -786,7 +1207,7 @@ def test_busy_adoption_lock_skips_settlement_without_blocking(
 ) -> None:
     from sase.agent.staged_handoff import acquire_adoption_lock
     from sase.axe.run_agent_exec_staged_inactive import (
-        settle_inactive_staged_handoff,
+        _settle_inactive_staged_handoff,
     )
 
     artifact = _dir(tmp_path, "sase-1.2")
@@ -794,11 +1215,11 @@ def test_busy_adoption_lock_skips_settlement_without_blocking(
     _write_held_receipt(artifact)
     _write_origin_meta(artifact, "sase-1.2")
     with acquire_adoption_lock(artifact):
-        skipped = settle_inactive_staged_handoff(str(artifact), blocking=False)
+        skipped = _settle_inactive_staged_handoff(str(artifact), blocking=False)
     assert skipped.settled is False
     assert "another caller owns" in skipped.reason
     assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
-    assert settle_inactive_staged_handoff(str(artifact)).settled is True
+    assert _settle_inactive_staged_handoff(str(artifact)).settled is True
 
 
 def test_malformed_stage_never_settles(monkeypatch, tmp_path) -> None:
@@ -814,3 +1235,132 @@ def test_malformed_stage_never_settles(monkeypatch, tmp_path) -> None:
     decision = evaluate_inactive_staged_handoff(request)
     assert decision["pending_owner"] is True
     assert decision["settlement_eligible"] is False
+
+
+def test_maybe_settle_waits_for_failed_done_marker(monkeypatch, tmp_path) -> None:
+    from sase.axe.run_agent_exec_staged_inactive import maybe_settle_inactive_stage
+
+    artifact = _dir(tmp_path, "sase-1.2")
+    _write_monitor_stage(artifact)
+    _write_held_receipt(artifact)
+    (artifact / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1.2", "agent_session": "sase-1.2"}),
+        encoding="utf-8",
+    )
+    maybe_settle_inactive_stage(str(artifact), blocking=True)
+    assert (artifact / ".sase_handoff_settled_inactive.json").exists() is False
+    (artifact / "done.json").write_text(
+        json.dumps({"outcome": "failed", "finished_at": _FAILED_AT}),
+        encoding="utf-8",
+    )
+    maybe_settle_inactive_stage(str(artifact), blocking=True)
+    assert (artifact / ".sase_handoff_settled_inactive.json").is_file()
+
+
+def test_finalize_failed_turn_settles_without_periodic_sweep(
+    monkeypatch, tmp_path
+) -> None:
+    from unittest.mock import patch
+
+    from sase.axe.run_agent_exec import LoopState
+    from sase.axe.run_agent_exec_finalize import finalize_loop
+    from sase.axe.run_agent_exec_retry import RetryTracker
+    from tests._axe_run_agent_exec_helpers import make_exec_ctx
+
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    origin = Path(ctx.artifacts_dir)
+    _write_monitor_stage(origin)
+    _write_held_receipt(origin)
+    (origin / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1.2", "agent_session": "sase-1.2"}),
+        encoding="utf-8",
+    )
+    from sase.axe.run_agent_exec_staged_inactive import maybe_settle_inactive_stage
+
+    maybe_settle_inactive_stage(str(origin), blocking=True)
+    assert (origin / ".sase_handoff_settled_inactive.json").exists() is False
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=str(origin),
+        loop_outcome="failed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.submit_proc_request",
+        lambda *args, **kwargs: launched.append("submit") or None,
+    )
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(origin / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_image_paths",
+            return_value=[],
+        ),
+    ):
+        finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+    done = json.loads((origin / "done.json").read_text(encoding="utf-8"))
+    assert done["outcome"] == "failed"
+    marker = json.loads(
+        (origin / ".sase_handoff_settled_inactive.json").read_text(encoding="utf-8")
+    )
+    assert marker["staged_id"] == _STAGED_ID
+    assert (origin / STAGED_HANDOFF_FILENAME).is_file()
+    assert launched == []
+
+
+def test_finalize_successful_turn_does_not_settle(monkeypatch, tmp_path) -> None:
+    from unittest.mock import patch
+
+    from sase.axe.run_agent_exec import LoopState
+    from sase.axe.run_agent_exec_finalize import finalize_loop
+    from sase.axe.run_agent_exec_retry import RetryTracker
+    from tests._axe_run_agent_exec_helpers import make_exec_ctx
+
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    origin = Path(ctx.artifacts_dir)
+    _write_monitor_stage(origin)
+    _write_held_receipt(origin)
+    (origin / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1.2", "agent_session": "sase-1.2"}),
+        encoding="utf-8",
+    )
+    (origin / "response.md").write_text("ok\n", encoding="utf-8")
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=str(origin),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(origin / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_image_paths",
+            return_value=[],
+        ),
+        patch(
+            "sase.axe.run_agent_exec_finalize._is_workflow_noop",
+            return_value=False,
+        ),
+    ):
+        finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+    done = json.loads((origin / "done.json").read_text(encoding="utf-8"))
+    assert done["outcome"] == "completed"
+    assert (origin / ".sase_handoff_settled_inactive.json").exists() is False
