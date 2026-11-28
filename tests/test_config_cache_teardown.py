@@ -1,10 +1,10 @@
 """Tests for the config-cache teardown helpers in ``tests._conftest_runtime``.
 
-The autouse isolation fixture drains the config-token refresh worker and
-clears the derived ``functools`` caches before monkeypatch restores host
-paths. Both helpers run while a test's own patches are still live, so they
-must tolerate monkeypatched names and still drain the real caches and the
-real worker.
+The autouse isolation fixture drains header-enrichment resolvers, then the
+config-token refresh worker, and clears the derived ``functools`` caches
+before monkeypatch restores host paths. Both helpers run while a test's own
+patches are still live, so they must tolerate monkeypatched names and still
+drain the real caches and the real worker.
 """
 
 import threading
@@ -17,6 +17,7 @@ from sase.config.core import current_config_token
 from tests._config_cache_helpers import _reset_config_token_cache
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests._conftest_runtime import (
+    _drain_config_producers_then_refresh,
     _drain_config_token_refresh,
     _reset_derived_config_caches,
 )
@@ -271,6 +272,39 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
             assert current_config_token() == ("inline", 3)
         finally:
             release_refresh.set()
+
+
+def test_producer_drain_runs_header_services_before_config_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Header resolvers must finish before the config-token worker is joined."""
+    order: list[str] = []
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_header_enrichment_services_if_loaded",
+        lambda **_kwargs: order.append("header"),
+    )
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_config_token_refresh",
+        lambda **_kwargs: order.append("config"),
+    )
+    _drain_config_producers_then_refresh()
+    assert order == ["header", "config"]
+
+
+def test_reset_derived_caches_drains_header_then_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_header_enrichment_services_if_loaded",
+        lambda **_kwargs: order.append("header"),
+    )
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_config_token_refresh",
+        lambda **_kwargs: order.append("config"),
+    )
+    _reset_derived_config_caches()
+    assert order[:2] == ["header", "config"]
 
 
 def test_drain_joins_worker_restarted_after_previous_drain() -> None:

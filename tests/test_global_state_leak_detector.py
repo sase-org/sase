@@ -44,7 +44,9 @@ from tests._global_state_leak_detector_integration import (
     test_report_only_mode_keeps_pytest_green_on_poison,
     test_fail_on_poison_mode_fails_pytest_on_poison,
     test_drain_after_test_swallows_join_timeout,
+    test_drain_after_test_runs_header_then_config,
     test_protocol_drain_clears_refresh_thread_restarted_after_fixtures,
+    test_header_resolver_late_read_does_not_poison_leak_snapshot,
 )
 
 __all__ = [
@@ -83,5 +85,7 @@ __all__ = [
     "test_fail_on_poison_mode_fails_pytest_on_poison",
     "test_poisoning_log_lines_name_nodeids_and_change_kinds",
     "test_drain_after_test_swallows_join_timeout",
+    "test_drain_after_test_runs_header_then_config",
     "test_protocol_drain_clears_refresh_thread_restarted_after_fixtures",
+    "test_header_resolver_late_read_does_not_poison_leak_snapshot",
 ]

@@ -69,15 +69,17 @@ DEFAULT_REPORT_PATH = ".pytest_cache/sase-global-leaks.json"
 
 
 def _drain_config_token_refresh_after_test() -> None:
-    """Join leftover config-token refresh workers before the after-snapshot.
+    """Join leftover header resolvers and config-token workers before snapshot.
 
-    A drain timeout leaves the worker registered; the after-snapshot then
-    reports it as poisoning instead of turning the protocol hook into an error.
+    Producer drain runs first so a late ``current_config_token`` cannot start
+    ``sase-config-token-refresh`` after the config join. A drain timeout
+    leaves the still-live worker registered; the after-snapshot then reports
+    it as poisoning instead of turning the protocol hook into an error.
     """
-    from tests._conftest_runtime import _drain_config_token_refresh
+    from tests._conftest_runtime import _drain_config_producers_then_refresh
 
     try:
-        _drain_config_token_refresh()
+        _drain_config_producers_then_refresh()
     except RuntimeError:
         return
 

@@ -469,7 +469,8 @@ def test_nested_agent_check_keeps_parent_and_never_queues(world: Any) -> None:
         "inner check with a durable parent relationship",
     )
     assert _record(inner_run) is None
-    assert len(_started_children(w)) == 1
+    started = _wait_for(lambda: _started_children(w), "nested inner check child")
+    assert len(started) == 1
 
     w.release.touch()
     assert outer.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0

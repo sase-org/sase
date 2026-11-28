@@ -89,10 +89,27 @@ def test_fail_on_poison_mode_fails_pytest_on_poison(
 def test_drain_after_test_swallows_join_timeout() -> None:
     """A stuck worker stays for the after-snapshot instead of erroring the hook."""
     with patch(
-        "tests._conftest_runtime._drain_config_token_refresh",
+        "tests._conftest_runtime._drain_config_producers_then_refresh",
         side_effect=RuntimeError("sase-config-token-refresh did not exit within 2.0s"),
     ):
         _drain_config_token_refresh_after_test()
+
+
+def test_drain_after_test_runs_header_then_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The protocol hook keeps producer-first ordering before the snapshot."""
+    order: list[str] = []
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_header_enrichment_services_if_loaded",
+        lambda **_kwargs: order.append("header"),
+    )
+    monkeypatch.setattr(
+        "tests._conftest_runtime._drain_config_token_refresh",
+        lambda **_kwargs: order.append("config"),
+    )
+    _drain_config_token_refresh_after_test()
+    assert order == ["header", "config"]
 
 
 def test_protocol_drain_clears_refresh_thread_restarted_after_fixtures(
@@ -141,3 +158,35 @@ def test_protocol_drain_clears_refresh_thread_restarted_after_fixtures(
     assert result.ret == 0
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["summary"]["poisoning_changes"] == 0
+
+
+def test_header_resolver_late_read_does_not_poison_leak_snapshot(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blocking leak detection stays green through the producer-first drain."""
+    monkeypatch.setenv("PYTHONPATH", str(_ROOT))
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    monkeypatch.delenv("SASE_GLOBAL_LEAK_WORKER_DIR", raising=False)
+    report_path = pytester.path / "leaks.json"
+    worker_file = _ROOT / "tests/ace/tui/widgets/test_agent_display_header_worker.py"
+    result = pytester.runpytest_subprocess(
+        "-p",
+        "no:randomly",
+        "-p",
+        "tests._global_state_leak_detector",
+        "-c",
+        str(_ROOT / "pyproject.toml"),
+        "--rootdir",
+        str(_ROOT),
+        f"{worker_file}::test_header_drain_waits_for_resolver_before_config_drain",
+        f"{worker_file}::test_producer_then_config_drain_joins_late_refresh_thread",
+        "--sase-detect-global-leaks",
+        "--sase-fail-on-global-leaks",
+        f"--sase-global-leak-report={report_path}",
+        timeout=60,
+    )
+    result.assert_outcomes(passed=2)
+    assert result.ret == 0
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["summary"]["poisoning_changes"] == 0
+    assert report.get("errors") in (None, [])

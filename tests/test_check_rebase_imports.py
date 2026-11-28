@@ -611,6 +611,7 @@ def test_subprocess_count_does_not_scale_with_loaded_modules(tmp_path: Path) -> 
         return original_run(*args, **kwargs)
 
     saved_path = list(sys.path)
+    saved_meta_path = list(sys.meta_path)
     saved_modules = dict(sys.modules)
     rebase_imports.subprocess.run = counting  # type: ignore[method-assign]
     try:
@@ -618,6 +619,7 @@ def test_subprocess_count_does_not_scale_with_loaded_modules(tmp_path: Path) -> 
     finally:
         rebase_imports.subprocess.run = original_run  # type: ignore[method-assign]
         sys.path[:] = saved_path
+        sys.meta_path[:] = saved_meta_path
         sys.modules.clear()
         sys.modules.update(saved_modules)
         importlib.invalidate_caches()  # type: ignore[attr-defined]
@@ -625,6 +627,12 @@ def test_subprocess_count_does_not_scale_with_loaded_modules(tmp_path: Path) -> 
     # Two HEAD/tree rev-parses, four dirty-tree queries, one ls-tree index.
     assert len(calls) == 7
     assert len(calls) < 30
+    assert sys.meta_path == saved_meta_path
+    assert not any(
+        isinstance(finder, rebase_imports._CommittedSourceFinder)
+        for finder in sys.meta_path
+    )
+    importlib.import_module("sase.ace.tui.actions.agents._types")
 
 
 def test_source_bytes_rejects_same_length_rewrite(tmp_path: Path) -> None:

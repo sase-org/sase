@@ -428,6 +428,38 @@ def _stop_orphaned_proc_observers_if_loaded() -> None:
         stop()
 
 
+def _drain_header_enrichment_services_if_loaded(
+    *, timeout: float = _CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS
+) -> None:
+    """Join header-enrichment resolvers without importing the TUI into every test."""
+    import sys
+
+    module = sys.modules.get(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_worker"
+    )
+    if module is None:
+        return
+    live_services = getattr(module, "_live_services", None)
+    if not callable(live_services):
+        return
+    errors: list[str] = []
+    for service in live_services():
+        try:
+            service.drain(timeout=timeout)
+        except RuntimeError as exc:
+            errors.append(str(exc))
+    if errors:
+        raise RuntimeError("; ".join(errors))
+
+
+def _drain_config_producers_then_refresh(
+    *, timeout: float = _CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS
+) -> None:
+    """Finish header resolvers before joining ``sase-config-token-refresh``."""
+    _drain_header_enrichment_services_if_loaded(timeout=timeout)
+    _drain_config_token_refresh(timeout=timeout)
+
+
 def _reset_derived_config_caches() -> None:
     """Drop process-global config, identity, and derived layer caches."""
     from sase.config import core as config_core
@@ -452,7 +484,7 @@ def _reset_derived_config_caches() -> None:
     _clear_project_display_caches_if_loaded()
     _clear_tui_session_memos_if_loaded()
     _clear_artifacts_tab_cache_if_loaded()
-    _drain_config_token_refresh()
+    _drain_config_producers_then_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():
         _clear_function_cache(cached)
@@ -504,8 +536,9 @@ def _clear_config_caches(
     ``_isolate_plugin_config`` has decided whether plugin ``sase_config``
     layers belong, so a leftover reader cannot install a host-path token or
     a plugin layer into the successor's generation. Teardown stops orphaned
-    ``sase-ace-proc-observer`` threads, drains ``sase-config-token-refresh``,
-    and clears derived caches again before monkeypatch restores host paths.
+    ``sase-ace-proc-observer`` threads, drains header-enrichment resolvers,
+    drains ``sase-config-token-refresh``, and clears derived caches again
+    before monkeypatch restores host paths.
     """
     _reset_derived_config_caches()
     yield

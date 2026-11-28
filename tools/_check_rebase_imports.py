@@ -18,7 +18,8 @@ import os
 import stat
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -475,6 +476,42 @@ def _prepare_import_env(tree: CommittedTree, src_root: Path) -> None:
     importlib.invalidate_caches()
 
 
+@contextmanager
+def _committed_import_env(tree: CommittedTree, src_root: Path) -> Iterator[None]:
+    """Install the committed-tree finder for one check, then restore the process.
+
+    ``check_repository`` is the after-rebase subprocess helper, but one in-process
+    test calls it to count git subprocesses. The finder must not remain on
+    ``sys.meta_path`` after that return or later tests on the same worker load
+    first-party modules from the fake tree.
+    """
+    saved_meta_path = list(sys.meta_path)
+    saved_path = list(sys.path)
+    saved_dont_write_bytecode = sys.dont_write_bytecode
+    saved_pyc = os.environ.get("PYTHONDONTWRITEBYTECODE")
+    saved_first_party = {
+        name: module
+        for name, module in sys.modules.items()
+        if _is_first_party_module(name)
+    }
+    try:
+        _prepare_import_env(tree, src_root)
+        yield
+    finally:
+        sys.meta_path[:] = saved_meta_path
+        sys.path[:] = saved_path
+        sys.dont_write_bytecode = saved_dont_write_bytecode
+        if saved_pyc is None:
+            os.environ.pop("PYTHONDONTWRITEBYTECODE", None)
+        else:
+            os.environ["PYTHONDONTWRITEBYTECODE"] = saved_pyc
+        for name in tuple(sys.modules):
+            if _is_first_party_module(name):
+                del sys.modules[name]
+        sys.modules.update(saved_first_party)
+        importlib.invalidate_caches()
+
+
 def _load_first_party(
     tree: CommittedTree,
     src_root: Path,
@@ -622,64 +659,63 @@ def check_repository(
 
     _verify_committed_tree(repo, current_head, current_tree)
     committed_tree = CommittedTree(repo, current_tree)
-    _prepare_import_env(committed_tree, src_root)
+    with _committed_import_env(committed_tree, src_root):
+        python_paths = _changed_python_paths(
+            cast(Sequence[Mapping[str, Any]], changed_paths)
+        )
+        sites: list[ImportSite] = []
+        for rel_path in python_paths:
+            sites.extend(_inspect_path(committed_tree, rel_path))
 
-    python_paths = _changed_python_paths(
-        cast(Sequence[Mapping[str, Any]], changed_paths)
-    )
-    sites: list[ImportSite] = []
-    for rel_path in python_paths:
-        sites.extend(_inspect_path(committed_tree, rel_path))
-
-    verdicts: dict[tuple[str, str], _NameVerdict] = {}
-    findings: list[dict[str, Any]] = []
-    for site in sites:
-        if site.in_type_checking and (site.module, site.imported_name) in allowlist:
-            continue
-        key = (site.module, site.imported_name)
-        verdict = verdicts.get(key)
-        if verdict is None:
-            verdict = _resolve_name(
-                committed_tree, src_root, site.module, site.imported_name
+        verdicts: dict[tuple[str, str], _NameVerdict] = {}
+        findings: list[dict[str, Any]] = []
+        for site in sites:
+            if site.in_type_checking and (site.module, site.imported_name) in allowlist:
+                continue
+            key = (site.module, site.imported_name)
+            verdict = verdicts.get(key)
+            if verdict is None:
+                verdict = _resolve_name(
+                    committed_tree, src_root, site.module, site.imported_name
+                )
+                verdicts[key] = verdict
+            if verdict.status == "ok":
+                continue
+            if verdict.status == "error":
+                raise CheckerError(verdict.explanation)
+            findings.append(
+                {
+                    "path": site.path,
+                    "line": site.line,
+                    "module": site.module,
+                    "imported_name": site.imported_name,
+                    "explanation": verdict.explanation,
+                }
             )
-            verdicts[key] = verdict
-        if verdict.status == "ok":
-            continue
-        if verdict.status == "error":
-            raise CheckerError(verdict.explanation)
-        findings.append(
-            {
-                "path": site.path,
-                "line": site.line,
-                "module": site.module,
-                "imported_name": site.imported_name,
-                "explanation": verdict.explanation,
-            }
-        )
 
-    findings.sort(
-        key=lambda item: (
-            str(item["path"]),
-            int(item["line"]),
-            str(item["module"]),
-            str(item["imported_name"]),
+        findings.sort(
+            key=lambda item: (
+                str(item["path"]),
+                int(item["line"]),
+                str(item["module"]),
+                str(item["imported_name"]),
+            )
         )
-    )
-    if findings:
+        if findings:
+            return _report(
+                head=current_head,
+                tree=current_tree,
+                status="findings",
+                findings=findings,
+                diagnostics=None,
+            )
         return _report(
             head=current_head,
             tree=current_tree,
-            status="findings",
-            findings=findings,
+            status="clean",
+            findings=[],
             diagnostics=None,
         )
-    return _report(
-        head=current_head,
-        tree=current_tree,
-        status="clean",
-        findings=[],
-        diagnostics=None,
-    )
 
 
 def _write_report(path: Path, report: Mapping[str, Any]) -> None:
