@@ -287,7 +287,12 @@ def test_limit_two_with_four_runs_never_overlaps_more_than_two(world: Any) -> No
 
     _wait_for(lambda: len(_states("admitted")) == 2, "two holders")
     _wait_for(lambda: len(_states("waiting")) == 2, "two waiters")
-    assert len(_started_children(w)) == 2
+    # Admission is committed before child startup (admit_before_spawn precedes
+    # spawn_child), so two admitted records can precede two start stamps on a
+    # loaded host. Wait for at least two holder children, then require exactly
+    # two so a third starter still fails promptly.
+    _wait_for(lambda: len(_started_children(w)) >= 2, "two holder children")
+    assert len(_started_children(w)) == 2, f"stamps={w.stamp_lines()}"
     w.release.touch()
 
     codes = [proc.wait(timeout=LOAD_TOLERANT_TIMEOUT) for proc in procs]
