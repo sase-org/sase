@@ -10,6 +10,7 @@ wheel cannot shadow the committed tree.
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.abc
 import importlib.util
 import json
@@ -64,6 +65,14 @@ class CheckerError(Exception):
     """Infrastructure failure: emit ``status=error`` and fail open."""
 
 
+def _git_blob_oid(data: bytes, *, use_sha256: bool) -> str:
+    """Return the git blob object id for raw bytes without a subprocess."""
+    header = b"blob %d\0" % len(data)
+    if use_sha256:
+        return hashlib.sha256(header + data).hexdigest()
+    return hashlib.sha1(header + data).hexdigest()
+
+
 class CommittedTree:
     """Read and verify only files named by the committed tree identity."""
 
@@ -71,11 +80,15 @@ class CommittedTree:
         self.repo = repo.resolve()
         self.tree = tree
         self._source_cache: dict[str, bytes] = {}
+        self._index: dict[str, tuple[str, str, str]] | None = None
+        self._malformed: set[str] = set()
 
-    def _entry(self, rel_path: str) -> tuple[str, bytes]:
-        """Return the committed mode and blob for one exact repository path."""
+    def _ensure_index(self, rel_path: str) -> dict[str, tuple[str, str, str]]:
+        """Build the committed-tree index once with a single git process."""
+        if self._index is not None:
+            return self._index
         completed = subprocess.run(
-            ["git", "ls-tree", "-z", self.tree, "--", f":(literal){rel_path}"],
+            ["git", "ls-tree", "-r", "-z", "--full-tree", self.tree],
             cwd=self.repo,
             check=False,
             capture_output=True,
@@ -86,31 +99,50 @@ class CommittedTree:
                 "utf-8", errors="replace"
             ).strip()
             raise CheckerError(f"git ls-tree failed for {rel_path}: {detail}")
-        entries = [entry for entry in completed.stdout.split(b"\0") if entry]
-        if len(entries) != 1:
+        index: dict[str, tuple[str, str, str]] = {}
+        malformed: set[str] = set()
+        for entry in completed.stdout.split(b"\0"):
+            if not entry:
+                continue
+            if b"\t" not in entry:
+                continue
+            metadata, entry_path = entry.split(b"\t", 1)
+            path_str = os.fsdecode(entry_path)
+            try:
+                mode_bytes, kind_bytes, oid_bytes = metadata.split()
+            except ValueError:
+                malformed.add(path_str)
+                continue
+            try:
+                mode = mode_bytes.decode("ascii")
+                kind = kind_bytes.decode("ascii")
+                oid = oid_bytes.decode("ascii")
+            except UnicodeDecodeError:
+                malformed.add(path_str)
+                continue
+            index[path_str] = (mode, kind, oid)
+        self._malformed = malformed
+        self._index = index
+        return index
+
+    def _lookup(self, rel_path: str) -> tuple[str, str]:
+        """Return the committed mode and object id for one repository path."""
+        index = self._ensure_index(rel_path)
+        if rel_path in self._malformed:
+            raise CheckerError(f"malformed git tree entry for {rel_path}")
+        entry = index.get(rel_path)
+        if entry is None:
             raise CheckerError(
                 f"{rel_path} does not resolve to one entry in committed tree {self.tree}"
             )
-        metadata, entry_path = entries[0].split(b"\t", 1)
-        if os.fsdecode(entry_path) != rel_path:
-            raise CheckerError(f"git resolved an unexpected tree path for {rel_path}")
-        try:
-            mode_bytes, kind, oid = metadata.split()
-        except ValueError as exc:
-            raise CheckerError(f"malformed git tree entry for {rel_path}") from exc
-        if kind != b"blob":
+        mode, kind, oid = entry
+        if kind != "blob":
             raise CheckerError(f"{rel_path} is not a committed source blob")
-        blob = subprocess.run(
-            ["git", "cat-file", "blob", os.fsdecode(oid)],
-            cwd=self.repo,
-            check=False,
-            capture_output=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-        if blob.returncode != 0:
-            detail = (blob.stderr or blob.stdout).decode("utf-8", errors="replace").strip()
-            raise CheckerError(f"git cat-file failed for {rel_path}: {detail}")
-        return mode_bytes.decode("ascii"), blob.stdout
+        if len(oid) not in (40, 64) or any(
+            c not in "0123456789abcdefABCDEF" for c in oid
+        ):
+            raise CheckerError(f"malformed git tree entry for {rel_path}")
+        return mode, oid
 
     def source_bytes(self, rel_path: str) -> bytes:
         """Verify worktree identity and return committed Python source bytes."""
@@ -126,7 +158,8 @@ class CommittedTree:
         if cached is not None:
             return cached
         source = self.repo / Path(*posix.split("/"))
-        mode, committed = self._entry(posix)
+        mode, oid = self._lookup(posix)
+        use_sha256 = len(oid) == 64
         try:
             source_info = source.lstat()
         except OSError as exc:
@@ -138,7 +171,7 @@ class CommittedTree:
                 link_target = os.fsencode(os.readlink(source))
             except OSError as exc:
                 raise CheckerError(f"cannot read committed symlink {posix}: {exc}") from exc
-            if link_target != committed:
+            if _git_blob_oid(link_target, use_sha256=use_sha256) != oid.lower():
                 raise CheckerError(f"worktree symlink {posix} differs from committed tree")
             try:
                 resolved = source.resolve(strict=True)
@@ -159,9 +192,9 @@ class CommittedTree:
                 working = source.read_bytes()
             except OSError as exc:
                 raise CheckerError(f"cannot read committed source {posix}: {exc}") from exc
-            if working != committed:
+            if _git_blob_oid(working, use_sha256=use_sha256) != oid.lower():
                 raise CheckerError(f"worktree source {posix} differs from committed tree")
-            result = committed
+            result = working
         self._source_cache[posix] = result
         return result
 

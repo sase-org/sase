@@ -6,6 +6,7 @@ packages so the checker cannot pick up this checkout's installed package.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import stat
@@ -582,3 +583,101 @@ def test_missing_env_exits_without_pretending_clean(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     assert rebase_imports.CONTEXT_ENV in proc.stderr
+
+
+def _chain_files(count: int) -> dict[str, str]:
+    files: dict[str, str] = {
+        "src/sase/__init__.py": "",
+        "src/sase/importer.py": "from sase.chain0 import v0\n",
+    }
+    for index in range(count):
+        if index < count - 1:
+            files[f"src/sase/chain{index}.py"] = (
+                f"v{index} = {index}\nfrom sase.chain{index + 1} import v{index + 1}\n"
+            )
+        else:
+            files[f"src/sase/chain{index}.py"] = f"v{index} = {index}\n"
+    return files
+
+
+def test_subprocess_count_does_not_scale_with_loaded_modules(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path, _chain_files(30))
+    context = _context(repo, [_change("src/sase/importer.py")])
+    original_run = rebase_imports.subprocess.run
+    calls: list[list[str]] = []
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        calls.append(list(args[0]))
+        return original_run(*args, **kwargs)
+
+    saved_path = list(sys.path)
+    saved_modules = dict(sys.modules)
+    rebase_imports.subprocess.run = counting  # type: ignore[method-assign]
+    try:
+        report = rebase_imports.check_repository(context)
+    finally:
+        rebase_imports.subprocess.run = original_run  # type: ignore[method-assign]
+        sys.path[:] = saved_path
+        sys.modules.clear()
+        sys.modules.update(saved_modules)
+        importlib.invalidate_caches()  # type: ignore[attr-defined]
+    assert report["status"] == "clean"
+    # Two HEAD/tree rev-parses, four dirty-tree queries, one ls-tree index.
+    assert len(calls) == 7
+    assert len(calls) < 30
+
+
+def test_source_bytes_rejects_same_length_rewrite(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(**{"src/sase/target.py": "value = 1\n"}),
+    )
+    head, tree = _ids(repo)
+    committed = rebase_imports.CommittedTree(repo, tree)
+    assert committed.source_bytes("src/sase/target.py") == b"value = 1\n"
+    (repo / "src/sase/target.py").write_text("value = 2\n", encoding="utf-8")
+    fresh = rebase_imports.CommittedTree(repo, tree)
+    try:
+        fresh.source_bytes("src/sase/target.py")
+    except rebase_imports.CheckerError as exc:
+        assert "differs from committed tree" in str(exc)
+    else:
+        raise AssertionError("expected same-length rewrite to be rejected")
+    assert head is not None
+
+
+def test_source_bytes_rejects_retargeted_symlink(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(
+            **{
+                "src/sase/real_a.py": "Present = 1\n",
+                "src/sase/real_b.py": "Present = 2\n",
+            }
+        ),
+    )
+    (repo / "src/sase/link.py").symlink_to("real_a.py")
+    _git(repo, "add", "src/sase/link.py")
+    _git(repo, "commit", "-q", "-m", "add link")
+    _, tree = _ids(repo)
+    committed = rebase_imports.CommittedTree(repo, tree)
+    assert committed.source_bytes("src/sase/link.py") == b"Present = 1\n"
+    (repo / "src/sase/link.py").unlink()
+    (repo / "src/sase/link.py").symlink_to("real_b.py")
+    fresh = rebase_imports.CommittedTree(repo, tree)
+    try:
+        fresh.source_bytes("src/sase/link.py")
+    except rebase_imports.CheckerError as exc:
+        assert "differs from committed tree" in str(exc)
+    else:
+        raise AssertionError("expected retargeted symlink to be rejected")
+
+
+def test_source_bytes_returns_exact_bytes_when_unchanged(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(**{"src/sase/target.py": "value = 1\n"}),
+    )
+    _, tree = _ids(repo)
+    committed = rebase_imports.CommittedTree(repo, tree)
+    assert committed.source_bytes("src/sase/target.py") == b"value = 1\n"
