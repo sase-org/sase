@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from tests._global_state_leak_detector import _drain_config_token_refresh_after_test
+from tests._tmp_leak_guard import DISABLED_ENV as TMP_LEAK_GUARD_DISABLED_ENV
 
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -165,6 +166,10 @@ def test_header_resolver_late_read_does_not_poison_leak_snapshot(
 ) -> None:
     """Blocking leak detection stays green through the producer-first drain."""
     monkeypatch.setenv("PYTHONPATH", str(_ROOT))
+    # This nested session loads the repo conftest and shares the outer suite's
+    # private TMPDIR, so its session temp-leak guard would report entries the
+    # outer suite's other xdist workers create meanwhile (sase-1vz).
+    monkeypatch.setenv(TMP_LEAK_GUARD_DISABLED_ENV, "1")
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     monkeypatch.delenv("SASE_GLOBAL_LEAK_WORKER_DIR", raising=False)
     report_path = pytester.path / "leaks.json"

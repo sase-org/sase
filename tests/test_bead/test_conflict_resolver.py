@@ -15,7 +15,11 @@ from sase.bead.conflict_resolver import (
 )
 from sase.bead.project import BEADS_DIRNAME
 
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 from .conflict_resolver_test_helpers import (
     _assert_config_roundtrips_save_config,
@@ -45,10 +49,17 @@ def test_git_add_recovers_stale_index_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.bead.conflict_resolver_git",
+        tmp_path,
+        absent_owner_facts,
+    )
 
     _git_add(tmp_path, ["note.txt"])
 
     assert not lock.exists()
+    assert observations
     assert _git(tmp_path, "diff", "--cached", "--name-only").stdout.strip() == (
         "note.txt"
     )
@@ -229,9 +240,16 @@ def test_conflict_probe_retries_through_a_stale_index_lock(
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.bead.conflict_resolver_git",
+        tmp_path,
+        absent_owner_facts,
+    )
 
     result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
 
-    assert result.ok is True, result.message
+    assert result.ok is True, f"{result.message}\n{observations}"
     assert contested in result.resolved_files
     assert not lock.exists()
+    assert observations

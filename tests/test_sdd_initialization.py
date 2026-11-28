@@ -12,7 +12,11 @@ import pytest
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.logs import tui_git_ops_jsonl_path
 from sase.sdd._commit import commit_bare_git_sdd_init_paths
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 from sase.sdd.files import (
     ensure_bare_git_sdd_initialized,
     ensure_sdd_initialized,
@@ -140,10 +144,17 @@ def test_bare_git_sdd_init_recovers_planted_index_lock(
     age_git_index_lock(lock_path)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
     monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.sdd._git_contention",
+        tmp_path,
+        absent_owner_facts,
+    )
 
     commit_bare_git_sdd_init_paths(tmp_path, [generated], push=False)
 
-    assert not lock_path.exists()
+    assert not lock_path.exists(), observations
+    assert observations
     assert _git(tmp_path, "show", "--format=", "--name-only", "HEAD").stdout == (
         "sdd/README.md\n"
     )

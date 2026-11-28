@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_git import (
     submit_post_write_action_sequence,
 )
@@ -18,7 +20,11 @@ from sase.ops.names import GIT_POST_WRITE
 from sase.post_write_operations import run_post_write_command_sync
 from sase.macro.write_targets import PostWriteActionKind, PostWriteActionOffer
 
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 from ._prompt_save_macro_helpers import _CommitHarness
 
@@ -193,11 +199,18 @@ def test_git_commit_push_worker_stops_on_add_failure(tmp_path: Path) -> None:
 
 def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     (tmp_path / ".git").mkdir()
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.post_write_operations",
+        tmp_path,
+        absent_owner_facts,
+    )
     commit_attempts = 0
 
     def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -225,10 +238,11 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
             file_path=str(tmp_path / "review.md"),
             commit_message="chore: Add macro review",
         )
-    assert result.success
+    assert result.success, str(observations)
     assert result.index_lock_removed
     assert commit_attempts == 4
     assert not lock.exists()
+    assert observations
 
 
 def test_post_write_sequence_waits_for_success_before_next_task() -> None:

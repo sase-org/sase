@@ -18,7 +18,11 @@ from sase.sdd._repository_transaction import (
     integrate_sdd_repository,
     require_sdd_repository_health,
 )
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 from tests.sdd_store._helpers import (
     clone,
     commit_all,
@@ -353,12 +357,19 @@ def test_rebase_recovers_planted_index_lock(
     age_git_index_lock(lock_path)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
     monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.sdd._git_contention",
+        left,
+        absent_owner_facts,
+    )
 
     outcome = integrate_sdd_repository(left)
 
-    assert outcome.succeeded is True
+    assert outcome.succeeded is True, observations
     assert outcome.integrated is True
     assert not lock_path.exists()
+    assert observations
     assert (left / "local.md").read_text(encoding="utf-8") == "local\n"
     assert (left / "remote.md").read_text(encoding="utf-8") == "remote\n"
     require_sdd_repository_health(left)

@@ -12,7 +12,11 @@ from sase.dev_update.execute import (
     DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
     run_dev_update_command,
 )
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 
 def test_run_dev_update_command_disables_git_prompts(
@@ -123,12 +127,19 @@ def test_run_dev_update_command_recovers_stale_git_index_lock(
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.dev_update.command",
+        tmp_path,
+        absent_owner_facts,
+    )
 
     result = run_dev_update_command(
         ("git", "-C", str(tmp_path), "add", "-A"),
         run_attempt=fake_run,
     )
 
-    assert result.returncode == 0
+    assert result.returncode == 0, str(observations)
     assert attempts == 4
     assert not lock.exists()
+    assert observations
