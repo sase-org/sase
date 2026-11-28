@@ -282,7 +282,7 @@ def publish_recovery_activation_in_store(
     )
 
 
-def publish_recovery_claim_in_store(
+def _publish_recovery_claim_in_store(
     beads_dir: Path,
     request: Mapping[str, Any],
     *,
@@ -423,7 +423,7 @@ def publish_recovery_claim(
         holder=holder,
         prefer_existing_claim=True,
     ) as store:
-        result = publish_recovery_claim_in_store(
+        result = _publish_recovery_claim_in_store(
             store.beads_dir,
             request,
             operation_context=store.context,
@@ -473,5 +473,4 @@ __all__ = [
     "RecoveryPublicationResult",
     "publish_recovery_activation_in_store",
     "publish_recovery_claim",
-    "publish_recovery_claim_in_store",
 ]

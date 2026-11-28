@@ -13,8 +13,8 @@ Crash replay never mints a new proc identity: the proc id, request
 fingerprint, and concurrency keys are pure functions of the claim key, so a
 repeated call after a completed or failed proc returns the consumed row, a
 concurrent or restarted call replays the active row, and only a missing row
-reaches the store. Nothing here enables the periodic recovery job; no
-scheduler caller exists yet.
+reaches the store. The bounded ``epic_liveness`` AXE job
+(:mod:`sase.scripts.sase_chop_epic_liveness`) is the periodic caller.
 """
 
 from __future__ import annotations
@@ -23,14 +23,9 @@ import os
 import socket
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from sase.bead.recovery import (
-    RecoveryPublicationResult,
-    publish_recovery_claim,
-    publish_recovery_claim_in_store,
-)
+from sase.bead.recovery import RecoveryPublicationResult, publish_recovery_claim
 from sase.bead.zombie import ZombieReport, ZombieVerdict, load_zombie_report
 from sase.core.recovery_facade import RecoveryClaim, recovery_claim_key
 from sase.procs.models import ACTIVE_PROC_STATUSES, Proc
@@ -59,6 +54,7 @@ REASON_PROC_ACTIVE = "proc_already_active"
 REASON_PROC_TERMINAL = "proc_already_terminal"
 REASON_SUBMIT_CONFLICT = "submit_conflict"
 REASON_UNSUPPORTED_CORE = "unsupported_core_binding"
+REASON_PROC_LOOKUP_FAILED = "proc_lookup_failed"
 
 _ACTIVE_STATUSES = ACTIVE_PROC_STATUSES
 
@@ -115,26 +111,26 @@ def default_owner_machine() -> str:
     return socket.gethostname().split(".", 1)[0].strip() or "local"
 
 
-def recovery_proc_id(project_id: str, epic_id: str, close_token: str) -> str:
+def _recovery_proc_id(project_id: str, epic_id: str, close_token: str) -> str:
     """Return the deterministic proc id for one recovery event."""
     return f"epic-recovery-{recovery_claim_key(project_id, epic_id, close_token)}"
 
 
-def recovery_request_fingerprint(
+def _recovery_request_fingerprint(
     project_id: str, epic_id: str, close_token: str
 ) -> str:
     """Return the deterministic request fingerprint for one recovery event."""
     return f"epic-recovery:{recovery_claim_key(project_id, epic_id, close_token)}"
 
 
-def recovery_concurrency_keys(
+def _recovery_concurrency_keys(
     project_id: str, epic_id: str, close_token: str
 ) -> tuple[str, ...]:
     """Return the concurrency keys serializing one recovery event."""
     return (f"epic-recovery:{project_id}:{epic_id}:{close_token}",)
 
 
-def recovery_claim_request(
+def _recovery_claim_request(
     *,
     project: str,
     epic_id: str,
@@ -148,7 +144,7 @@ def recovery_claim_request(
     Defaults derive from the deterministic proc identity, so crash replay on
     the owning host resumes the same reservation instead of minting a new one.
     """
-    resolved_proc_id = proc_id or recovery_proc_id(project, epic_id, close_token)
+    resolved_proc_id = proc_id or _recovery_proc_id(project, epic_id, close_token)
     return {
         "project_id": project,
         "epic_id": epic_id,
@@ -156,11 +152,11 @@ def recovery_claim_request(
         "owner_machine": owner_machine or default_owner_machine(),
         "proc_id": resolved_proc_id,
         "request_fingerprint": request_fingerprint
-        or recovery_request_fingerprint(project, epic_id, close_token),
+        or _recovery_request_fingerprint(project, epic_id, close_token),
     }
 
 
-def recovery_proc_request(
+def _recovery_proc_request(
     *,
     project: str,
     epic_id: str,
@@ -177,8 +173,8 @@ def recovery_proc_request(
     """
     from sase.dev_update.code_swap_lock import guarded_exec_argv
 
-    resolved_proc_id = proc_id or recovery_proc_id(project, epic_id, close_token)
-    resolved_fingerprint = request_fingerprint or recovery_request_fingerprint(
+    resolved_proc_id = proc_id or _recovery_proc_id(project, epic_id, close_token)
+    resolved_fingerprint = request_fingerprint or _recovery_request_fingerprint(
         project, epic_id, close_token
     )
     logical_argv = ["sase", "bead", "work", epic_id, "--yes-to-all"]
@@ -190,7 +186,9 @@ def recovery_proc_request(
         origin=RECOVERY_PROC_ORIGIN,
         project=project,
         proc_id=resolved_proc_id,
-        concurrency_keys=list(recovery_concurrency_keys(project, epic_id, close_token)),
+        concurrency_keys=list(
+            _recovery_concurrency_keys(project, epic_id, close_token)
+        ),
         request_fingerprint=resolved_fingerprint,
         tags=list(RECOVERY_PROC_TAGS),
         env={SASE_RECOVERY_CLOSE_TOKEN_ENV: close_token},
@@ -299,7 +297,7 @@ def _submit_with_permit(
     except Exception as exc:  # noqa: BLE001 - an unreadable store cannot submit.
         return _aborted(
             proc_id=claim.proc_id,
-            reason="proc_lookup_failed",
+            reason=REASON_PROC_LOOKUP_FAILED,
             claim=claim,
             diagnostic=str(exc),
         )
@@ -330,7 +328,7 @@ def _submit_with_permit(
             claim=claim,
             diagnostic=str(exc),
         )
-    request = recovery_proc_request(
+    request = _recovery_proc_request(
         project=project,
         epic_id=epic_id,
         close_token=close_token,
@@ -423,8 +421,8 @@ def submit_recovery_launch(
     abort, the active row replays, and the terminal row stays consumed.
     """
     try:
-        proc_id = recovery_proc_id(project, epic_id, close_token)
-        fingerprint = recovery_request_fingerprint(project, epic_id, close_token)
+        proc_id = _recovery_proc_id(project, epic_id, close_token)
+        fingerprint = _recovery_request_fingerprint(project, epic_id, close_token)
     except RuntimeError as exc:
         return RecoverySubmission(
             outcome=OUTCOME_ABORTED,
@@ -435,7 +433,7 @@ def submit_recovery_launch(
     publish = publish_claim or publish_recovery_claim
     permit = publish(
         project,
-        recovery_claim_request(
+        _recovery_claim_request(
             project=project,
             epic_id=epic_id,
             close_token=close_token,
@@ -443,84 +441,6 @@ def submit_recovery_launch(
             proc_id=proc_id,
             request_fingerprint=fingerprint,
         ),
-    )
-    if not permit.launch_permit or permit.claim is None:
-        return _aborted(
-            proc_id=proc_id,
-            reason=f"no_launch_permit:{permit.reason}",
-            claim=permit.claim,
-            diagnostic=permit.diagnostic,
-        )
-    return _submit_with_permit(
-        project=project,
-        epic_id=epic_id,
-        close_token=close_token,
-        claim=permit.claim,
-        lookup_proc=lookup_proc,
-        load_report=load_report,
-        submit_proc=submit_proc,
-    )
-
-
-def submit_recovery_launch_in_store(
-    beads_dir: str | Path,
-    *,
-    project: str,
-    epic_id: str,
-    close_token: str,
-    owner_machine: str = "",
-    publish_claim: (
-        Callable[[Path, Mapping[str, Any]], RecoveryPublicationResult] | None
-    ) = None,
-    refresh: Callable[[Path], None] | None = None,
-    commit: Callable[[Path, str], bool] | None = None,
-    push: Callable[[Path], Any] | None = None,
-    replay: Callable[[Path], str | None] | None = None,
-    lookup_proc: Callable[[str], Proc | None] | None = None,
-    load_report: Callable[[str], ZombieReport] | None = None,
-    submit_proc: Callable[[ProcSubmitRequest], Proc] | None = None,
-) -> RecoverySubmission:
-    """Publish the claim in *beads_dir*, then submit or replay the stable proc.
-
-    Store-level entry with the same refresh/commit/push/replay seams as
-    :func:`publish_recovery_claim_in_store
-    <sase.bead.recovery.publish_recovery_claim_in_store>`, for crash-replay
-    coverage of failed pushes, interrupted publication, and competing
-    publishers. The submission path is identical to
-    :func:`submit_recovery_launch`: permit, guard, then one stable proc.
-    """
-    path = Path(beads_dir)
-    try:
-        proc_id = recovery_proc_id(project, epic_id, close_token)
-        fingerprint = recovery_request_fingerprint(project, epic_id, close_token)
-    except RuntimeError as exc:
-        return RecoverySubmission(
-            outcome=OUTCOME_ABORTED,
-            reason=REASON_UNSUPPORTED_CORE,
-            proc_id="",
-            diagnostic=str(exc),
-        )
-    publish = publish_claim or publish_recovery_claim_in_store
-    kwargs: dict[str, Any] = {}
-    if refresh is not None:
-        kwargs["refresh"] = refresh
-    if commit is not None:
-        kwargs["commit"] = commit
-    if push is not None:
-        kwargs["push"] = push
-    if replay is not None:
-        kwargs["replay"] = replay
-    permit = publish(
-        path,
-        recovery_claim_request(
-            project=project,
-            epic_id=epic_id,
-            close_token=close_token,
-            owner_machine=owner_machine or default_owner_machine(),
-            proc_id=proc_id,
-            request_fingerprint=fingerprint,
-        ),
-        **kwargs,
     )
     if not permit.launch_permit or permit.claim is None:
         return _aborted(
@@ -546,6 +466,7 @@ __all__ = [
     "OUTCOME_REPLAYED",
     "OUTCOME_SUBMITTED",
     "REASON_PROC_ACTIVE",
+    "REASON_PROC_LOOKUP_FAILED",
     "REASON_PROC_TERMINAL",
     "REASON_SUBMIT_CONFLICT",
     "REASON_UNSUPPORTED_CORE",
@@ -559,12 +480,6 @@ __all__ = [
     "RecoverySubmission",
     "check_recovery_close_token",
     "default_owner_machine",
-    "recovery_claim_request",
-    "recovery_concurrency_keys",
     "recovery_guard_from_env",
-    "recovery_proc_id",
-    "recovery_proc_request",
-    "recovery_request_fingerprint",
     "submit_recovery_launch",
-    "submit_recovery_launch_in_store",
 ]

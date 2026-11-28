@@ -25,14 +25,13 @@ from sase.bead.recovery_submit import (
     RecoveryLaunchGuard,
     check_recovery_close_token,
     default_owner_machine,
-    recovery_claim_request,
-    recovery_concurrency_keys,
+    _recovery_claim_request,
+    _recovery_concurrency_keys,
     recovery_guard_from_env,
-    recovery_proc_id,
-    recovery_proc_request,
-    recovery_request_fingerprint,
+    _recovery_proc_id,
+    _recovery_proc_request,
+    _recovery_request_fingerprint,
     submit_recovery_launch,
-    submit_recovery_launch_in_store,
 )
 from sase.bead.zombie import ZombieReport
 from sase.core.zombie_facade import ZombieEvaluationReport, ZombieVerdict
@@ -146,42 +145,42 @@ def _proc(proc_id: str, status: str) -> Proc:
 
 
 def test_proc_identity_is_deterministic(fake_claim_key: None) -> None:
-    first = recovery_proc_id(PROJECT, EPIC, TOKEN)
-    assert first == recovery_proc_id(PROJECT, EPIC, TOKEN)
+    first = _recovery_proc_id(PROJECT, EPIC, TOKEN)
+    assert first == _recovery_proc_id(PROJECT, EPIC, TOKEN)
     assert first.startswith("epic-recovery-")
-    assert recovery_request_fingerprint(PROJECT, EPIC, TOKEN) == (
-        recovery_request_fingerprint(PROJECT, EPIC, TOKEN)
+    assert _recovery_request_fingerprint(PROJECT, EPIC, TOKEN) == (
+        _recovery_request_fingerprint(PROJECT, EPIC, TOKEN)
     )
-    assert recovery_proc_id(PROJECT, EPIC, OTHER_TOKEN) != first
-    assert recovery_request_fingerprint(
+    assert _recovery_proc_id(PROJECT, EPIC, OTHER_TOKEN) != first
+    assert _recovery_request_fingerprint(
         PROJECT, EPIC, OTHER_TOKEN
-    ) != recovery_request_fingerprint(PROJECT, EPIC, TOKEN)
-    assert recovery_concurrency_keys(PROJECT, EPIC, TOKEN) == (
+    ) != _recovery_request_fingerprint(PROJECT, EPIC, TOKEN)
+    assert _recovery_concurrency_keys(PROJECT, EPIC, TOKEN) == (
         f"epic-recovery:{PROJECT}:{EPIC}:{TOKEN}",
     )
 
 
 def test_proc_identity_is_project_scoped(fake_claim_key: None) -> None:
-    mine = recovery_proc_id(PROJECT, EPIC, TOKEN)
-    theirs = recovery_proc_id("beta", EPIC, TOKEN)
+    mine = _recovery_proc_id(PROJECT, EPIC, TOKEN)
+    theirs = _recovery_proc_id("beta", EPIC, TOKEN)
     assert mine != theirs
-    assert recovery_request_fingerprint(
+    assert _recovery_request_fingerprint(
         PROJECT, EPIC, TOKEN
-    ) != recovery_request_fingerprint("beta", EPIC, TOKEN)
+    ) != _recovery_request_fingerprint("beta", EPIC, TOKEN)
 
 
 def test_proc_request_reaches_bead_work_for_epic_id(
     fake_claim_key: None,
 ) -> None:
-    request = recovery_proc_request(project=PROJECT, epic_id=EPIC, close_token=TOKEN)
+    request = _recovery_proc_request(project=PROJECT, epic_id=EPIC, close_token=TOKEN)
     assert request.command == ["sase", "bead", "work", EPIC, "--yes-to-all"]
     assert request.origin == RECOVERY_PROC_ORIGIN == "axe"
     assert request.project == PROJECT
-    assert request.proc_id == recovery_proc_id(PROJECT, EPIC, TOKEN)
-    assert request.request_fingerprint == recovery_request_fingerprint(
+    assert request.proc_id == _recovery_proc_id(PROJECT, EPIC, TOKEN)
+    assert request.request_fingerprint == _recovery_request_fingerprint(
         PROJECT, EPIC, TOKEN
     )
-    assert tuple(request.concurrency_keys) == recovery_concurrency_keys(
+    assert tuple(request.concurrency_keys) == _recovery_concurrency_keys(
         PROJECT, EPIC, TOKEN
     )
     assert request.env == {SASE_RECOVERY_CLOSE_TOKEN_ENV: TOKEN}
@@ -193,7 +192,7 @@ def test_proc_request_reaches_bead_work_for_epic_id(
 
 
 def test_claim_request_carries_stable_identity(fake_claim_key: None) -> None:
-    request = recovery_claim_request(
+    request = _recovery_claim_request(
         project=PROJECT, epic_id=EPIC, close_token=TOKEN, owner_machine="athena"
     )
     assert request == {
@@ -201,8 +200,8 @@ def test_claim_request_carries_stable_identity(fake_claim_key: None) -> None:
         "epic_id": EPIC,
         "close_token": TOKEN,
         "owner_machine": "athena",
-        "proc_id": recovery_proc_id(PROJECT, EPIC, TOKEN),
-        "request_fingerprint": recovery_request_fingerprint(PROJECT, EPIC, TOKEN),
+        "proc_id": _recovery_proc_id(PROJECT, EPIC, TOKEN),
+        "request_fingerprint": _recovery_request_fingerprint(PROJECT, EPIC, TOKEN),
     }
     assert default_owner_machine()
 
@@ -458,54 +457,11 @@ def test_submit_conflict_without_winner_aborts(fake_claim_key: None) -> None:
     assert result.proc is None
 
 
-def test_in_store_entry_forwards_seams_and_submits(
-    fake_claim_key: None, tmp_path: Path
-) -> None:
-    """The store-level entry drives crash-replay seams end to end."""
-    claim = _claim()
-    beads_dir = tmp_path / "beads"
-    beads_dir.mkdir()
-    seen: dict[str, Any] = {}
-
-    def fake_publish(
-        path: Path, request: dict[str, Any], **kwargs: Any
-    ) -> RecoveryPublicationResult:
-        seen["path"] = path
-        seen["kwargs"] = kwargs
-        return _permit(claim)
-
-    submitted: list[ProcSubmitRequest] = []
-
-    result = submit_recovery_launch_in_store(
-        beads_dir,
-        project=PROJECT,
-        epic_id=EPIC,
-        close_token=TOKEN,
-        owner_machine="athena",
-        publish_claim=fake_publish,
-        refresh=lambda _path: seen.setdefault("refresh", True),
-        commit=lambda _path, _message: True,
-        push=lambda _path: None,
-        replay=lambda _path: None,
-        lookup_proc=lambda _proc_id: None,
-        load_report=lambda _project: _report(_zombie_row()),
-        submit_proc=lambda request: (
-            submitted.append(request) or _proc(claim.proc_id, "pending")
-        ),
-    )
-    assert result.outcome == OUTCOME_SUBMITTED
-    assert seen["path"] == beads_dir
-    assert set(seen["kwargs"]) == {"refresh", "commit", "push", "replay"}
-    assert len(submitted) == 1
-
-
-def test_in_store_entry_refuses_without_permit(
-    fake_claim_key: None, tmp_path: Path
-) -> None:
+def test_corrupt_claim_refuses_without_permit(fake_claim_key: None) -> None:
     """Corrupt claims surface as no-permit and never submit."""
 
     def fake_publish(
-        path: Path, request: dict[str, Any], **kwargs: Any
+        project: str, request: dict[str, Any]
     ) -> RecoveryPublicationResult:
         return RecoveryPublicationResult(
             launch_permit=False,
@@ -518,10 +474,9 @@ def test_in_store_entry_refuses_without_permit(
     def fake_submit(request: ProcSubmitRequest) -> Proc:
         raise AssertionError("a corrupt claim must not submit")
 
-    result = submit_recovery_launch_in_store(
-        tmp_path,
-        project=PROJECT,
-        epic_id=EPIC,
+    result = submit_recovery_launch(
+        PROJECT,
+        EPIC,
         close_token=TOKEN,
         publish_claim=fake_publish,
         lookup_proc=lambda _proc_id: None,
@@ -615,7 +570,7 @@ def test_default_submit_uses_operational_lease_with_axe_origin(
     monkeypatch.setattr(
         "sase.workspace_provider.lease.submit_via_lease", fake_submit_via_lease
     )
-    request = recovery_proc_request(project=PROJECT, epic_id=EPIC, close_token=TOKEN)
+    request = _recovery_proc_request(project=PROJECT, epic_id=EPIC, close_token=TOKEN)
     proc = recovery_submit._lease_and_submit(request)
     assert captured["project"] == PROJECT
     assert captured["workflow"] == "epic-recovery"

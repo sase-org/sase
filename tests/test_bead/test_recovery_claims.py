@@ -20,7 +20,7 @@ from sase.bead.recovery import (
     REASON_PUBLISH_UNCONFIRMED,
     publish_recovery_activation_in_store,
     publish_recovery_claim,
-    publish_recovery_claim_in_store,
+    _publish_recovery_claim_in_store,
 )
 from sase.core.recovery_facade import (
     RecoveryActivation,
@@ -296,7 +296,7 @@ def test_missing_close_token_never_grants_a_permit(
     beads_dir = tmp_path / "beads"
     beads_dir.mkdir()
     fake_core.arm(str(beads_dir), {"project_id": "alpha"})
-    result = publish_recovery_claim_in_store(
+    result = _publish_recovery_claim_in_store(
         beads_dir,
         _claim_request(close_token=""),
         refresh=lambda _path: None,
@@ -340,7 +340,7 @@ def test_repeated_reads_preserve_cutoff_and_winner(
     assert first.activation.armed_at == "2026-11-28T00:00:00Z"
     assert second.activation.armed_at == "2026-11-28T00:00:00Z"
 
-    created = publish_recovery_claim_in_store(
+    created = _publish_recovery_claim_in_store(
         beads_dir,
         _claim_request(),
         refresh=lambda _path: None,
@@ -350,7 +350,7 @@ def test_repeated_reads_preserve_cutoff_and_winner(
         ),
         replay=lambda _path: None,
     )
-    again = publish_recovery_claim_in_store(
+    again = _publish_recovery_claim_in_store(
         beads_dir,
         _claim_request(),
         refresh=lambda _path: None,
@@ -409,7 +409,7 @@ def test_two_projects_with_the_same_bead_suffix_stay_isolated(
             ),
             replay=lambda _path: None,
         )
-        result = publish_recovery_claim_in_store(
+        result = _publish_recovery_claim_in_store(
             beads_dir,
             _claim_request(project_id=project, owner=owner, proc_id=proc_id),
             refresh=lambda _path: None,
@@ -433,7 +433,7 @@ def test_unconfirmed_push_does_not_grant_a_permit(
     beads_dir = tmp_path / "beads"
     beads_dir.mkdir()
     fake_core.arm(str(beads_dir), {"project_id": "alpha"})
-    result = publish_recovery_claim_in_store(
+    result = _publish_recovery_claim_in_store(
         beads_dir,
         _claim_request(),
         refresh=lambda _path: None,
@@ -549,7 +549,7 @@ def test_competing_publisher_checkouts_keep_one_winner(
     _push_recovery(first)
     _replay_recovery(second)
 
-    winner = publish_recovery_claim_in_store(
+    winner = _publish_recovery_claim_in_store(
         first,
         _claim_request(owner="athena", proc_id="proc-a"),
         refresh=lambda _path: None,
@@ -561,7 +561,7 @@ def test_competing_publisher_checkouts_keep_one_winner(
     assert winner.claim is not None
     assert winner.claim.owner_machine == "athena"
 
-    loser = publish_recovery_claim_in_store(
+    loser = _publish_recovery_claim_in_store(
         second,
         _claim_request(owner="apollo", proc_id="proc-b"),
         refresh=lambda _path: None,
@@ -588,7 +588,7 @@ def test_interrupted_publication_adopts_the_published_winner(
     _push_recovery(first)
     _replay_recovery(second)
 
-    interrupted = publish_recovery_claim_in_store(
+    interrupted = _publish_recovery_claim_in_store(
         first,
         _claim_request(owner="athena", proc_id="proc-a"),
         refresh=lambda _path: None,
@@ -600,7 +600,7 @@ def test_interrupted_publication_adopts_the_published_winner(
     )
     assert interrupted.launch_permit is False
 
-    published = publish_recovery_claim_in_store(
+    published = _publish_recovery_claim_in_store(
         second,
         _claim_request(owner="apollo", proc_id="proc-b"),
         refresh=lambda _path: None,
@@ -610,7 +610,7 @@ def test_interrupted_publication_adopts_the_published_winner(
     )
     assert published.launch_permit is True
 
-    retried = publish_recovery_claim_in_store(
+    retried = _publish_recovery_claim_in_store(
         first,
         _claim_request(owner="athena", proc_id="proc-a"),
         refresh=lambda _path: None,
@@ -633,7 +633,7 @@ def test_concurrent_local_publishers_keep_one_permit(
 
     def publish(index: int) -> None:
         results.append(
-            publish_recovery_claim_in_store(
+            _publish_recovery_claim_in_store(
                 beads_dir,
                 _claim_request(owner=f"machine-{index}", proc_id=f"proc-{index}"),
                 refresh=lambda _path: None,
@@ -706,7 +706,7 @@ def test_machine_adapter_uses_writable_store(
         lambda _project: None,
     )
     monkeypatch.setattr(
-        "sase.bead.recovery.publish_recovery_claim_in_store",
+        "sase.bead.recovery._publish_recovery_claim_in_store",
         lambda *_args, **_kwargs: type(
             "Result",
             (),

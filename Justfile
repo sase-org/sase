@@ -571,8 +571,9 @@ _lint-patch-stitch-terminology: _setup
 # with QuestionCopyItem, and calls display_question_copy_items from the copying
 # mixin and the qa_markdown TUI flag, so those rows were dropped after landing.
 # sase-1vn.4.1.5 wired activation inspection and the stable recovery submission
-# path into epic_liveness. The parent epic land agent still owns triage of the
-# in-store submission seam and request builders without direct consumers.
+# path into epic_liveness; the sase-1vn.4.1 land agent deleted the test-only
+# in-store submission entry and privatized the in-file request builders, so no
+# recovery rows remain.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -581,12 +582,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1vn.4.1(submit_recovery_launch_in_store)" \
-        --epic-symbol "sase-1vn.4.1(recovery_claim_request)" \
-        --epic-symbol "sase-1vn.4.1(recovery_concurrency_keys)" \
-        --epic-symbol "sase-1vn.4.1(recovery_proc_id)" \
-        --epic-symbol "sase-1vn.4.1(recovery_proc_request)" \
-        --epic-symbol "sase-1vn.4.1(recovery_request_fingerprint)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -23,6 +23,9 @@ from sase.bead.recovery_submit import (
     OUTCOME_CONSUMED,
     OUTCOME_REPLAYED,
     OUTCOME_SUBMITTED,
+    REASON_PROC_LOOKUP_FAILED,
+    REASON_SUBMIT_CONFLICT,
+    REASON_UNSUPPORTED_CORE,
     RecoverySubmission,
     default_owner_machine,
     submit_recovery_launch,
@@ -38,6 +41,8 @@ from sase.core.recovery_facade import (
     inspect_recovery_store,
 )
 from sase.notification_gates.durability import file_lock
+from sase.procs.models import Proc
+from sase.procs.store import get_proc
 from sase.scripts._epic_liveness_state import (
     STATE_FILENAME,
     EpicLivenessCursor,
@@ -181,6 +186,19 @@ def _claim_for_candidate(
     return matches[0], None
 
 
+def _claimed_proc(proc_id: str) -> Proc | None:
+    """Return this host's proc row for a published claim, if one exists.
+
+    A lookup failure returns ``None`` so the submission path performs its own
+    guarded lookup and reports the failure.
+    """
+
+    try:
+        return get_proc(proc_id)
+    except Exception:  # noqa: BLE001 - the submission path reports lookup errors.
+        return None
+
+
 def _candidate_settled_at(report: ZombieReport, epic_id: str, close_at: float) -> float:
     terminal_at = getattr(report, "latest_owner_terminal_at", {}).get(epic_id)
     terminal_epoch = (
@@ -260,6 +278,17 @@ def _process_candidate(
                 f"{existing_claim.claim.owner_machine}; refusing transfer"
             )
             return False
+        claimed_proc = _claimed_proc(existing_claim.claim.proc_id)
+        if claimed_proc is not None:
+            # The token already reached the proc store, so it is consumed (or
+            # still in flight). Skip the publish round trip every tick; the
+            # submission path would return the same no-launch outcome.
+            counts.consumed += 1
+            counts.warnings.append(
+                f"{project}/{row.plan_id}: close token already has proc "
+                f"{claimed_proc.proc_id} ({claimed_proc.status})"
+            )
+            return False
 
     submission: RecoverySubmission = submit_recovery_launch(
         project,
@@ -281,7 +310,11 @@ def _process_candidate(
         detail = submission.diagnostic or submission.reason
         if any(
             marker in submission.reason
-            for marker in ("unsupported_core", "proc_lookup_failed", "submit_failed")
+            for marker in (
+                REASON_UNSUPPORTED_CORE,
+                REASON_PROC_LOOKUP_FAILED,
+                REASON_SUBMIT_CONFLICT,
+            )
         ):
             counts.failed += 1
             counts.warnings.append(f"{project}/{row.plan_id}: {detail}")
