@@ -40,24 +40,25 @@ The `sase axe` surface remains for the routine/job tree (`sase axe job`,
 
 ## Architecture
 
-The orchestrator spawns and monitors an independent process for each routine. The
-shipped routines separate these responsibilities:
+The orchestrator supervises one process per configured **routine**, a loop that runs a
+set of **jobs**. The default configuration groups jobs by responsibility:
 
-| Routine                                                                               | Responsibility                                                    |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`hooks`](scheduler-default-routines.md#hooks-5-second-interval)                      | Hook and workflow completion, mentors, and dead-process cleanup   |
-| [`waits`](scheduler-default-routines.md#waits-10-second-interval)                     | Bead claims, epic-launch completion, and update-skew recovery     |
-| [`agent_waits`](scheduler-default-routines.md#agentwaits-2-second-interval)           | Agent and bead dependency resolution through `wait_checks`        |
-| [`sidecar_sync`](scheduler-default-routines.md#sidecarsync-30-second-interval)        | Primary sidecar convergence and connection of registered projects |
-| [`publication`](scheduler-housekeeping.md#publication-15-second-interval)             | Queued agent and artifact-link publication                        |
-| [`checks`](scheduler-default-routines.md#checks-5-minute-interval)                    | Periodic triage, submission checks, reconciliation, and recovery  |
-| [`usage`](scheduler-default-routines.md#usage-60-second-interval)                     | Subscription-usage refresh                                        |
-| [`external_mirror`](scheduler-default-routines.md#external_mirror-15-minute-interval) | External issue and pull-request mirroring                         |
-| [`comments`](scheduler-default-routines.md#comments-1-minute-interval)                | Remote review-comment polling                                     |
-| [`housekeeping`](scheduler-housekeeping.md#housekeeping-1-hour-interval)              | Error digests, disk cleanup, and artifact retention               |
+| Routine                                                                               | Main responsibilities                                                                      |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [`hooks`](scheduler-default-routines.md#hooks-5-second-interval)                      | Hook and workflow completion, mentors, and dead-process cleanup                            |
+| [`waits`](scheduler-default-routines.md#waits-10-second-interval)                     | Bead claims, epic-launch completion and recovery, and agent recovery after code updates    |
+| [`agent_waits`](scheduler-default-routines.md#agentwaits-2-second-interval)           | Agent and bead dependency resolution through `wait_checks`                                 |
+| [`sidecar_sync`](scheduler-default-routines.md#sidecarsync-30-second-interval)        | Fetch and fast-forward eligible primary sidecar clones; connect enabled projects' sidecars |
+| [`publication`](scheduler-housekeeping.md#publication-15-second-interval)             | Queued agent and artifact-link publication                                                 |
+| [`checks`](scheduler-default-routines.md#checks-5-minute-interval)                    | Periodic triage, submission checks, reconciliation, and recovery                           |
+| [`usage`](scheduler-default-routines.md#usage-60-second-interval)                     | Subscription-usage refresh                                                                 |
+| [`external_mirror`](scheduler-default-routines.md#external_mirror-15-minute-interval) | External issue and pull-request mirroring                                                  |
+| [`comments`](scheduler-default-routines.md#comments-1-minute-interval)                | Remote review-comment polling                                                              |
+| [`housekeeping`](scheduler-housekeeping.md#housekeeping-1-hour-interval)              | Error digests, disk cleanup, and artifact retention                                        |
 
-Each linked routine entry lists its default interval and jobs. Job triggers and cadence
-can skip work on a routine tick; see [Scheduler jobs](scheduler-jobs.md).
+Each linked routine entry lists its default interval and jobs. A routine tick is an
+opportunity to run jobs: each job's trigger and cadence can cause it to skip that tick.
+See [Scheduler jobs](scheduler-jobs.md).
 
 ### Key Concepts
 

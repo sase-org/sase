@@ -146,39 +146,55 @@ agents (no `agent_name`) keep the prior format.
 ### User-question copy panel
 
 Inside the user-question response modal, `y` opens the copy panel for the current
-question. Agent-declared values appear under `SNIPPETS`; question text, the highlighted
-option, and the whole bundle's Q&A export appear under `QUESTION`. The preview shows
-up to six lines of the highlighted value, or three in a narrow panel, with a count of
-remaining lines. The clipboard receives the complete value even when its row or preview
-is shortened.
+question. A **snippet** is a value the agent explicitly supplies for copying; these
+values appear under `SNIPPETS`. `QUESTION` contains the current question text, the
+highlighted option, and a Q&A export of the **bundle** (all questions in this request).
+The export includes the current answer selections and global note, even before
+submission.
+
+The preview shows up to six lines of the highlighted value, or three in a compact
+layout, with a count of remaining lines. The clipboard receives the complete copy
+value even when its row or preview is shortened.
 
 The question pane shows these cues before the copy panel opens:
 
 | Cue | Meaning |
 | --- | --- |
-| Teal underline | An agent-declared snippet occurs in the question text |
+| Teal underline | An agent-declared snippet occurs verbatim in the question text |
 | Green underline | That snippet has been copied |
 | `also copyable · y then key` | Declared snippets absent from the question text, with their keys and full values |
 | `N copyable · y`, `k/N copied · y`, or `✓ N/N copied` | Progress through the declared snippets; malformed stored entries add an unavailable count |
 
-Copied rows gain a `✓`. Progress is kept per question bundle for the life of the TUI
-process. The panel initially selects the first uncopied declared snippet, or Q&A when
-none remain, so repeated `y` then `Enter` copies declared snippets in order. Copying
-changes neither the answers nor the question's submission state.
+Snippet and detected-value rows gain a `✓` after clipboard delivery succeeds. Progress
+is tracked by copied text across the bundle for the life of the TUI process; identical
+values in different questions share a checkmark. The panel initially selects the first
+uncopied declared snippet for the current question, or Q&A when none remain.
 
-The dim `FOUND IN TEXT` section offers up to five detected values from code spans,
-fenced code, scheme URLs, and valid SASE artifact refs. It excludes declared values and
-does not guess bare paths. Detected rows receive keys after the declared snippets and
-can be copied individually; they are excluded from the declared-snippet progress count,
-the copy-all action, and the `yy` export.
+Choosing a copy row closes the panel and returns to the question. To paste several
+snippets separately, use `y` then `Enter`, paste the value into its destination, and
+reopen the panel for the next snippet. Copying changes neither the answers nor the
+question's submission state. Copying question text, an option, or Q&A does not mark
+snippets as copied.
+
+The dim `FOUND IN TEXT` section offers up to five detected values from inline or fenced
+code, URLs containing `://`, and syntactically valid
+[SASE artifact references](../artifact-references.md). It omits duplicates and values
+already declared for this question, and does not detect bare paths outside code.
+Detected rows receive keys after the declared snippets and can be copied individually.
+They do not add to this question's snippet count or copy-all action, and are not appended
+to the Q&A export's **Copyable items** list; their original text remains in the exported
+question.
+
+These keys apply inside the copy panel. From the question form, `yy` means press `y`
+to open the panel, then `y` again to copy Q&A.
 
 | Key                                 | Copies                                                      |
 | ----------------------------------- | ----------------------------------------------------------- |
 | `1`–`9`, `0`, then `b`…`z`*         | one declared snippet or detected value, exactly              |
-| `a` (2 or more declared snippets)   | all declared snippets, joined with a newline                |
+| `a` (2 or more declared snippets)   | all declared snippets for this question, joined with a newline; internal line breaks are preserved |
 | `t`                                 | the question text                                           |
-| `o`                                 | the highlighted option (disabled on `Other…` or no options) |
-| `y`                                 | questions and answers Markdown, plus copyable items         |
+| `o`                                 | the highlighted option's label and description, whether selected or not (disabled on `Other…` or no options) |
+| `y`                                 | all questions and current answers as Markdown, including declared copyable items |
 | `Enter` / click                     | the highlighted row                                         |
 | `j`/`k`, `↑`/`↓`, `ctrl+n`/`ctrl+p` | move                                                        |
 | `q` / `Esc`                         | close; nothing is copied and the form is untouched          |

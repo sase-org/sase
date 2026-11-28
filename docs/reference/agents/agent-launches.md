@@ -86,21 +86,22 @@ the launched runner.
 
 ### Busy agent-index lookups
 
-Detached runners retry incomplete lookups that report a busy agent index or
-dismissed-bundle index. Each lookup has a 60-second retry budget, with delays starting
-at 0.25 seconds and doubling to a 5-second maximum. Complete answers return immediately;
-missing, corrupt, or incompatible indexes do not trigger this busy-index retry policy.
-Interactive CLI and TUI callers retain their bounded lookup behavior without the
-runner's extra retry budget.
+Detached runners use indexes to find agent records, including archived records for
+dismissed agents. They retry a lookup when the index is busy and the lookup cannot
+establish a complete answer. The retry budget is 60 seconds **per lookup**, with delays
+starting at 0.25 seconds and doubling to a 5-second maximum. Complete answers return
+without extra retries; missing, corrupt, or incompatible indexes do not trigger this
+busy-index retry policy. Interactive CLI and TUI callers retain their bounded lookup
+behavior without the runner's extra retry budget.
 
-The runner log reports the first busy attempt, progress at most every 10 seconds, and
-recovery or exhaustion. An exhausted lookup remains an error rather than being treated
-as an absent agent. The failure message distinguishes these cases:
+The runner log reports the first busy attempt, further progress at most every 10
+seconds, and when retrying stops. An incomplete lookup remains an error rather than
+being treated as an absent agent. Recovery depends on the reported result:
 
-| Result                                       | Recovery guidance                                                 |
-| -------------------------------------------- | ----------------------------------------------------------------- |
-| The index stayed busy                        | Retry the agent once the index is idle                            |
-| The lookup is unavailable for another reason | Inspect `sase agent index status` and follow its `repair_command` |
+| Result                                       | Recovery guidance                                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| The index stayed busy                        | Retry the agent once the index is idle                                                                 |
+| The lookup is unavailable for another reason | Inspect `sase agent index status --json`; if `repair_recommended` is true, follow its `repair_command` |
 
 These host lookup failures do not consume provider retries, switch models, or disable
 the provider. See [Provider retry and fallback](../providers/retry-and-fallback.md) for

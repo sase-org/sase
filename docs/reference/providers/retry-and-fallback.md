@@ -14,9 +14,10 @@ The LLM provider layer supports per-provider retry and fallback configuration. W
 agent encounters a retryable error, it can automatically wait and retry, then optionally
 fall back to an alternate model.
 
-Host finalizer, commit-publication, and typed agent-index lookup failures bypass
-provider retry and fallback, even when their error text matches a provider pattern such
-as `rate limit`. They also bypass provider-disable handling. Finalizers use their own
+Failures during host finalization (work performed after the provider turn), commit
+publication, and agent-index lookups reported as typed SASE errors bypass provider retry
+and fallback, even when their error text matches a provider pattern such as
+`rate limit`. These failures do not disable the provider. Finalizers use their own
 recovery path; busy index lookups use the runner's
 [bounded lookup retries](../agents/agent-launches.md#busy-agent-index-lookups).
 
