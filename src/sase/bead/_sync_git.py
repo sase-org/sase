@@ -402,6 +402,26 @@ def _commit_bead_state(
     return True
 
 
+def commit_recovery_records(
+    beads_dir: Path,
+    *,
+    message: str,
+    already_locked: bool = False,
+    mutation_origin: str = "machine",
+    operation_context: OperationContext | None = None,
+) -> bool:
+    """Commit recovery activation or claim files for post-lock publication."""
+    return _commit_bead_state(
+        beads_dir,
+        message=message,
+        auto_commit_type="beads",
+        op_prefix="bead.recovery",
+        already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
+    )
+
+
 def commit_failed_close_recovery(
     beads_dir: Path,
     run_id: str,

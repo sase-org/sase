@@ -570,6 +570,10 @@ _lint-patch-stitch-terminology: _setup
 # display API: the question panel annotates QuestionCopyDisplay, types snapshots
 # with QuestionCopyItem, and calls display_question_copy_items from the copying
 # mixin and the qa_markdown TUI flag, so those rows were dropped after landing.
+# sase-1vn.4.1.3 exported the recovery claim/activation publication adapter;
+# sase-1vn.4.1.4 consumes the published-claim permit, and sase-1vn.4.1.5 consumes
+# activation arming plus store inspection. Drop each row once that phase lands
+# its production consumer.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -578,6 +582,13 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-1vn.4.1.4(RecoveryPublicationResult)" \
+        --epic-symbol "sase-1vn.4.1.4(publish_recovery_claim)" \
+        --epic-symbol "sase-1vn.4.1.4(publish_recovery_claim_in_store)" \
+        --epic-symbol "sase-1vn.4.1.4(recovery_claim_key)" \
+        --epic-symbol "sase-1vn.4.1.5(inspect_recovery_store)" \
+        --epic-symbol "sase-1vn.4.1.5(publish_recovery_activation_in_store)" \
+        --epic-symbol "sase-1vn.4.1.5(RecoveryStoreInspect)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
