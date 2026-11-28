@@ -9,7 +9,11 @@ import pytest
 
 from sase.dev_update.command import run_dev_update_command
 from tests.ace.tui._session_reporter import session_reporter
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 
 def _init_repo(repo: Path) -> None:
@@ -54,6 +58,12 @@ def test_reporter_dev_command_runner_recovers_abandoned_ff_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.dev_update.command",
+        repo,
+        absent_owner_facts,
+    )
     reporter = session_reporter(proc_type="sase-update")
 
     result = reporter.dev_command_runner()(
@@ -67,6 +77,7 @@ def test_reporter_dev_command_runner_recovers_abandoned_ff_lock(
     output = reporter.proc.get_live_output()
     assert "Removed stale git index lock" in output
     assert "retrying" in output.lower()
+    assert observations
 
 
 def test_run_dev_update_command_capture_recovers_abandoned_ff_lock(
@@ -78,14 +89,21 @@ def test_run_dev_update_command_capture_recovers_abandoned_ff_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.dev_update.command",
+        repo,
+        absent_owner_facts,
+    )
 
     result = run_dev_update_command(
         ("git", "-C", str(repo), "merge", "--ff-only", target)
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.returncode == 0, result.stderr or result.stdout or str(observations)
     assert _head(repo) == target
     assert not lock.exists()
+    assert observations
 
 
 def test_run_dev_update_command_streaming_recovers_abandoned_ff_lock(
@@ -98,6 +116,12 @@ def test_run_dev_update_command_streaming_recovers_abandoned_ff_lock(
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
     lines: list[str] = []
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.dev_update.command",
+        repo,
+        absent_owner_facts,
+    )
 
     def on_output(stream: str, line: str) -> None:
         lines.append(f"{stream}:{line}")
@@ -111,3 +135,4 @@ def test_run_dev_update_command_streaming_recovers_abandoned_ff_lock(
     assert _head(repo) == target
     assert not lock.exists()
     assert any("Fast-forward" in line or "Updating" in line for line in lines)
+    assert observations

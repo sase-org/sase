@@ -9,6 +9,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 _INIT_MOD = "sase.workspace_provider.plugins.bare_git_init"
 
@@ -27,12 +32,22 @@ class TestInitBareGitProject:
         tracked.write_text("content\n", encoding="utf-8")
         lock_path = tmp_path / ".git" / "index.lock"
         lock_path.touch()
+        age_git_index_lock(lock_path)
         monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
+        observations = patch_git_lock_owner_probe(
+            monkeypatch,
+            "sase.workspace_provider.plugins.bare_git_init",
+            tmp_path,
+            absent_owner_facts,
+        )
 
         result = _run_git(["add", "tracked.txt"], cwd=tmp_path)
 
-        assert result.returncode == 0
+        assert result.returncode == 0, (
+            result.stderr or result.stdout or str(observations)
+        )
         assert not lock_path.exists()
+        assert observations
 
     @patch(f"{_INIT_MOD}.set_workspace_dir", return_value=True)
     @patch(f"{_INIT_MOD}.set_bare_repo_dir", return_value=True)

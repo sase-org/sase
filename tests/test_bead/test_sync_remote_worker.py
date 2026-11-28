@@ -13,6 +13,11 @@ import pytest
 
 from sase.bead._sync_worker_run import _ManagedSyncOutcome
 from sase.bead.sync_worker import run_managed_sync_worker
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
 
@@ -223,8 +228,15 @@ def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path, monkeyp
 
     lock_path = left / ".git" / "index.lock"
     lock_path.touch()
+    age_git_index_lock(lock_path)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
     monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.sdd._git_contention",
+        left,
+        absent_owner_facts,
+    )
 
     log_path = tmp_path / "managed-sync.log"
     outcome = run_managed_sync_worker(
@@ -233,9 +245,15 @@ def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path, monkeyp
         log_path=log_path,
     )
 
-    assert outcome.pushed is True
-    assert outcome.integrated is True
+    sync_log = (
+        log_path.read_text(encoding="utf-8")
+        if log_path.exists()
+        else "<missing sync log>"
+    )
+    assert outcome.pushed is True, sync_log
+    assert outcome.integrated is True, sync_log
     assert not lock_path.exists()
+    assert observations, sync_log
     assert not (left / ".git/rebase-merge").exists()
     assert not (left / ".git/rebase-apply").exists()
     assert (

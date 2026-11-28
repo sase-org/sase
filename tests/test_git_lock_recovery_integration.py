@@ -12,6 +12,7 @@ from sase.git_lock_retry import (
     git_index_lock_path,
     run_with_git_lock_retry,
 )
+from tests.git_lock_test_helpers import absent_owner_facts, age_git_index_lock
 
 
 def _init_git_repo(repo_path: Path) -> None:
@@ -118,8 +119,7 @@ def test_lock_recovery_abandoned_lock_removed(
 
     # Plant an old lock file
     lock_path.write_bytes(b"stale_lock")
-    old_time = time.time() - 60  # 60 seconds old
-    os.utime(lock_path, (old_time, old_time))
+    age_git_index_lock(lock_path, seconds=60)
 
     calls = 0
 
@@ -142,6 +142,7 @@ def test_lock_recovery_abandoned_lock_removed(
             attempt,
             cwd=temp_repo,
             delays=(0.001, 0.001),
+            owner_probe=absent_owner_facts,
         )
 
     assert result.returncode == 0, f"git add failed: {result.stderr}"
@@ -184,6 +185,7 @@ def test_lock_recovery_churned_lock_not_removed(
             attempt,
             cwd=temp_repo,
             delays=(0.001, 0.001),
+            owner_probe=absent_owner_facts,
         )
 
     # Should fail with original error (no deletion of churning lock)
@@ -263,8 +265,7 @@ def test_git_commit_workflow_with_lock_recovery(
         if plant_lock_on_next[0]:
             lock_path.write_bytes(b"locked")
             # Age it so it qualifies for removal
-            old_time = time.time() - 30
-            os.utime(lock_path, (old_time, old_time))
+            age_git_index_lock(lock_path, seconds=30)
             plant_lock_on_next[0] = False
 
         # Create a new file and commit it
@@ -296,6 +297,7 @@ def test_git_commit_workflow_with_lock_recovery(
             attempt,
             cwd=temp_repo,
             delays=(0.01, 0.01),
+            owner_probe=absent_owner_facts,
         )
 
     assert result.returncode == 0, f"commit failed: {result.stderr}"
@@ -333,8 +335,7 @@ def test_git_add_multiple_files_with_lock_recovery(
         if calls[0] == 1:
             # Plant stale lock on first attempt
             lock_path.write_bytes(b"stale")
-            old_time = time.time() - 20
-            os.utime(lock_path, (old_time, old_time))
+            age_git_index_lock(lock_path, seconds=20)
 
         # Add the files
         for f in files_to_add:
@@ -353,6 +354,7 @@ def test_git_add_multiple_files_with_lock_recovery(
         attempt,
         cwd=temp_repo,
         delays=(0.001,),
+        owner_probe=absent_owner_facts,
     )
 
     assert result.returncode == 0, f"git add failed: {result.stderr}"
@@ -412,8 +414,7 @@ def test_git_checkout_with_lock_recovery(
         if calls[0] == 1:
             # Plant old lock before checkout
             lock_path.write_bytes(b"locked")
-            old_time = time.time() - 25
-            os.utime(lock_path, (old_time, old_time))
+            age_git_index_lock(lock_path, seconds=25)
 
         return subprocess.run(
             ["git", "checkout", "feature"],
@@ -427,6 +428,7 @@ def test_git_checkout_with_lock_recovery(
         attempt,
         cwd=temp_repo,
         delays=(0.001,),
+        owner_probe=absent_owner_facts,
     )
 
     assert result.returncode == 0, f"git checkout failed: {result.stderr}"

@@ -10,7 +10,11 @@ import pytest
 
 from sase.ace.revert_agent import RevertRepo, execute_agent_revert, preview_agent_revert
 from sase.ace.revert_agent_git import run_git
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 from tests.ace._revert_agent_helpers import (
     _add_bare_origin,
     _commit,
@@ -92,12 +96,19 @@ def test_revert_git_runner_recovers_stale_index_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.ace.revert_agent_git",
+        repo,
+        absent_owner_facts,
+    )
 
     result = run_git(str(repo), ["add", "feature.txt"])
 
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr or result.stdout or str(observations)
     assert not lock.exists()
     assert _git(repo, "diff", "--cached", "--name-only").strip() == "feature.txt"
+    assert observations
 
 
 def test_execute_reverts_primary_and_linked_repos(tmp_path: Path) -> None:

@@ -18,7 +18,11 @@ from sase.llm_provider import commit_finalizer_git_status as finalizer_git_statu
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    age_git_index_lock,
+    patch_git_lock_owner_probe,
+)
 from tests.sdd_policy_helpers import set_sdd_policy
 
 _PLAN_WIP = """---
@@ -155,13 +159,20 @@ def test_auto_commit_git_runner_recovers_stale_index_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.llm_provider.commit_finalizer_git_status",
+        repo,
+        absent_owner_facts,
+    )
 
     result = finalizer_git_status.run_git(str(repo), ["add", "plan.md"])
 
     assert result is not None
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr or result.stdout or str(observations)
     assert not lock.exists()
     assert _run_git(repo, "diff", "--cached", "--name-only").strip() == "plan.md"
+    assert observations
 
 
 def test_additional_dirty_file_uses_provider_path(

@@ -14,7 +14,13 @@ from sase.core.changespec import (
 )
 from sase.core.paths import shorten_path
 from sase.core.shell import run_workspace_command, strip_hook_prefix
-from tests.git_lock_test_helpers import age_git_index_lock
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    active_owner_facts,
+    age_git_index_lock,
+    incomplete_owner_facts,
+    patch_git_lock_owner_probe,
+)
 
 
 def test_shorten_path_partial_home_match() -> None:
@@ -115,15 +121,93 @@ def test_run_workspace_git_command_recovers_stale_index_lock(
     lock.write_text("stale", encoding="utf-8")
     age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.core.shell",
+        tmp_path,
+        absent_owner_facts,
+    )
 
     success, error = run_workspace_command(
         ["git", "add", "feature.txt"],
         str(tmp_path),
     )
 
-    assert success is True
+    assert success is True, f"{error}\n{observations}"
     assert error is None
     assert not lock.exists()
+    assert observations
+    assert observations[-1]["facts"]["probe_status"] == "complete"
+
+
+@pytest.mark.parametrize("owner_kind", ["absent", "active", "incomplete"])
+def test_workspace_git_lock_owner_facts_control_stale_lock_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    owner_kind: str,
+) -> None:
+    from sase.git_lock_retry import git_index_lock_path
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_bytes(b"fixture-lock-content")
+    age_git_index_lock(lock)
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    # Initialize the cached policy before injecting the per-call probe. This
+    # ensures the caller seam does not depend on patching policy initialization.
+    assert git_index_lock_path(tmp_path) == lock
+    permission_denied_reason = "permission denied reading /proc/4242/fd"
+    probes = {
+        "absent": absent_owner_facts,
+        "active": active_owner_facts,
+        "incomplete": lambda **kwargs: incomplete_owner_facts(
+            **kwargs, reason=permission_denied_reason
+        ),
+    }
+    observations = patch_git_lock_owner_probe(
+        monkeypatch,
+        "sase.core.shell",
+        tmp_path,
+        probes[owner_kind],
+    )
+
+    success, error = run_workspace_command(["git", "add", "feature.txt"], str(tmp_path))
+
+    assert observations
+    assert observations[-1]["lock_path"] == lock
+    assert success is (owner_kind == "absent"), f"{error}\n{caplog.text}"
+    if owner_kind == "absent":
+        assert error is None
+        assert not lock.exists()
+        assert (
+            "feature.txt"
+            in subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+    else:
+        assert error is not None and "index.lock" in error
+        assert lock.read_bytes() == b"fixture-lock-content"
+        assert "Preserving git index lock" in caplog.text
+        assert (
+            subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            == ""
+        )
+        if owner_kind == "incomplete":
+            assert observations[-1]["facts"]["probe_reason"] == permission_denied_reason
 
 
 # Tests for changespec_name_to_branch
